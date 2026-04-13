@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BuiltCRM — Documents / File Management (Contractor + Subcontractor)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --surface-0:#eef0f3;--surface-1:#ffffff;--surface-2:#f3f4f6;--surface-3:#e2e5e9;--surface-4:#d1d5db;
+  --surface-hover:#f5f6f8;--surface-active:#e5e7eb;
+  --sidebar-bg:#ffffff;--sidebar-hover:#f5f6f8;--sidebar-active:#eef0f3;
+  --sidebar-active-text:#1a1714;--sidebar-section-text:#8b919a;--sidebar-item-text:#5a6170;--sidebar-border:#e8eaee;
+  --text-primary:#1a1714;--text-secondary:#6b655b;--text-tertiary:#9c958a;--text-inverse:#faf9f7;
+  --accent:#5b4fc7;--accent-hover:#4f44b3;--accent-soft:#eeedfb;--accent-text:#4a3fb0;--accent-muted:#c7c2ea;
+  --success:#2d8a5e;--success-soft:#edf7f1;--success-text:#1e6b46;
+  --warning:#c17a1a;--warning-soft:#fdf4e6;--warning-text:#96600f;
+  --danger:#c93b3b;--danger-soft:#fdeaea;--danger-text:#a52e2e;
+  --info:#3178b9;--info-soft:#e8f1fa;--info-text:#276299;
+  --font-display:'DM Sans',system-ui,sans-serif;--font-body:'Instrument Sans',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;
+  --shadow-sm:0 1px 3px rgba(26,23,20,.05);--shadow-md:0 4px 16px rgba(26,23,20,.06);
+  --shadow-lg:0 10px 32px rgba(26,23,20,.08);--shadow-ring:0 0 0 3px rgba(91,79,199,.15);
+  --sidebar-width:272px;--topbar-height:56px;
+  --ease-out:cubic-bezier(.16,1,.3,1);--duration-normal:200ms;--duration-fast:120ms;
+}
+.app.sub-theme{--accent:#3d6b8e;--accent-hover:#345d7c;--accent-soft:#e8f0f6;--accent-text:#2e5a78;--accent-muted:#b3cede;--shadow-ring:0 0 0 3px rgba(61,107,142,.15)}
+*,*::before,*::after{box-sizing:border-box;margin:0}
+body{font-family:var(--font-body);background:var(--surface-0);color:var(--text-primary);-webkit-font-smoothing:antialiased;line-height:1.5}
+button{cursor:pointer;font-family:inherit;border:none;background:none}input,select,textarea{font-family:inherit}
+
+/* SHELL */
+.app{display:grid;grid-template-columns:var(--sidebar-width) 1fr;min-height:100vh}
+.sidebar{background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:hidden}
+.brand{height:var(--topbar-height);display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--sidebar-border);flex-shrink:0}
+.brand-mark{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#1a1714,#3d3830);color:#faf9f7;display:grid;place-items:center;font-family:var(--font-display);font-size:12px;font-weight:700}
+.brand-info h1{font-family:var(--font-display);font-size:14px;font-weight:700}
+.brand-info p{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+.sidebar-nav{flex:1;overflow-y:auto;padding:8px 10px 20px}
+.nav-section{margin-bottom:4px}
+.nav-section-label{font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--sidebar-section-text);text-transform:uppercase;letter-spacing:.06em;padding:10px 10px 6px}
+.nav-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:var(--radius-md);font-size:13px;color:var(--sidebar-item-text);font-weight:500;transition:all var(--duration-normal) var(--ease-out);margin-bottom:2px;cursor:default}
+.nav-item:hover{background:var(--sidebar-hover);color:var(--sidebar-active-text)}
+.nav-item.active{background:var(--accent-soft);color:var(--accent-text);font-weight:650}
+.nav-badge{min-width:20px;height:20px;padding:0 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-display);flex-shrink:0}
+.nav-badge.warn{background:var(--warning-soft);color:var(--warning-text)}
+.nav-badge.danger{background:var(--danger-soft);color:var(--danger-text)}
+.sidebar-footer{border-top:1px solid var(--sidebar-border);padding:12px 16px;flex-shrink:0}
+.sidebar-user{display:flex;align-items:center;gap:10px;padding:6px}
+.user-avatar-sm{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-muted));color:white;display:grid;place-items:center;font-family:var(--font-display);font-size:11px;font-weight:700;flex-shrink:0}
+.user-name{font-size:13px;font-weight:580;color:var(--text-primary)}
+.user-role{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+
+.main{display:flex;flex-direction:column;min-width:0}
+.topbar{height:var(--topbar-height);display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid var(--surface-3);background:rgba(255,255,255,.88);backdrop-filter:blur(12px);flex-shrink:0;position:sticky;top:0;z-index:50}
+.breadcrumbs{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-tertiary)}
+.breadcrumbs .sep{color:var(--surface-4)}.breadcrumbs .current{color:var(--text-primary);font-weight:650}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;display:grid;place-items:center;font-family:var(--font-display);font-size:12px;font-weight:700}
+
+.content{padding:24px;flex:1}
+
+/* Portal switch */
+.portal-switch{display:flex;gap:4px;margin-bottom:20px;background:var(--surface-2);border-radius:var(--radius-lg);padding:4px;width:fit-content}
+.portal-tab{height:36px;padding:0 16px;border-radius:var(--radius-md);font-size:13px;font-weight:650;color:var(--text-secondary);display:inline-flex;align-items:center;gap:7px;transition:all var(--duration-normal) var(--ease-out);white-space:nowrap;flex-shrink:0}
+.portal-tab:hover{color:var(--text-primary)}
+.portal-tab.active{background:var(--surface-1);color:var(--text-primary);box-shadow:var(--shadow-sm)}
+.portal-dot{width:8px;height:8px;border-radius:50%}
+.portal-dot.purple{background:#5b4fc7}.portal-dot.steel{background:#3d6b8e}
+
+/* VIEWS */
+.view{display:none}.view.active{display:block}
+
+/* PAGE HEADER */
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:16px}
+.page-header h2{font-family:var(--font-display);font-size:24px;font-weight:750;letter-spacing:-.03em}
+.page-header-sub{font-size:13px;color:var(--text-secondary);margin-top:4px}
+.page-header-actions{display:flex;gap:8px;flex-shrink:0}
+.btn-primary{height:38px;padding:0 18px;border-radius:var(--radius-md);background:var(--accent);color:white;font-size:13px;font-weight:650;display:inline-flex;align-items:center;gap:7px;transition:all var(--duration-normal) var(--ease-out)}
+.btn-primary:hover{background:var(--accent-hover);box-shadow:var(--shadow-md)}
+.btn-primary svg{width:16px;height:16px}
+.btn-ghost{height:34px;padding:0 14px;border-radius:var(--radius-md);font-size:13px;font-weight:600;color:var(--text-secondary);border:1px solid var(--surface-3);display:inline-flex;align-items:center;gap:6px;transition:all var(--duration-fast)}
+.btn-ghost:hover{background:var(--surface-hover);border-color:var(--surface-4);color:var(--text-primary)}
+.btn-ghost svg{width:14px;height:14px}
+
+/* STATS ROW */
+.stats-row{display:flex;gap:12px;margin-bottom:16px}
+.stat-card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:14px 18px;flex:1;display:flex;align-items:center;gap:12px}
+.stat-icon{width:36px;height:36px;border-radius:var(--radius-md);display:grid;place-items:center}
+.stat-icon svg{width:18px;height:18px}
+.stat-icon.purple{background:var(--accent-soft);color:var(--accent-text)}
+.stat-icon.blue{background:var(--info-soft);color:var(--info-text)}
+.stat-icon.green{background:var(--success-soft);color:var(--success-text)}
+.stat-icon.amber{background:var(--warning-soft);color:var(--warning-text)}
+.stat-value{font-family:var(--font-display);font-size:20px;font-weight:750;letter-spacing:-.02em}
+.stat-label{font-size:11.5px;color:var(--text-tertiary);font-weight:560;margin-top:1px}
+
+/* DOC BROWSER LAYOUT */
+.doc-browser{display:grid;grid-template-columns:240px 1fr;gap:0;min-height:calc(100vh - 260px);background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);overflow:hidden}
+.doc-browser.with-detail{grid-template-columns:240px 1fr 360px}
+
+/* CATEGORY TREE */
+.cat-panel{border-right:1px solid var(--surface-3);display:flex;flex-direction:column;overflow:hidden}
+.cat-header{padding:14px 16px;border-bottom:1px solid var(--surface-3);flex-shrink:0}
+.cat-header-title{font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--text-primary);letter-spacing:-.01em}
+.cat-list{flex:1;overflow-y:auto;padding:8px}
+.cat-group-label{font-family:var(--font-display);font-size:10px;font-weight:700;color:var(--sidebar-section-text);text-transform:uppercase;letter-spacing:.06em;padding:10px 10px 4px}
+.cat-item{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:var(--radius-md);font-size:12.5px;font-weight:530;color:var(--sidebar-item-text);cursor:pointer;transition:all var(--duration-fast);margin-bottom:1px}
+.cat-item:hover{background:var(--sidebar-hover);color:var(--sidebar-active-text)}
+.cat-item.active{background:var(--accent-soft);color:var(--accent-text);font-weight:650}
+.cat-item-icon{width:18px;height:18px;margin-right:8px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
+.cat-item-icon svg{width:14px;height:14px}
+.cat-item-left{display:flex;align-items:center;min-width:0;flex:1}
+.cat-item-left span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cat-count{font-size:10px;font-weight:700;color:var(--text-tertiary);background:var(--surface-2);min-width:20px;height:18px;padding:0 6px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-display);flex-shrink:0}
+.cat-item.active .cat-count{background:rgba(91,79,199,.12);color:var(--accent-text)}
+
+/* FILE LIST AREA */
+.file-area{display:flex;flex-direction:column;overflow:hidden}
+.file-toolbar{padding:12px 16px;border-bottom:1px solid var(--surface-3);display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.file-search{width:220px;height:34px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-2);padding:0 12px 0 34px;font-size:13px;color:var(--text-primary);outline:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239c958a' stroke-width='2.4'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:10px center}
+.file-search:focus{border-color:var(--accent);box-shadow:var(--shadow-ring)}
+.toolbar-sep{width:1px;height:20px;background:var(--surface-3);margin:0 4px}
+.view-toggle{display:flex;gap:0;border:1px solid var(--surface-3);border-radius:var(--radius-md);overflow:hidden}
+.view-toggle-btn{width:32px;height:30px;display:grid;place-items:center;background:var(--surface-2);color:var(--text-tertiary);transition:all var(--duration-fast)}
+.view-toggle-btn:hover{color:var(--text-secondary)}
+.view-toggle-btn.active{background:var(--surface-1);color:var(--text-primary)}
+.view-toggle-btn svg{width:14px;height:14px}
+.sort-btn{height:30px;padding:0 10px;border-radius:var(--radius-md);font-size:11.5px;font-weight:600;color:var(--text-tertiary);display:inline-flex;align-items:center;gap:4px;transition:all var(--duration-fast)}
+.sort-btn:hover{color:var(--text-secondary);background:var(--surface-hover)}
+.sort-btn svg{width:12px;height:12px}
+.toolbar-right{margin-left:auto;display:flex;align-items:center;gap:6px}
+.bulk-actions{display:flex;align-items:center;gap:4px}
+.bulk-btn{height:28px;padding:0 10px;border-radius:var(--radius-sm);font-size:11.5px;font-weight:600;display:inline-flex;align-items:center;gap:4px;transition:all var(--duration-fast)}
+.bulk-btn svg{width:12px;height:12px}
+.bulk-btn.download{color:var(--info-text);background:var(--info-soft)}
+.bulk-btn.download:hover{background:#d4e6f5}
+.bulk-btn.share{color:var(--accent-text);background:var(--accent-soft)}
+.bulk-btn.share:hover{background:#dddaf7}
+.bulk-btn.delete{color:var(--danger-text);background:var(--danger-soft)}
+.bulk-btn.delete:hover{background:#f5d0d0}
+
+/* FILE TABLE */
+.file-scroll{flex:1;overflow-y:auto}
+.file-table{width:100%;border-collapse:collapse}
+.file-table th{position:sticky;top:0;background:var(--surface-2);font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;padding:8px 12px;text-align:left;border-bottom:1px solid var(--surface-3);white-space:nowrap;z-index:2}
+.file-table th:first-child{padding-left:16px}
+.file-table td{padding:10px 12px;border-bottom:1px solid var(--surface-3);font-size:13px;vertical-align:middle}
+.file-table td:first-child{padding-left:16px}
+.file-table tr{transition:background var(--duration-fast);cursor:pointer}
+.file-table tbody tr:hover{background:var(--surface-hover)}
+.file-table tbody tr.selected{background:var(--accent-soft)}
+
+.file-name-cell{display:flex;align-items:center;gap:10px;min-width:0}
+.file-check{width:16px;height:16px;border-radius:4px;border:2px solid var(--surface-4);flex-shrink:0;display:grid;place-items:center;transition:all var(--duration-fast);cursor:pointer}
+.file-check.checked{background:var(--accent);border-color:var(--accent)}
+.file-check.checked::after{content:'';width:8px;height:5px;border-left:2px solid white;border-bottom:2px solid white;transform:rotate(-45deg) translateY(-1px)}
+.file-icon{width:34px;height:34px;border-radius:var(--radius-md);display:grid;place-items:center;flex-shrink:0}
+.file-icon svg{width:16px;height:16px}
+.file-icon.pdf{background:#fdeaea;color:#c93b3b}
+.file-icon.dwg{background:#e8f1fa;color:#3178b9}
+.file-icon.img{background:#edf7f1;color:#2d8a5e}
+.file-icon.doc{background:#eeedfb;color:#5b4fc7}
+.file-icon.xls{background:#edf7f1;color:#1e6b46}
+.file-icon.zip{background:var(--warning-soft);color:var(--warning-text)}
+.file-icon.generic{background:var(--surface-2);color:var(--text-tertiary)}
+.file-name-text{min-width:0}
+.file-title{font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.file-ext{font-size:11px;color:var(--text-tertiary);font-family:var(--font-mono);margin-top:1px}
+
+.vis-pill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:650;padding:3px 8px;border-radius:999px;white-space:nowrap;flex-shrink:0}
+.vis-pill.project-wide{background:var(--accent-soft);color:var(--accent-text)}
+.vis-pill.client-visible{background:var(--success-soft);color:var(--success-text)}
+.vis-pill.internal-only{background:var(--surface-2);color:var(--text-tertiary)}
+.vis-pill.sub-scoped{background:var(--info-soft);color:var(--info-text)}
+.vis-pill svg{width:10px;height:10px}
+
+.linked-pill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:620;padding:3px 8px;border-radius:999px;white-space:nowrap;cursor:pointer;transition:background var(--duration-fast)}
+.linked-pill.rfi{background:var(--info-soft);color:var(--info-text)}
+.linked-pill.rfi:hover{background:#d4e6f5}
+.linked-pill.co{background:var(--warning-soft);color:var(--warning-text)}
+.linked-pill.co:hover{background:#f5e5c9}
+.linked-pill.billing{background:var(--success-soft);color:var(--success-text)}
+.linked-pill.billing:hover{background:#c9ebd8}
+.linked-pill.compliance{background:var(--danger-soft);color:var(--danger-text)}
+.linked-pill.compliance:hover{background:#f5d0d0}
+.linked-pill.approval{background:var(--accent-soft);color:var(--accent-text)}
+.linked-pill.approval:hover{background:#dddaf7}
+.linked-pill svg{width:10px;height:10px}
+
+.status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.status-dot.active{background:var(--success)}
+.status-dot.pending{background:var(--warning)}
+.status-dot.superseded{background:var(--surface-4)}
+.status-dot.archived{background:var(--text-tertiary)}
+.file-status{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:560}
+
+.file-date{font-size:12px;color:var(--text-secondary);white-space:nowrap}
+.file-size{font-size:11.5px;color:var(--text-tertiary);font-family:var(--font-mono);white-space:nowrap}
+.file-uploader{font-size:12px;color:var(--text-secondary);white-space:nowrap}
+
+/* DETAIL PANEL */
+.detail-panel{border-left:1px solid var(--surface-3);display:flex;flex-direction:column;overflow:hidden;background:var(--surface-1)}
+.detail-header{padding:18px 20px 14px;border-bottom:1px solid var(--surface-3);flex-shrink:0}
+.detail-close{width:28px;height:28px;border-radius:var(--radius-sm);display:grid;place-items:center;color:var(--text-tertiary);transition:all var(--duration-fast);float:right}
+.detail-close:hover{background:var(--surface-hover);color:var(--text-primary)}
+.detail-close svg{width:16px;height:16px}
+.detail-file-icon{width:48px;height:48px;border-radius:var(--radius-lg);display:grid;place-items:center;margin-bottom:12px}
+.detail-file-icon svg{width:22px;height:22px}
+.detail-title{font-family:var(--font-display);font-size:16px;font-weight:720;letter-spacing:-.02em;color:var(--text-primary);margin-bottom:4px}
+.detail-ext{font-size:12px;color:var(--text-tertiary);font-family:var(--font-mono)}
+.detail-actions{display:flex;gap:6px;margin-top:14px}
+.detail-scroll{flex:1;overflow-y:auto;padding:16px 20px}
+.detail-section{margin-bottom:20px}
+.detail-section-title{font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.detail-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:12px}
+.detail-label{font-size:12px;color:var(--text-tertiary);font-weight:560;flex-shrink:0;min-width:80px}
+.detail-value{font-size:12.5px;color:var(--text-primary);font-weight:530;text-align:right;word-break:break-word}
+
+/* VERSION HISTORY */
+.version-list{display:flex;flex-direction:column;gap:0}
+.version-item{display:flex;gap:10px;padding:8px 0;position:relative}
+.version-item:not(:last-child)::after{content:'';position:absolute;left:13px;top:34px;bottom:-2px;width:1.5px;background:var(--surface-3)}
+.version-dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--surface-3);background:var(--surface-1);display:grid;place-items:center;flex-shrink:0;z-index:1}
+.version-dot svg{width:12px;height:12px;color:var(--text-tertiary)}
+.version-item.current .version-dot{border-color:var(--accent);background:var(--accent-soft)}
+.version-item.current .version-dot svg{color:var(--accent-text)}
+.version-info{flex:1;min-width:0}
+.version-label{font-size:12px;font-weight:640;color:var(--text-primary)}
+.version-item.current .version-label{color:var(--accent-text)}
+.version-meta{font-size:11px;color:var(--text-tertiary);margin-top:2px}
+.version-size{font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary);margin-top:1px}
+
+/* LINKED OBJECTS in detail */
+.linked-obj{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius-md);border:1px solid var(--surface-3);margin-bottom:6px;cursor:pointer;transition:all var(--duration-fast)}
+.linked-obj:hover{background:var(--surface-hover);border-color:var(--surface-4)}
+.linked-obj-icon{width:28px;height:28px;border-radius:var(--radius-sm);display:grid;place-items:center;flex-shrink:0}
+.linked-obj-icon svg{width:13px;height:13px}
+.linked-obj-icon.rfi{background:var(--info-soft);color:var(--info-text)}
+.linked-obj-icon.co{background:var(--warning-soft);color:var(--warning-text)}
+.linked-obj-icon.billing{background:var(--success-soft);color:var(--success-text)}
+.linked-obj-icon.compliance{background:var(--danger-soft);color:var(--danger-text)}
+.linked-obj-text{font-size:12px;font-weight:580;color:var(--text-primary);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.linked-obj-role{font-size:10px;color:var(--text-tertiary);font-weight:600}
+
+/* UPLOAD PANEL */
+.upload-panel{display:none;background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);padding:24px;margin-bottom:16px;box-shadow:var(--shadow-md)}
+.upload-panel h3{font-family:var(--font-display);font-size:17px;font-weight:720;letter-spacing:-.02em;margin-bottom:16px}
+.upload-dropzone{border:2px dashed var(--surface-4);border-radius:var(--radius-lg);padding:32px;text-align:center;transition:all var(--duration-normal);margin-bottom:16px}
+.upload-dropzone:hover{border-color:var(--accent);background:var(--accent-soft)}
+.upload-dropzone svg{width:36px;height:36px;color:var(--text-tertiary);margin-bottom:8px}
+.upload-dropzone p{font-size:13.5px;font-weight:600;color:var(--text-primary);margin-bottom:4px}
+.upload-dropzone span{font-size:12px;color:var(--text-tertiary)}
+.upload-dropzone .browse-link{color:var(--accent-text);font-weight:650;cursor:pointer;text-decoration:underline}
+.form-row{margin-bottom:14px}
+.form-label{font-size:12px;font-weight:640;color:var(--text-secondary);margin-bottom:5px;display:block}
+.form-input,.form-select{width:100%;height:38px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-2);padding:0 12px;font-size:13px;color:var(--text-primary);outline:none}
+.form-input:focus,.form-select:focus{border-color:var(--accent);box-shadow:var(--shadow-ring);background:var(--surface-1)}
+.form-select{cursor:pointer;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239c958a' stroke-width='2.4'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.form-row-half{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.btn-cancel{height:38px;padding:0 18px;border-radius:var(--radius-md);border:1px solid var(--surface-3);font-size:13px;font-weight:600;color:var(--text-secondary)}
+.btn-cancel:hover{background:var(--surface-hover)}
+
+/* EMPTY STATE */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 40px;color:var(--text-tertiary)}
+.empty-state svg{width:48px;height:48px;color:var(--surface-4);margin-bottom:12px}
+.empty-state p{font-size:14px;font-weight:600;color:var(--text-secondary);margin-bottom:4px}
+.empty-state span{font-size:12.5px}
+
+/* FILTER PILLS */
+.filter-bar{display:flex;gap:6px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.filter-pill{height:30px;padding:0 12px;border-radius:999px;font-size:12px;font-weight:600;color:var(--text-secondary);border:1px solid var(--surface-3);display:inline-flex;align-items:center;gap:5px;transition:all var(--duration-fast);white-space:nowrap;flex-shrink:0}
+.filter-pill:hover{border-color:var(--surface-4);color:var(--text-primary)}
+.filter-pill.active{background:var(--accent-soft);border-color:var(--accent-muted);color:var(--accent-text);font-weight:650}
+.filter-pill svg{width:12px;height:12px}
+.filter-pill .count{font-size:10px;font-weight:700;font-family:var(--font-display)}
+
+/* Animations */
+@keyframes fadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.content > *{animation:fadeInUp .3s var(--ease-out) both}
+.content > *:nth-child(1){animation-delay:0ms}
+.content > *:nth-child(2){animation-delay:50ms}
+.content > *:nth-child(3){animation-delay:100ms}
+.content > *:nth-child(4){animation-delay:150ms}
+.content > *:nth-child(5){animation-delay:200ms}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--surface-4);border-radius:10px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-tertiary)}
+</style>
+</head>
+<body>
+
+<div class="app" id="appShell">
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-mark">B</div>
+    <div class="brand-info">
+      <h1>BuiltCRM</h1>
+      <p id="portalLabel">Contractor Portal</p>
+    </div>
+  </div>
+  <nav class="sidebar-nav" id="sidebarNav"></nav>
+  <div class="sidebar-footer">
+    <div class="sidebar-user">
+      <div class="user-avatar-sm" id="footerAvatar">DC</div>
+      <div><div class="user-name" id="footerName">Dan Carter</div><div class="user-role" id="footerRole">Project Manager</div></div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <header class="topbar">
+    <div class="breadcrumbs">
+      <span id="bcPortal">Contractor Portal</span>
+      <span class="sep">›</span>
+      <span>Riverside Tower Fit-Out</span>
+      <span class="sep">›</span>
+      <span class="current" id="bcPage">Documents</span>
+    </div>
+    <div class="topbar-actions">
+      <div class="avatar" id="userAvatar">DC</div>
+    </div>
+  </header>
+
+  <div class="content">
+    <!-- Portal switcher -->
+    <div class="portal-switch">
+      <button class="portal-tab active" onclick="switchPortal('contractor')"><span class="portal-dot purple"></span>Contractor</button>
+      <button class="portal-tab" onclick="switchPortal('sub')"><span class="portal-dot steel"></span>Subcontractor</button>
+    </div>
+
+    <!-- ===== CONTRACTOR VIEW ===== -->
+    <div class="view active" id="view-contractor">
+      <div class="page-header">
+        <div>
+          <h2>Documents</h2>
+          <div class="page-header-sub">Riverside Tower Fit-Out · 47 documents · 2.4 GB</div>
+        </div>
+        <div class="page-header-actions">
+          <button class="btn-ghost" onclick="toggleUpload('contractor')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Upload Files
+          </button>
+          <button class="btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+            New Folder
+          </button>
+        </div>
+      </div>
+
+      <!-- Upload panel -->
+      <div class="upload-panel" id="uploadPanel-contractor">
+        <h3>Upload Documents</h3>
+        <div class="upload-dropzone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <p>Drag files here to upload</p>
+          <span>or <span class="browse-link">browse your computer</span> · Max 50 MB per file</span>
+        </div>
+        <div class="form-row-half">
+          <div class="form-row">
+            <label class="form-label">Document Type</label>
+            <select class="form-select">
+              <option>Select type…</option>
+              <option>Drawings / Plans</option>
+              <option>Specifications</option>
+              <option>Contracts</option>
+              <option>Submittals</option>
+              <option>Insurance / Compliance</option>
+              <option>Permits</option>
+              <option>Meeting Minutes</option>
+              <option>Safety Plans</option>
+              <option>Closeout Documents</option>
+              <option>Photos</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="form-label">Visibility</label>
+            <select class="form-select">
+              <option>Project-Wide (All Members)</option>
+              <option>Internal Only (Contractor Team)</option>
+              <option>Client-Visible</option>
+              <option>Subcontractor-Scoped</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Link to Object (Optional)</label>
+          <select class="form-select">
+            <option>None</option>
+            <option>RFI-007 — Mechanical Shaft Routing</option>
+            <option>CO-003 — Floor 12 Layout Revision</option>
+            <option>Draw #4 — April 2026</option>
+            <option>Approval — Lobby Finish Material</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" onclick="toggleUpload('contractor')">Cancel</button>
+          <button class="btn-primary">Upload Files</button>
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-icon purple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div>
+            <div class="stat-value">47</div>
+            <div class="stat-label">Total Documents</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <div>
+            <div class="stat-value">6</div>
+            <div class="stat-label">Uploaded This Week</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </div>
+          <div>
+            <div class="stat-value">12</div>
+            <div class="stat-label">Client-Visible</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon amber">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M3.6 15.4A8.97 8.97 0 0 1 3 12C3 7.03 7.03 3 12 3s9 4.03 9 9a8.97 8.97 0 0 1-.6 3.4"/><path d="m2 16 2 2 2-2"/><path d="m18 16 2 2 2-2"/></svg>
+          </div>
+          <div>
+            <div class="stat-value">3</div>
+            <div class="stat-label">Pending Review</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Document browser -->
+      <div class="doc-browser with-detail" id="docBrowser-contractor">
+        <!-- Category tree -->
+        <div class="cat-panel">
+          <div class="cat-header">
+            <div class="cat-header-title">Categories</div>
+          </div>
+          <div class="cat-list">
+            <div class="cat-item active" onclick="selectCat(this)">
+              <div class="cat-item-left">
+                <div class="cat-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
+                <span>All Documents</span>
+              </div>
+              <span class="cat-count">47</span>
+            </div>
+
+            <div class="cat-group-label">Construction</div>
+            <div class="cat-item" onclick="selectCat(this)">
+              <div class="cat-item-left">
+                <div class="cat-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg></div>
+                <span>Drawings / Plans</span>
+              </div>
+              <span class="cat-count">14</span>
+            </div>
+            <div class="cat-item" onclick="selectCat(this)">
+              <div class="cat-item-left">
+                <div class="cat-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><path d="M10 12h4"/><path d="M10 16h4"/></svg></div>
+                <span>Specifications</span>
+              </div>
+              <span class="cat-count">8</span>
+            </div>
+            <div class="cat-item" onclick="selectCat(this)">
+              <div class="cat-item-left">
+                <div class="cat-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15l2 2 4-4"/></svg></div>
+                <span>Submittals</span>
+              </div>
+              <span class="cat-count">6</span>
+            </div>
+            <div class="cat-item" onclick="selectCat(this)">
+              <div class="cat-item-left">
+                <div class="cat-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+                <span>Permits</span>
+              </div>
+              <span class="cat-count">3</span>
+            </div>
+
+            <div class="cat-group-label">Legal & Finance</div>
+            <div class="cat-item" onclick="selectCat(this)">
+              <div class="cat-item-left">
+                <div class="cat-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+                <span>Contracts</span>
+              </div>
+              <span class="cat-count">4</span>
+            </div>
+            <div class="cat-item" onclick="selectCat(this)">
+              <div class="cat-item-left">
+                <div class="cat-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 12h6"/><path d="M12 9v6"/><circle cx="12" cy="12" r="10"/></svg></div>
+                <span>Insurance / Compliance</span>
+              </div>
+              <span class="cat-count">5</span>
+            </div>
+
+            <div class="cat-group-label">Project</div>
+            <div class="cat-item" onclick="selectCat(this)">
+              <div class="cat-item-left">
+                <div class="cat-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></div>
+                <span>Meeting Minutes</span>
+              </div>
+              <span class="cat-count">3</span>
+            </div>
+            <div class="cat-item" onclick="selectCat(this)">
+              <div class="cat-item-left">
+                <div class="cat-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg></div>
+                <span>Safety Plans</span>
+              </div>
+              <span class="cat-count">2</span>
+            </div>
+            <div class="cat-item" onclick="selectCat(this)">
+              <div class="cat-item-left">
+                <div class="cat-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></div>
+                <span>Closeout</span>
+              </div>
+              <span class="cat-count">2</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- File list -->
+        <div class="file-area">
+          <div class="file-toolbar">
+            <input type="text" class="file-search" placeholder="Search documents…" />
+            <div class="toolbar-sep"></div>
+            <div class="view-toggle">
+              <button class="view-toggle-btn active" title="List view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+              <button class="view-toggle-btn" title="Grid view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></button>
+            </div>
+            <button class="sort-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/></svg>
+              Date Added
+            </button>
+            <div class="toolbar-right">
+              <div class="bulk-actions">
+                <button class="bulk-btn download">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Download
+                </button>
+                <button class="bulk-btn share">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                  Share
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="file-scroll">
+            <table class="file-table">
+              <thead>
+                <tr>
+                  <th style="width:40%">Name</th>
+                  <th>Visibility</th>
+                  <th>Linked To</th>
+                  <th>Status</th>
+                  <th>Size</th>
+                  <th>Uploaded</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="selected" onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check checked"></div>
+                      <div class="file-icon dwg">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">A-201 Floor Plan Level 12 — Rev C</div>
+                        <div class="file-ext">.dwg · v3</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="vis-pill project-wide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Project-Wide</span></td>
+                  <td><span class="linked-pill co"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> CO-003</span></td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">4.2 MB</span></td>
+                  <td><span class="file-date">Apr 10, 2026</span></td>
+                </tr>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon pdf">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">MEP Coordination Meeting — Apr 8</div>
+                        <div class="file-ext">.pdf</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="vis-pill internal-only"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Internal</span></td>
+                  <td>—</td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">1.1 MB</span></td>
+                  <td><span class="file-date">Apr 8, 2026</span></td>
+                </tr>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon pdf">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">Meridian MEP — General Liability COI</div>
+                        <div class="file-ext">.pdf</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="vis-pill sub-scoped"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> Sub-Scoped</span></td>
+                  <td><span class="linked-pill compliance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Compliance</span></td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">340 KB</span></td>
+                  <td><span class="file-date">Apr 7, 2026</span></td>
+                </tr>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon doc">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><path d="M10 12h4"/><path d="M10 16h4"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">Structural Spec — Section 05 12 00 Steel</div>
+                        <div class="file-ext">.pdf · v2</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="vis-pill project-wide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Project-Wide</span></td>
+                  <td>—</td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">2.8 MB</span></td>
+                  <td><span class="file-date">Apr 5, 2026</span></td>
+                </tr>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon xls">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">Schedule of Values — Rev 4</div>
+                        <div class="file-ext">.xlsx · v4</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="vis-pill client-visible"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> Client-Visible</span></td>
+                  <td><span class="linked-pill billing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Draw #4</span></td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">156 KB</span></td>
+                  <td><span class="file-date">Apr 4, 2026</span></td>
+                </tr>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon img">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">Progress Photo — Level 8 Framing</div>
+                        <div class="file-ext">.jpg</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="vis-pill client-visible"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> Client-Visible</span></td>
+                  <td>—</td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">3.4 MB</span></td>
+                  <td><span class="file-date">Apr 3, 2026</span></td>
+                </tr>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon pdf">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">RFI-007 Response — Shaft Routing Detail</div>
+                        <div class="file-ext">.pdf</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="vis-pill project-wide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Project-Wide</span></td>
+                  <td><span class="linked-pill rfi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> RFI-007</span></td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">890 KB</span></td>
+                  <td><span class="file-date">Apr 2, 2026</span></td>
+                </tr>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon dwg">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">A-201 Floor Plan Level 12 — Rev B</div>
+                        <div class="file-ext">.dwg · v2 · superseded</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="vis-pill project-wide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Project-Wide</span></td>
+                  <td><span class="linked-pill co"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> CO-003</span></td>
+                  <td><div class="file-status"><span class="status-dot superseded"></span> Superseded</div></td>
+                  <td><span class="file-size">4.0 MB</span></td>
+                  <td><span class="file-date">Mar 22, 2026</span></td>
+                </tr>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon pdf">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">Building Permit — Riverside Tower</div>
+                        <div class="file-ext">.pdf</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="vis-pill client-visible"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> Client-Visible</span></td>
+                  <td>—</td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">2.1 MB</span></td>
+                  <td><span class="file-date">Mar 15, 2026</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Detail panel -->
+        <div class="detail-panel" id="detailPanel-contractor">
+          <div class="detail-header">
+            <button class="detail-close" onclick="closeDetail('contractor')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div class="detail-file-icon file-icon dwg" style="width:48px;height:48px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="width:22px;height:22px"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+            </div>
+            <div class="detail-title">A-201 Floor Plan Level 12 — Rev C</div>
+            <div class="detail-ext">.dwg · 4.2 MB</div>
+            <div class="detail-actions">
+              <button class="btn-ghost" style="height:30px;font-size:12px;padding:0 10px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="width:13px;height:13px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download
+              </button>
+              <button class="btn-ghost" style="height:30px;font-size:12px;padding:0 10px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="width:13px;height:13px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                Share
+              </button>
+              <button class="btn-ghost" style="height:30px;font-size:12px;padding:0 10px;color:var(--accent-text)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="width:13px;height:13px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                New Version
+              </button>
+            </div>
+          </div>
+          <div class="detail-scroll">
+            <!-- Properties -->
+            <div class="detail-section">
+              <div class="detail-section-title">Properties</div>
+              <div class="detail-row">
+                <span class="detail-label">Category</span>
+                <span class="detail-value">Drawings / Plans</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Visibility</span>
+                <span class="detail-value"><span class="vis-pill project-wide" style="font-size:10px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="width:9px;height:9px"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/></svg> Project-Wide</span></span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Status</span>
+                <span class="detail-value"><div class="file-status" style="justify-content:flex-end"><span class="status-dot active"></span> Active</div></span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Uploaded By</span>
+                <span class="detail-value">Dan Carter</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Date Added</span>
+                <span class="detail-value">Apr 10, 2026 · 2:14 PM</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Storage Key</span>
+                <span class="detail-value" style="font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary)">proj_riv/drawings/a201-l12-c.dwg</span>
+              </div>
+            </div>
+
+            <!-- Linked Objects -->
+            <div class="detail-section">
+              <div class="detail-section-title">Linked Objects</div>
+              <div class="linked-obj">
+                <div class="linked-obj-icon co">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><path d="M14 2v6h6"/></svg>
+                </div>
+                <div style="flex:1;min-width:0">
+                  <div class="linked-obj-text">CO-003 — Floor 12 Layout Revision</div>
+                  <div class="linked-obj-role">Supporting Document</div>
+                </div>
+              </div>
+              <div class="linked-obj">
+                <div class="linked-obj-icon rfi">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+                </div>
+                <div style="flex:1;min-width:0">
+                  <div class="linked-obj-text">RFI-005 — Column Grid Clarification</div>
+                  <div class="linked-obj-role">Reference Attachment</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Version History -->
+            <div class="detail-section">
+              <div class="detail-section-title">Version History</div>
+              <div class="version-list">
+                <div class="version-item current">
+                  <div class="version-dot">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="version-info">
+                    <div class="version-label">Version 3 (Current)</div>
+                    <div class="version-meta">Dan Carter · Apr 10, 2026</div>
+                    <div class="version-size">4.2 MB</div>
+                  </div>
+                </div>
+                <div class="version-item">
+                  <div class="version-dot">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="1"/></svg>
+                  </div>
+                  <div class="version-info">
+                    <div class="version-label">Version 2 (Superseded)</div>
+                    <div class="version-meta">Dan Carter · Mar 22, 2026</div>
+                    <div class="version-size">4.0 MB</div>
+                  </div>
+                </div>
+                <div class="version-item">
+                  <div class="version-dot">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="1"/></svg>
+                  </div>
+                  <div class="version-info">
+                    <div class="version-label">Version 1 (Superseded)</div>
+                    <div class="version-meta">Sarah Lin · Feb 14, 2026</div>
+                    <div class="version-size">3.8 MB</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SUBCONTRACTOR VIEW ===== -->
+    <div class="view" id="view-sub">
+      <div class="page-header">
+        <div>
+          <h2>Documents</h2>
+          <div class="page-header-sub">Riverside Tower Fit-Out · 18 documents available to you</div>
+        </div>
+        <div class="page-header-actions">
+          <button class="btn-ghost" onclick="toggleUpload('sub')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Upload Document
+          </button>
+        </div>
+      </div>
+
+      <!-- Upload panel -->
+      <div class="upload-panel" id="uploadPanel-sub">
+        <h3>Upload Document</h3>
+        <div class="upload-dropzone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <p>Drag files here to upload</p>
+          <span>or <span class="browse-link">browse your computer</span> · Max 50 MB per file</span>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Document Type</label>
+          <select class="form-select">
+            <option>Select type…</option>
+            <option>Submittals</option>
+            <option>Insurance / Compliance</option>
+            <option>Shop Drawings</option>
+            <option>Daily Reports</option>
+            <option>Safety Documentation</option>
+            <option>Closeout Documents</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Link to Request (Optional)</label>
+          <select class="form-select">
+            <option>None</option>
+            <option>Upload Request — General Liability COI (Renewal)</option>
+            <option>Upload Request — Workers Comp Certificate</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" onclick="toggleUpload('sub')">Cancel</button>
+          <button class="btn-primary">Upload Document</button>
+        </div>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <button class="filter-pill active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          All <span class="count">18</span>
+        </button>
+        <button class="filter-pill">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+          Drawings <span class="count">7</span>
+        </button>
+        <button class="filter-pill">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><path d="M10 12h4"/><path d="M10 16h4"/></svg>
+          Specs <span class="count">4</span>
+        </button>
+        <button class="filter-pill">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
+          Compliance <span class="count">3</span>
+        </button>
+        <button class="filter-pill">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          My Uploads <span class="count">4</span>
+        </button>
+      </div>
+
+      <!-- Doc browser for sub — simpler, no detail panel by default -->
+      <div class="doc-browser" id="docBrowser-sub" style="grid-template-columns:1fr;min-height:calc(100vh - 240px)">
+        <div class="file-area">
+          <div class="file-toolbar">
+            <input type="text" class="file-search" placeholder="Search documents…" />
+            <div class="toolbar-sep"></div>
+            <button class="sort-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/></svg>
+              Date Added
+            </button>
+            <div class="toolbar-right">
+              <button class="bulk-btn download">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download
+              </button>
+            </div>
+          </div>
+
+          <div class="file-scroll">
+            <table class="file-table">
+              <thead>
+                <tr>
+                  <th style="width:45%">Name</th>
+                  <th>Category</th>
+                  <th>Linked To</th>
+                  <th>Status</th>
+                  <th>Size</th>
+                  <th>Uploaded</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon dwg">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">A-201 Floor Plan Level 12 — Rev C</div>
+                        <div class="file-ext">.dwg · v3</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span style="font-size:12px;color:var(--text-secondary)">Drawings / Plans</span></td>
+                  <td><span class="linked-pill co"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> CO-003</span></td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">4.2 MB</span></td>
+                  <td><span class="file-date">Apr 10, 2026</span></td>
+                </tr>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon pdf">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">Meridian MEP — General Liability COI</div>
+                        <div class="file-ext">.pdf · Uploaded by you</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span style="font-size:12px;color:var(--text-secondary)">Insurance</span></td>
+                  <td><span class="linked-pill compliance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Compliance</span></td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">340 KB</span></td>
+                  <td><span class="file-date">Apr 7, 2026</span></td>
+                </tr>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon pdf">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">Structural Spec — Section 05 12 00 Steel</div>
+                        <div class="file-ext">.pdf · v2</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span style="font-size:12px;color:var(--text-secondary)">Specifications</span></td>
+                  <td>—</td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">2.8 MB</span></td>
+                  <td><span class="file-date">Apr 5, 2026</span></td>
+                </tr>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon pdf">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">RFI-007 Response — Shaft Routing Detail</div>
+                        <div class="file-ext">.pdf</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span style="font-size:12px;color:var(--text-secondary)">RFI Response</span></td>
+                  <td><span class="linked-pill rfi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> RFI-007</span></td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">890 KB</span></td>
+                  <td><span class="file-date">Apr 2, 2026</span></td>
+                </tr>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon pdf">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">Meridian MEP — Workers Comp Certificate</div>
+                        <div class="file-ext">.pdf · Uploaded by you</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span style="font-size:12px;color:var(--text-secondary)">Insurance</span></td>
+                  <td><span class="linked-pill compliance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Compliance</span></td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">280 KB</span></td>
+                  <td><span class="file-date">Mar 28, 2026</span></td>
+                </tr>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon pdf">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">Safety Plan — MEP Coordination Area</div>
+                        <div class="file-ext">.pdf</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span style="font-size:12px;color:var(--text-secondary)">Safety</span></td>
+                  <td>—</td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">1.5 MB</span></td>
+                  <td><span class="file-date">Mar 20, 2026</span></td>
+                </tr>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon dwg">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">M-301 Mechanical Riser Diagram</div>
+                        <div class="file-ext">.dwg</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span style="font-size:12px;color:var(--text-secondary)">Drawings / Plans</span></td>
+                  <td>—</td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">5.1 MB</span></td>
+                  <td><span class="file-date">Mar 12, 2026</span></td>
+                </tr>
+                <tr onclick="selectFile(this)">
+                  <td>
+                    <div class="file-name-cell">
+                      <div class="file-check"></div>
+                      <div class="file-icon pdf">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </div>
+                      <div class="file-name-text">
+                        <div class="file-title">Building Permit — Riverside Tower</div>
+                        <div class="file-ext">.pdf</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span style="font-size:12px;color:var(--text-secondary)">Permits</span></td>
+                  <td>—</td>
+                  <td><div class="file-status"><span class="status-dot active"></span> Active</div></td>
+                  <td><span class="file-size">2.1 MB</span></td>
+                  <td><span class="file-date">Mar 15, 2026</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// --- NAV CONFIGS ---
+const contractorNav = `
+  <div class="nav-section"><div class="nav-section-label">Overview</div>
+    <div class="nav-item"><span>Dashboard</span></div>
+  </div>
+  <div class="nav-section"><div class="nav-section-label">Riverside Tower Fit-Out</div>
+    <div class="nav-item"><span>Project Home</span></div>
+    <div class="nav-item"><span>RFIs / Issues</span><span class="nav-badge">3</span></div>
+    <div class="nav-item"><span>Change Orders</span><span class="nav-badge warn">2</span></div>
+    <div class="nav-item"><span>Approvals</span><span class="nav-badge">4</span></div>
+    <div class="nav-item"><span>Billing / Draws</span></div>
+    <div class="nav-item"><span>Compliance</span><span class="nav-badge warn">1</span></div>
+    <div class="nav-item"><span>Upload Requests</span><span class="nav-badge">2</span></div>
+    <div class="nav-item"><span>Selections</span></div>
+    <div class="nav-item active"><span>Documents</span></div>
+    <div class="nav-item"><span>Schedule</span></div>
+    <div class="nav-item"><span>Messages</span><span class="nav-badge">3</span></div>
+  </div>
+  <div class="nav-section"><div class="nav-section-label">Organization</div>
+    <div class="nav-item"><span>Subcontractors</span></div>
+    <div class="nav-item"><span>Clients</span></div>
+    <div class="nav-item"><span>Team</span></div>
+  </div>`;
+
+const subNav = `
+  <div class="nav-section"><div class="nav-section-label">Your Projects</div>
+    <div class="nav-item"><span>Today Board</span></div>
+  </div>
+  <div class="nav-section"><div class="nav-section-label">Riverside Tower Fit-Out</div>
+    <div class="nav-item"><span>Project Home</span></div>
+    <div class="nav-item"><span>RFIs / Issues</span><span class="nav-badge danger">2</span></div>
+    <div class="nav-item"><span>Upload Requests</span><span class="nav-badge">1</span></div>
+    <div class="nav-item"><span>Compliance</span><span class="nav-badge warn">1</span></div>
+    <div class="nav-item active"><span>Documents</span></div>
+    <div class="nav-item"><span>Payments</span></div>
+    <div class="nav-item"><span>Schedule</span></div>
+    <div class="nav-item"><span>Messages</span><span class="nav-badge">1</span></div>
+  </div>`;
+
+const portalConfigs = {
+  contractor: { nav: contractorNav, theme: '', label: 'Contractor Portal', avatar: 'DC', name: 'Dan Carter', role: 'Project Manager', page: 'Documents' },
+  sub: { nav: subNav, theme: 'sub-theme', label: 'Subcontractor Portal', avatar: 'AM', name: 'Alex Morgan', role: 'Meridian MEP', page: 'Documents' },
+};
+
+function switchPortal(portal) {
+  const app = document.getElementById('appShell');
+  const cfg = portalConfigs[portal];
+  
+  app.classList.remove('sub-theme');
+  if (cfg.theme) app.classList.add(cfg.theme);
+  
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + portal).classList.add('active');
+  
+  document.querySelectorAll('.portal-tab').forEach(t => t.classList.remove('active'));
+  const tabs = document.querySelectorAll('.portal-tab');
+  const idx = { contractor: 0, sub: 1 }[portal];
+  tabs[idx].classList.add('active');
+  
+  document.getElementById('portalLabel').textContent = cfg.label;
+  document.getElementById('bcPortal').textContent = cfg.label;
+  document.getElementById('bcPage').textContent = cfg.page;
+  document.getElementById('userAvatar').textContent = cfg.avatar;
+  document.getElementById('footerAvatar').textContent = cfg.avatar;
+  document.getElementById('footerName').textContent = cfg.name;
+  document.getElementById('footerRole').textContent = cfg.role;
+  document.getElementById('sidebarNav').innerHTML = cfg.nav;
+}
+
+function toggleUpload(portal) {
+  const p = document.getElementById('uploadPanel-' + portal);
+  p.style.display = p.style.display === 'none' || !p.style.display ? 'block' : 'none';
+}
+
+function selectCat(el) {
+  el.closest('.cat-list').querySelectorAll('.cat-item').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function selectFile(row) {
+  // Just visual toggle for demo
+  const tbody = row.closest('tbody');
+  tbody.querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
+  row.classList.add('selected');
+}
+
+function closeDetail(portal) {
+  const browser = document.getElementById('docBrowser-' + portal);
+  const detail = document.getElementById('detailPanel-' + portal);
+  if (browser && detail) {
+    browser.classList.remove('with-detail');
+    detail.style.display = 'none';
+  }
+}
+
+// Init
+switchPortal('contractor');
+</script>
+</body>
+</html>

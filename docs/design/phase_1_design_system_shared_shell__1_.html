@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BuiltCRM — Phase 1 Design System & Shared Shell</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ================================================================
+   DESIGN SYSTEM TOKENS
+   ================================================================ */
+:root {
+  /* --- Surface palette: gray canvas, white cards --- */
+  --surface-0: #eef0f3;       /* page bg — light gray canvas */
+  --surface-1: #ffffff;        /* cards, panels */
+  --surface-2: #f3f4f6;       /* subtle wells, tab bars */
+  --surface-3: #e2e5e9;       /* borders, dividers */
+  --surface-4: #d1d5db;       /* stronger borders, pressed */
+  --surface-hover: #f5f6f8;   /* hover states */
+  --surface-active: #e5e7eb;  /* active/pressed */
+  --surface-raised: #ffffff;
+
+  /* --- Sidebar: clean white, distinct from gray canvas --- */
+  --sidebar-bg: #ffffff;
+  --sidebar-hover: #f5f6f8;
+  --sidebar-active: #eef0f3;
+  --sidebar-active-text: #1a1714;
+  --sidebar-section-text: #8b919a;
+  --sidebar-item-text: #5a6170;
+  --sidebar-border: #e8eaee;
+
+  /* --- Text hierarchy --- */
+  --text-primary: #1a1714;
+  --text-secondary: #6b655b;
+  --text-tertiary: #9c958a;
+  --text-inverse: #faf9f7;
+
+  /* --- Accent: warm indigo — distinctive but professional --- */
+  --accent: #5b4fc7;
+  --accent-hover: #4f44b3;
+  --accent-soft: #eeedfb;
+  --accent-text: #4a3fb0;
+
+  /* --- Semantic colors --- */
+  --success: #2d8a5e;
+  --success-soft: #edf7f1;
+  --success-text: #1e6b46;
+
+  --warning: #c17a1a;
+  --warning-soft: #fdf4e6;
+  --warning-text: #96600f;
+
+  --danger: #c93b3b;
+  --danger-soft: #fdeaea;
+  --danger-text: #a52e2e;
+
+  --info: #3178b9;
+  --info-soft: #e8f1fa;
+  --info-text: #276299;
+
+  /* --- Typography --- */
+  --font-display: 'DM Sans', system-ui, sans-serif;
+  --font-body: 'Instrument Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* --- Spacing (4px grid) --- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* --- Radii --- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  /* --- Shadows --- */
+  --shadow-sm: 0 1px 3px rgba(26,23,20,.05);
+  --shadow-md: 0 4px 16px rgba(26,23,20,.06);
+  --shadow-lg: 0 10px 32px rgba(26,23,20,.08);
+  --shadow-ring: 0 0 0 3px rgba(91,79,199,.15);
+
+  /* --- Layout --- */
+  --sidebar-width: 272px;
+  --topbar-height: 56px;
+
+  /* --- Transitions --- */
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 350ms;
+}
+
+/* ================================================================
+   RESET & BASE
+   ================================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; }
+body {
+  font-family: var(--font-body);
+  background: var(--surface-0);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+/* ================================================================
+   APP LAYOUT
+   ================================================================ */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  min-height: 100vh;
+}
+
+/* ================================================================
+   SIDEBAR
+   ================================================================ */
+.sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+/* --- Brand block --- */
+.brand {
+  height: var(--topbar-height);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-4) 0 var(--sp-5);
+  border-bottom: 1px solid var(--sidebar-border);
+  flex-shrink: 0;
+}
+.brand-mark {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #2c2541 0%, #5b4fc7 100%);
+  display: grid; place-items: center;
+  color: white; font-family: var(--font-display);
+  font-size: 12px; font-weight: 700;
+  letter-spacing: -.02em;
+  flex-shrink: 0;
+}
+.brand-info { flex: 1; min-width: 0; }
+.brand-name {
+  font-family: var(--font-display);
+  font-size: 14px; font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -.02em;
+  line-height: 1.2;
+}
+.brand-context {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  line-height: 1.2;
+  margin-top: 1px;
+}
+.brand-switcher {
+  width: 28px; height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--surface-3);
+  background: var(--surface-1);
+  color: var(--text-tertiary);
+  display: grid; place-items: center;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  flex-shrink: 0;
+}
+.brand-switcher:hover {
+  border-color: var(--surface-4);
+  color: var(--text-secondary);
+  background: var(--surface-hover);
+}
+
+/* --- Search --- */
+.sidebar-search {
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--sidebar-border);
+  flex-shrink: 0;
+}
+.search-input {
+  width: 100%;
+  height: 34px;
+  border: 1px solid var(--surface-3);
+  border-radius: var(--radius-md);
+  padding: 0 var(--sp-3) 0 34px;
+  background: var(--surface-1);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  transition: all var(--duration-fast) var(--ease-out);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%239c958a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+}
+.search-input::placeholder { color: var(--text-tertiary); }
+.search-input:focus {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-ring);
+}
+
+/* --- Sidebar scroll area --- */
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--sp-2) var(--sp-3) var(--sp-6);
+}
+.sidebar-nav::-webkit-scrollbar { width: 4px; }
+.sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+.sidebar-nav::-webkit-scrollbar-thumb { background: var(--surface-4); border-radius: 2px; }
+
+/* --- Section groups (file-tree feel) --- */
+.nav-section {
+  margin-bottom: var(--sp-1);
+}
+.nav-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2);
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--sidebar-section-text);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  cursor: pointer;
+  user-select: none;
+  border-radius: var(--radius-sm);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+.nav-section-header:hover { color: var(--text-secondary); }
+.nav-section-chevron {
+  width: 14px; height: 14px;
+  color: inherit;
+  transition: transform var(--duration-normal) var(--ease-out);
+  flex-shrink: 0;
+}
+.nav-section.collapsed .nav-section-chevron { transform: rotate(-90deg); }
+.nav-section.collapsed .nav-section-items { display: none; }
+
+.nav-section-items {
+  padding: 0 0 var(--sp-1);
+}
+
+/* --- Nav items --- */
+.nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 6px 10px 6px 12px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sidebar-item-text);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  margin-bottom: 1px;
+  position: relative;
+}
+.nav-item:hover {
+  background: var(--sidebar-hover);
+  color: var(--text-primary);
+}
+.nav-item.active {
+  background: var(--sidebar-active);
+  color: var(--sidebar-active-text);
+  font-weight: 620;
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 16px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
+.nav-item-icon {
+  width: 16px; height: 16px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.nav-item.active .nav-item-icon { color: var(--accent-text); }
+.nav-item-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-badge {
+  min-width: 18px; height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 10.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  flex-shrink: 0;
+}
+.nav-badge.warn {
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
+.nav-badge.danger {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+
+/* --- Project items (nested file-tree) --- */
+.nav-project {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 5px 10px 5px 12px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 460;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  margin-bottom: 1px;
+}
+.nav-project:hover {
+  background: var(--sidebar-hover);
+  color: var(--text-primary);
+}
+.nav-project.active {
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-weight: 580;
+  border: 1px solid var(--surface-3);
+  box-shadow: var(--shadow-sm);
+}
+.nav-project-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.nav-project-dot.green { background: var(--success); }
+.nav-project-dot.amber { background: var(--warning); }
+.nav-project-dot.red { background: var(--danger); }
+.nav-project-dot.gray { background: var(--surface-4); }
+.nav-project-phase {
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  font-weight: 550;
+  letter-spacing: .02em;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* --- Sidebar footer --- */
+.sidebar-footer {
+  border-top: 1px solid var(--sidebar-border);
+  padding: var(--sp-3) var(--sp-4);
+  flex-shrink: 0;
+}
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-2);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.sidebar-user:hover { background: var(--sidebar-hover); }
+.user-avatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5b4fc7 0%, #7c6fe0 100%);
+  color: white;
+  display: grid; place-items: center;
+  font-family: var(--font-display);
+  font-size: 11.5px; font-weight: 700;
+  flex-shrink: 0;
+}
+.user-name {
+  font-size: 13px; font-weight: 580;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+.user-role {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  line-height: 1.2;
+  margin-top: 1px;
+}
+
+/* ================================================================
+   MAIN AREA
+   ================================================================ */
+.main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Topbar --- */
+.topbar {
+  height: var(--topbar-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--sp-6);
+  border-bottom: 1px solid var(--surface-3);
+  background: rgba(255,255,255,.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+.breadcrumbs span { transition: color var(--duration-fast); }
+.breadcrumbs span.link { cursor: pointer; }
+.breadcrumbs span.link:hover { color: var(--text-secondary); }
+.breadcrumbs .sep { font-size: 11px; color: var(--surface-4); }
+.breadcrumbs .current {
+  color: var(--text-primary);
+  font-weight: 620;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.topbar-btn {
+  width: 34px; height: 34px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--surface-3);
+  background: var(--surface-1);
+  color: var(--text-tertiary);
+  display: grid; place-items: center;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  position: relative;
+}
+.topbar-btn:hover {
+  border-color: var(--surface-4);
+  color: var(--text-secondary);
+  background: var(--surface-hover);
+}
+.topbar-btn .notif-dot {
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--danger);
+  border: 2px solid var(--surface-1);
+}
+.topbar-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5b4fc7 0%, #7c6fe0 100%);
+  color: white;
+  display: grid; place-items: center;
+  font-family: var(--font-display);
+  font-size: 11.5px; font-weight: 700;
+  cursor: pointer;
+  margin-left: var(--sp-1);
+}
+
+/* ================================================================
+   CONTENT AREA
+   ================================================================ */
+.content {
+  padding: var(--sp-6);
+  flex: 1;
+}
+
+/* --- Page header --- */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--sp-6);
+  margin-bottom: var(--sp-5);
+}
+.page-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 750;
+  letter-spacing: -.03em;
+  line-height: 1.15;
+  color: var(--text-primary);
+}
+.page-subtitle {
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  max-width: 640px;
+  line-height: 1.5;
+}
+.page-actions { display: flex; gap: var(--sp-2); flex-shrink: 0; padding-top: 2px; }
+
+/* ================================================================
+   BUTTON SYSTEM
+   ================================================================ */
+.btn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--surface-3);
+  background: var(--surface-1);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 560;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all var(--duration-fast) var(--ease-out);
+  white-space: nowrap;
+}
+.btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--surface-4);
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  font-weight: 600;
+}
+.btn.primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+}
+.btn.ghost:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+/* ================================================================
+   SUMMARY STRIP (KPI bar)
+   ================================================================ */
+.summary-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+}
+.summary-card {
+  background: var(--surface-1);
+  border: 1px solid var(--surface-3);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-4);
+  transition: all var(--duration-normal) var(--ease-out);
+}
+.summary-card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--surface-4);
+}
+.summary-card.alert {
+  border-color: var(--warning);
+  border-width: 1.5px;
+  background: linear-gradient(180deg, var(--warning-soft) 0%, var(--surface-1) 100%);
+}
+.summary-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 6px;
+}
+.summary-value {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -.03em;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+.summary-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+.summary-meta .trend {
+  font-weight: 620;
+}
+.summary-meta .trend.up { color: var(--success-text); }
+.summary-meta .trend.down { color: var(--danger-text); }
+.summary-meta .trend.warn { color: var(--warning-text); }
+
+/* ================================================================
+   CARD SYSTEM
+   ================================================================ */
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--surface-3);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  transition: box-shadow var(--duration-normal) var(--ease-out);
+}
+.card:hover { box-shadow: var(--shadow-sm); }
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--surface-3);
+}
+.card-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 680;
+  color: var(--text-primary);
+  letter-spacing: -.01em;
+}
+.card-subtitle {
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+.card-body { padding: var(--sp-4) var(--sp-5); }
+
+/* --- Tabs inside cards --- */
+.card-tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 var(--sp-5);
+  border-bottom: 1px solid var(--surface-3);
+  background: #f8f9fa;
+}
+.card-tab {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 530;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all var(--duration-fast) var(--ease-out);
+  white-space: nowrap;
+  margin-bottom: -1px;
+}
+.card-tab:hover { color: var(--text-secondary); }
+.card-tab.active {
+  color: var(--text-primary);
+  font-weight: 640;
+  border-bottom-color: var(--accent);
+}
+
+/* ================================================================
+   LIST ROWS (action items, priorities, etc.)
+   ================================================================ */
+.list-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-md);
+  transition: background var(--duration-fast) var(--ease-out);
+  cursor: pointer;
+}
+.list-row:hover { background: #f8f9fa; }
+.list-row + .list-row { border-top: 1px solid var(--surface-3); }
+.list-row.urgent { border-left: 3px solid var(--danger); padding-left: calc(var(--sp-4) - 3px); }
+
+.list-row h5 {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -.01em;
+  line-height: 1.3;
+}
+.list-row p {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+.list-row-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+
+/* --- Pills/Status tags --- */
+.pill {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.pill.red { background: var(--danger-soft); color: var(--danger-text); }
+.pill.amber { background: var(--warning-soft); color: var(--warning-text); }
+.pill.green { background: var(--success-soft); color: var(--success-text); }
+.pill.blue { background: var(--info-soft); color: var(--info-text); }
+.pill.purple { background: var(--accent-soft); color: var(--accent-text); }
+.pill.gray { background: var(--surface-2); color: var(--text-secondary); }
+
+.time-label {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  font-weight: 530;
+  white-space: nowrap;
+}
+
+/* ================================================================
+   DASHBOARD GRID
+   ================================================================ */
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--sp-4);
+  align-items: start;
+}
+.dash-main { display: flex; flex-direction: column; gap: var(--sp-4); }
+.dash-rail { display: flex; flex-direction: column; gap: var(--sp-4); }
+
+/* ================================================================
+   PORTAL SWITCHER (demo only)
+   ================================================================ */
+.portal-switcher {
+  display: flex;
+  gap: var(--sp-1);
+  background: var(--surface-2);
+  border: 1px solid var(--surface-3);
+  border-radius: var(--radius-lg);
+  padding: 3px;
+  margin-bottom: var(--sp-5);
+  width: fit-content;
+}
+.portal-tab {
+  padding: 7px 16px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 560;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+.portal-tab:hover { color: var(--text-primary); }
+.portal-tab.active {
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-weight: 640;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ================================================================
+   METRIC GRID (quick health)
+   ================================================================ */
+.metric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+}
+.metric-cell {
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  background: #f8f9fa;
+  border: 1px solid var(--surface-3);
+}
+.metric-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  letter-spacing: .02em;
+}
+.metric-value {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 720;
+  color: var(--text-primary);
+  margin-top: 2px;
+  letter-spacing: -.02em;
+}
+.metric-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* ================================================================
+   ALERT CARD
+   ================================================================ */
+.alert-card {
+  border-color: var(--warning);
+  border-width: 1.5px;
+}
+.alert-card .card-header { border-bottom-color: rgba(193, 122, 26, .15); }
+
+/* ================================================================
+   ANIMATIONS
+   ================================================================ */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.content > * {
+  animation: fadeInUp var(--duration-slow) var(--ease-out) both;
+}
+.content > *:nth-child(1) { animation-delay: 0ms; }
+.content > *:nth-child(2) { animation-delay: 60ms; }
+.content > *:nth-child(3) { animation-delay: 120ms; }
+.content > *:nth-child(4) { animation-delay: 180ms; }
+
+/* ================================================================
+   DESIGN SYSTEM SPECIMEN (bottom section)
+   ================================================================ */
+.specimen {
+  margin-top: var(--sp-10);
+  padding-top: var(--sp-8);
+  border-top: 1px solid var(--surface-3);
+}
+.specimen-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 720;
+  letter-spacing: -.02em;
+  margin-bottom: var(--sp-6);
+  color: var(--text-primary);
+}
+.specimen-section {
+  margin-bottom: var(--sp-8);
+}
+.specimen-label {
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-tertiary);
+  margin-bottom: var(--sp-3);
+}
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: var(--sp-2);
+}
+.color-swatch {
+  aspect-ratio: 1.4;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--surface-3);
+  display: flex;
+  align-items: flex-end;
+  padding: 6px 8px;
+}
+.color-swatch span {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: inherit;
+  opacity: .85;
+}
+.type-specimen h1 {
+  font-family: var(--font-display);
+  font-size: 32px; font-weight: 750;
+  letter-spacing: -.03em;
+  margin-bottom: var(--sp-2);
+}
+.type-specimen h2 {
+  font-family: var(--font-display);
+  font-size: 22px; font-weight: 700;
+  letter-spacing: -.02em;
+  margin-bottom: var(--sp-2);
+}
+.type-specimen h3 {
+  font-family: var(--font-display);
+  font-size: 16px; font-weight: 650;
+  letter-spacing: -.01em;
+  margin-bottom: var(--sp-2);
+}
+.type-specimen p {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: var(--sp-2);
+  max-width: 520px;
+}
+.type-specimen code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--surface-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.btn-row { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.pill-row { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+</style>
+</head>
+<body>
+  <div class="app">
+    <!-- ============================================================
+         SIDEBAR
+         ============================================================ -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">B</div>
+        <div class="brand-info">
+          <div class="brand-name">BuiltCRM</div>
+          <div class="brand-context">Summit Contracting</div>
+        </div>
+        <div class="brand-switcher">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+        </div>
+      </div>
+
+      <div class="sidebar-search">
+        <input class="search-input" type="text" placeholder="Search projects, people…" />
+      </div>
+
+      <nav class="sidebar-nav">
+        <!-- Core section -->
+        <div class="nav-section">
+          <div class="nav-section-header">
+            <svg class="nav-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            Core
+          </div>
+          <div class="nav-section-items">
+            <div class="nav-item active">
+              <span class="nav-item-label">Dashboard</span>
+            </div>
+            <div class="nav-item">
+              <span class="nav-item-label">Approvals</span>
+              <span class="nav-badge">4</span>
+            </div>
+            <div class="nav-item">
+              <span class="nav-item-label">Messages</span>
+              <span class="nav-badge">8</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Workflows section -->
+        <div class="nav-section">
+          <div class="nav-section-header">
+            <svg class="nav-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            Workflows
+          </div>
+          <div class="nav-section-items">
+            <div class="nav-item">
+              <span class="nav-item-label">Billing & Draws</span>
+              <span class="nav-badge warn">2</span>
+            </div>
+            <div class="nav-item">
+              <span class="nav-item-label">RFIs</span>
+              <span class="nav-badge">6</span>
+            </div>
+            <div class="nav-item">
+              <span class="nav-item-label">Change Orders</span>
+            </div>
+            <div class="nav-item">
+              <span class="nav-item-label">Compliance</span>
+              <span class="nav-badge danger">1</span>
+            </div>
+            <div class="nav-item">
+              <span class="nav-item-label">Upload Requests</span>
+            </div>
+            <div class="nav-item">
+              <span class="nav-item-label">Documents</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Projects section (file-tree) -->
+        <div class="nav-section">
+          <div class="nav-section-header">
+            <svg class="nav-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            Projects
+          </div>
+          <div class="nav-section-items">
+            <div class="nav-project active">
+              <div class="nav-project-dot amber"></div>
+              <span class="nav-item-label">Riverside Tower Fit-Out</span>
+              <span class="nav-project-phase">PH 3</span>
+            </div>
+            <div class="nav-project">
+              <div class="nav-project-dot green"></div>
+              <span class="nav-item-label">West End Medical</span>
+              <span class="nav-project-phase">PH 2</span>
+            </div>
+            <div class="nav-project">
+              <div class="nav-project-dot gray"></div>
+              <span class="nav-item-label">Lot 7 Redevelopment</span>
+              <span class="nav-project-phase">Precon</span>
+            </div>
+            <div class="nav-project">
+              <div class="nav-project-dot green"></div>
+              <span class="nav-item-label">Northline Office Park</span>
+              <span class="nav-project-phase">PH 1</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Settings -->
+        <div class="nav-section">
+          <div class="nav-section-header">
+            <svg class="nav-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            Settings
+          </div>
+          <div class="nav-section-items">
+            <div class="nav-item">
+              <span class="nav-item-label">Organization</span>
+            </div>
+            <div class="nav-item">
+              <span class="nav-item-label">Team & Roles</span>
+            </div>
+            <div class="nav-item">
+              <span class="nav-item-label">Integrations</span>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="user-avatar">DC</div>
+          <div>
+            <div class="user-name">Daniel Chen</div>
+            <div class="user-role">Project Manager</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============================================================
+         MAIN CONTENT
+         ============================================================ -->
+    <main class="main">
+      <div class="topbar">
+        <div class="breadcrumbs">
+          <span class="link">Contractor Portal</span>
+          <span class="sep">›</span>
+          <span class="current">Dashboard</span>
+        </div>
+        <div class="topbar-actions">
+          <div class="topbar-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7m0-18H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7m0-18v18"/></svg>
+          </div>
+          <div class="topbar-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 1 1-6 0m6 0H9"/></svg>
+            <div class="notif-dot"></div>
+          </div>
+          <div class="topbar-avatar">DC</div>
+        </div>
+      </div>
+
+      <div class="content">
+        <!-- Page header -->
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Dashboard</h1>
+            <p class="page-subtitle">What needs attention across your active projects today.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn">New Project</button>
+            <button class="btn primary">Open Approvals</button>
+          </div>
+        </div>
+
+        <!-- Summary strip -->
+        <section class="summary-strip">
+          <div class="summary-card">
+            <div class="summary-label">Current phase</div>
+            <div class="summary-value">Phase 3</div>
+            <div class="summary-meta">Interior rough-in</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Next milestone</div>
+            <div class="summary-value">Apr 16</div>
+            <div class="summary-meta">Electrical signoff</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Approvals queue</div>
+            <div class="summary-value">4</div>
+            <div class="summary-meta"><span class="trend warn">1 overdue</span></div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Open payments</div>
+            <div class="summary-value">C$188K</div>
+            <div class="summary-meta">2 awaiting collection</div>
+          </div>
+          <div class="summary-card alert">
+            <div class="summary-label">Priority watch</div>
+            <div class="summary-value">2</div>
+            <div class="summary-meta"><span class="trend warn">Riverside + Lot 7</span></div>
+          </div>
+        </section>
+
+        <!-- Main grid -->
+        <section class="dash-grid">
+          <div class="dash-main">
+            <!-- Command surface -->
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Today's priorities</div>
+                  <div class="card-subtitle">Work that needs action now across all projects</div>
+                </div>
+                <button class="btn ghost">View all</button>
+              </div>
+              <div class="card-tabs">
+                <div class="card-tab active">Priorities</div>
+                <div class="card-tab">Approvals</div>
+                <div class="card-tab">Projects</div>
+                <div class="card-tab">Financials</div>
+              </div>
+              <div class="card-body">
+                <div class="list-row urgent">
+                  <div>
+                    <h5>Resolve CO-14 client approval block</h5>
+                    <p>Mechanical reroute waiting on owner signoff — now affecting procurement timing.</p>
+                  </div>
+                  <div class="list-row-meta">
+                    <span class="pill red">Urgent</span>
+                    <span class="time-label">3d open</span>
+                  </div>
+                </div>
+                <div class="list-row">
+                  <div>
+                    <h5>Review Northline electrical submittal</h5>
+                    <p>Revised package uploaded this morning, needs PM review before end of day.</p>
+                  </div>
+                  <div class="list-row-meta">
+                    <span class="pill blue">Review</span>
+                    <span class="time-label">Today</span>
+                  </div>
+                </div>
+                <div class="list-row">
+                  <div>
+                    <h5>Release weekly owner summary</h5>
+                    <p>Progress photos and milestone notes ready — approval language still needs review.</p>
+                  </div>
+                  <div class="list-row-meta">
+                    <span class="pill amber">Comms</span>
+                    <span class="time-label">Draft ready</span>
+                  </div>
+                </div>
+                <div class="list-row">
+                  <div>
+                    <h5>West End Medical — bid responses follow-up</h5>
+                    <p>Two subcontractor bids still outstanding past the 48-hour response window.</p>
+                  </div>
+                  <div class="list-row-meta">
+                    <span class="pill gray">Follow up</span>
+                    <span class="time-label">Overdue</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Project movement -->
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Project health</div>
+                  <div class="card-subtitle">Status across your active projects</div>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="list-row">
+                  <div>
+                    <h5>Riverside Tower Fit-Out</h5>
+                    <p>Client decision lag affecting two connected workstreams.</p>
+                  </div>
+                  <div class="list-row-meta">
+                    <span class="pill amber">Watch</span>
+                    <span class="time-label">Phase 3</span>
+                  </div>
+                </div>
+                <div class="list-row">
+                  <div>
+                    <h5>West End Medical</h5>
+                    <p>Stable progress, no major escalation in 48 hours.</p>
+                  </div>
+                  <div class="list-row-meta">
+                    <span class="pill green">Healthy</span>
+                    <span class="time-label">Phase 2</span>
+                  </div>
+                </div>
+                <div class="list-row">
+                  <div>
+                    <h5>Lot 7 Redevelopment</h5>
+                    <p>Early planning moving but bid responses slower than expected.</p>
+                  </div>
+                  <div class="list-row-meta">
+                    <span class="pill amber">Monitor</span>
+                    <span class="time-label">Precon</span>
+                  </div>
+                </div>
+                <div class="list-row">
+                  <div>
+                    <h5>Northline Office Park</h5>
+                    <p>On schedule — structural framing completing this week.</p>
+                  </div>
+                  <div class="list-row-meta">
+                    <span class="pill green">On track</span>
+                    <span class="time-label">Phase 1</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right rail -->
+          <div class="dash-rail">
+            <!-- Approvals waiting -->
+            <div class="card alert-card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Approvals waiting</div>
+                  <div class="card-subtitle">Holding release steps</div>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="list-row">
+                  <div>
+                    <h5>CO-14 owner signoff</h5>
+                    <p>Mechanical reroute</p>
+                  </div>
+                  <div class="list-row-meta"><span class="pill red">Blocked</span></div>
+                </div>
+                <div class="list-row">
+                  <div>
+                    <h5>Lighting package review</h5>
+                    <p>Client decision pending</p>
+                  </div>
+                  <div class="list-row-meta"><span class="pill amber">Open</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick health -->
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Quick health</div>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="metric-grid">
+                  <div class="metric-cell">
+                    <div class="metric-label">Delay risk</div>
+                    <div class="metric-value">68%</div>
+                    <div class="metric-hint">Approval driven</div>
+                  </div>
+                  <div class="metric-cell">
+                    <div class="metric-label">Open RFIs</div>
+                    <div class="metric-value">6</div>
+                    <div class="metric-hint">2 overdue</div>
+                  </div>
+                  <div class="metric-cell">
+                    <div class="metric-label">Unread msgs</div>
+                    <div class="metric-value">8</div>
+                    <div class="metric-hint">3 threads</div>
+                  </div>
+                  <div class="metric-cell">
+                    <div class="metric-label">Open invoices</div>
+                    <div class="metric-value">2</div>
+                    <div class="metric-hint">C$188K out</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Messages -->
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Recent messages</div>
+                </div>
+                <button class="btn ghost" style="font-size:12px;">View all</button>
+              </div>
+              <div class="card-body">
+                <div class="list-row">
+                  <div>
+                    <h5>Client approver</h5>
+                    <p>Asked for clarification on CO-14 cost summary.</p>
+                  </div>
+                  <div class="list-row-meta"><span class="time-label">22m</span></div>
+                </div>
+                <div class="list-row">
+                  <div>
+                    <h5>Northline Electrical</h5>
+                    <p>Uploaded revised submittal, requested same-day review.</p>
+                  </div>
+                  <div class="list-row-meta"><span class="time-label">1h</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==========================================================
+             DESIGN SYSTEM SPECIMEN
+             ========================================================== -->
+        <section class="specimen">
+          <h2 class="specimen-title">Design System Reference</h2>
+
+          <!-- Colors -->
+          <div class="specimen-section">
+            <div class="specimen-label">Surface Palette</div>
+            <div class="color-grid">
+              <div class="color-swatch" style="background:var(--surface-0);"><span style="color:var(--text-secondary);">surface-0</span></div>
+              <div class="color-swatch" style="background:var(--surface-1);"><span style="color:var(--text-secondary);">surface-1</span></div>
+              <div class="color-swatch" style="background:var(--surface-2);"><span style="color:var(--text-secondary);">surface-2</span></div>
+              <div class="color-swatch" style="background:var(--surface-3);"><span style="color:var(--text-secondary);">surface-3</span></div>
+              <div class="color-swatch" style="background:var(--surface-4);"><span style="color:var(--text-secondary);">surface-4</span></div>
+            </div>
+          </div>
+
+          <div class="specimen-section">
+            <div class="specimen-label">Semantic Colors</div>
+            <div class="color-grid">
+              <div class="color-swatch" style="background:var(--accent);"><span style="color:white;">accent</span></div>
+              <div class="color-swatch" style="background:var(--accent-soft);"><span style="color:var(--accent-text);">accent-soft</span></div>
+              <div class="color-swatch" style="background:var(--success);"><span style="color:white;">success</span></div>
+              <div class="color-swatch" style="background:var(--success-soft);"><span style="color:var(--success-text);">success-soft</span></div>
+              <div class="color-swatch" style="background:var(--warning);"><span style="color:white;">warning</span></div>
+              <div class="color-swatch" style="background:var(--warning-soft);"><span style="color:var(--warning-text);">warning-soft</span></div>
+              <div class="color-swatch" style="background:var(--danger);"><span style="color:white;">danger</span></div>
+              <div class="color-swatch" style="background:var(--danger-soft);"><span style="color:var(--danger-text);">danger-soft</span></div>
+              <div class="color-swatch" style="background:var(--info);"><span style="color:white;">info</span></div>
+              <div class="color-swatch" style="background:var(--info-soft);"><span style="color:var(--info-text);">info-soft</span></div>
+            </div>
+          </div>
+
+          <!-- Typography -->
+          <div class="specimen-section">
+            <div class="specimen-label">Typography</div>
+            <div class="type-specimen">
+              <h1>DM Sans — Display & headings</h1>
+              <h2>Section titles and card headers</h2>
+              <h3>Subsection labels and emphasis</h3>
+              <p>Instrument Sans — Body text for descriptions, summaries, and interface copy. Warm and readable at small sizes without feeling clinical.</p>
+              <p><code>JetBrains Mono — project codes, amounts, IDs</code></p>
+            </div>
+          </div>
+
+          <!-- Buttons -->
+          <div class="specimen-section">
+            <div class="specimen-label">Buttons</div>
+            <div class="btn-row">
+              <button class="btn primary">Primary action</button>
+              <button class="btn">Default</button>
+              <button class="btn ghost">Ghost</button>
+            </div>
+          </div>
+
+          <!-- Pills -->
+          <div class="specimen-section">
+            <div class="specimen-label">Status Pills</div>
+            <div class="pill-row">
+              <span class="pill red">Urgent</span>
+              <span class="pill amber">Watch</span>
+              <span class="pill green">Healthy</span>
+              <span class="pill blue">Review</span>
+              <span class="pill purple">Pending</span>
+              <span class="pill gray">Deferred</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Section collapse toggle
+    document.querySelectorAll('.nav-section-header').forEach(header => {
+      header.addEventListener('click', () => {
+        header.closest('.nav-section').classList.toggle('collapsed');
+      });
+    });
+  </script>
+</body>
+</html>

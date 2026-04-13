@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BuiltCRM — Approvals (Contractor + Commercial + Residential)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --surface-0:#eef0f3;--surface-1:#ffffff;--surface-2:#f3f4f6;--surface-3:#e2e5e9;--surface-4:#d1d5db;
+  --surface-hover:#f5f6f8;--sidebar-bg:#ffffff;--sidebar-border:#e8eaee;--sidebar-section-text:#8b919a;--sidebar-item-text:#5a6170;
+  --text-primary:#1a1714;--text-secondary:#6b655b;--text-tertiary:#9c958a;
+  --accent:#5b4fc7;--accent-hover:#4f44b3;--accent-soft:#eeedfb;--accent-text:#4a3fb0;--accent-muted:#c7c2ea;
+  --success:#2d8a5e;--success-soft:#edf7f1;--success-text:#1e6b46;
+  --warning:#c17a1a;--warning-soft:#fdf4e6;--warning-text:#96600f;
+  --danger:#c93b3b;--danger-soft:#fdeaea;--danger-text:#a52e2e;
+  --info:#3178b9;--info-soft:#e8f1fa;--info-text:#276299;
+  --font-display:'DM Sans',system-ui,sans-serif;--font-body:'Instrument Sans',system-ui,sans-serif;--font-mono:'JetBrains Mono',monospace;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;
+  --shadow-sm:0 1px 3px rgba(26,23,20,.05);--shadow-md:0 4px 16px rgba(26,23,20,.06);--shadow-lg:0 10px 32px rgba(26,23,20,.08);
+  --shadow-ring:0 0 0 3px rgba(91,79,199,.15);
+  --sidebar-width:272px;--topbar-height:56px;--ease-out:cubic-bezier(.16,1,.3,1);--duration-normal:200ms;
+}
+.app.commercial{--accent:#3178b9;--accent-hover:#2a6aa3;--accent-soft:#e8f1fa;--accent-text:#276299;--accent-muted:#b3cede;--shadow-ring:0 0 0 3px rgba(49,120,185,.15)}
+.app.residential{--accent:#2a7f6f;--accent-hover:#237060;--accent-soft:#e6f5f1;--accent-text:#1f6b5c;--accent-muted:#b0d9cf;--shadow-ring:0 0 0 3px rgba(42,127,111,.18)}
+
+*,*::before,*::after{box-sizing:border-box;margin:0}body{font-family:var(--font-body);background:var(--surface-0);color:var(--text-primary);-webkit-font-smoothing:antialiased;line-height:1.5}
+button{cursor:pointer;font-family:inherit;border:none;background:none}input,select,textarea{font-family:inherit}
+
+.app{display:grid;grid-template-columns:var(--sidebar-width) 1fr;min-height:100vh}
+.sidebar{background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:hidden}
+.brand{height:var(--topbar-height);display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--sidebar-border);flex-shrink:0}
+.brand-mark{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#1a1714,#3d3830);color:#faf9f7;display:grid;place-items:center;font-family:var(--font-display);font-size:12px;font-weight:700}
+.brand-info h1{font-family:var(--font-display);font-size:14px;font-weight:700}.brand-info p{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+.sidebar-search{padding:12px 16px;border-bottom:1px solid var(--sidebar-border);flex-shrink:0}
+.sidebar-search input{width:100%;height:36px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-2);padding:0 12px;font-size:13px;color:var(--text-primary);outline:none}
+.sidebar-nav{flex:1;overflow-y:auto;padding:8px 10px 20px}
+.nav-section{margin-bottom:4px}.nav-section-label{font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--sidebar-section-text);text-transform:uppercase;letter-spacing:.06em;padding:10px 10px 6px}
+.nav-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:var(--radius-md);font-size:13px;color:var(--sidebar-item-text);font-weight:500;margin-bottom:2px}
+.nav-item:hover{background:var(--surface-hover);color:var(--text-primary)}.nav-item.active{background:var(--accent-soft);color:var(--accent-text);font-weight:650}
+.nav-badge{min-width:20px;height:20px;padding:0 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.nav-badge.warn{background:var(--warning-soft);color:var(--warning-text)}.nav-badge.danger{background:var(--danger-soft);color:var(--danger-text)}
+
+.main{display:flex;flex-direction:column;min-width:0}
+.topbar{height:var(--topbar-height);display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid var(--surface-3);background:rgba(255,255,255,.88);backdrop-filter:blur(12px);flex-shrink:0;position:sticky;top:0;z-index:50}
+.breadcrumbs{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-tertiary)}.breadcrumbs .sep{color:var(--surface-4)}.breadcrumbs .current{color:var(--text-primary);font-weight:650}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;display:grid;place-items:center;font-family:var(--font-display);font-size:12px;font-weight:700}
+.content{padding:24px;flex:1}
+
+.portal-switch{display:flex;gap:4px;margin-bottom:20px;background:var(--surface-2);border-radius:var(--radius-lg);padding:4px;width:fit-content}
+.portal-tab{height:36px;padding:0 16px;border-radius:var(--radius-md);font-size:13px;font-weight:650;color:var(--text-secondary);display:inline-flex;align-items:center;gap:7px}
+.portal-tab:hover{color:var(--text-primary)}.portal-tab.active{background:var(--surface-1);color:var(--text-primary);box-shadow:var(--shadow-sm)}
+.pdot{width:8px;height:8px;border-radius:50%}.pdot.purple{background:#5b4fc7}.pdot.blue{background:#3178b9}.pdot.teal{background:#2a7f6f}
+
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:16px}
+.page-header h2{font-family:var(--font-display);font-size:24px;font-weight:750;letter-spacing:-.03em}
+.page-header p{margin-top:4px;font-size:13px;color:var(--text-secondary);max-width:560px}
+.summary-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.sc{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:13px 15px;box-shadow:var(--shadow-sm)}
+.sc.alert{border-color:#f5d5a0;background:linear-gradient(180deg,#fff,#fefaf3)}.sc.danger{border-color:#f5baba;background:linear-gradient(180deg,#fff,#fef5f5)}
+.sc.strong{border-color:var(--accent-muted);background:linear-gradient(180deg,#fff,color-mix(in srgb,var(--accent-soft) 40%,#fff))}
+.sc .sc-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary)}
+.sc .sc-value{font-family:var(--font-display);font-size:22px;font-weight:800;letter-spacing:-.03em;margin-top:4px}
+.sc .sc-meta{font-size:12px;color:var(--text-tertiary);margin-top:2px}
+
+.btn{height:38px;padding:0 16px;border-radius:var(--radius-md);font-size:13px;font-weight:650;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-primary);transition:all var(--duration-normal) var(--ease-out)}
+.btn:hover{border-color:var(--surface-4);background:var(--surface-hover)}.btn.primary{background:var(--accent);border-color:var(--accent);color:white}.btn.primary:hover{background:var(--accent-hover)}
+.btn.sm{height:32px;padding:0 12px;font-size:12px}
+.btn.success{background:var(--success);border-color:var(--success);color:white}.btn.success:hover{background:var(--success-text)}
+.btn.danger-outline{border-color:#f5baba;color:var(--danger-text)}.btn.danger-outline:hover{background:var(--danger-soft)}
+
+.pill{height:22px;padding:0 9px;border-radius:999px;font-size:10px;font-weight:700;display:inline-flex;align-items:center;border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-tertiary);white-space:nowrap;flex-shrink:0}
+.pill.accent{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-muted)}
+.pill.green{background:var(--success-soft);color:var(--success-text);border-color:#b0dfc4}
+.pill.orange{background:var(--warning-soft);color:var(--warning-text);border-color:#f5d5a0}
+.pill.red{background:var(--danger-soft);color:var(--danger-text);border-color:#f5baba}
+.pill.blue{background:var(--info-soft);color:var(--info-text);border-color:#b3d1ec}
+
+/* Type badge — shows what kind of approval */
+.type-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:var(--radius-sm);display:inline-flex;align-items:center;white-space:nowrap}
+.type-badge.co{background:#f3f0ff;color:#6b5dd3;border:1px solid #d8d0f5}
+.type-badge.procurement{background:#e8f5ee;color:#2d7a52;border:1px solid #b5dfca}
+.type-badge.design{background:#eef4fa;color:#3d6b8e;border:1px solid #b3cede}
+.type-badge.general{background:var(--surface-2);color:var(--text-tertiary);border:1px solid var(--surface-3)}
+
+.workspace{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);box-shadow:var(--shadow-sm);overflow:hidden}
+.workspace-head{padding:18px 20px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.workspace-head h3{font-family:var(--font-display);font-size:15px;font-weight:700}.workspace-head .sub{font-size:12px;color:var(--text-tertiary);margin-top:2px}
+.workspace-tabs{display:flex;gap:6px;padding:12px 20px 0;flex-wrap:wrap}
+.tab{height:32px;padding:0 14px;border-radius:999px;border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-secondary);font-size:12px;font-weight:650;display:inline-flex;align-items:center}
+.tab:hover{border-color:var(--surface-4);color:var(--text-primary)}.tab.active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-muted)}
+.master-detail{display:grid;grid-template-columns:360px minmax(0,1fr);padding:16px 20px 20px;gap:14px;align-items:start}
+
+.thread-list{display:flex;flex-direction:column;gap:6px;max-height:620px;overflow-y:auto}
+.ap-card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:12px 14px;cursor:pointer;transition:all var(--duration-normal) var(--ease-out)}
+.ap-card:hover{border-color:var(--surface-4);box-shadow:var(--shadow-sm)}.ap-card.active{border-color:var(--accent-muted);background:color-mix(in srgb,var(--accent-soft) 30%,#fff);box-shadow:var(--shadow-ring)}
+.ap-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.ap-top>div:first-child{min-width:0;flex:1}
+.ap-title{font-family:var(--font-display);font-size:13px;font-weight:700;margin-top:2px}
+.ap-desc{font-size:12px;color:var(--text-secondary);margin-top:2px;line-height:1.4}
+.ap-meta{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.ap-footer{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11px;color:var(--text-tertiary)}
+
+.detail-pane{min-height:400px}
+.detail-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--surface-2)}
+.detail-header h3{font-family:var(--font-display);font-size:18px;font-weight:750;letter-spacing:-.02em}
+.detail-header .dh-desc{font-size:13px;color:var(--text-secondary);margin-top:6px;line-height:1.5;max-width:480px}
+.detail-header-pills{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;padding-top:2px;align-items:flex-start}
+
+.detail-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:14px}
+.dg-item{background:var(--surface-2);border:1px solid var(--surface-3);border-radius:var(--radius-md);padding:10px 12px}
+.dg-item .k{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary)}
+.dg-item .v{font-family:var(--font-display);font-size:14px;font-weight:700;margin-top:3px}
+.dg-item .m{font-size:12px;color:var(--text-secondary);margin-top:2px}
+
+.detail-section{margin-top:16px;border:1px solid var(--surface-3);border-radius:var(--radius-lg);overflow:hidden}
+.ds-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--surface-3)}
+.ds-head h4{font-family:var(--font-display);font-size:13px;font-weight:700}.ds-head .ds-actions{display:flex;gap:6px}
+.ds-body{padding:14px 16px}.ds-body p{font-size:13px;color:var(--text-secondary);line-height:1.55}
+
+.file-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--surface-2)}.file-row:last-child{border-bottom:none}
+.file-row h5{font-size:13px;font-weight:600}.file-row p{font-size:12px;color:var(--text-secondary);margin-top:1px}
+.file-chip{font-size:11px;font-weight:700;color:var(--text-tertiary);padding:3px 8px;border-radius:var(--radius-sm);background:var(--surface-2);white-space:nowrap}
+
+/* Decision card */
+.decision-card{border:2px solid var(--accent-muted);border-radius:var(--radius-lg);padding:18px;margin-top:16px;background:linear-gradient(180deg,color-mix(in srgb,var(--accent-soft) 30%,#fff),#fff)}
+.decision-card h4{font-family:var(--font-display);font-size:15px;font-weight:750}
+.decision-card p{font-size:13px;color:var(--text-secondary);margin-top:4px;line-height:1.5}
+.decision-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+
+/* Decision options */
+.decision-options{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.decision-option{border:2px solid var(--surface-3);border-radius:var(--radius-md);padding:12px;cursor:pointer;transition:all var(--duration-normal) var(--ease-out);text-align:center}
+.decision-option:hover{border-color:var(--surface-4)}.decision-option.selected{border-color:var(--accent);background:var(--accent-soft)}
+.decision-option h5{font-family:var(--font-display);font-size:13px;font-weight:700}.decision-option p{font-size:11px;color:var(--text-secondary);margin-top:3px}
+
+/* Impact row */
+.impact-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid var(--surface-2)}.impact-row:last-child{border-bottom:none}
+.impact-row h5{font-size:13px;font-weight:600}.impact-row p{font-size:12px;color:var(--text-secondary);margin-top:1px}
+.impact-value{font-family:var(--font-display);font-size:14px;font-weight:750;white-space:nowrap;flex-shrink:0}
+
+/* Right rail */
+.page-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+.rail{display:flex;flex-direction:column;gap:12px}
+.rail-card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);box-shadow:var(--shadow-sm);overflow:hidden}
+.rail-card.alert{border-color:#f5d5a0;background:linear-gradient(180deg,#fefaf3,#fff)}
+.rail-card.danger{border-color:#f5baba;background:linear-gradient(180deg,#fef5f5,#fff)}
+.rc-head{padding:14px 16px 0}.rc-head h3{font-family:var(--font-display);font-size:14px;font-weight:700}.rc-head .sub{font-size:12px;color:var(--text-tertiary);margin-top:2px}
+.rc-body{padding:10px 16px 16px}
+
+/* Activity */
+.activity-list{display:flex;flex-direction:column}.activity-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--surface-2)}.activity-item:last-child{border-bottom:none}
+.activity-dot{width:8px;height:8px;border-radius:50%;background:var(--surface-4);margin-top:6px;flex-shrink:0}.activity-dot.action{background:var(--accent)}.activity-dot.success{background:var(--success)}.activity-dot.system{background:var(--text-tertiary)}
+.activity-text{flex:1;font-size:13px;color:var(--text-secondary)}.activity-text strong{color:var(--text-primary);font-weight:650}
+.activity-time{font-size:11px;color:var(--text-tertiary);flex-shrink:0;padding-top:2px}
+
+/* Residential approval cards */
+.res-approval{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);padding:18px 20px;box-shadow:var(--shadow-sm);margin-bottom:12px}
+.res-approval.pending{border-color:var(--accent-muted);border-width:2px}
+.res-approval h3{font-family:var(--font-display);font-size:16px;font-weight:700}
+.res-approval .res-desc{font-size:13px;color:var(--text-secondary);margin-top:4px;line-height:1.5}
+.res-explanation{margin-top:12px;padding:12px 14px;background:var(--accent-soft);border:1px solid var(--accent-muted);border-radius:var(--radius-md)}
+.res-explanation h5{font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--accent-text)}.res-explanation p{font-size:13px;color:var(--text-secondary);margin-top:3px;line-height:1.5}
+
+.view{display:none}.view.active{display:block}
+@media(max-width:1200px){.page-grid{grid-template-columns:1fr}.master-detail{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="app" id="appShell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">B</div><div class="brand-info"><h1>BuiltCRM</h1><p id="portalLabel">Contractor Portal</p></div></div>
+    <div class="sidebar-search"><input placeholder="Search…" /></div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="breadcrumbs"><span id="bcPortal">Contractor Portal</span><span class="sep">›</span><span id="bcProject">Riverside Tower Fit-Out</span><span class="sep">›</span><span class="current" id="bcPage">Approvals</span></div>
+      <div style="display:flex;align-items:center;gap:8px"><div class="avatar" id="userAvatar">DC</div></div>
+    </header>
+
+    <div class="content">
+      <div class="portal-switch">
+        <button class="portal-tab active" onclick="switchPortal('contractor')"><span class="pdot purple"></span> Contractor</button>
+        <button class="portal-tab" onclick="switchPortal('commercial')"><span class="pdot blue"></span> Commercial Client</button>
+        <button class="portal-tab" onclick="switchPortal('residential')"><span class="pdot teal"></span> Residential Client</button>
+      </div>
+
+      <!-- ============================================================
+           CONTRACTOR — Approval tracking workspace
+           ============================================================ -->
+      <div class="view active" id="view-contractor">
+        <div class="page-header">
+          <div><h2>Approvals</h2><p>Track approval requests sent to clients for review. Monitor decisions across change orders, procurement releases, and design packages.</p></div>
+          <div style="display:flex;gap:8px;padding-top:4px"><button class="btn sm primary">+ New approval request</button></div>
+        </div>
+
+        <div class="summary-strip">
+          <div class="sc danger"><div class="sc-label">Waiting on client</div><div class="sc-value">5</div><div class="sc-meta">Decisions pending</div></div>
+          <div class="sc alert"><div class="sc-label">Overdue</div><div class="sc-value">1</div><div class="sc-meta">Past review deadline</div></div>
+          <div class="sc strong"><div class="sc-label">Approved this month</div><div class="sc-value">4</div><div class="sc-meta">Closed cleanly</div></div>
+          <div class="sc"><div class="sc-label">Returned</div><div class="sc-value">1</div><div class="sc-meta">Needs revision</div></div>
+        </div>
+
+        <div class="page-grid">
+          <div class="workspace">
+            <div class="workspace-head"><div><h3>Approval workspace</h3><div class="sub">Cross-type queue — COs, procurement releases, design packages, and other items needing client sign-off.</div></div></div>
+            <div class="workspace-tabs">
+              <button class="tab active">Pending (5)</button>
+              <button class="tab">Approved (4)</button>
+              <button class="tab">Returned (1)</button>
+              <button class="tab">All</button>
+            </div>
+            <div class="master-detail">
+              <div>
+                <div class="thread-list">
+                  <!-- CO type -->
+                  <div class="ap-card active">
+                    <div class="ap-top"><div><div class="ap-meta"><span class="type-badge co">Change Order</span></div><div class="ap-title">CO-014 reroute package</div><div class="ap-desc">Mechanical reroute needing formal client approval.</div></div><span class="pill red">Overdue</span></div>
+                    <div class="ap-footer"><span>+$18,400 · Sent Apr 8</span><span>4 days waiting</span></div>
+                  </div>
+                  <!-- Procurement type -->
+                  <div class="ap-card">
+                    <div class="ap-top"><div><div class="ap-meta"><span class="type-badge procurement">Procurement</span></div><div class="ap-title">Lobby signage fabrication release</div><div class="ap-desc">Final confirmation before fabrication begins.</div></div><span class="pill orange">Due today</span></div>
+                    <div class="ap-footer"><span>$12,600 commitment · Sent Apr 10</span><span>2 days</span></div>
+                  </div>
+                  <!-- CO type -->
+                  <div class="ap-card">
+                    <div class="ap-top"><div><div class="ap-meta"><span class="type-badge co">Change Order</span></div><div class="ap-title">CO-013 electrical panel relocation</div><div class="ap-desc">Panel relocation for code compliance.</div></div><span class="pill accent">Pending</span></div>
+                    <div class="ap-footer"><span>+$7,200 · Sent Apr 6</span><span>6 days</span></div>
+                  </div>
+                  <!-- Design type -->
+                  <div class="ap-card">
+                    <div class="ap-top"><div><div class="ap-meta"><span class="type-badge design">Design</span></div><div class="ap-title">Reception area finish package</div><div class="ap-desc">Material and finish selections for main reception.</div></div><span class="pill accent">Pending</span></div>
+                    <div class="ap-footer"><span>No cost impact · Sent Apr 9</span><span>3 days</span></div>
+                  </div>
+                  <!-- General type -->
+                  <div class="ap-card">
+                    <div class="ap-top"><div><div class="ap-meta"><span class="type-badge general">General</span></div><div class="ap-title">After-hours work authorization</div><div class="ap-desc">Weekend work for concrete pour — needs owner OK.</div></div><span class="pill accent">Pending</span></div>
+                    <div class="ap-footer"><span>No cost impact · Sent Apr 11</span><span>1 day</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Detail pane: CO-014 -->
+              <div class="detail-pane">
+                <div class="detail-header">
+                  <div>
+                    <div style="display:flex;gap:6px;align-items:center"><span class="type-badge co">Change Order</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary)">CO-014</span></div>
+                    <h3>Mechanical reroute — east corridor</h3>
+                    <div class="dh-desc">Submitted for client approval Apr 8. HVAC duct reroute caused by structural conflict. Currently overdue — client has not responded.</div>
+                  </div>
+                  <div class="detail-header-pills"><span class="pill red">Overdue</span></div>
+                </div>
+
+                <div class="detail-grid">
+                  <div class="dg-item"><div class="k">Sent to</div><div class="v">Riverside Holdings</div><div class="m">Commercial client</div></div>
+                  <div class="dg-item"><div class="k">Review due</div><div class="v" style="color:var(--danger-text)">Apr 10 (overdue)</div><div class="m">2 days past deadline</div></div>
+                  <div class="dg-item"><div class="k">Cost impact</div><div class="v" style="color:var(--warning-text)">+$18,400</div><div class="m">Contract addition</div></div>
+                  <div class="dg-item"><div class="k">What's blocked</div><div class="v">Procurement release</div><div class="m">Can't order materials without approval</div></div>
+                </div>
+
+                <div class="detail-section">
+                  <div class="ds-head"><h4>Tracking</h4><div class="ds-actions"><button class="btn sm">Send reminder</button><button class="btn sm">Edit request</button></div></div>
+                  <div class="ds-body">
+                    <div class="activity-list">
+                      <div class="activity-item"><div class="activity-dot action"></div><div class="activity-text"><strong>Daniel Chen</strong> submitted approval request to Riverside Holdings</div><div class="activity-time">Apr 8</div></div>
+                      <div class="activity-item"><div class="activity-dot system"></div><div class="activity-text">Client notified via email</div><div class="activity-time">Apr 8</div></div>
+                      <div class="activity-item"><div class="activity-dot system"></div><div class="activity-text">Review deadline reached — no response</div><div class="activity-time">Apr 10</div></div>
+                      <div class="activity-item"><div class="activity-dot system"></div><div class="activity-text">Automated reminder sent to client</div><div class="activity-time">Apr 11</div></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="detail-section">
+                  <div class="ds-head"><h4>Supporting documents sent</h4></div>
+                  <div class="ds-body">
+                    <div class="file-row"><div><h5>CO-014 cost breakdown</h5><p>Itemized estimate</p></div><span class="file-chip">PDF</span></div>
+                    <div class="file-row"><div><h5>Revised mechanical routing plan</h5><p>Updated duct layout</p></div><span class="file-chip">DWG</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rail">
+            <div class="rail-card danger">
+              <div class="rc-head"><h3>Overdue</h3><div class="sub">Past review deadline.</div></div>
+              <div class="rc-body">
+                <div class="file-row"><div><h5>CO-014 reroute</h5><p>+$18,400 · 2 days overdue</p></div></div>
+                <button class="btn sm primary" style="width:100%;margin-top:8px">Send escalation</button>
+              </div>
+            </div>
+            <div class="rail-card alert">
+              <div class="rc-head"><h3>Due soon</h3></div>
+              <div class="rc-body">
+                <div class="file-row"><div><h5>Lobby signage</h5><p>$12,600 · Due today</p></div><span class="pill orange" style="font-size:9px">Today</span></div>
+              </div>
+            </div>
+            <div class="rail-card">
+              <div class="rc-head"><h3>By type</h3></div>
+              <div class="rc-body">
+                <div class="file-row"><div><h5>Change Orders</h5><p>2 pending</p></div><span class="type-badge co">CO</span></div>
+                <div class="file-row"><div><h5>Procurement</h5><p>1 pending</p></div><span class="type-badge procurement">Proc</span></div>
+                <div class="file-row"><div><h5>Design</h5><p>1 pending</p></div><span class="type-badge design">Design</span></div>
+                <div class="file-row"><div><h5>General</h5><p>1 pending</p></div><span class="type-badge general">Other</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           COMMERCIAL CLIENT — Approvals Center
+           ============================================================ -->
+      <div class="view" id="view-commercial">
+        <div class="page-header">
+          <div><h2>Approvals Center</h2><p>Items from your contractor that need your formal review and decision. Review the impact, then approve, reject, or request more information.</p></div>
+        </div>
+
+        <div class="summary-strip">
+          <div class="sc danger"><div class="sc-label">Needs your decision</div><div class="sc-value">5</div><div class="sc-meta">Waiting on you</div></div>
+          <div class="sc alert"><div class="sc-label">Overdue review</div><div class="sc-value">1</div><div class="sc-meta">Past requested deadline</div></div>
+          <div class="sc"><div class="sc-label">Approved to date</div><div class="sc-value">7</div><div class="sc-meta">This project</div></div>
+          <div class="sc"><div class="sc-label">Returned</div><div class="sc-value">1</div><div class="sc-meta">Sent back for revision</div></div>
+        </div>
+
+        <div class="page-grid">
+          <div class="workspace">
+            <div class="workspace-head"><div><h3>Decision queue</h3><div class="sub">All items awaiting your review, sorted by urgency.</div></div></div>
+            <div class="workspace-tabs">
+              <button class="tab active">Pending (5)</button>
+              <button class="tab">Approved (7)</button>
+              <button class="tab">Returned (1)</button>
+            </div>
+            <div class="master-detail">
+              <div>
+                <div class="thread-list">
+                  <div class="ap-card active">
+                    <div class="ap-top"><div><div class="ap-meta"><span class="type-badge co">Change Order</span></div><div class="ap-title">CO-014 mechanical reroute</div><div class="ap-desc">HVAC duct path change · +$18,400</div></div><span class="pill red">Overdue</span></div>
+                    <div class="ap-footer"><span>High impact · Blocks procurement</span></div>
+                  </div>
+                  <div class="ap-card">
+                    <div class="ap-top"><div><div class="ap-meta"><span class="type-badge procurement">Procurement</span></div><div class="ap-title">Lobby signage fabrication</div><div class="ap-desc">Confirm before fabrication · $12,600</div></div><span class="pill orange">Due today</span></div>
+                    <div class="ap-footer"><span>Fabrication timeline affected</span></div>
+                  </div>
+                  <div class="ap-card">
+                    <div class="ap-top"><div><div class="ap-meta"><span class="type-badge co">Change Order</span></div><div class="ap-title">CO-013 electrical panel</div><div class="ap-desc">Panel relocation · +$7,200</div></div><span class="pill accent">Pending</span></div>
+                    <div class="ap-footer"><span>Code compliance required</span></div>
+                  </div>
+                  <div class="ap-card">
+                    <div class="ap-top"><div><div class="ap-meta"><span class="type-badge design">Design</span></div><div class="ap-title">Reception finish package</div><div class="ap-desc">Material and color selections</div></div><span class="pill accent">Pending</span></div>
+                    <div class="ap-footer"><span>No cost impact</span></div>
+                  </div>
+                  <div class="ap-card">
+                    <div class="ap-top"><div><div class="ap-meta"><span class="type-badge general">General</span></div><div class="ap-title">Weekend work authorization</div><div class="ap-desc">After-hours concrete pour</div></div><span class="pill accent">Pending</span></div>
+                    <div class="ap-footer"><span>Schedule benefit</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Detail: CO-014 commercial view -->
+              <div class="detail-pane">
+                <div class="detail-header">
+                  <div>
+                    <div style="display:flex;gap:6px;align-items:center"><span class="type-badge co">Change Order</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary)">CO-014</span></div>
+                    <h3>Mechanical reroute — east corridor</h3>
+                    <div class="dh-desc">Your contractor is requesting approval for an HVAC duct reroute caused by a structural conflict. This adds cost and may delay work if not approved soon.</div>
+                  </div>
+                  <div class="detail-header-pills"><span class="pill red">Overdue</span></div>
+                </div>
+
+                <div class="detail-grid">
+                  <div class="dg-item"><div class="k">Cost impact</div><div class="v" style="color:var(--warning-text)">+$18,400</div><div class="m">Added to contract</div></div>
+                  <div class="dg-item"><div class="k">Schedule risk</div><div class="v" style="color:var(--warning-text)">+3 days</div><div class="m">If not approved now</div></div>
+                  <div class="dg-item"><div class="k">Requested by</div><div class="v">Daniel Chen</div><div class="m">Contractor PM</div></div>
+                  <div class="dg-item"><div class="k">What it blocks</div><div class="v">Material ordering</div><div class="m">Procurement can't proceed</div></div>
+                </div>
+
+                <div class="detail-section">
+                  <div class="ds-head"><h4>Contractor's explanation</h4></div>
+                  <div class="ds-body"><p>A structural beam offset was discovered at level 3 that doesn't match coordination drawings. The HVAC ductwork needs to be rerouted around this condition. The cost covers additional materials, labor, and trade coordination. This has been reviewed against other trades and creates no new conflicts.</p></div>
+                </div>
+
+                <div class="detail-section">
+                  <div class="ds-head"><h4>Supporting documents</h4></div>
+                  <div class="ds-body">
+                    <div class="file-row"><div><h5>CO-014 cost breakdown</h5><p>Itemized estimate for the reroute</p></div><span class="file-chip">PDF</span></div>
+                    <div class="file-row"><div><h5>Revised mechanical routing plan</h5><p>Updated duct layout drawing</p></div><span class="file-chip">DWG</span></div>
+                  </div>
+                </div>
+
+                <!-- Formal decision -->
+                <div class="decision-card">
+                  <h4>Your decision</h4>
+                  <p>Choose how you'd like to respond to this approval request.</p>
+                  <div class="decision-options">
+                    <div class="decision-option" onclick="selectDecision(this)">
+                      <h5 style="color:var(--success-text)">Approve</h5>
+                      <p>Proceed as submitted</p>
+                    </div>
+                    <div class="decision-option selected" onclick="selectDecision(this)">
+                      <h5 style="color:var(--accent-text)">Approve with note</h5>
+                      <p>Approve with a condition</p>
+                    </div>
+                    <div class="decision-option" onclick="selectDecision(this)">
+                      <h5 style="color:var(--danger-text)">Return for revision</h5>
+                      <p>Send back with feedback</p>
+                    </div>
+                  </div>
+                  <div style="margin-top:12px">
+                    <textarea placeholder="Add your review note or condition…" style="width:100%;min-height:60px;border:1px solid var(--surface-3);border-radius:var(--radius-md);padding:10px 12px;font-size:13px;resize:vertical;outline:none;">Include updated release documentation in the closeout packet.</textarea>
+                  </div>
+                  <div style="display:flex;gap:8px;margin-top:12px">
+                    <button class="btn primary">Submit decision</button>
+                    <button class="btn">Cancel</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rail">
+            <div class="rail-card danger">
+              <div class="rc-head"><h3>Needs attention</h3><div class="sub">Review deadline passed.</div></div>
+              <div class="rc-body"><p style="font-size:13px;color:var(--text-secondary)">CO-014 was due for review on Apr 10. Your contractor is waiting on your decision to release procurement.</p></div>
+            </div>
+            <div class="rail-card">
+              <div class="rc-head"><h3>Pending cost impact</h3></div>
+              <div class="rc-body">
+                <div class="impact-row"><div><h5>If all pending approved</h5></div><span class="impact-value" style="color:var(--warning-text)">+$25,600</span></div>
+                <div class="impact-row"><div><h5>Current contract</h5></div><span class="impact-value">$1,257,000</span></div>
+                <div class="impact-row"><div><h5>Projected total</h5></div><span class="impact-value">$1,282,600</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           RESIDENTIAL CLIENT — Simpler approval prompts
+           ============================================================ -->
+      <div class="view" id="view-residential">
+        <div class="page-header">
+          <div>
+            <h2>Decisions Needed</h2>
+            <p>Your builder occasionally needs your OK on something before they can move forward. Nothing complicated — just a quick review and your go-ahead.</p>
+          </div>
+        </div>
+
+        <div class="summary-strip" style="grid-template-columns:repeat(3,1fr)">
+          <div class="sc danger"><div class="sc-label">Needs your OK</div><div class="sc-value">1</div><div class="sc-meta">Take a look when you can</div></div>
+          <div class="sc"><div class="sc-label">Already approved</div><div class="sc-value">3</div><div class="sc-meta">All set</div></div>
+          <div class="sc"><div class="sc-label">Total project</div><div class="sc-value">4</div><div class="sc-meta">Decisions so far</div></div>
+        </div>
+
+        <!-- Pending -->
+        <div class="res-approval pending">
+          <span class="pill red" style="margin-bottom:8px">Needs your OK</span>
+          <h3>Weekend work for concrete pour</h3>
+          <div class="res-desc">Your builder is asking if it's OK to do some work on Saturday morning. This would help keep the project on schedule by getting the foundation pour done before Monday's inspection.</div>
+
+          <div class="res-explanation">
+            <h5>Why they're asking</h5>
+            <p>The concrete crew has a weather window on Saturday that would let them complete the pour in ideal conditions. Working during the week would push the inspection back and could add a few days to the timeline. There's no extra cost — this is about scheduling, not money.</p>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">
+            <div style="background:var(--surface-2);border-radius:var(--radius-md);padding:10px 12px">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary)">Cost</div>
+              <div style="font-family:var(--font-display);font-size:16px;font-weight:750;margin-top:3px;color:var(--success-text)">No change</div>
+            </div>
+            <div style="background:var(--surface-2);border-radius:var(--radius-md);padding:10px 12px">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary)">Schedule benefit</div>
+              <div style="font-family:var(--font-display);font-size:16px;font-weight:750;margin-top:3px;color:var(--success-text)">Saves 2–3 days</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button class="btn primary">Sounds good — approve</button>
+            <button class="btn">I have a question</button>
+          </div>
+        </div>
+
+        <!-- Approved history -->
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin:24px 0 10px">Already approved</div>
+
+        <div class="res-approval" style="opacity:.85">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h3 style="font-size:15px">Foundation material substitution</h3><div class="res-desc">Your builder swapped to a locally-available concrete mix that performs the same but ships faster.</div></div><span class="pill green">Approved</span></div>
+          <div style="display:flex;gap:16px;margin-top:8px;font-size:13px;color:var(--text-secondary)"><span>Cost: <strong style="color:var(--success-text)">No change</strong></span><span>Approved: <strong>Apr 2</strong></span></div>
+        </div>
+
+        <div class="res-approval" style="opacity:.85">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h3 style="font-size:15px">Extra insulation in attic space</h3><div class="res-desc">Added R-30 insulation in the attic for better energy performance.</div></div><span class="pill green">Approved</span></div>
+          <div style="display:flex;gap:16px;margin-top:8px;font-size:13px;color:var(--text-secondary)"><span>Cost: <strong style="color:var(--warning-text)">+$800</strong></span><span>Approved: <strong>Mar 25</strong></span></div>
+        </div>
+
+        <div class="res-approval" style="opacity:.85">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h3 style="font-size:15px">Electrical panel upgrade</h3><div class="res-desc">Upgraded to a 200A panel to support your planned EV charger installation.</div></div><span class="pill green">Approved</span></div>
+          <div style="display:flex;gap:16px;margin-top:8px;font-size:13px;color:var(--text-secondary)"><span>Cost: <strong style="color:var(--warning-text)">+$1,200</strong></span><span>Approved: <strong>Mar 18</strong></span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const navs={
+  contractor:`<div class="nav-section"><div class="nav-section-label">Workspace</div><div class="nav-item"><span>Dashboard</span></div><div class="nav-item"><span>Inbox</span><span class="nav-badge">8</span></div></div><div class="nav-section"><div class="nav-section-label">Riverside Tower Fit-Out</div><div class="nav-item"><span>Project Home</span></div><div class="nav-item"><span>RFIs / Issues</span><span class="nav-badge danger">9</span></div><div class="nav-item active"><span>Approvals</span><span class="nav-badge warn">5</span></div><div class="nav-item"><span>Change Orders</span><span class="nav-badge">2</span></div><div class="nav-item"><span>Billing / Draws</span></div><div class="nav-item"><span>Compliance</span></div><div class="nav-item"><span>Documents</span></div><div class="nav-item"><span>Budget</span></div><div class="nav-item"><span>Schedule</span></div></div>`,
+  commercial:`<div class="nav-section"><div class="nav-section-label">Your Project</div><div class="nav-item"><span>Project Home</span></div><div class="nav-item active"><span>Approvals</span><span class="nav-badge danger">5</span></div><div class="nav-item"><span>Change Orders</span><span class="nav-badge">2</span></div><div class="nav-item"><span>Billing / Draws</span></div><div class="nav-item"><span>Schedule</span></div><div class="nav-item"><span>Documents</span></div><div class="nav-item"><span>Messages</span></div><div class="nav-item"><span>Payments</span></div></div>`,
+  residential:`<div class="nav-section"><div class="nav-section-label">Your Project</div><div class="nav-item"><span>Project Home</span></div><div class="nav-item"><span>Selections</span><span class="nav-badge">5</span></div><div class="nav-item"><span>Photos & Updates</span></div><div class="nav-item"><span>Schedule</span></div><div class="nav-item"><span>Scope Changes</span></div><div class="nav-item active"><span>Decisions</span><span class="nav-badge warn">1</span></div><div class="nav-item"><span>Documents</span></div><div class="nav-item"><span>Messages</span></div><div class="nav-item"><span>Payments</span></div></div>`
+};
+function switchPortal(p){
+  const app=document.getElementById('appShell');app.className='app'+(p!=='contractor'?' '+p:'');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+p).classList.add('active');
+  document.querySelectorAll('.portal-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.portal-tab')[{contractor:0,commercial:1,residential:2}[p]].classList.add('active');
+  document.getElementById('sidebarNav').innerHTML=navs[p];
+  const l={contractor:['Contractor Portal','Riverside Tower Fit-Out','Approvals','DC'],commercial:['Commercial Client','Riverside Tower Fit-Out','Approvals Center','RH'],residential:['Homeowner Portal','The Harrison Residence','Decisions','SH']}[p];
+  document.getElementById('portalLabel').textContent=l[0];document.getElementById('bcPortal').textContent=l[0];
+  document.getElementById('bcProject').textContent=l[1];document.getElementById('bcPage').textContent=l[2];document.getElementById('userAvatar').textContent=l[3];
+}
+function selectDecision(el){document.querySelectorAll('.decision-option').forEach(o=>o.classList.remove('selected'));el.classList.add('selected')}
+switchPortal('contractor');
+</script>
+</body>
+</html>

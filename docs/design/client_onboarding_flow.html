@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BuiltCRM — You're Invited</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --surface-0:#eef0f3;--surface-1:#ffffff;--surface-2:#f3f4f6;--surface-3:#e2e5e9;--surface-4:#d1d5db;
+  --surface-hover:#f5f6f8;--surface-incard:#f8f9fa;
+  --text-primary:#1a1714;--text-secondary:#6b655b;--text-tertiary:#9c958a;
+  --accent:#5b4fc7;--accent-hover:#4f44b3;--accent-soft:#eeedfb;--accent-text:#4a3fb0;
+  --res-accent:#2a7f6f;--res-accent-soft:#e6f5f2;--res-accent-text:#1d6b5d;
+  --success:#2d8a5e;--success-soft:#edf7f1;--success-text:#1e6b46;
+  --warning:#c17a1a;--warning-soft:#fdf4e6;--warning-text:#96600f;
+  --danger:#c93b3b;--danger-soft:#fdeaea;--danger-text:#a52e2e;
+  --font-display:'DM Sans',system-ui,sans-serif;--font-body:'Instrument Sans',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;--sp-10:40px;--sp-12:48px;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;--radius-2xl:24px;
+  --shadow-sm:0 1px 3px rgba(26,23,20,.05);--shadow-md:0 4px 16px rgba(26,23,20,.06);--shadow-lg:0 10px 32px rgba(26,23,20,.08);
+  --ease-out:cubic-bezier(.16,1,.3,1);--dur-fast:120ms;--dur-normal:200ms;--dur-slow:350ms;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0}
+body{font-family:var(--font-body);background:var(--surface-0);color:var(--text-primary);-webkit-font-smoothing:antialiased;line-height:1.5;font-size:14px;min-height:100vh}
+
+/* ================================================================
+   SHARED LAYOUT — centered card on neutral background
+   ================================================================ */
+.onboard-page{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--sp-8) var(--sp-6)}
+
+.onboard-brand{display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-8)}
+.onboard-brand-mark{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:#fff;font-family:var(--font-display);font-size:14px;font-weight:700}
+.onboard-brand-mark.commercial{background:linear-gradient(135deg,#2c2541,#5b4fc7)}
+.onboard-brand-mark.residential{background:linear-gradient(135deg,#1d6b5d,#2a7f6f)}
+.onboard-brand-name{font-family:var(--font-display);font-size:18px;font-weight:750;letter-spacing:-.03em}
+
+.onboard-card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-2xl);box-shadow:var(--shadow-lg);width:100%;max-width:480px;overflow:hidden}
+
+/* Step indicator */
+.step-indicator{display:flex;gap:var(--sp-2);padding:var(--sp-5) var(--sp-6) 0;justify-content:center}
+.step-dot{width:32px;height:4px;border-radius:2px;background:var(--surface-3)}
+.step-dot.active{background:var(--accent)}
+.step-dot.active.res{background:var(--res-accent)}
+.step-dot.done{background:var(--surface-4)}
+
+.onboard-body{padding:var(--sp-6)}
+.onboard-body h1{font-family:var(--font-display);font-size:24px;font-weight:750;letter-spacing:-.03em;line-height:1.2;margin-bottom:var(--sp-2)}
+.onboard-body h2{font-family:var(--font-display);font-size:20px;font-weight:720;letter-spacing:-.02em;line-height:1.2;margin-bottom:var(--sp-2)}
+.onboard-body .sub{font-size:15px;color:var(--text-secondary);line-height:1.5;margin-bottom:var(--sp-6)}
+
+/* Project context card */
+.project-context{background:var(--surface-incard);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:var(--sp-4);margin-bottom:var(--sp-6)}
+.project-context-label{font-size:11px;font-weight:650;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:var(--sp-2)}
+.project-context h3{font-family:var(--font-display);font-size:16px;font-weight:680;letter-spacing:-.01em}
+.project-context p{font-size:13px;color:var(--text-secondary);margin-top:4px}
+.project-context-meta{display:flex;gap:var(--sp-4);margin-top:var(--sp-3);font-size:12.5px;color:var(--text-secondary)}
+.project-context-meta strong{font-weight:620;color:var(--text-primary)}
+
+/* Form fields */
+.field{margin-bottom:var(--sp-4)}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:6px}
+.field input{width:100%;height:42px;border:1px solid var(--surface-3);border-radius:var(--radius-md);padding:0 var(--sp-4);font-family:var(--font-body);font-size:14px;color:var(--text-primary);outline:none;transition:all var(--dur-fast) var(--ease-out)}
+.field input::placeholder{color:var(--text-tertiary)}
+.field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,79,199,.12)}
+.field input:focus.res{border-color:var(--res-accent);box-shadow:0 0 0 3px rgba(42,127,111,.12)}
+.field-hint{font-size:12px;color:var(--text-tertiary);margin-top:4px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)}
+
+.btn{height:42px;padding:0 var(--sp-5);border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);font-family:var(--font-body);font-size:14px;font-weight:600;color:var(--text-primary);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:all var(--dur-fast) var(--ease-out);white-space:nowrap;width:100%}
+.btn:hover{background:var(--surface-hover);border-color:var(--surface-4)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-hover)}
+.btn.primary.res{background:var(--res-accent);border-color:var(--res-accent)}
+.btn.primary.res:hover{background:var(--res-accent-text)}
+
+.divider{display:flex;align-items:center;gap:var(--sp-3);margin:var(--sp-5) 0;color:var(--text-tertiary);font-size:12px}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--surface-3)}
+
+.onboard-footer{padding:0 var(--sp-6) var(--sp-5);font-size:12px;color:var(--text-tertiary);text-align:center}
+.onboard-footer a{color:var(--accent-text);text-decoration:none;font-weight:600}
+
+/* ================================================================
+   WELCOME SCREEN (Step 2) — what you can do here
+   ================================================================ */
+.welcome-features{display:flex;flex-direction:column;gap:var(--sp-3);margin-bottom:var(--sp-6)}
+.welcome-feature{display:flex;align-items:flex-start;gap:var(--sp-3);padding:var(--sp-3);border-radius:var(--radius-md)}
+.welcome-icon{width:36px;height:36px;border-radius:var(--radius-md);display:grid;place-items:center;flex-shrink:0}
+.welcome-icon.purple{background:var(--accent-soft);color:var(--accent-text)}
+.welcome-icon.teal{background:var(--res-accent-soft);color:var(--res-accent-text)}
+.welcome-icon.blue{background:#e8f1fa;color:#276299}
+.welcome-icon.green{background:var(--success-soft);color:var(--success-text)}
+.welcome-icon.amber{background:var(--warning-soft);color:var(--warning-text)}
+.welcome-feature h4{font-family:var(--font-display);font-size:14px;font-weight:640;letter-spacing:-.01em;margin-bottom:2px}
+.welcome-feature p{font-size:13px;color:var(--text-secondary);line-height:1.4}
+
+/* Waiting items preview */
+.waiting-preview{background:var(--surface-incard);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:var(--sp-4);margin-bottom:var(--sp-6)}
+.waiting-preview h4{font-family:var(--font-display);font-size:13px;font-weight:650;margin-bottom:var(--sp-3)}
+.waiting-item{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--surface-3)}
+.waiting-item:last-child{border-bottom:none}
+.waiting-item span{font-size:13px}
+.pill{height:22px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:650;display:inline-flex;align-items:center;white-space:nowrap}
+.pill.amber{background:var(--warning-soft);color:var(--warning-text)}
+.pill.blue{background:#e8f1fa;color:#276299}
+.pill.teal{background:var(--res-accent-soft);color:var(--res-accent-text)}
+.pill.red{background:var(--danger-soft);color:var(--danger-text)}
+
+/* ================================================================
+   VARIANT SWITCHER (demo only — not in production)
+   ================================================================ */
+.demo-switcher{display:flex;gap:var(--sp-1);background:var(--surface-2);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:3px;margin-bottom:var(--sp-6);width:fit-content}
+.demo-tab{padding:7px 16px;border-radius:var(--radius-md);font-size:13px;font-weight:560;color:var(--text-secondary);cursor:pointer;transition:all var(--dur-fast) var(--ease-out)}
+.demo-tab.active{background:var(--surface-1);color:var(--text-primary);font-weight:640;box-shadow:var(--shadow-sm)}
+
+.screen{display:none}
+.screen.active{display:block}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.onboard-card{animation:fadeIn var(--dur-slow) var(--ease-out)}
+</style>
+</head>
+<body>
+
+<!-- ================================================================
+     DEMO CONTROLS — switch between screens (not in production)
+     ================================================================ -->
+<div style="position:fixed;top:var(--sp-4);left:50%;transform:translateX(-50%);z-index:100;display:flex;gap:var(--sp-3);align-items:center">
+  <div class="demo-switcher" id="variantSwitch">
+    <div class="demo-tab active" data-variant="commercial">Commercial</div>
+    <div class="demo-tab" data-variant="residential">Residential</div>
+  </div>
+  <div class="demo-switcher" id="stepSwitch">
+    <div class="demo-tab active" data-step="invite">Invitation</div>
+    <div class="demo-tab" data-step="signup">Create account</div>
+    <div class="demo-tab" data-step="welcome">Welcome</div>
+  </div>
+</div>
+
+<!-- ================================================================
+     COMMERCIAL VARIANT
+     ================================================================ -->
+
+<!-- Step 1: Invitation landing -->
+<div class="screen active" id="commercial-invite">
+<div class="onboard-page">
+  <div class="onboard-brand">
+    <div class="onboard-brand-mark commercial">B</div>
+    <div class="onboard-brand-name">BuiltCRM</div>
+  </div>
+  <div class="onboard-card">
+    <div class="step-indicator"><div class="step-dot active"></div><div class="step-dot"></div><div class="step-dot"></div></div>
+    <div class="onboard-body">
+      <h1>You've been invited to a project</h1>
+      <p class="sub">Summit Contracting has invited you to collaborate on a construction project through BuiltCRM.</p>
+      <div class="project-context">
+        <div class="project-context-label">Project</div>
+        <h3>Riverside Tower Fit-Out</h3>
+        <p>Commercial interior fit-out · Phase 3 in progress</p>
+        <div class="project-context-meta">
+          <span><strong>Invited by:</strong> Daniel Chen</span>
+          <span><strong>Your role:</strong> Project Approver</span>
+        </div>
+      </div>
+      <button class="btn primary" onclick="showScreen('commercial','signup')">Accept invitation</button>
+      <div class="divider">or</div>
+      <button class="btn">I already have an account — sign in</button>
+    </div>
+    <div class="onboard-footer">
+      By accepting, you agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Step 2: Account creation -->
+<div class="screen" id="commercial-signup">
+<div class="onboard-page">
+  <div class="onboard-brand">
+    <div class="onboard-brand-mark commercial">B</div>
+    <div class="onboard-brand-name">BuiltCRM</div>
+  </div>
+  <div class="onboard-card">
+    <div class="step-indicator"><div class="step-dot done"></div><div class="step-dot active"></div><div class="step-dot"></div></div>
+    <div class="onboard-body">
+      <h2>Create your account</h2>
+      <p class="sub">Set up your account to access the Riverside Tower Fit-Out project.</p>
+      <div class="field-row">
+        <div class="field"><label>First name</label><input type="text" placeholder="Rachel" /></div>
+        <div class="field"><label>Last name</label><input type="text" placeholder="Greyson" /></div>
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" value="rachel@greysondevelopment.com" style="background:var(--surface-incard);color:var(--text-secondary)" readonly />
+        <div class="field-hint">This is the email your invitation was sent to</div>
+      </div>
+      <div class="field"><label>Password</label><input type="password" placeholder="Create a password" /></div>
+      <div class="field"><label>Company name (optional)</label><input type="text" placeholder="Greyson Development" /></div>
+      <button class="btn primary" onclick="showScreen('commercial','welcome')">Create account</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Step 3: Welcome -->
+<div class="screen" id="commercial-welcome">
+<div class="onboard-page">
+  <div class="onboard-brand">
+    <div class="onboard-brand-mark commercial">B</div>
+    <div class="onboard-brand-name">BuiltCRM</div>
+  </div>
+  <div class="onboard-card">
+    <div class="step-indicator"><div class="step-dot done"></div><div class="step-dot done"></div><div class="step-dot active"></div></div>
+    <div class="onboard-body">
+      <h2>Welcome, Rachel</h2>
+      <p class="sub">Here's what you can do on the Riverside Tower project.</p>
+      <div class="welcome-features">
+        <div class="welcome-feature">
+          <div class="welcome-icon purple"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-5"/></svg></div>
+          <div><h4>Review and approve</h4><p>Approve change orders, review billing draws, and sign off on project decisions.</p></div>
+        </div>
+        <div class="welcome-feature">
+          <div class="welcome-icon blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg></div>
+          <div><h4>Track financials</h4><p>See payment history, current draws, retainage, and your contract status at a glance.</p></div>
+        </div>
+        <div class="welcome-feature">
+          <div class="welcome-icon green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg></div>
+          <div><h4>Monitor progress</h4><p>View milestones, progress photos, and project updates from your contractor.</p></div>
+        </div>
+      </div>
+      <div class="waiting-preview">
+        <h4>Already waiting for you:</h4>
+        <div class="waiting-item"><span>CO-14 mechanical reroute</span><span class="pill amber">Needs approval</span></div>
+        <div class="waiting-item"><span>Draw #7 progress billing</span><span class="pill blue">Ready for review</span></div>
+      </div>
+      <button class="btn primary">Go to your project →</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ================================================================
+     RESIDENTIAL VARIANT
+     ================================================================ -->
+
+<!-- Step 1: Invitation landing -->
+<div class="screen" id="residential-invite">
+<div class="onboard-page">
+  <div class="onboard-brand">
+    <div class="onboard-brand-mark residential">B</div>
+    <div class="onboard-brand-name">BuiltCRM</div>
+  </div>
+  <div class="onboard-card">
+    <div class="step-indicator"><div class="step-dot active res"></div><div class="step-dot"></div><div class="step-dot"></div></div>
+    <div class="onboard-body">
+      <h1>Your home project is ready</h1>
+      <p class="sub">Daniel Chen at Summit Contracting has set up a project portal for your home renovation.</p>
+      <div class="project-context" style="background:var(--res-accent-soft);border-color:rgba(42,127,111,.2)">
+        <div class="project-context-label">Your project</div>
+        <h3>14 Maple Lane Renovation</h3>
+        <p>Full interior renovation · currently in framing phase</p>
+        <div class="project-context-meta">
+          <span><strong>Your builder:</strong> Daniel Chen, Summit Contracting</span>
+        </div>
+      </div>
+      <button class="btn primary res" onclick="showScreen('residential','signup')">Get started</button>
+      <div class="divider">or</div>
+      <button class="btn">I already have an account — sign in</button>
+    </div>
+    <div class="onboard-footer">
+      By continuing, you agree to the <a href="#" style="color:var(--res-accent-text)">Terms of Service</a> and <a href="#" style="color:var(--res-accent-text)">Privacy Policy</a>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Step 2: Account creation -->
+<div class="screen" id="residential-signup">
+<div class="onboard-page">
+  <div class="onboard-brand">
+    <div class="onboard-brand-mark residential">B</div>
+    <div class="onboard-brand-name">BuiltCRM</div>
+  </div>
+  <div class="onboard-card">
+    <div class="step-indicator"><div class="step-dot done"></div><div class="step-dot active res"></div><div class="step-dot"></div></div>
+    <div class="onboard-body">
+      <h2>Set up your account</h2>
+      <p class="sub">This will be your personal login to see updates, make selections, and stay connected with your builder.</p>
+      <div class="field-row">
+        <div class="field"><label>First name</label><input type="text" placeholder="Jennifer" class="res" /></div>
+        <div class="field"><label>Last name</label><input type="text" placeholder="Chen" class="res" /></div>
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" value="jennifer.chen@gmail.com" style="background:var(--surface-incard);color:var(--text-secondary)" readonly />
+        <div class="field-hint">This is the email your builder sent the invitation to</div>
+      </div>
+      <div class="field"><label>Create a password</label><input type="password" placeholder="Choose something secure" class="res" /></div>
+      <button class="btn primary res" onclick="showScreen('residential','welcome')">Create my account</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Step 3: Welcome -->
+<div class="screen" id="residential-welcome">
+<div class="onboard-page">
+  <div class="onboard-brand">
+    <div class="onboard-brand-mark residential">B</div>
+    <div class="onboard-brand-name">BuiltCRM</div>
+  </div>
+  <div class="onboard-card">
+    <div class="step-indicator"><div class="step-dot done"></div><div class="step-dot done"></div><div class="step-dot active res"></div></div>
+    <div class="onboard-body">
+      <h2>Welcome, Jennifer</h2>
+      <p class="sub">Here's what you can do from your project portal.</p>
+      <div class="welcome-features">
+        <div class="welcome-feature">
+          <div class="welcome-icon teal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg></div>
+          <div><h4>Choose your finishes</h4><p>Browse curated options for flooring, paint, hardware, and more — then confirm your choices when you're ready.</p></div>
+        </div>
+        <div class="welcome-feature">
+          <div class="welcome-icon green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>
+          <div><h4>See your home being built</h4><p>Your builder will share progress photos and updates so you always know where things stand.</p></div>
+        </div>
+        <div class="welcome-feature">
+          <div class="welcome-icon amber"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+          <div><h4>Talk to your builder</h4><p>Message your project team directly with questions, feedback, or ideas.</p></div>
+        </div>
+      </div>
+      <div class="waiting-preview" style="background:var(--res-accent-soft);border-color:rgba(42,127,111,.15)">
+        <h4>Ready for you now:</h4>
+        <div class="waiting-item"><span>3 finish selections to explore</span><span class="pill teal">Ready</span></div>
+        <div class="waiting-item"><span>8 progress photos from this week</span><span class="pill teal">New</span></div>
+      </div>
+      <button class="btn primary res">See your project →</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+let currentVariant = 'commercial';
+let currentStep = 'invite';
+
+function showScreen(variant, step) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const target = document.getElementById(`${variant}-${step}`);
+  if (target) {
+    target.classList.add('active');
+    currentVariant = variant;
+    currentStep = step;
+    updateSwitchers();
+  }
+}
+
+function updateSwitchers() {
+  document.querySelectorAll('#variantSwitch .demo-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.variant === currentVariant);
+  });
+  document.querySelectorAll('#stepSwitch .demo-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.step === currentStep);
+  });
+}
+
+document.querySelectorAll('#variantSwitch .demo-tab').forEach(tab => {
+  tab.addEventListener('click', () => showScreen(tab.dataset.variant, currentStep));
+});
+document.querySelectorAll('#stepSwitch .demo-tab').forEach(tab => {
+  tab.addEventListener('click', () => showScreen(currentVariant, tab.dataset.step));
+});
+</script>
+</body>
+</html>

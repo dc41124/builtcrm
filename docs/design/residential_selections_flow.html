@@ -1,0 +1,1789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BuiltCRM — Residential Selections Flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ================================================================
+   DESIGN TOKENS — BuiltCRM Residential
+   ================================================================ */
+:root {
+  --surface-0: #eef0f3;
+  --surface-1: #ffffff;
+  --surface-2: #f3f4f6;
+  --surface-3: #e2e5e9;
+  --surface-4: #d1d5db;
+  --surface-hover: #f5f6f8;
+  --surface-active: #e5e7eb;
+
+  --sidebar-bg: #ffffff;
+  --sidebar-hover: #f5f6f8;
+  --sidebar-active: #eef0f3;
+  --sidebar-active-text: #1a1714;
+  --sidebar-section-text: #8b919a;
+  --sidebar-item-text: #5a6170;
+  --sidebar-border: #e8eaee;
+
+  --text-primary: #1a1714;
+  --text-secondary: #6b655b;
+  --text-tertiary: #9c958a;
+
+  /* Residential teal accent */
+  --accent: #2a7f6f;
+  --accent-hover: #237060;
+  --accent-soft: #e6f5f1;
+  --accent-text: #1f6b5c;
+  --accent-muted: #b0d9cf;
+
+  --success: #2d8a5e;
+  --success-soft: #edf7f1;
+  --success-text: #1e6b46;
+  --warning: #c17a1a;
+  --warning-soft: #fdf4e6;
+  --warning-text: #96600f;
+  --danger: #c93b3b;
+  --danger-soft: #fdeaea;
+  --danger-text: #a52e2e;
+  --info: #3178b9;
+  --info-soft: #e8f1fa;
+  --info-text: #276299;
+
+  --font-display: 'DM Sans', system-ui, sans-serif;
+  --font-body: 'Instrument Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  --shadow-sm: 0 1px 3px rgba(26,23,20,.05);
+  --shadow-md: 0 4px 16px rgba(26,23,20,.06);
+  --shadow-lg: 0 10px 32px rgba(26,23,20,.08);
+  --shadow-ring: 0 0 0 3px rgba(42,127,111,.18);
+
+  --sidebar-width: 272px;
+  --topbar-height: 56px;
+  --ease-out: cubic-bezier(.16,1,.3,1);
+  --duration-normal: 200ms;
+}
+
+/* ================================================================
+   RESET & BASE
+   ================================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; }
+body {
+  font-family: var(--font-body);
+  background: var(--surface-0);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+button { cursor: pointer; font-family: inherit; border: none; background: none; }
+input { font-family: inherit; }
+
+/* ================================================================
+   APP SHELL
+   ================================================================ */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  min-height: 100vh;
+}
+
+/* --- Sidebar --- */
+.sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  display: flex; flex-direction: column;
+  position: sticky; top: 0; height: 100vh;
+  overflow: hidden;
+}
+.brand {
+  height: var(--topbar-height);
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--sidebar-border);
+  flex-shrink: 0;
+}
+.brand-mark {
+  width: 32px; height: 32px; border-radius: 10px;
+  background: linear-gradient(135deg, #1a1714 0%, #3d3830 100%);
+  color: #faf9f7; display: grid; place-items: center;
+  font-family: var(--font-display); font-size: 12px; font-weight: 700;
+}
+.brand-info h1 { font-family: var(--font-display); font-size: 14px; font-weight: 700; }
+.brand-info p { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
+
+.sidebar-search {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--sidebar-border);
+  flex-shrink: 0;
+}
+.sidebar-search input {
+  width: 100%; height: 36px; border-radius: var(--radius-md);
+  border: 1px solid var(--surface-3); background: var(--surface-2);
+  padding: 0 12px; font-size: 13px; color: var(--text-primary);
+  outline: none; transition: border-color var(--duration-normal) var(--ease-out);
+}
+.sidebar-search input:focus { border-color: var(--accent); }
+.sidebar-search input::placeholder { color: var(--text-tertiary); }
+
+.sidebar-nav { flex: 1; overflow-y: auto; padding: 8px 10px 20px; }
+.nav-section { margin-bottom: 4px; }
+.nav-section-label {
+  font-family: var(--font-display); font-size: 11px; font-weight: 700;
+  color: var(--sidebar-section-text); text-transform: uppercase; letter-spacing: .06em;
+  padding: 10px 10px 6px;
+}
+.nav-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; border-radius: var(--radius-md);
+  font-size: 13px; color: var(--sidebar-item-text); font-weight: 500;
+  transition: all var(--duration-normal) var(--ease-out);
+  margin-bottom: 2px;
+}
+.nav-item:hover { background: var(--sidebar-hover); color: var(--sidebar-active-text); }
+.nav-item.active {
+  background: var(--accent-soft); color: var(--accent-text); font-weight: 650;
+}
+.nav-badge {
+  min-width: 20px; height: 20px; padding: 0 7px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent-text);
+  font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+}
+.nav-badge.warn { background: var(--warning-soft); color: var(--warning-text); }
+
+/* --- Topbar --- */
+.main { display: flex; flex-direction: column; min-width: 0; }
+.topbar {
+  height: var(--topbar-height);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--surface-3);
+  background: rgba(255,255,255,.88);
+  backdrop-filter: blur(12px);
+  flex-shrink: 0;
+  position: sticky; top: 0; z-index: 50;
+}
+.breadcrumbs {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text-tertiary);
+}
+.breadcrumbs span { cursor: pointer; }
+.breadcrumbs span:hover { color: var(--text-secondary); }
+.breadcrumbs .sep { color: var(--surface-4); }
+.breadcrumbs .current { color: var(--text-primary); font-weight: 650; cursor: default; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.topbar-btn {
+  height: 34px; padding: 0 12px; border-radius: var(--radius-md);
+  border: 1px solid var(--surface-3); background: var(--surface-1);
+  font-size: 12px; color: var(--text-secondary); font-weight: 550;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+.topbar-btn:hover { border-color: var(--surface-4); color: var(--text-primary); }
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--accent); color: white;
+  display: grid; place-items: center;
+  font-family: var(--font-display); font-size: 12px; font-weight: 700;
+}
+
+/* ================================================================
+   CONTENT AREA
+   ================================================================ */
+.content { padding: 24px; flex: 1; }
+
+/* --- Page header --- */
+.page-header {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 20px;
+  margin-bottom: 20px;
+}
+.page-header-left h2 {
+  font-family: var(--font-display); font-size: 24px; font-weight: 750;
+  letter-spacing: -.03em;
+}
+.page-header-left p {
+  margin-top: 4px; font-size: 13px; color: var(--text-secondary); max-width: 520px;
+}
+.page-header-right { display: flex; gap: 8px; flex-shrink: 0; padding-top: 4px; }
+
+/* --- Summary strip --- */
+.summary-strip {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  margin-bottom: 20px;
+}
+.summary-card {
+  background: var(--surface-1); border: 1px solid var(--surface-3);
+  border-radius: var(--radius-lg); padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
+.summary-card.teal { border-color: var(--accent-muted); background: linear-gradient(180deg, #fff 0%, #f2faf7 100%); }
+.summary-card.orange { border-color: #f5d5a0; background: linear-gradient(180deg, #fff 0%, #fefaf3 100%); }
+.summary-card .sc-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-tertiary);
+}
+.summary-card .sc-value {
+  font-family: var(--font-display); font-size: 22px; font-weight: 800;
+  letter-spacing: -.03em; margin-top: 4px;
+}
+.summary-card .sc-meta { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+
+/* --- State nav tabs --- */
+.state-nav {
+  display: flex; gap: 4px; margin-bottom: 20px;
+  background: var(--surface-2); border-radius: var(--radius-lg); padding: 4px;
+  width: fit-content;
+}
+.state-tab {
+  height: 34px; padding: 0 16px; border-radius: var(--radius-md);
+  font-size: 12px; font-weight: 650; color: var(--text-secondary);
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+.state-tab:hover { color: var(--text-primary); }
+.state-tab.active {
+  background: var(--surface-1); color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+.state-tab .tab-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+}
+.state-tab .tab-dot.green { background: var(--success); }
+.state-tab .tab-dot.orange { background: var(--warning); }
+.state-tab .tab-dot.blue { background: var(--accent); }
+.state-tab .tab-dot.red { background: var(--danger); }
+
+/* ================================================================
+   VIEW 1: SELECTIONS OVERVIEW — CATEGORY GROUPS
+   ================================================================ */
+.view { display: none; }
+.view.active { display: block; }
+
+.category-group { margin-bottom: 24px; }
+.category-label {
+  font-family: var(--font-display); font-size: 14px; font-weight: 700;
+  color: var(--text-primary); margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.category-count {
+  font-size: 11px; font-weight: 700; color: var(--text-tertiary);
+  background: var(--surface-2); padding: 2px 8px; border-radius: 999px;
+}
+
+.item-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+
+.sel-card {
+  background: var(--surface-1); border: 1px solid var(--surface-3);
+  border-radius: var(--radius-xl); padding: 0; overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+.sel-card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--surface-4);
+  transform: translateY(-1px);
+}
+.sel-card-visual {
+  height: 100px; background: var(--surface-2);
+  display: flex; align-items: flex-end; padding: 10px 14px;
+  position: relative; overflow: hidden;
+}
+.sel-card-visual::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.06) 100%);
+}
+.swatch-row {
+  display: flex; gap: 6px; position: relative; z-index: 1;
+}
+.swatch {
+  width: 38px; height: 38px; border-radius: 10px;
+  border: 2px solid rgba(255,255,255,.85);
+  box-shadow: 0 2px 8px rgba(0,0,0,.12);
+}
+.sel-card-status {
+  position: absolute; top: 10px; right: 10px;
+  z-index: 1;
+}
+
+.sel-card-body { padding: 14px 16px 16px; }
+.sel-card-body h4 {
+  font-family: var(--font-display); font-size: 15px; font-weight: 700;
+  letter-spacing: -.01em;
+}
+.sel-card-body p {
+  font-size: 12px; color: var(--text-secondary); margin-top: 4px;
+  line-height: 1.45;
+}
+.sel-card-footer {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px;
+}
+
+/* --- Pills / Tags --- */
+.pill {
+  height: 22px; padding: 0 9px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; display: inline-flex; align-items: center;
+  border: 1px solid var(--surface-3); background: var(--surface-1); color: var(--text-tertiary);
+}
+.pill.teal { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-muted); }
+.pill.green { background: var(--success-soft); color: var(--success-text); border-color: #b0dfc4; }
+.pill.orange { background: var(--warning-soft); color: var(--warning-text); border-color: #f5d5a0; }
+.pill.red { background: var(--danger-soft); color: var(--danger-text); border-color: #f5baba; }
+.pill.blue { background: var(--info-soft); color: var(--info-text); border-color: #b3d1ec; }
+
+/* ================================================================
+   VIEW 2: ITEM DETAIL — EXPLORING / PROVISIONAL / CONFIRMED
+   ================================================================ */
+.detail-layout {
+  display: grid; grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px; align-items: start;
+}
+
+/* --- Back link --- */
+.back-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text-tertiary); font-weight: 550;
+  margin-bottom: 14px; cursor: pointer;
+  transition: color var(--duration-normal) var(--ease-out);
+}
+.back-link:hover { color: var(--accent); }
+.back-link svg { width: 16px; height: 16px; }
+
+/* --- Item header --- */
+.item-header {
+  background: var(--surface-1); border: 1px solid var(--surface-3);
+  border-radius: var(--radius-xl); padding: 20px 22px;
+  box-shadow: var(--shadow-sm); margin-bottom: 14px;
+}
+.item-header-top {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
+}
+.item-header h2 {
+  font-family: var(--font-display); font-size: 22px; font-weight: 750;
+  letter-spacing: -.02em;
+}
+.item-header .item-desc {
+  font-size: 13px; color: var(--text-secondary); margin-top: 4px; max-width: 560px;
+}
+.item-meta-row {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;
+}
+.meta-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: var(--radius-md);
+  border: 1px solid var(--surface-3); background: var(--surface-1);
+  font-size: 12px; color: var(--text-secondary);
+}
+.meta-chip strong { color: var(--text-primary); font-weight: 650; }
+.meta-chip svg { width: 14px; height: 14px; color: var(--text-tertiary); }
+
+/* --- Option cards grid --- */
+.options-section { margin-bottom: 16px; }
+.options-section-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12px;
+}
+.options-section-head h3 {
+  font-family: var(--font-display); font-size: 15px; font-weight: 700;
+}
+.options-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+}
+
+.option-card {
+  background: var(--surface-1); border: 2px solid var(--surface-3);
+  border-radius: var(--radius-xl); overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration-normal) var(--ease-out);
+  cursor: pointer;
+  position: relative;
+}
+.option-card:hover {
+  border-color: var(--surface-4);
+  box-shadow: var(--shadow-md);
+}
+.option-card.selected {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-ring), var(--shadow-md);
+}
+.option-card.recommended { border-color: var(--accent-muted); }
+.option-card.selected.recommended { border-color: var(--accent); }
+
+/* Option visual */
+.option-visual {
+  height: 160px; position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.option-visual .opt-bg {
+  position: absolute; inset: 0;
+}
+.option-visual .opt-swatch {
+  width: 72px; height: 72px; border-radius: 16px;
+  border: 3px solid rgba(255,255,255,.8);
+  box-shadow: 0 6px 20px rgba(0,0,0,.15);
+  position: relative; z-index: 1;
+}
+.option-tags {
+  position: absolute; top: 10px; left: 10px;
+  display: flex; gap: 5px; flex-wrap: wrap; z-index: 2;
+}
+.opt-tag {
+  height: 22px; padding: 0 9px; border-radius: 999px;
+  font-size: 10px; font-weight: 750; letter-spacing: .02em;
+  display: inline-flex; align-items: center;
+  background: rgba(255,255,255,.92); border: 1px solid rgba(255,255,255,.6);
+  color: var(--text-secondary); backdrop-filter: blur(6px);
+}
+.opt-tag.rec { background: #eef8f4; border-color: #bde5d4; color: var(--success-text); }
+.opt-tag.inc { background: var(--accent-soft); border-color: var(--accent-muted); color: var(--accent-text); }
+.opt-tag.upg { background: var(--warning-soft); border-color: #f0cc8a; color: var(--warning-text); }
+.opt-tag.prem { background: #fef0e6; border-color: #f5c9a0; color: #a04d1a; }
+.opt-tag.sel { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+
+.option-check {
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.7);
+  background: rgba(255,255,255,.5);
+  display: grid; place-items: center;
+  transition: all var(--duration-normal) var(--ease-out);
+  backdrop-filter: blur(4px);
+}
+.option-card.selected .option-check {
+  background: var(--accent); border-color: var(--accent);
+}
+.option-check svg { width: 14px; height: 14px; color: transparent; }
+.option-card.selected .option-check svg { color: white; }
+
+/* Option body */
+.option-body { padding: 14px 16px 16px; }
+.option-body h4 {
+  font-family: var(--font-display); font-size: 15px; font-weight: 700;
+}
+.option-body p {
+  font-size: 12px; color: var(--text-secondary); margin-top: 3px; line-height: 1.45;
+}
+.option-price {
+  margin-top: 10px; display: flex; align-items: baseline; gap: 6px;
+}
+.option-price .price {
+  font-family: var(--font-display); font-size: 16px; font-weight: 750;
+}
+.option-price .price.included { color: var(--accent-text); }
+.option-price .price.upgrade { color: var(--warning-text); }
+.option-price .price-note { font-size: 11px; color: var(--text-tertiary); }
+.option-timing {
+  margin-top: 6px; font-size: 12px; color: var(--text-tertiary);
+  display: flex; align-items: center; gap: 4px;
+}
+.option-timing svg { width: 13px; height: 13px; }
+.option-timing.warn { color: var(--warning-text); }
+
+.option-attrs {
+  display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px;
+}
+.attr-tag {
+  height: 22px; padding: 0 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; color: var(--text-tertiary);
+  border: 1px solid var(--surface-3); background: var(--surface-2);
+  display: inline-flex; align-items: center;
+}
+
+/* --- Right rail --- */
+.detail-rail { display: flex; flex-direction: column; gap: 12px; }
+
+.rail-card {
+  background: var(--surface-1); border: 1px solid var(--surface-3);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.rail-card-head {
+  padding: 16px 18px 0;
+}
+.rail-card-head h3 {
+  font-family: var(--font-display); font-size: 14px; font-weight: 700;
+}
+.rail-card-head .sub {
+  font-size: 12px; color: var(--text-tertiary); margin-top: 2px;
+}
+.rail-card-body { padding: 12px 18px 18px; }
+
+/* Impact summary */
+.impact-row {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--surface-2);
+}
+.impact-row:last-child { border-bottom: none; }
+.impact-row h5 {
+  font-family: var(--font-display); font-size: 13px; font-weight: 650;
+}
+.impact-row p { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+.impact-value {
+  font-family: var(--font-display); font-size: 13px; font-weight: 700;
+  white-space: nowrap; flex-shrink: 0;
+}
+
+/* Confirm actions */
+.confirm-actions {
+  display: flex; flex-direction: column; gap: 8px; margin-top: 14px;
+}
+.btn {
+  height: 40px; padding: 0 18px; border-radius: var(--radius-md);
+  font-size: 13px; font-weight: 650; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid var(--surface-3); background: var(--surface-1); color: var(--text-primary);
+  transition: all var(--duration-normal) var(--ease-out);
+}
+.btn:hover { border-color: var(--surface-4); background: var(--surface-hover); }
+.btn.primary {
+  background: var(--accent); border-color: var(--accent); color: white;
+}
+.btn.primary:hover { background: var(--accent-hover); }
+.btn.sm { height: 34px; padding: 0 14px; font-size: 12px; }
+.btn.outline-teal {
+  border-color: var(--accent-muted); color: var(--accent-text);
+}
+.btn.outline-teal:hover { background: var(--accent-soft); }
+
+/* --- Post-confirm card --- */
+.post-card {
+  background: linear-gradient(180deg, #f2faf7 0%, #fff 100%);
+  border: 1px solid var(--accent-muted);
+  border-radius: var(--radius-xl); padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+}
+.post-card h3 {
+  font-family: var(--font-display); font-size: 15px; font-weight: 700;
+  color: var(--accent-text);
+  display: flex; align-items: center; gap: 8px;
+}
+.post-card h3 svg { width: 18px; height: 18px; color: var(--success); }
+.post-step {
+  display: flex; gap: 12px; padding: 10px 0;
+  border-bottom: 1px solid rgba(42,127,111,.1);
+}
+.post-step:last-child { border-bottom: none; }
+.post-dot {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent-text);
+  display: grid; place-items: center; flex-shrink: 0;
+  font-size: 11px; font-weight: 800;
+  font-family: var(--font-display);
+}
+.post-step-text h5 { font-size: 13px; font-weight: 650; }
+.post-step-text p { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+
+/* --- Revision banner --- */
+.revision-banner {
+  background: var(--warning-soft);
+  border: 1px solid #f0cc8a;
+  border-radius: var(--radius-lg); padding: 14px 18px;
+  margin-bottom: 14px;
+  display: flex; align-items: flex-start; gap: 12px;
+}
+.revision-banner svg { width: 20px; height: 20px; color: var(--warning); flex-shrink: 0; margin-top: 1px; }
+.revision-banner h4 {
+  font-family: var(--font-display); font-size: 14px; font-weight: 700;
+  color: var(--warning-text);
+}
+.revision-banner p { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+/* --- Compare overlay --- */
+.compare-panel {
+  background: var(--surface-1);
+  border: 1px solid var(--surface-3);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: 20px 22px;
+  margin-top: 16px;
+}
+.compare-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px;
+}
+.compare-header h3 {
+  font-family: var(--font-display); font-size: 16px; font-weight: 750;
+}
+.compare-grid {
+  display: grid; grid-template-columns: 150px repeat(3, 1fr); gap: 0;
+}
+.compare-grid .cg-header {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-tertiary); padding: 10px 12px;
+  background: var(--surface-2); border-bottom: 1px solid var(--surface-3);
+}
+.compare-grid .cg-header:first-child { border-radius: var(--radius-md) 0 0 0; }
+.compare-grid .cg-header:last-child { border-radius: 0 var(--radius-md) 0 0; }
+.compare-grid .cg-label {
+  font-size: 12px; font-weight: 650; color: var(--text-secondary);
+  padding: 12px; border-bottom: 1px solid var(--surface-2);
+  display: flex; align-items: center;
+}
+.compare-grid .cg-cell {
+  padding: 12px; border-bottom: 1px solid var(--surface-2);
+  font-size: 13px; display: flex; align-items: center;
+}
+.compare-grid .cg-cell.highlight { background: rgba(42,127,111,.04); }
+.cg-swatch {
+  width: 28px; height: 28px; border-radius: 8px;
+  border: 1px solid var(--surface-3); margin-right: 8px; flex-shrink: 0;
+}
+
+/* --- File row --- */
+.file-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--surface-2);
+}
+.file-row:last-child { border-bottom: none; }
+.file-row h5 { font-size: 13px; font-weight: 600; }
+.file-row p { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+.file-chip {
+  font-size: 11px; font-weight: 700; color: var(--text-tertiary);
+  padding: 3px 8px; border-radius: var(--radius-sm);
+  background: var(--surface-2); white-space: nowrap;
+}
+
+/* --- Comment block --- */
+.comment-block {
+  padding: 12px 0;
+}
+.comment {
+  display: flex; gap: 10px; padding: 8px 0;
+}
+.comment-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--surface-2); color: var(--text-tertiary);
+  display: grid; place-items: center; flex-shrink: 0;
+  font-size: 10px; font-weight: 700;
+}
+.comment-avatar.team { background: var(--accent-soft); color: var(--accent-text); }
+.comment-content { flex: 1; }
+.comment-meta {
+  font-size: 11px; color: var(--text-tertiary);
+}
+.comment-meta strong { color: var(--text-primary); font-weight: 650; }
+.comment-text { font-size: 13px; margin-top: 2px; color: var(--text-secondary); }
+
+.comment-input {
+  display: flex; gap: 8px; margin-top: 8px;
+}
+.comment-input input {
+  flex: 1; height: 36px; border-radius: var(--radius-md);
+  border: 1px solid var(--surface-3); padding: 0 12px;
+  font-size: 13px; color: var(--text-primary); outline: none;
+  background: var(--surface-2);
+}
+.comment-input input:focus { border-color: var(--accent); background: white; }
+
+/* --- Locked banner --- */
+.locked-banner {
+  background: var(--surface-2);
+  border: 1px solid var(--surface-3);
+  border-radius: var(--radius-lg); padding: 14px 18px;
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 14px;
+}
+.locked-banner svg { width: 18px; height: 18px; color: var(--text-tertiary); flex-shrink: 0; }
+.locked-banner p { font-size: 13px; color: var(--text-secondary); }
+.locked-banner strong { color: var(--text-primary); }
+
+/* ================================================================
+   UTILITIES
+   ================================================================ */
+.gap-8 { gap: 8px; }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.mt-4 { margin-top: 4px; }
+.mt-8 { margin-top: 8px; }
+.hidden { display: none !important; }
+
+/* ================================================================
+   RESPONSIVE: scrollable on narrow
+   ================================================================ */
+@media (max-width: 1100px) {
+  .detail-layout { grid-template-columns: 1fr; }
+  .options-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ============================================================
+       SIDEBAR
+       ============================================================ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">B</div>
+      <div class="brand-info">
+        <h1>BuiltCRM</h1>
+        <p>Homeowner Portal</p>
+      </div>
+    </div>
+    <div class="sidebar-search">
+      <input type="text" placeholder="Search your project…" />
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-section-label">Your Project</div>
+        <div class="nav-item">
+          <span>Project Home</span>
+        </div>
+        <div class="nav-item active">
+          <span>Selections</span>
+          <span class="nav-badge">5</span>
+        </div>
+        <div class="nav-item">
+          <span>Photos &amp; Updates</span>
+        </div>
+        <div class="nav-item">
+          <span>Schedule</span>
+        </div>
+        <div class="nav-item">
+          <span>Scope Changes</span>
+        </div>
+        <div class="nav-item">
+          <span>Documents</span>
+        </div>
+        <div class="nav-item">
+          <span>Messages</span>
+          <span class="nav-badge warn">2</span>
+        </div>
+        <div class="nav-item">
+          <span>Payments</span>
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-label">Support</div>
+        <div class="nav-item">
+          <span>Project Team</span>
+        </div>
+        <div class="nav-item">
+          <span>Help &amp; FAQ</span>
+        </div>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- ============================================================
+       MAIN AREA
+       ============================================================ -->
+  <div class="main">
+    <header class="topbar">
+      <div class="breadcrumbs" id="breadcrumbs">
+        <span onclick="showView('overview')">The Harrison Residence</span>
+        <span class="sep">›</span>
+        <span class="current" id="bc-current">Selections</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="topbar-btn">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          Search
+        </button>
+        <div class="avatar">SH</div>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ==========================================================
+           STATE NAV — switch between demo states
+           ========================================================== -->
+      <div class="state-nav" id="stateNav">
+        <button class="state-tab active" onclick="showView('overview')">
+          <span class="tab-dot blue"></span> Overview
+        </button>
+        <button class="state-tab" onclick="showView('exploring')">
+          <span class="tab-dot orange"></span> Exploring
+        </button>
+        <button class="state-tab" onclick="showView('provisional')">
+          <span class="tab-dot teal" style="background:var(--accent)"></span> Provisional
+        </button>
+        <button class="state-tab" onclick="showView('confirmed')">
+          <span class="tab-dot green"></span> Confirmed
+        </button>
+        <button class="state-tab" onclick="showView('revision')">
+          <span class="tab-dot red"></span> Revision
+        </button>
+      </div>
+
+      <!-- ==========================================================
+           VIEW 1: SELECTIONS OVERVIEW
+           ========================================================== -->
+      <div class="view active" id="view-overview">
+        <div class="page-header">
+          <div class="page-header-left">
+            <h2>Your Selections</h2>
+            <p>Your builder has prepared finish options for you to review. Take your time — we'll let you know which ones need attention first.</p>
+          </div>
+          <div class="page-header-right">
+            <button class="btn sm">Filter</button>
+          </div>
+        </div>
+
+        <!-- Summary strip -->
+        <div class="summary-strip">
+          <div class="summary-card teal">
+            <div class="sc-label">Ready to choose</div>
+            <div class="sc-value">3</div>
+            <div class="sc-meta">Options are waiting for you</div>
+          </div>
+          <div class="summary-card orange">
+            <div class="sc-label">Time-sensitive</div>
+            <div class="sc-value">1</div>
+            <div class="sc-meta">Affects scheduling this week</div>
+          </div>
+          <div class="summary-card">
+            <div class="sc-label">Confirmed</div>
+            <div class="sc-value">1</div>
+            <div class="sc-meta">Locked in and moving forward</div>
+          </div>
+          <div class="summary-card">
+            <div class="sc-label">Upgrade total</div>
+            <div class="sc-value">+$1,850</div>
+            <div class="sc-meta">Based on current choices</div>
+          </div>
+        </div>
+
+        <!-- Kitchen category -->
+        <div class="category-group">
+          <div class="category-label">
+            Kitchen
+            <span class="category-count">3 items</span>
+          </div>
+          <div class="item-grid">
+            <!-- Flooring -->
+            <div class="sel-card" onclick="showView('exploring')">
+              <div class="sel-card-visual" style="background: linear-gradient(135deg, #d4c5a9 0%, #e8dcc6 50%, #c2b08a 100%);">
+                <div class="swatch-row">
+                  <div class="swatch" style="background: linear-gradient(135deg, #c2a87a, #a08855);"></div>
+                  <div class="swatch" style="background: linear-gradient(135deg, #8b7355, #6b5540);"></div>
+                  <div class="swatch" style="background: linear-gradient(135deg, #d4c8b0, #bfb59a);"></div>
+                </div>
+                <span class="sel-card-status"><span class="pill red">Decide this week</span></span>
+              </div>
+              <div class="sel-card-body">
+                <h4>Flooring finish</h4>
+                <p>Three hardwood options are ready for your review. This choice affects the install schedule.</p>
+                <div class="sel-card-footer">
+                  <span class="pill orange">Up next</span>
+                  <span class="pill">3 options</span>
+                  <span class="pill teal">Recommended set</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Cabinet paint -->
+            <div class="sel-card" onclick="showView('exploring')">
+              <div class="sel-card-visual" style="background: linear-gradient(135deg, #f0ece5 0%, #e5ddd3 50%, #d8cfc2 100%);">
+                <div class="swatch-row">
+                  <div class="swatch" style="background: linear-gradient(135deg, #f5f2eb, #e8e3d8);"></div>
+                  <div class="swatch" style="background: linear-gradient(135deg, #b5bfa8, #99a68a);"></div>
+                  <div class="swatch" style="background: linear-gradient(135deg, #4a4a4a, #333);"></div>
+                </div>
+              </div>
+              <div class="sel-card-body">
+                <h4>Cabinet paint color</h4>
+                <p>Three reviewed paint options are ready for your final preference.</p>
+                <div class="sel-card-footer">
+                  <span class="pill blue">Ready to review</span>
+                  <span class="pill">3 options</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Countertop -->
+            <div class="sel-card" onclick="showView('confirmed')">
+              <div class="sel-card-visual" style="background: linear-gradient(135deg, #e0dcd6 0%, #d0cac0 50%, #c5bdb0 100%);">
+                <div class="swatch-row">
+                  <div class="swatch" style="background: linear-gradient(135deg, #e8e2d8, #d8d0c2);"></div>
+                </div>
+                <span class="sel-card-status"><span class="pill green">Confirmed</span></span>
+              </div>
+              <div class="sel-card-body">
+                <h4>Countertop material</h4>
+                <p>You confirmed Calacatta quartz. Procurement is underway.</p>
+                <div class="sel-card-footer">
+                  <span class="pill green">Confirmed</span>
+                  <span class="pill">Revision window closes Apr 18</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bathroom category -->
+        <div class="category-group">
+          <div class="category-label">
+            Master Bathroom
+            <span class="category-count">2 items</span>
+          </div>
+          <div class="item-grid">
+            <div class="sel-card" onclick="showView('revision')">
+              <div class="sel-card-visual" style="background: linear-gradient(135deg, #c5d0d8 0%, #b0bcc5 50%, #9faab5 100%);">
+                <div class="swatch-row">
+                  <div class="swatch" style="background: linear-gradient(135deg, #d0d8dd, #b8c4cc);"></div>
+                  <div class="swatch" style="background: linear-gradient(135deg, #8a9ca8, #6b8090);"></div>
+                </div>
+                <span class="sel-card-status"><span class="pill orange">Reopened</span></span>
+              </div>
+              <div class="sel-card-body">
+                <h4>Tile pattern</h4>
+                <p>Your original choice was temporarily unavailable. Two new options are available.</p>
+                <div class="sel-card-footer">
+                  <span class="pill orange">Needs attention</span>
+                  <span class="pill">2 options</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="sel-card">
+              <div class="sel-card-visual" style="background: linear-gradient(135deg, #d4cfc8 0%, #c8c0b5 50%, #b5aa9a 100%);">
+                <div class="swatch-row">
+                  <div class="swatch" style="background: linear-gradient(135deg, #c9a85c, #b08d3a);"></div>
+                  <div class="swatch" style="background: linear-gradient(135deg, #2a2a2a, #111);"></div>
+                  <div class="swatch" style="background: linear-gradient(135deg, #c0c0c0, #a0a0a0);"></div>
+                </div>
+              </div>
+              <div class="sel-card-body">
+                <h4>Fixture finish</h4>
+                <p>Three finish options to match your hardware style.</p>
+                <div class="sel-card-footer">
+                  <span class="pill">Not started</span>
+                  <span class="pill">3 options</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================================
+           VIEW 2: EXPLORING — Option cards, no selection yet
+           ========================================================== -->
+      <div class="view" id="view-exploring">
+        <div class="back-link" onclick="showView('overview')">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5m0 0 7 7m-7-7 7-7"/></svg>
+          Back to all selections
+        </div>
+
+        <div class="detail-layout">
+          <div>
+            <!-- Item header -->
+            <div class="item-header">
+              <div class="item-header-top">
+                <div>
+                  <h2>Flooring finish</h2>
+                  <p class="item-desc">Your builder has prepared three hardwood options for the main living areas. The recommendation is based on your home's lighting and the finishes already selected.</p>
+                </div>
+                <span class="pill red">Decide this week</span>
+              </div>
+              <div class="item-meta-row">
+                <div class="meta-chip">
+                  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z"/></svg>
+                  Decide by <strong>Apr 18</strong>
+                </div>
+                <div class="meta-chip">
+                  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3v4M8 3v4"/></svg>
+                  <strong>3</strong> options
+                </div>
+                <div class="meta-chip">
+                  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+                  May affect schedule
+                </div>
+                <div class="meta-chip">
+                  Allowance: <strong>$4,200</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Options grid -->
+            <div class="options-section">
+              <div class="options-section-head">
+                <h3>Your options</h3>
+                <button class="btn sm outline-teal" onclick="toggleCompare()">Compare side by side</button>
+              </div>
+
+              <div class="options-grid">
+                <!-- Option 1: White Oak — Recommended, Included -->
+                <div class="option-card recommended" onclick="selectOption(this, 'exploring')">
+                  <div class="option-visual">
+                    <div class="opt-bg" style="background: linear-gradient(135deg, #d4c5a9 0%, #e8dcc6 60%, #c2b08a 100%);"></div>
+                    <div class="opt-swatch" style="background: linear-gradient(135deg, #c2a87a, #a08855);"></div>
+                    <div class="option-tags">
+                      <span class="opt-tag rec">Recommended</span>
+                      <span class="opt-tag inc">Included</span>
+                    </div>
+                    <div class="option-check"><svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div>
+                  </div>
+                  <div class="option-body">
+                    <h4>Natural White Oak</h4>
+                    <p>Light, warm tone that pairs well with your cabinet and countertop selections. Low maintenance.</p>
+                    <div class="option-price">
+                      <span class="price included">Included</span>
+                      <span class="price-note">Within your allowance</span>
+                    </div>
+                    <div class="option-timing">
+                      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+                      No schedule impact
+                    </div>
+                    <div class="option-attrs">
+                      <span class="attr-tag">Warm tone</span>
+                      <span class="attr-tag">Matte finish</span>
+                      <span class="attr-tag">5" plank</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Option 2: Walnut — Upgrade -->
+                <div class="option-card" onclick="selectOption(this, 'exploring')">
+                  <div class="option-visual">
+                    <div class="opt-bg" style="background: linear-gradient(135deg, #8b7355 0%, #a08060 60%, #6b5540 100%);"></div>
+                    <div class="opt-swatch" style="background: linear-gradient(135deg, #8b7355, #6b5540);"></div>
+                    <div class="option-tags">
+                      <span class="opt-tag upg">Upgrade</span>
+                    </div>
+                    <div class="option-check"><svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div>
+                  </div>
+                  <div class="option-body">
+                    <h4>American Walnut</h4>
+                    <p>Rich, dark warmth with natural grain variation. A statement floor that anchors the space.</p>
+                    <div class="option-price">
+                      <span class="price upgrade">+$1,850</span>
+                      <span class="price-note">Above your allowance</span>
+                    </div>
+                    <div class="option-timing warn">
+                      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+                      +5 days lead time
+                    </div>
+                    <div class="option-attrs">
+                      <span class="attr-tag">Dark tone</span>
+                      <span class="attr-tag">Semi-gloss</span>
+                      <span class="attr-tag">6" plank</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Option 3: Light Ash — Included -->
+                <div class="option-card" onclick="selectOption(this, 'exploring')">
+                  <div class="option-visual">
+                    <div class="opt-bg" style="background: linear-gradient(135deg, #d4c8b0 0%, #e0d8c5 60%, #bfb59a 100%);"></div>
+                    <div class="opt-swatch" style="background: linear-gradient(135deg, #d4c8b0, #bfb59a);"></div>
+                    <div class="option-tags">
+                      <span class="opt-tag inc">Included</span>
+                    </div>
+                    <div class="option-check"><svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div>
+                  </div>
+                  <div class="option-body">
+                    <h4>Light Ash</h4>
+                    <p>Cool, airy feel with minimal grain. Opens up smaller rooms and pairs with modern palettes.</p>
+                    <div class="option-price">
+                      <span class="price included">Included</span>
+                      <span class="price-note">Within your allowance</span>
+                    </div>
+                    <div class="option-timing">
+                      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+                      No schedule impact
+                    </div>
+                    <div class="option-attrs">
+                      <span class="attr-tag">Cool tone</span>
+                      <span class="attr-tag">Matte finish</span>
+                      <span class="attr-tag">5" plank</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Compare panel (hidden by default) -->
+            <div class="compare-panel hidden" id="comparePanel">
+              <div class="compare-header">
+                <h3>Side-by-side comparison</h3>
+                <button class="btn sm" onclick="toggleCompare()">Close</button>
+              </div>
+              <div class="compare-grid">
+                <div class="cg-header"></div>
+                <div class="cg-header">Natural White Oak</div>
+                <div class="cg-header">American Walnut</div>
+                <div class="cg-header">Light Ash</div>
+
+                <div class="cg-label">Swatch</div>
+                <div class="cg-cell highlight"><div class="cg-swatch" style="background: linear-gradient(135deg, #c2a87a, #a08855);"></div> White Oak</div>
+                <div class="cg-cell"><div class="cg-swatch" style="background: linear-gradient(135deg, #8b7355, #6b5540);"></div> Walnut</div>
+                <div class="cg-cell"><div class="cg-swatch" style="background: linear-gradient(135deg, #d4c8b0, #bfb59a);"></div> Ash</div>
+
+                <div class="cg-label">Price impact</div>
+                <div class="cg-cell highlight" style="color: var(--accent-text); font-weight: 700;">Included</div>
+                <div class="cg-cell" style="color: var(--warning-text); font-weight: 700;">+$1,850</div>
+                <div class="cg-cell" style="color: var(--accent-text); font-weight: 700;">Included</div>
+
+                <div class="cg-label">Schedule</div>
+                <div class="cg-cell highlight">No change</div>
+                <div class="cg-cell" style="color: var(--warning-text);">+5 days</div>
+                <div class="cg-cell">No change</div>
+
+                <div class="cg-label">Tone</div>
+                <div class="cg-cell highlight">Warm</div>
+                <div class="cg-cell">Dark warm</div>
+                <div class="cg-cell">Cool</div>
+
+                <div class="cg-label">Finish</div>
+                <div class="cg-cell highlight">Matte</div>
+                <div class="cg-cell">Semi-gloss</div>
+                <div class="cg-cell">Matte</div>
+
+                <div class="cg-label">Plank width</div>
+                <div class="cg-cell highlight">5"</div>
+                <div class="cg-cell">6"</div>
+                <div class="cg-cell">5"</div>
+
+                <div class="cg-label">Recommendation</div>
+                <div class="cg-cell highlight"><span class="pill teal" style="font-size:10px;">Recommended</span></div>
+                <div class="cg-cell">—</div>
+                <div class="cg-cell">—</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right rail — exploring state -->
+          <div class="detail-rail">
+            <div class="rail-card" style="border-color: var(--accent-muted); background: linear-gradient(180deg, #f2faf7 0%, #fff 100%);">
+              <div class="rail-card-head">
+                <h3>What your builder recommends</h3>
+                <div class="sub">This is a suggestion — the choice is yours.</div>
+              </div>
+              <div class="rail-card-body">
+                <div style="display:flex;gap:10px;align-items:center;">
+                  <div class="cg-swatch" style="background: linear-gradient(135deg, #c2a87a, #a08855); width:36px;height:36px;border-radius:10px;"></div>
+                  <div>
+                    <div style="font-family:var(--font-display);font-weight:700;font-size:14px;">Natural White Oak</div>
+                    <div style="font-size:12px;color:var(--text-secondary);">Included · No schedule change</div>
+                  </div>
+                </div>
+                <p style="font-size:12px;color:var(--text-secondary);margin-top:10px;line-height:1.5;">
+                  Your design team picked this option because it pairs well with the Calacatta countertop you already confirmed and the warm lighting in your open floor plan.
+                </p>
+              </div>
+            </div>
+
+            <div class="rail-card">
+              <div class="rail-card-head">
+                <h3>Helpful files</h3>
+                <div class="sub">References to help you decide.</div>
+              </div>
+              <div class="rail-card-body">
+                <div class="file-row">
+                  <div>
+                    <h5>Flooring samples photo board</h5>
+                    <p>All three options photographed in similar lighting.</p>
+                  </div>
+                  <span class="file-chip">PDF</span>
+                </div>
+                <div class="file-row">
+                  <div>
+                    <h5>Hardwood care guide</h5>
+                    <p>Maintenance and cleaning recommendations.</p>
+                  </div>
+                  <span class="file-chip">PDF</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="rail-card">
+              <div class="rail-card-head">
+                <h3>Questions?</h3>
+                <div class="sub">Ask your project team anything.</div>
+              </div>
+              <div class="rail-card-body">
+                <div class="comment-block">
+                  <div class="comment">
+                    <div class="comment-avatar">SH</div>
+                    <div class="comment-content">
+                      <div class="comment-meta"><strong>You</strong> · 2 days ago</div>
+                      <div class="comment-text">Is the walnut harder to maintain?</div>
+                    </div>
+                  </div>
+                  <div class="comment">
+                    <div class="comment-avatar team">DC</div>
+                    <div class="comment-content">
+                      <div class="comment-meta"><strong>Daniel Chen</strong> · 1 day ago</div>
+                      <div class="comment-text">Not significantly — both are sealed the same way. The walnut shows scuffs slightly more due to the darker tone.</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="comment-input">
+                  <input type="text" placeholder="Ask a question…" />
+                  <button class="btn sm primary">Send</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================================
+           VIEW 3: PROVISIONAL — Option selected, impact visible
+           ========================================================== -->
+      <div class="view" id="view-provisional">
+        <div class="back-link" onclick="showView('overview')">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5m0 0 7 7m-7-7 7-7"/></svg>
+          Back to all selections
+        </div>
+
+        <div class="detail-layout">
+          <div>
+            <div class="item-header">
+              <div class="item-header-top">
+                <div>
+                  <h2>Flooring finish</h2>
+                  <p class="item-desc">You've selected an option. Review the impact below and confirm when you're ready.</p>
+                </div>
+                <span class="pill teal">Provisional choice</span>
+              </div>
+              <div class="item-meta-row">
+                <div class="meta-chip">
+                  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z"/></svg>
+                  Decide by <strong>Apr 18</strong>
+                </div>
+                <div class="meta-chip">
+                  <strong>3</strong> options
+                </div>
+                <div class="meta-chip">
+                  Allowance: <strong>$4,200</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Same options but Walnut is selected -->
+            <div class="options-section">
+              <div class="options-section-head">
+                <h3>Your options</h3>
+                <button class="btn sm outline-teal">Compare side by side</button>
+              </div>
+              <div class="options-grid">
+                <!-- White Oak -->
+                <div class="option-card recommended">
+                  <div class="option-visual">
+                    <div class="opt-bg" style="background: linear-gradient(135deg, #d4c5a9 0%, #e8dcc6 60%, #c2b08a 100%);"></div>
+                    <div class="opt-swatch" style="background: linear-gradient(135deg, #c2a87a, #a08855);"></div>
+                    <div class="option-tags"><span class="opt-tag rec">Recommended</span><span class="opt-tag inc">Included</span></div>
+                    <div class="option-check"><svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div>
+                  </div>
+                  <div class="option-body">
+                    <h4>Natural White Oak</h4>
+                    <p>Light, warm tone. Low maintenance.</p>
+                    <div class="option-price"><span class="price included">Included</span></div>
+                    <div class="option-timing">
+                      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+                      No schedule impact
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Walnut — SELECTED -->
+                <div class="option-card selected">
+                  <div class="option-visual">
+                    <div class="opt-bg" style="background: linear-gradient(135deg, #8b7355 0%, #a08060 60%, #6b5540 100%);"></div>
+                    <div class="opt-swatch" style="background: linear-gradient(135deg, #8b7355, #6b5540);"></div>
+                    <div class="option-tags"><span class="opt-tag sel">Your choice</span><span class="opt-tag upg">Upgrade</span></div>
+                    <div class="option-check"><svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div>
+                  </div>
+                  <div class="option-body">
+                    <h4>American Walnut</h4>
+                    <p>Rich, dark warmth with natural grain.</p>
+                    <div class="option-price"><span class="price upgrade">+$1,850</span><span class="price-note">Above allowance</span></div>
+                    <div class="option-timing warn">
+                      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+                      +5 days lead time
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Light Ash -->
+                <div class="option-card">
+                  <div class="option-visual">
+                    <div class="opt-bg" style="background: linear-gradient(135deg, #d4c8b0 0%, #e0d8c5 60%, #bfb59a 100%);"></div>
+                    <div class="opt-swatch" style="background: linear-gradient(135deg, #d4c8b0, #bfb59a);"></div>
+                    <div class="option-tags"><span class="opt-tag inc">Included</span></div>
+                    <div class="option-check"><svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div>
+                  </div>
+                  <div class="option-body">
+                    <h4>Light Ash</h4>
+                    <p>Cool, airy feel with minimal grain.</p>
+                    <div class="option-price"><span class="price included">Included</span></div>
+                    <div class="option-timing">
+                      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+                      No schedule impact
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right rail — impact summary + confirm -->
+          <div class="detail-rail">
+            <div class="rail-card" style="border-color: var(--accent); box-shadow: var(--shadow-ring), var(--shadow-md);">
+              <div class="rail-card-head">
+                <h3>Impact of your choice</h3>
+                <div class="sub">Here's what changes if you confirm American Walnut.</div>
+              </div>
+              <div class="rail-card-body">
+                <div class="impact-row">
+                  <div>
+                    <h5>Your selection</h5>
+                    <p>American Walnut · 6" plank · Semi-gloss</p>
+                  </div>
+                  <div style="display:flex;gap:6px;align-items:center;">
+                    <div class="cg-swatch" style="background: linear-gradient(135deg, #8b7355, #6b5540); width:24px;height:24px;border-radius:6px;"></div>
+                  </div>
+                </div>
+                <div class="impact-row">
+                  <div>
+                    <h5>Added cost</h5>
+                    <p>This option is above your $4,200 allowance</p>
+                  </div>
+                  <span class="impact-value" style="color:var(--warning-text);">+$1,850</span>
+                </div>
+                <div class="impact-row">
+                  <div>
+                    <h5>Schedule effect</h5>
+                    <p>Longer lead time for walnut sourcing</p>
+                  </div>
+                  <span class="impact-value" style="color:var(--warning-text);">+5 days</span>
+                </div>
+                <div class="impact-row">
+                  <div>
+                    <h5>What happens next</h5>
+                    <p>Material order will be released and install slot confirmed</p>
+                  </div>
+                  <span class="impact-value" style="color:var(--accent-text);">Next step</span>
+                </div>
+                <div class="impact-row">
+                  <div>
+                    <h5>Can you change later?</h5>
+                    <p>Yes — within 48 hours after confirming</p>
+                  </div>
+                  <span class="impact-value" style="color:var(--success-text);">Yes</span>
+                </div>
+
+                <div class="confirm-actions">
+                  <button class="btn primary" onclick="showView('confirmed')">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                    Confirm this selection
+                  </button>
+                  <button class="btn" onclick="showView('exploring')">Keep exploring</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="rail-card">
+              <div class="rail-card-head">
+                <h3>Compared to recommended</h3>
+                <div class="sub">What's different from your builder's pick.</div>
+              </div>
+              <div class="rail-card-body">
+                <div class="impact-row">
+                  <div>
+                    <h5>Recommended option</h5>
+                    <p>Natural White Oak · Included · No delay</p>
+                  </div>
+                </div>
+                <div class="impact-row">
+                  <div>
+                    <h5>Cost difference</h5>
+                    <p>Your choice costs $1,850 more</p>
+                  </div>
+                  <span class="impact-value" style="color:var(--warning-text);">+$1,850</span>
+                </div>
+                <div class="impact-row">
+                  <div>
+                    <h5>Schedule difference</h5>
+                    <p>Your choice adds 5 more days</p>
+                  </div>
+                  <span class="impact-value" style="color:var(--warning-text);">+5 days</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================================
+           VIEW 4: CONFIRMED — Post-submit state
+           ========================================================== -->
+      <div class="view" id="view-confirmed">
+        <div class="back-link" onclick="showView('overview')">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5m0 0 7 7m-7-7 7-7"/></svg>
+          Back to all selections
+        </div>
+
+        <div class="detail-layout">
+          <div>
+            <div class="item-header" style="border-color: var(--accent-muted); background: linear-gradient(180deg, #f2faf7 0%, #fff 100%);">
+              <div class="item-header-top">
+                <div>
+                  <h2>Flooring finish</h2>
+                  <p class="item-desc">Your choice has been received. The project team is moving forward with your selection.</p>
+                </div>
+                <span class="pill green">Confirmed</span>
+              </div>
+              <div class="item-meta-row">
+                <div class="meta-chip">
+                  Confirmed <strong>Apr 12, 2026</strong>
+                </div>
+                <div class="meta-chip">
+                  Revision window closes <strong>Apr 14</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Confirmed option highlight -->
+            <div style="margin-bottom: 16px;">
+              <div class="options-grid" style="grid-template-columns: 1fr;">
+                <div class="option-card selected" style="cursor:default; display:grid; grid-template-columns: 200px 1fr; border-radius: var(--radius-xl);">
+                  <div class="option-visual" style="height:auto; min-height:160px; border-radius: var(--radius-xl) 0 0 var(--radius-xl);">
+                    <div class="opt-bg" style="background: linear-gradient(135deg, #8b7355 0%, #a08060 60%, #6b5540 100%);"></div>
+                    <div class="opt-swatch" style="background: linear-gradient(135deg, #8b7355, #6b5540);"></div>
+                    <div class="option-tags"><span class="opt-tag sel">Your confirmed choice</span></div>
+                  </div>
+                  <div class="option-body" style="padding: 20px;">
+                    <h4 style="font-size:18px;">American Walnut</h4>
+                    <p>Rich, dark warmth with natural grain variation. 6" plank · Semi-gloss finish.</p>
+                    <div class="option-price" style="margin-top:12px;">
+                      <span class="price upgrade" style="font-size:18px;">+$1,850</span>
+                      <span class="price-note">above allowance</span>
+                    </div>
+                    <div class="option-timing warn" style="margin-top:8px;">
+                      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+                      +5 days lead time factored into updated schedule
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Post-confirm steps -->
+            <div class="post-card">
+              <h3>
+                <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                What happens next
+              </h3>
+              <div style="margin-top:12px;">
+                <div class="post-step">
+                  <div class="post-dot">1</div>
+                  <div class="post-step-text">
+                    <h5>Choice received</h5>
+                    <p>Your flooring selection has been saved and shared with the project team.</p>
+                  </div>
+                </div>
+                <div class="post-step">
+                  <div class="post-dot">2</div>
+                  <div class="post-step-text">
+                    <h5>Material ordering</h5>
+                    <p>We'll release the material order for American Walnut and confirm availability with the supplier.</p>
+                  </div>
+                </div>
+                <div class="post-step">
+                  <div class="post-dot">3</div>
+                  <div class="post-step-text">
+                    <h5>Schedule updated</h5>
+                    <p>The 5-day lead time has been factored into your project timeline. We'll update you if anything changes.</p>
+                  </div>
+                </div>
+                <div class="post-step">
+                  <div class="post-dot">4</div>
+                  <div class="post-step-text">
+                    <h5>Revision window</h5>
+                    <p>You can still request a change until April 14, unless the material order has already been placed. After that, this selection is locked.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right rail — confirmed state -->
+          <div class="detail-rail">
+            <div class="rail-card">
+              <div class="rail-card-head">
+                <h3>Selection summary</h3>
+              </div>
+              <div class="rail-card-body">
+                <div class="impact-row">
+                  <div><h5>Choice</h5><p>American Walnut</p></div>
+                  <span class="impact-value">Confirmed</span>
+                </div>
+                <div class="impact-row">
+                  <div><h5>Added cost</h5><p>Above $4,200 allowance</p></div>
+                  <span class="impact-value" style="color:var(--warning-text);">+$1,850</span>
+                </div>
+                <div class="impact-row">
+                  <div><h5>Schedule effect</h5><p>Lead time adjustment</p></div>
+                  <span class="impact-value" style="color:var(--warning-text);">+5 days</span>
+                </div>
+                <div class="impact-row">
+                  <div><h5>Revision window</h5><p>Change allowed until Apr 14</p></div>
+                  <span class="impact-value" style="color:var(--success-text);">Open</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="rail-card">
+              <div class="rail-card-head">
+                <h3>Need to change your mind?</h3>
+                <div class="sub">You can still revise until Apr 14.</div>
+              </div>
+              <div class="rail-card-body">
+                <button class="btn outline-teal" style="width:100%;" onclick="showView('exploring')">
+                  Revise this selection
+                </button>
+                <p style="font-size:11px; color:var(--text-tertiary); margin-top:8px; text-align:center;">
+                  After the revision window closes, changes may require a scope change request.
+                </p>
+              </div>
+            </div>
+
+            <div class="rail-card">
+              <div class="rail-card-head">
+                <h3>Up next</h3>
+                <div class="sub">Your next selection to review.</div>
+              </div>
+              <div class="rail-card-body">
+                <div style="display:flex;gap:10px;align-items:center; cursor:pointer;" onclick="showView('exploring')">
+                  <div style="width:40px;height:40px;border-radius:10px;background: linear-gradient(135deg, #f5f2eb, #e8e3d8); border:1px solid var(--surface-3); flex-shrink:0;"></div>
+                  <div>
+                    <div style="font-family:var(--font-display); font-weight:700; font-size:13px;">Cabinet paint color</div>
+                    <div style="font-size:12px; color:var(--text-secondary);">3 options ready · Kitchen</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================================
+           VIEW 5: REVISION — Reopened by contractor
+           ========================================================== -->
+      <div class="view" id="view-revision">
+        <div class="back-link" onclick="showView('overview')">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5m0 0 7 7m-7-7 7-7"/></svg>
+          Back to all selections
+        </div>
+
+        <div class="detail-layout">
+          <div>
+            <!-- Revision banner -->
+            <div class="revision-banner">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4m0 4h.01"/></svg>
+              <div>
+                <h4>This selection was reopened</h4>
+                <p>Your original tile choice (Herringbone Marble) is temporarily unavailable from the supplier. Your project team has provided two alternative options that match your style and budget.</p>
+              </div>
+            </div>
+
+            <div class="item-header">
+              <div class="item-header-top">
+                <div>
+                  <h2>Tile pattern</h2>
+                  <p class="item-desc">Please review the updated options and confirm a new choice. Your original selection is shown for reference.</p>
+                </div>
+                <span class="pill orange">Reopened</span>
+              </div>
+              <div class="item-meta-row">
+                <div class="meta-chip">
+                  <strong>Reason:</strong> Original option unavailable
+                </div>
+                <div class="meta-chip">
+                  Previous choice: <strong>Herringbone Marble</strong>
+                </div>
+                <div class="meta-chip">
+                  <strong>2</strong> new options
+                </div>
+              </div>
+            </div>
+
+            <!-- Revision options -->
+            <div class="options-section">
+              <div class="options-section-head">
+                <h3>Updated options</h3>
+              </div>
+              <div class="options-grid" style="grid-template-columns: repeat(2, 1fr);">
+                <div class="option-card recommended" onclick="selectOption(this, 'revision')">
+                  <div class="option-visual">
+                    <div class="opt-bg" style="background: linear-gradient(135deg, #c5d0d8, #b0bcc5);"></div>
+                    <div class="opt-swatch" style="background: linear-gradient(135deg, #d0d8dd, #b8c4cc);"></div>
+                    <div class="option-tags"><span class="opt-tag rec">Recommended</span><span class="opt-tag inc">Included</span></div>
+                    <div class="option-check"><svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div>
+                  </div>
+                  <div class="option-body">
+                    <h4>Chevron Porcelain</h4>
+                    <p>Similar visual pattern to your original choice. Durable porcelain with marble-look finish.</p>
+                    <div class="option-price"><span class="price included">Included</span><span class="price-note">No cost change from original</span></div>
+                    <div class="option-timing">
+                      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+                      No additional delay
+                    </div>
+                  </div>
+                </div>
+
+                <div class="option-card" onclick="selectOption(this, 'revision')">
+                  <div class="option-visual">
+                    <div class="opt-bg" style="background: linear-gradient(135deg, #8a9ca8, #6b8090);"></div>
+                    <div class="opt-swatch" style="background: linear-gradient(135deg, #8a9ca8, #6b8090);"></div>
+                    <div class="option-tags"><span class="opt-tag upg">Upgrade</span></div>
+                    <div class="option-check"><svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div>
+                  </div>
+                  <div class="option-body">
+                    <h4>Subway Slate</h4>
+                    <p>Modern matte slate tile in a classic subway layout. Darker, more contemporary feel.</p>
+                    <div class="option-price"><span class="price upgrade">+$420</span><span class="price-note">Above original allowance</span></div>
+                    <div class="option-timing warn">
+                      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+                      +3 days lead time
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Previous choice reference -->
+            <div style="background: var(--surface-2); border: 1px solid var(--surface-3); border-radius: var(--radius-lg); padding: 14px 18px; margin-top: 4px; opacity: .7;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-tertiary);">Previous choice (unavailable)</div>
+                  <div style="font-family:var(--font-display); font-weight:700; font-size:14px; margin-top:4px;">Herringbone Marble</div>
+                  <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">This option is currently unavailable from the supplier.</div>
+                </div>
+                <span class="pill">Unavailable</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right rail — revision state -->
+          <div class="detail-rail">
+            <div class="rail-card" style="border-color: #f0cc8a; background: linear-gradient(180deg, #fefaf3 0%, #fff 100%);">
+              <div class="rail-card-head">
+                <h3>Why this was reopened</h3>
+              </div>
+              <div class="rail-card-body">
+                <p style="font-size:13px; color:var(--text-secondary); line-height:1.55;">
+                  The supplier notified us that Herringbone Marble is on backorder with no confirmed restock date. To keep your project on schedule, your builder prepared two alternatives that match the style and budget of your original choice.
+                </p>
+                <p style="font-size:12px; color:var(--text-tertiary); margin-top:10px;">
+                  If the original becomes available again before install, your team will let you know.
+                </p>
+              </div>
+            </div>
+
+            <div class="rail-card">
+              <div class="rail-card-head">
+                <h3>Impact summary</h3>
+                <div class="sub">What changes with the recommended replacement.</div>
+              </div>
+              <div class="rail-card-body">
+                <div class="impact-row">
+                  <div><h5>Cost vs original</h5><p>Chevron Porcelain matches original price</p></div>
+                  <span class="impact-value" style="color:var(--success-text);">No change</span>
+                </div>
+                <div class="impact-row">
+                  <div><h5>Schedule vs original</h5><p>No additional delay with recommended</p></div>
+                  <span class="impact-value" style="color:var(--success-text);">On track</span>
+                </div>
+                <div class="impact-row">
+                  <div><h5>Style match</h5><p>Similar pattern and color family</p></div>
+                  <span class="impact-value">Close match</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="rail-card">
+              <div class="rail-card-head">
+                <h3>Questions about the change?</h3>
+              </div>
+              <div class="rail-card-body">
+                <div class="comment-input">
+                  <input type="text" placeholder="Ask your project team…" />
+                  <button class="btn sm primary">Send</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// =================================================================
+// VIEW SWITCHING
+// =================================================================
+function showView(viewId) {
+  // Hide all views
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  // Show target
+  const target = document.getElementById('view-' + viewId);
+  if (target) target.classList.add('active');
+
+  // Update state tabs
+  document.querySelectorAll('.state-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.state-tab').forEach(t => {
+    if (t.textContent.trim().toLowerCase().startsWith(viewId.substring(0,4))) {
+      t.classList.add('active');
+    }
+  });
+
+  // Update breadcrumbs
+  const bcCurrent = document.getElementById('bc-current');
+  const labels = {
+    overview: 'Selections',
+    exploring: 'Flooring Finish',
+    provisional: 'Flooring Finish',
+    confirmed: 'Flooring Finish',
+    revision: 'Tile Pattern'
+  };
+  bcCurrent.textContent = labels[viewId] || 'Selections';
+
+  // Scroll to top
+  document.querySelector('.content').scrollTop = 0;
+  window.scrollTo(0, 0);
+}
+
+// =================================================================
+// OPTION CARD SELECTION (visual toggle)
+// =================================================================
+function selectOption(card, currentView) {
+  const grid = card.closest('.options-grid');
+  grid.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+
+  // If we're in exploring, auto-advance to provisional after a beat
+  if (currentView === 'exploring') {
+    setTimeout(() => showView('provisional'), 600);
+  }
+}
+
+// =================================================================
+// COMPARE TOGGLE
+// =================================================================
+function toggleCompare() {
+  const panel = document.getElementById('comparePanel');
+  panel.classList.toggle('hidden');
+  if (!panel.classList.contains('hidden')) {
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+</script>
+</body>
+</html>

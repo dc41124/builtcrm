@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BuiltCRM — Your Home · Pages</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ================================================================
+   DESIGN SYSTEM TOKENS — Residential client variant (teal accent)
+   ================================================================ */
+:root {
+  --surface-0:#eef0f3;--surface-1:#ffffff;--surface-2:#f3f4f6;--surface-3:#e2e5e9;--surface-4:#d1d5db;
+  --surface-hover:#f5f6f8;--surface-incard:#f8f9fa;
+  --sidebar-bg:#ffffff;--sidebar-hover:#f5f6f8;--sidebar-active:#eef0f3;--sidebar-active-text:#1a1714;
+  --sidebar-section-text:#8b919a;--sidebar-item-text:#5a6170;--sidebar-border:#e8eaee;
+  --text-primary:#1a1714;--text-secondary:#6b655b;--text-tertiary:#9c958a;
+  /* Residential accent: warm teal */
+  --accent:#2a7f6f;--accent-hover:#1d6b5d;--accent-soft:#e6f5f2;--accent-text:#1d6b5d;
+  --success:#2d8a5e;--success-soft:#edf7f1;--success-text:#1e6b46;
+  --warning:#c17a1a;--warning-soft:#fdf4e6;--warning-text:#96600f;
+  --danger:#c93b3b;--danger-soft:#fdeaea;--danger-text:#a52e2e;
+  --info:#3178b9;--info-soft:#e8f1fa;--info-text:#276299;
+  --font-display:'DM Sans',system-ui,sans-serif;--font-body:'Instrument Sans',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;
+  --shadow-sm:0 1px 3px rgba(26,23,20,.05);--shadow-md:0 4px 16px rgba(26,23,20,.06);--shadow-lg:0 8px 32px rgba(26,23,20,.1);
+  --sidebar-width:256px;--topbar-height:56px;
+  --ease-out:cubic-bezier(.16,1,.3,1);--dur-fast:120ms;--dur-normal:200ms;--dur-slow:350ms;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0}
+body{font-family:var(--font-body);background:var(--surface-0);color:var(--text-primary);-webkit-font-smoothing:antialiased;line-height:1.5;font-size:14px}
+.app{display:grid;grid-template-columns:var(--sidebar-width) 1fr;min-height:100vh}
+
+/* ================================================================
+   SIDEBAR — Residential client (warm teal, simpler nav)
+   ================================================================ */
+.sidebar{background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:hidden}
+.brand{height:var(--topbar-height);display:flex;align-items:center;gap:var(--sp-3);padding:0 var(--sp-4) 0 var(--sp-5);border-bottom:1px solid var(--sidebar-border);flex-shrink:0}
+.brand-mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#1d6b5d,#2a7f6f);display:grid;place-items:center;color:#fff;font-family:var(--font-display);font-size:12px;font-weight:700;flex-shrink:0}
+.brand-name{font-family:var(--font-display);font-size:14px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+.brand-ctx{font-size:11.5px;color:var(--text-tertiary);line-height:1.2;margin-top:1px}
+
+.sb-welcome{margin:var(--sp-3) var(--sp-3) 0;padding:var(--sp-4);border:1px solid var(--surface-3);border-radius:var(--radius-lg);background:linear-gradient(180deg,#fff 0%,var(--accent-soft) 100%)}
+.sb-welcome h4{font-family:var(--font-display);font-size:13px;font-weight:650;margin-bottom:4px}
+.sb-welcome p{font-size:12px;color:var(--text-secondary);line-height:1.4}
+
+.sb-nav{flex:1;overflow-y:auto;padding:var(--sp-3) var(--sp-3) var(--sp-6)}
+.ns{margin-bottom:var(--sp-1)}.ns-h{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2);font-size:11px;font-weight:650;color:var(--sidebar-section-text);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;border-radius:var(--radius-sm)}
+.ns-chv{width:14px;height:14px;transition:transform var(--dur-normal) var(--ease-out)}.ns.closed .ns-chv{transform:rotate(-90deg)}.ns.closed .ns-items{display:none}
+.ni{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);padding:6px 10px 6px 12px;border-radius:var(--radius-md);font-size:13px;font-weight:500;color:var(--sidebar-item-text);cursor:pointer;transition:all var(--dur-fast) var(--ease-out);margin-bottom:1px;position:relative}
+.ni:hover{background:var(--sidebar-hover);color:var(--text-primary)}
+.ni.active{background:var(--sidebar-active);color:var(--sidebar-active-text);font-weight:620}
+.ni.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:16px;border-radius:0 3px 3px 0;background:var(--accent)}
+.ni-badge{min-width:18px;height:18px;padding:0 6px;border-radius:999px;font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-display);flex-shrink:0;background:var(--accent-soft);color:var(--accent-text)}
+.ni-badge.amber{background:var(--warning-soft);color:var(--warning-text)}
+
+.sb-foot{border-top:1px solid var(--sidebar-border);padding:var(--sp-3) var(--sp-4);flex-shrink:0}
+.sb-user{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-2);border-radius:var(--radius-md);cursor:pointer}
+.u-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#2a7f6f,#4caf7a);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-size:11.5px;font-weight:700;flex-shrink:0}
+
+/* Topbar */
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{height:var(--topbar-height);display:flex;align-items:center;justify-content:space-between;padding:0 var(--sp-6);border-bottom:1px solid var(--surface-3);background:rgba(238,240,243,.85);backdrop-filter:blur(12px);position:sticky;top:0;z-index:50}
+.bc{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-tertiary)}.bc .cur{color:var(--text-primary);font-weight:620}.bc .sep{font-size:11px;color:var(--surface-4)}
+.tb-acts{display:flex;align-items:center;gap:var(--sp-2)}
+.tb-btn{width:34px;height:34px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-tertiary);display:grid;place-items:center;cursor:pointer;position:relative}
+.tb-btn .nd{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--accent);border:2px solid var(--surface-1)}
+.tb-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#2a7f6f,#4caf7a);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-size:11.5px;font-weight:700;cursor:pointer;margin-left:var(--sp-1)}
+
+.content{padding:var(--sp-6);flex:1}
+
+/* ================================================================
+   SHARED UI COMPONENTS
+   ================================================================ */
+.btn{height:34px;padding:0 14px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);font-family:var(--font-body);font-size:13px;font-weight:560;color:var(--text-primary);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all var(--dur-fast) var(--ease-out);white-space:nowrap}
+.btn:hover{background:var(--surface-hover);border-color:var(--surface-4)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.primary:hover{background:var(--accent-hover)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--text-secondary)}
+.btn.sm{height:30px;padding:0 10px;font-size:12px}
+.pill{height:22px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:650;display:inline-flex;align-items:center;white-space:nowrap;flex-shrink:0}
+.pill.green{background:var(--success-soft);color:var(--success-text)}.pill.amber{background:var(--warning-soft);color:var(--warning-text)}
+.pill.blue{background:var(--info-soft);color:var(--info-text)}.pill.teal{background:var(--accent-soft);color:var(--accent-text)}
+.pill.red{background:var(--danger-soft);color:var(--danger-text)}.pill.gray{background:var(--surface-2);color:var(--text-secondary)}
+
+.card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);overflow:hidden}
+.c-head{display:flex;align-items:center;justify-content:space-between;padding:var(--sp-4) var(--sp-5);border-bottom:1px solid var(--surface-3)}
+.c-title{font-family:var(--font-display);font-size:15px;font-weight:680;letter-spacing:-.01em}
+.c-subtitle{font-size:12.5px;color:var(--text-secondary);margin-top:2px}
+.c-body{padding:var(--sp-5)}
+
+/* Page header */
+.pg-header{margin-bottom:var(--sp-5)}
+.pg-title{font-family:var(--font-display);font-size:26px;font-weight:750;letter-spacing:-.03em;line-height:1.15}
+.pg-subtitle{margin-top:6px;font-size:15px;color:var(--text-secondary);line-height:1.5}
+.pg-tags{display:flex;gap:var(--sp-2);margin-top:10px;align-items:center;flex-wrap:wrap}
+
+/* ================================================================
+   PAGE SWITCHER
+   ================================================================ */
+.page-switcher{display:flex;gap:var(--sp-2);margin-bottom:var(--sp-5);background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:4px;width:fit-content}
+.page-switcher button{height:34px;padding:0 16px;border:none;border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;font-weight:560;color:var(--text-secondary);cursor:pointer;background:transparent;transition:all var(--dur-fast) var(--ease-out);white-space:nowrap}
+.page-switcher button:hover{color:var(--text-primary);background:var(--surface-hover)}
+.page-switcher button.active{background:var(--accent);color:#fff;font-weight:620;box-shadow:0 1px 4px rgba(42,127,111,.25)}
+
+.page{display:none}.page.active{display:block;animation:fadeInUp var(--dur-slow) var(--ease-out)}
+
+/* ================================================================
+   PAGE 1: PROGRESS & PHOTOS (combined residential view)
+   ================================================================ */
+
+/* Phase timeline hero */
+.phase-hero{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);padding:var(--sp-5);margin-bottom:var(--sp-5)}
+.phase-hero-title{font-family:var(--font-display);font-size:13px;font-weight:650;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:var(--sp-4)}
+.phase-track{display:flex;gap:0;position:relative}
+.phase-item{flex:1;text-align:center;position:relative}
+.phase-bar{height:6px;border-radius:3px;margin-bottom:8px}
+.phase-item.done .phase-bar{background:var(--accent)}
+.phase-item.current .phase-bar{background:linear-gradient(90deg,var(--accent) 65%,var(--surface-3) 65%)}
+.phase-item.upcoming .phase-bar{background:var(--surface-3)}
+.phase-name{font-size:12px;font-weight:580;color:var(--text-secondary)}
+.phase-item.current .phase-name{color:var(--text-primary);font-weight:680}
+.phase-item.done .phase-name{color:var(--accent-text)}
+
+/* Update stream */
+.update-stream{display:flex;flex-direction:column;gap:var(--sp-4)}
+.update-card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);overflow:hidden}
+.update-header{display:flex;align-items:center;justify-content:space-between;padding:var(--sp-4) var(--sp-5);border-bottom:1px solid var(--surface-3)}
+.update-date{font-family:var(--font-display);font-size:13px;font-weight:650;color:var(--text-primary)}
+.update-type{font-size:12px;color:var(--text-tertiary)}
+.update-body{padding:var(--sp-5)}
+.update-body h4{font-family:var(--font-display);font-size:16px;font-weight:700;letter-spacing:-.01em;margin-bottom:var(--sp-2)}
+.update-body p{color:var(--text-secondary);line-height:1.6;margin-bottom:var(--sp-3)}
+.update-body p:last-child{margin-bottom:0}
+
+/* Photo grid within update */
+.update-photos{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-2);margin-top:var(--sp-4)}
+.update-photo{aspect-ratio:4/3;border-radius:var(--radius-md);overflow:hidden;position:relative;cursor:pointer}
+.update-photo .photo-bg{width:100%;height:100%;display:flex;align-items:flex-end;padding:var(--sp-2)}
+.update-photo span{font-size:11px;font-weight:600;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.5);background:rgba(0,0,0,.3);padding:2px 8px;border-radius:var(--radius-sm)}
+.update-photo:hover{transform:scale(1.02);transition:transform var(--dur-fast) var(--ease-out)}
+.photo-count{aspect-ratio:4/3;border-radius:var(--radius-md);background:var(--surface-2);display:grid;place-items:center;font-family:var(--font-display);font-size:13px;font-weight:650;color:var(--text-secondary);cursor:pointer}
+.photo-count:hover{background:var(--surface-3)}
+
+/* Standalone photo gallery section */
+.photo-gallery{margin-top:var(--sp-5)}
+.photo-gallery-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-4)}
+.photo-stats{display:flex;gap:var(--sp-5);font-size:13px;color:var(--text-secondary)}
+.photo-stats strong{color:var(--text-primary);font-weight:650}
+.photo-filter-bar{display:flex;gap:var(--sp-2);margin-bottom:var(--sp-4);flex-wrap:wrap}
+.photo-filter{height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--surface-3);background:var(--surface-1);font-family:var(--font-body);font-size:12px;font-weight:560;color:var(--text-secondary);cursor:pointer;transition:all var(--dur-fast) var(--ease-out)}
+.photo-filter:hover{background:var(--surface-hover);color:var(--text-primary);border-color:var(--surface-4)}
+.photo-filter.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.photo-set{margin-bottom:var(--sp-5)}
+.photo-set-header{font-family:var(--font-display);font-size:13px;font-weight:650;color:var(--text-secondary);margin-bottom:var(--sp-3);display:flex;align-items:center;gap:var(--sp-2)}
+.photo-set-header .count{font-size:11px;color:var(--text-tertiary);font-weight:500}
+.photo-grid-full{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-3)}
+.photo-cell{aspect-ratio:4/3;border-radius:var(--radius-lg);overflow:hidden;position:relative;cursor:pointer;transition:transform var(--dur-fast) var(--ease-out)}
+.photo-cell:hover{transform:scale(1.02)}
+.photo-cell .bg{width:100%;height:100%;display:flex;align-items:flex-end;padding:var(--sp-3)}
+.photo-cell span{font-size:11.5px;font-weight:600;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.5);background:rgba(0,0,0,.25);backdrop-filter:blur(4px);padding:3px 10px;border-radius:var(--radius-sm)}
+
+/* ================================================================
+   PAGE 2: DOCUMENTS
+   ================================================================ */
+.doc-layout{display:grid;grid-template-columns:220px 1fr;gap:var(--sp-5)}
+.doc-categories{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);padding:var(--sp-4);align-self:start;position:sticky;top:calc(var(--topbar-height) + var(--sp-6))}
+.doc-cat-title{font-family:var(--font-display);font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;color:var(--sidebar-section-text);padding:var(--sp-2);margin-bottom:var(--sp-1)}
+.doc-cat{padding:8px 12px;border-radius:var(--radius-md);font-size:13px;font-weight:520;color:var(--sidebar-item-text);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);transition:all var(--dur-fast) var(--ease-out);margin-bottom:1px}
+.doc-cat:hover{background:var(--sidebar-hover);color:var(--text-primary)}
+.doc-cat.active{background:var(--sidebar-active);color:var(--sidebar-active-text);font-weight:620}
+.doc-cat .count{font-size:11px;color:var(--text-tertiary);font-weight:600;font-family:var(--font-display)}
+
+/* Upload zone */
+.upload-zone{border:2px dashed var(--surface-3);border-radius:var(--radius-xl);padding:var(--sp-8) var(--sp-5);text-align:center;background:linear-gradient(180deg,#fff 0%,var(--accent-soft) 100%);cursor:pointer;transition:all var(--dur-normal) var(--ease-out);margin-bottom:var(--sp-5)}
+.upload-zone:hover{border-color:var(--accent);background:var(--accent-soft)}
+.upload-icon{width:48px;height:48px;border-radius:50%;background:var(--accent-soft);display:grid;place-items:center;margin:0 auto var(--sp-3);color:var(--accent)}
+.upload-zone h4{font-family:var(--font-display);font-size:15px;font-weight:680;margin-bottom:var(--sp-1)}
+.upload-zone p{font-size:13px;color:var(--text-secondary)}
+.upload-hint{display:flex;gap:var(--sp-4);justify-content:center;margin-top:var(--sp-3);flex-wrap:wrap}
+.upload-hint span{font-size:11.5px;color:var(--text-tertiary);display:flex;align-items:center;gap:4px}
+
+/* Document rows */
+.doc-list{display:flex;flex-direction:column;gap:var(--sp-2)}
+.doc-row{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3) var(--sp-4);background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);transition:all var(--dur-fast) var(--ease-out);cursor:pointer}
+.doc-row:hover{border-color:var(--surface-4);box-shadow:var(--shadow-sm)}
+.doc-icon{width:36px;height:36px;border-radius:var(--radius-md);display:grid;place-items:center;flex-shrink:0;font-size:11px;font-weight:700;font-family:var(--font-display)}
+.doc-icon.pdf{background:#fdeaea;color:#c93b3b}.doc-icon.img{background:#e8f1fa;color:#3178b9}
+.doc-icon.doc{background:#e8f1fa;color:#276299}.doc-icon.xls{background:#edf7f1;color:#1e6b46}
+.doc-icon.other{background:var(--surface-2);color:var(--text-secondary)}
+.doc-info{flex:1;min-width:0}
+.doc-name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-meta{font-size:11.5px;color:var(--text-tertiary);margin-top:1px;display:flex;gap:var(--sp-3);align-items:center}
+.doc-actions{display:flex;gap:var(--sp-2);flex-shrink:0}
+
+/* Your uploads section */
+.your-uploads{margin-top:var(--sp-5);padding-top:var(--sp-5);border-top:2px solid var(--accent-soft)}
+.your-uploads-label{font-family:var(--font-display);font-size:13px;font-weight:680;color:var(--accent-text);margin-bottom:var(--sp-3);display:flex;align-items:center;gap:var(--sp-2)}
+.doc-row.owner{border-color:var(--accent-soft);background:linear-gradient(90deg,var(--accent-soft) 0%,#fff 40%)}
+
+/* ================================================================
+   PAGE 3: BUDGET
+   ================================================================ */
+
+/* Budget summary hero */
+.budget-hero{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-5);margin-bottom:var(--sp-5)}
+.budget-main-card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);padding:var(--sp-6)}
+.budget-big-number{font-family:var(--font-display);font-size:36px;font-weight:800;letter-spacing:-.03em;color:var(--text-primary);line-height:1.1}
+.budget-big-label{font-size:14px;color:var(--text-secondary);margin-top:4px}
+.budget-progress{margin-top:var(--sp-5)}
+.budget-progress-bar{height:10px;background:var(--surface-3);border-radius:5px;overflow:hidden;display:flex}
+.bp-segment{height:100%;transition:width var(--dur-slow) var(--ease-out)}
+.bp-paid{background:var(--accent)}
+.bp-upcoming{background:var(--warning);opacity:.7}
+.bp-remaining{background:var(--surface-3)}
+.budget-progress-legend{display:flex;gap:var(--sp-5);margin-top:var(--sp-3)}
+.bp-legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary)}
+.bp-legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+.budget-info-card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);padding:var(--sp-6);display:flex;flex-direction:column;justify-content:space-between}
+.budget-stat-row{display:flex;align-items:center;justify-content:space-between;padding:var(--sp-3) 0;border-bottom:1px solid var(--surface-3)}
+.budget-stat-row:last-child{border-bottom:none}
+.budget-stat-label{font-size:13px;color:var(--text-secondary)}
+.budget-stat-value{font-family:var(--font-display);font-size:14px;font-weight:700}
+
+/* Next payment card */
+.next-payment{background:linear-gradient(135deg,var(--accent-soft) 0%,#fff 60%);border:1px solid rgba(42,127,111,.2);border-radius:var(--radius-xl);padding:var(--sp-5);margin-bottom:var(--sp-5)}
+.next-payment-label{font-family:var(--font-display);font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;color:var(--accent-text);margin-bottom:var(--sp-2)}
+.next-payment-amount{font-family:var(--font-display);font-size:28px;font-weight:800;letter-spacing:-.02em}
+.next-payment-detail{font-size:13px;color:var(--text-secondary);margin-top:var(--sp-2);line-height:1.5}
+.next-payment-milestone{display:inline-flex;align-items:center;gap:6px;margin-top:var(--sp-3);padding:6px 12px;background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-md);font-size:12px;font-weight:580}
+.next-payment-milestone svg{color:var(--accent)}
+
+/* Payment timeline */
+.payment-timeline{display:flex;flex-direction:column;gap:0}
+.pt-item{display:grid;grid-template-columns:80px 1fr auto;gap:var(--sp-4);padding:var(--sp-4) 0;border-bottom:1px solid var(--surface-3);align-items:center}
+.pt-item:last-child{border-bottom:none}
+.pt-date{font-family:var(--font-display);font-size:12px;font-weight:600;color:var(--text-secondary)}
+.pt-desc{font-size:13px}
+.pt-desc h5{font-weight:620;margin-bottom:2px}
+.pt-desc p{font-size:12px;color:var(--text-secondary)}
+.pt-amount{font-family:var(--font-display);font-size:14px;font-weight:700;text-align:right}
+.pt-amount.paid{color:var(--success-text)}
+.pt-amount.upcoming{color:var(--text-secondary)}
+
+/* Selections impact */
+.selections-impact{margin-top:var(--sp-5)}
+.si-row{display:flex;align-items:center;justify-content:space-between;padding:var(--sp-3) var(--sp-4);border-bottom:1px solid var(--surface-3)}
+.si-row:last-child{border-bottom:none}
+.si-name{font-size:13px;display:flex;align-items:center;gap:var(--sp-2)}
+.si-amount{font-family:var(--font-display);font-size:13px;font-weight:700}
+.si-amount.over{color:var(--warning-text)}.si-amount.under{color:var(--success-text)}.si-amount.even{color:var(--text-tertiary)}
+
+/* Animations */
+@keyframes fadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* Responsive */
+@media(max-width:1280px){.budget-hero{grid-template-columns:1fr}.photo-grid-full{grid-template-columns:repeat(3,1fr)}.update-photos{grid-template-columns:repeat(3,1fr)}.doc-layout{grid-template-columns:1fr}}
+@media(max-width:900px){.app{grid-template-columns:1fr}.sidebar{display:none}.photo-grid-full{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- SIDEBAR — Residential Client -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-mark">B</div>
+    <div style="flex:1;min-width:0"><div class="brand-name">BuiltCRM</div><div class="brand-ctx">Your Home</div></div>
+  </div>
+
+  <div class="sb-welcome">
+    <h4>Hi Jennifer</h4>
+    <p>3 selections ready for you and a new photo set from this week.</p>
+  </div>
+
+  <nav class="sb-nav">
+    <div class="ns">
+      <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Your project</div>
+      <div class="ns-items">
+        <div class="ni" data-page="home"><span>Project Home</span></div>
+        <div class="ni active" data-page="progress"><span>Progress & Photos</span></div>
+        <div class="ni"><span>Selections</span><span class="ni-badge amber">3</span></div>
+        <div class="ni"><span>Schedule</span></div>
+      </div>
+    </div>
+    <div class="ns">
+      <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Decisions</div>
+      <div class="ns-items">
+        <div class="ni"><span>Scope changes</span><span class="ni-badge amber">1</span></div>
+        <div class="ni"><span>Confirmed choices</span></div>
+      </div>
+    </div>
+    <div class="ns">
+      <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Payments & docs</div>
+      <div class="ns-items">
+        <div class="ni" data-page="budget"><span>Budget</span></div>
+        <div class="ni" data-page="documents"><span>Documents</span></div>
+      </div>
+    </div>
+    <div class="ns">
+      <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Messages</div>
+      <div class="ns-items">
+        <div class="ni"><span>Inbox</span><span class="ni-badge">1</span></div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="sb-foot"><div class="sb-user"><div class="u-av">JC</div><div><div style="font-size:13px;font-weight:580">Jennifer Chen</div><div style="font-size:11px;color:var(--text-tertiary)">Homeowner</div></div></div></div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="bc"><span>Your Home</span><span class="sep">›</span><span>14 Maple Lane</span><span class="sep">›</span><span class="cur" id="bc-current">Progress & Photos</span></div>
+    <div class="tb-acts">
+      <div class="tb-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 11-6 0m6 0H9"/></svg><div class="nd"></div></div>
+      <div class="tb-av">JC</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- Page Switcher -->
+    <div class="page-switcher">
+      <button class="active" data-target="progress">Progress & Photos</button>
+      <button data-target="documents">Documents</button>
+      <button data-target="budget">Budget</button>
+    </div>
+
+    <!-- ============================================================
+         PAGE 1: PROGRESS & PHOTOS (combined)
+         ============================================================ -->
+    <div class="page active" id="page-progress">
+      <div class="pg-header">
+        <h1 class="pg-title">Progress & Photos</h1>
+        <div class="pg-subtitle">See what's been happening at your home this week and browse all your project photos.</div>
+      </div>
+
+      <!-- Phase timeline hero -->
+      <div class="phase-hero">
+        <div class="phase-hero-title">Where your project stands</div>
+        <div class="phase-track">
+          <div class="phase-item done"><div class="phase-bar"></div><div class="phase-name">Demo</div></div>
+          <div class="phase-item done"><div class="phase-bar"></div><div class="phase-name">Framing</div></div>
+          <div class="phase-item done"><div class="phase-bar"></div><div class="phase-name">Rough-in</div></div>
+          <div class="phase-item current"><div class="phase-bar"></div><div class="phase-name">Interior finishes</div></div>
+          <div class="phase-item upcoming"><div class="phase-bar"></div><div class="phase-name">Final details</div></div>
+          <div class="phase-item upcoming"><div class="phase-bar"></div><div class="phase-name">Walkthrough</div></div>
+        </div>
+      </div>
+
+      <!-- Update stream — interleaves builder notes + photo sets -->
+      <div class="update-stream">
+
+        <!-- Update 1: Weekly note with photos -->
+        <div class="update-card">
+          <div class="update-header">
+            <div class="update-date">This week · April 7–11</div>
+            <span class="pill teal">Builder update</span>
+          </div>
+          <div class="update-body">
+            <h4>Drywall is going up and things are starting to look like rooms!</h4>
+            <p>Great week at Maple Lane. The drywall crew finished hanging in the main living area, kitchen, and master bedroom. Taping and mudding starts Monday, which means primer by end of next week. You'll really start to see the spaces come together now.</p>
+            <p>We also got the rough plumbing inspection passed on Thursday — everything is behind the walls and signed off. One less thing to think about.</p>
+            <div class="update-photos">
+              <div class="update-photo"><div class="photo-bg" style="background:linear-gradient(135deg,#d4c5a9,#8b7a65)"><span>Living room drywall</span></div></div>
+              <div class="update-photo"><div class="photo-bg" style="background:linear-gradient(135deg,#b0a090,#7a6a5a)"><span>Kitchen framing + drywall</span></div></div>
+              <div class="update-photo"><div class="photo-bg" style="background:linear-gradient(135deg,#8a9a8a,#5a6a5a)"><span>Master bedroom walls</span></div></div>
+              <div class="photo-count">+5 more</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Update 2: Milestone -->
+        <div class="update-card">
+          <div class="update-header">
+            <div class="update-date">April 3</div>
+            <span class="pill green">Milestone reached</span>
+          </div>
+          <div class="update-body">
+            <h4>Rough plumbing inspection passed <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></h4>
+            <p>The city inspector signed off on all rough plumbing work. This means the water lines, drain connections, and gas piping behind your walls are officially approved. This was a key checkpoint before drywall could begin.</p>
+          </div>
+        </div>
+
+        <!-- Update 3: Photo set only -->
+        <div class="update-card">
+          <div class="update-header">
+            <div class="update-date">March 31 – April 4</div>
+            <span class="pill blue">Photo set</span>
+          </div>
+          <div class="update-body">
+            <h4>Electrical rough-in and bathroom plumbing</h4>
+            <p>Your builder shared 12 photos from this week's work — mostly electrical panel and bathroom plumbing progress.</p>
+            <div class="update-photos">
+              <div class="update-photo"><div class="photo-bg" style="background:linear-gradient(135deg,#7a8b9a,#4a5a6a)"><span>Electrical panel</span></div></div>
+              <div class="update-photo"><div class="photo-bg" style="background:linear-gradient(135deg,#9a8b7a,#6a5b4a)"><span>Master bath plumbing</span></div></div>
+              <div class="update-photo"><div class="photo-bg" style="background:linear-gradient(135deg,#8b9a80,#5a6950)"><span>Guest bath rough-in</span></div></div>
+              <div class="photo-count">+9 more</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Update 4: Older builder note -->
+        <div class="update-card">
+          <div class="update-header">
+            <div class="update-date">March 24–28</div>
+            <span class="pill teal">Builder update</span>
+          </div>
+          <div class="update-body">
+            <h4>Framing complete — ready for rough-in trades</h4>
+            <p>All structural framing has been completed and passed inspection. The plumber and electrician are starting next week. We've also confirmed your countertop selection with the fabricator — lead time is 3 weeks, so we're right on schedule for install after drywall.</p>
+            <div class="update-photos">
+              <div class="update-photo"><div class="photo-bg" style="background:linear-gradient(135deg,#c0b0a0,#8a7a6a)"><span>Full kitchen framing</span></div></div>
+              <div class="update-photo"><div class="photo-bg" style="background:linear-gradient(135deg,#a09888,#706858)"><span>Hallway framing</span></div></div>
+              <div class="update-photo"><div class="photo-bg" style="background:linear-gradient(135deg,#90a090,#607060)"><span>Bathroom framing</span></div></div>
+              <div class="photo-count">+4 more</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Full photo gallery -->
+      <div class="photo-gallery">
+        <div class="photo-gallery-header">
+          <div>
+            <div class="c-title" style="margin-bottom:4px">All project photos</div>
+            <div class="photo-stats">
+              <span><strong>47</strong> photos</span>
+              <span><strong>6</strong> sets</span>
+              <span>Since <strong>Feb 12</strong></span>
+            </div>
+          </div>
+          <button class="btn sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download all</button>
+        </div>
+
+        <div class="photo-filter-bar">
+          <button class="photo-filter active">All rooms</button>
+          <button class="photo-filter">Kitchen</button>
+          <button class="photo-filter">Living room</button>
+          <button class="photo-filter">Master suite</button>
+          <button class="photo-filter">Bathrooms</button>
+          <button class="photo-filter">Exterior</button>
+        </div>
+
+        <div class="photo-set">
+          <div class="photo-set-header">This week · April 7–11 <span class="count">8 photos</span></div>
+          <div class="photo-grid-full">
+            <div class="photo-cell"><div class="bg" style="background:linear-gradient(135deg,#d4c5a9,#8b7a65)"><span>Living room drywall</span></div></div>
+            <div class="photo-cell"><div class="bg" style="background:linear-gradient(135deg,#b0a090,#7a6a5a)"><span>Kitchen drywall</span></div></div>
+            <div class="photo-cell"><div class="bg" style="background:linear-gradient(135deg,#8a9a8a,#5a6a5a)"><span>Master bedroom</span></div></div>
+            <div class="photo-cell"><div class="bg" style="background:linear-gradient(135deg,#a09080,#706050)"><span>Hallway progress</span></div></div>
+          </div>
+        </div>
+
+        <div class="photo-set">
+          <div class="photo-set-header">March 31 – April 4 <span class="count">12 photos</span></div>
+          <div class="photo-grid-full">
+            <div class="photo-cell"><div class="bg" style="background:linear-gradient(135deg,#7a8b9a,#4a5a6a)"><span>Electrical panel</span></div></div>
+            <div class="photo-cell"><div class="bg" style="background:linear-gradient(135deg,#9a8b7a,#6a5b4a)"><span>Master bath plumbing</span></div></div>
+            <div class="photo-cell"><div class="bg" style="background:linear-gradient(135deg,#8b9a80,#5a6950)"><span>Guest bath rough-in</span></div></div>
+            <div class="photo-cell"><div class="bg" style="background:linear-gradient(135deg,#7a8a7a,#4a5a4a)"><span>Laundry room wiring</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         PAGE 2: DOCUMENTS
+         ============================================================ -->
+    <div class="page" id="page-documents">
+      <div class="pg-header">
+        <h1 class="pg-title">Documents</h1>
+        <div class="pg-subtitle">Important files for your project. Your builder shares key documents here, and you can upload things they've asked for too.</div>
+      </div>
+
+      <!-- Upload zone -->
+      <div class="upload-zone">
+        <div class="upload-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <h4>Upload your documents</h4>
+        <p>Drag and drop files here, or click to browse</p>
+        <div class="upload-hint">
+          <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg> PDF, JPG, PNG</span>
+          <span>Max 25 MB per file</span>
+        </div>
+      </div>
+
+      <div class="doc-layout">
+        <!-- Category sidebar -->
+        <div class="doc-categories">
+          <div class="doc-cat-title">Categories</div>
+          <div class="doc-cat active">All files <span class="count">14</span></div>
+          <div class="doc-cat">Contract & agreement <span class="count">3</span></div>
+          <div class="doc-cat">Drawings & plans <span class="count">4</span></div>
+          <div class="doc-cat">Permits <span class="count">2</span></div>
+          <div class="doc-cat">Selections <span class="count">2</span></div>
+          <div class="doc-cat">Your uploads <span class="count">3</span></div>
+        </div>
+
+        <!-- File list -->
+        <div>
+          <!-- Builder-shared docs -->
+          <div style="font-family:var(--font-display);font-size:13px;font-weight:650;color:var(--text-secondary);margin-bottom:var(--sp-3)">Shared by your builder</div>
+          <div class="doc-list">
+            <div class="doc-row">
+              <div class="doc-icon pdf">PDF</div>
+              <div class="doc-info">
+                <div class="doc-name">Renovation Contract — 14 Maple Lane.pdf</div>
+                <div class="doc-meta"><span>Contract & agreement</span><span>·</span><span>Shared Feb 8</span><span>·</span><span>2.4 MB</span></div>
+              </div>
+              <div class="doc-actions"><button class="btn sm">View</button></div>
+            </div>
+            <div class="doc-row">
+              <div class="doc-icon pdf">PDF</div>
+              <div class="doc-info">
+                <div class="doc-name">Scope of Work — Full Interior Renovation.pdf</div>
+                <div class="doc-meta"><span>Contract & agreement</span><span>·</span><span>Shared Feb 8</span><span>·</span><span>1.8 MB</span></div>
+              </div>
+              <div class="doc-actions"><button class="btn sm">View</button></div>
+            </div>
+            <div class="doc-row">
+              <div class="doc-icon img">DWG</div>
+              <div class="doc-info">
+                <div class="doc-name">Floor Plan — Proposed Layout (Rev 3).pdf</div>
+                <div class="doc-meta"><span>Drawings & plans</span><span>·</span><span>Shared Feb 12</span><span>·</span><span>5.1 MB</span></div>
+              </div>
+              <div class="doc-actions"><button class="btn sm">View</button></div>
+            </div>
+            <div class="doc-row">
+              <div class="doc-icon img">DWG</div>
+              <div class="doc-info">
+                <div class="doc-name">Electrical Plan — Kitchen & Living Room.pdf</div>
+                <div class="doc-meta"><span>Drawings & plans</span><span>·</span><span>Shared Mar 1</span><span>·</span><span>3.2 MB</span></div>
+              </div>
+              <div class="doc-actions"><button class="btn sm">View</button></div>
+            </div>
+            <div class="doc-row">
+              <div class="doc-icon img">DWG</div>
+              <div class="doc-info">
+                <div class="doc-name">Plumbing Layout — Master & Guest Baths.pdf</div>
+                <div class="doc-meta"><span>Drawings & plans</span><span>·</span><span>Shared Mar 1</span><span>·</span><span>2.7 MB</span></div>
+              </div>
+              <div class="doc-actions"><button class="btn sm">View</button></div>
+            </div>
+            <div class="doc-row">
+              <div class="doc-icon img">DWG</div>
+              <div class="doc-info">
+                <div class="doc-name">Kitchen Cabinet Elevations — Final.pdf</div>
+                <div class="doc-meta"><span>Drawings & plans</span><span>·</span><span>Shared Mar 15</span><span>·</span><span>4.0 MB</span></div>
+              </div>
+              <div class="doc-actions"><button class="btn sm">View</button></div>
+            </div>
+            <div class="doc-row">
+              <div class="doc-icon pdf">PDF</div>
+              <div class="doc-info">
+                <div class="doc-name">Building Permit — Residential Interior Renovation.pdf</div>
+                <div class="doc-meta"><span>Permits</span><span>·</span><span>Shared Feb 20</span><span>·</span><span>890 KB</span></div>
+              </div>
+              <div class="doc-actions"><button class="btn sm">View</button></div>
+            </div>
+            <div class="doc-row">
+              <div class="doc-icon pdf">PDF</div>
+              <div class="doc-info">
+                <div class="doc-name">Electrical Permit — Panel Upgrade.pdf</div>
+                <div class="doc-meta"><span>Permits</span><span>·</span><span>Shared Mar 4</span><span>·</span><span>640 KB</span></div>
+              </div>
+              <div class="doc-actions"><button class="btn sm">View</button></div>
+            </div>
+            <div class="doc-row">
+              <div class="doc-icon pdf">PDF</div>
+              <div class="doc-info">
+                <div class="doc-name">Countertop Selection Confirmation — Carrara Quartz.pdf</div>
+                <div class="doc-meta"><span>Selections</span><span>·</span><span>Shared Apr 5</span><span>·</span><span>320 KB</span></div>
+              </div>
+              <div class="doc-actions"><button class="btn sm">View</button></div>
+            </div>
+            <div class="doc-row">
+              <div class="doc-icon pdf">PDF</div>
+              <div class="doc-info">
+                <div class="doc-name">Change Order Agreement — Scope Change SC-001.pdf</div>
+                <div class="doc-meta"><span>Contract & agreement</span><span>·</span><span>Shared Mar 20</span><span>·</span><span>180 KB</span></div>
+              </div>
+              <div class="doc-actions"><button class="btn sm">View</button></div>
+            </div>
+            <div class="doc-row">
+              <div class="doc-icon pdf">PDF</div>
+              <div class="doc-info">
+                <div class="doc-name">Tile Selection Confirmation — Master Bath.pdf</div>
+                <div class="doc-meta"><span>Selections</span><span>·</span><span>Shared Apr 8</span><span>·</span><span>450 KB</span></div>
+              </div>
+              <div class="doc-actions"><button class="btn sm">View</button></div>
+            </div>
+          </div>
+
+          <!-- Your uploads section -->
+          <div class="your-uploads">
+            <div class="your-uploads-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Uploaded by you
+            </div>
+            <div class="doc-list">
+              <div class="doc-row owner">
+                <div class="doc-icon pdf">PDF</div>
+                <div class="doc-info">
+                  <div class="doc-name">Homeowner Insurance Certificate — State Farm.pdf</div>
+                  <div class="doc-meta"><span>Your uploads</span><span>·</span><span>Uploaded Mar 2</span><span>·</span><span>1.1 MB</span></div>
+                </div>
+                <div class="doc-actions"><span class="pill green">Accepted</span></div>
+              </div>
+              <div class="doc-row owner">
+                <div class="doc-icon pdf">PDF</div>
+                <div class="doc-info">
+                  <div class="doc-name">HOA Approval Letter — Renovation Permit.pdf</div>
+                  <div class="doc-meta"><span>Your uploads</span><span>·</span><span>Uploaded Feb 15</span><span>·</span><span>540 KB</span></div>
+                </div>
+                <div class="doc-actions"><span class="pill green">Accepted</span></div>
+              </div>
+              <div class="doc-row owner">
+                <div class="doc-icon pdf">PDF</div>
+                <div class="doc-info">
+                  <div class="doc-name">Construction Loan Pre-Approval — First National.pdf</div>
+                  <div class="doc-meta"><span>Your uploads</span><span>·</span><span>Uploaded Feb 10</span><span>·</span><span>780 KB</span></div>
+                </div>
+                <div class="doc-actions"><span class="pill green">Accepted</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Requested uploads callout -->
+          <div style="margin-top:var(--sp-5);padding:var(--sp-4);background:var(--warning-soft);border:1px solid rgba(193,122,26,.15);border-radius:var(--radius-lg)">
+            <div style="font-family:var(--font-display);font-size:13px;font-weight:680;color:var(--warning-text);margin-bottom:var(--sp-2);display:flex;align-items:center;gap:6px">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              Your builder is waiting for 1 document
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--sp-3);background:var(--surface-1);border-radius:var(--radius-md)">
+              <div>
+                <div style="font-size:13px;font-weight:600">Updated insurance certificate</div>
+                <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">Your current policy expires April 30 — please upload the renewal</div>
+              </div>
+              <button class="btn primary sm">Upload now</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         PAGE 3: BUDGET
+         ============================================================ -->
+    <div class="page" id="page-budget">
+      <div class="pg-header">
+        <h1 class="pg-title">Your Budget</h1>
+        <div class="pg-subtitle">Here's a clear picture of what your project costs, what you've paid, and what's coming up next.</div>
+      </div>
+
+      <!-- Budget summary hero -->
+      <div class="budget-hero">
+        <div class="budget-main-card">
+          <div class="budget-big-label">Current project total</div>
+          <div class="budget-big-number">$288,200</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-top:var(--sp-2)">Base contract $285,000 + $3,200 in selection upgrades</div>
+
+          <div class="budget-progress">
+            <div class="budget-progress-bar">
+              <div class="bp-segment bp-paid" style="width:59%"></div>
+              <div class="bp-segment bp-upcoming" style="width:15%"></div>
+            </div>
+            <div class="budget-progress-legend">
+              <div class="bp-legend-item"><div class="bp-legend-dot" style="background:var(--accent)"></div>Paid · $171,000</div>
+              <div class="bp-legend-item"><div class="bp-legend-dot" style="background:var(--warning);opacity:.7"></div>Next payment · $42,800</div>
+              <div class="bp-legend-item"><div class="bp-legend-dot" style="background:var(--surface-3)"></div>Remaining · $74,400</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="budget-info-card">
+          <div style="font-family:var(--font-display);font-size:15px;font-weight:680;margin-bottom:var(--sp-3)">Quick numbers</div>
+          <div class="budget-stat-row">
+            <span class="budget-stat-label">Base contract</span>
+            <span class="budget-stat-value">$285,000</span>
+          </div>
+          <div class="budget-stat-row">
+            <span class="budget-stat-label">Selection upgrades</span>
+            <span class="budget-stat-value" style="color:var(--warning-text)">+$3,200</span>
+          </div>
+          <div class="budget-stat-row">
+            <span class="budget-stat-label">Scope changes approved</span>
+            <span class="budget-stat-value">$0</span>
+          </div>
+          <div class="budget-stat-row">
+            <span class="budget-stat-label">Paid to date</span>
+            <span class="budget-stat-value" style="color:var(--success-text)">$171,000</span>
+          </div>
+          <div class="budget-stat-row">
+            <span class="budget-stat-label">Remaining balance</span>
+            <span class="budget-stat-value">$117,200</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Next payment callout -->
+      <div class="next-payment">
+        <div class="next-payment-label">Your next payment</div>
+        <div class="next-payment-amount">$42,800</div>
+        <div class="next-payment-detail">This payment is tied to the <strong>drywall completion</strong> milestone. Once your builder confirms the milestone is complete, you'll receive a notification to review and approve the payment.</div>
+        <div class="next-payment-milestone">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Estimated: April 21–25
+        </div>
+      </div>
+
+      <!-- Payment history + Selections impact side by side -->
+      <div style="display:grid;grid-template-columns:1fr 380px;gap:var(--sp-5)">
+
+        <!-- Payment history -->
+        <div class="card">
+          <div class="c-head">
+            <div><div class="c-title">Payment history</div><div class="c-subtitle">Milestone-based payments you've made so far</div></div>
+          </div>
+          <div class="c-body">
+            <div class="payment-timeline">
+              <div class="pt-item">
+                <div class="pt-date">Feb 8</div>
+                <div class="pt-desc"><h5>Contract signing deposit</h5><p>Initial deposit upon contract execution</p></div>
+                <div class="pt-amount paid">$28,500</div>
+              </div>
+              <div class="pt-item">
+                <div class="pt-date">Feb 22</div>
+                <div class="pt-desc"><h5>Demo completion</h5><p>All demolition and debris removal complete</p></div>
+                <div class="pt-amount paid">$28,500</div>
+              </div>
+              <div class="pt-item">
+                <div class="pt-date">Mar 8</div>
+                <div class="pt-desc"><h5>Framing completion</h5><p>Structural framing passed inspection</p></div>
+                <div class="pt-amount paid">$57,000</div>
+              </div>
+              <div class="pt-item">
+                <div class="pt-date">Mar 28</div>
+                <div class="pt-desc"><h5>Rough-in completion</h5><p>Plumbing, electrical, and HVAC rough-in inspected</p></div>
+                <div class="pt-amount paid">$57,000</div>
+              </div>
+              <div class="pt-item" style="opacity:.6">
+                <div class="pt-date">~Apr 22</div>
+                <div class="pt-desc"><h5>Drywall completion</h5><p>Hang, tape, mud, and primer complete</p></div>
+                <div class="pt-amount upcoming">$42,800</div>
+              </div>
+              <div class="pt-item" style="opacity:.4">
+                <div class="pt-date">~May 15</div>
+                <div class="pt-desc"><h5>Cabinet & tile install</h5><p>Kitchen cabinets and bathroom tile complete</p></div>
+                <div class="pt-amount upcoming">$42,800</div>
+              </div>
+              <div class="pt-item" style="opacity:.3">
+                <div class="pt-date">~Jun 5</div>
+                <div class="pt-desc"><h5>Final walkthrough</h5><p>Punch list items addressed, project handover</p></div>
+                <div class="pt-amount upcoming">$31,600</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Selections impact -->
+        <div>
+          <div class="card">
+            <div class="c-head">
+              <div><div class="c-title">Selections & your budget</div><div class="c-subtitle">How your choices compare to allowances</div></div>
+            </div>
+            <div class="c-body">
+              <div style="font-size:13px;color:var(--text-secondary);margin-bottom:var(--sp-4);line-height:1.5">Your contract includes allowances for certain items. When you pick something above or below the allowance, the difference shows up here.</div>
+              <div class="selections-impact">
+                <div class="si-row">
+                  <div class="si-name"><span class="pill green" style="font-size:10px;height:18px">Confirmed</span>Countertops</div>
+                  <div class="si-amount over">+$1,800</div>
+                </div>
+                <div class="si-row">
+                  <div class="si-name"><span class="pill green" style="font-size:10px;height:18px">Confirmed</span>Master bath tile</div>
+                  <div class="si-amount over">+$950</div>
+                </div>
+                <div class="si-row">
+                  <div class="si-name"><span class="pill green" style="font-size:10px;height:18px">Confirmed</span>Cabinet hardware</div>
+                  <div class="si-amount over">+$450</div>
+                </div>
+                <div class="si-row">
+                  <div class="si-name"><span class="pill amber" style="font-size:10px;height:18px">Pending</span>Flooring</div>
+                  <div class="si-amount even">TBD</div>
+                </div>
+                <div class="si-row">
+                  <div class="si-name"><span class="pill amber" style="font-size:10px;height:18px">Pending</span>Light fixtures</div>
+                  <div class="si-amount even">TBD</div>
+                </div>
+                <div class="si-row">
+                  <div class="si-name"><span class="pill amber" style="font-size:10px;height:18px">Pending</span>Paint colors</div>
+                  <div class="si-amount under">No cost impact</div>
+                </div>
+              </div>
+              <div style="margin-top:var(--sp-4);padding-top:var(--sp-4);border-top:1px solid var(--surface-3);display:flex;align-items:center;justify-content:space-between">
+                <span style="font-family:var(--font-display);font-size:13px;font-weight:680">Net selections impact</span>
+                <span style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--warning-text)">+$3,200</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Budget tip -->
+          <div style="margin-top:var(--sp-4);padding:var(--sp-4);background:var(--accent-soft);border:1px solid rgba(42,127,111,.15);border-radius:var(--radius-lg)">
+            <div style="font-family:var(--font-display);font-size:13px;font-weight:680;color:var(--accent-text);margin-bottom:6px;display:flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 00-4 12.7V17h8v-2.3A7 7 0 0012 2z"/></svg>How payments work</div>
+            <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.55">Your payments are tied to project milestones — not a fixed schedule. When your builder completes a milestone, they'll submit a payment request. You'll be notified to review and approve it before any money moves.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+</div>
+
+<script>
+// Page switching
+const pageBtns = document.querySelectorAll('.page-switcher button');
+const pages = document.querySelectorAll('.page');
+const bcCurrent = document.getElementById('bc-current');
+const sidebarItems = document.querySelectorAll('.ni[data-page]');
+
+function switchPage(target) {
+  pageBtns.forEach(b => b.classList.toggle('active', b.dataset.target === target));
+  pages.forEach(p => { p.classList.remove('active'); if (p.id === 'page-' + target) p.classList.add('active'); });
+  // Update breadcrumb
+  const labels = { progress: 'Progress & Photos', documents: 'Documents', budget: 'Budget' };
+  bcCurrent.textContent = labels[target] || target;
+  // Update sidebar active
+  sidebarItems.forEach(ni => {
+    ni.classList.toggle('active', ni.dataset.page === target);
+  });
+}
+
+pageBtns.forEach(btn => btn.addEventListener('click', () => switchPage(btn.dataset.target)));
+sidebarItems.forEach(ni => ni.addEventListener('click', () => {
+  const target = ni.dataset.page;
+  if (target === 'home') return; // home would navigate to project home page
+  switchPage(target);
+}));
+
+// Sidebar section collapse
+document.querySelectorAll('.ns-h').forEach(h => {
+  h.addEventListener('click', () => { h.closest('.ns').classList.toggle('closed'); });
+});
+
+// Photo filter
+document.querySelectorAll('.photo-filter').forEach(f => {
+  f.addEventListener('click', () => {
+    document.querySelectorAll('.photo-filter').forEach(x => x.classList.remove('active'));
+    f.classList.add('active');
+  });
+});
+
+// Document category filter
+document.querySelectorAll('.doc-cat').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('.doc-cat').forEach(x => x.classList.remove('active'));
+    c.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

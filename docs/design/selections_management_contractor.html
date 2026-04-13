@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BuiltCRM — Contractor Selections Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ================================================================
+   DESIGN TOKENS — BuiltCRM Contractor Portal
+   ================================================================ */
+:root {
+  --surface-0:#eef0f3;--surface-1:#ffffff;--surface-2:#f3f4f6;--surface-3:#e2e5e9;--surface-4:#d1d5db;--surface-hover:#f5f6f8;--surface-active:#e5e7eb;
+  --sidebar-bg:#ffffff;--sidebar-hover:#f5f6f8;--sidebar-active:#eef0f3;--sidebar-active-text:#1a1714;--sidebar-section-text:#8b919a;--sidebar-item-text:#5a6170;--sidebar-border:#e8eaee;
+  --text-primary:#1a1714;--text-secondary:#6b655b;--text-tertiary:#9c958a;--text-inverse:#faf9f7;
+  --accent:#5b4fc7;--accent-hover:#4f44b3;--accent-soft:#eeedfb;--accent-text:#4a3fb0;--accent-muted:#c7c2ea;
+  --success:#2d8a5e;--success-soft:#edf7f1;--success-text:#1e6b46;
+  --warning:#c17a1a;--warning-soft:#fdf4e6;--warning-text:#96600f;
+  --danger:#c93b3b;--danger-soft:#fdeaea;--danger-text:#a52e2e;
+  --info:#3178b9;--info-soft:#e8f1fa;--info-text:#276299;
+  --teal:#2a7f6f;--teal-soft:#e6f5f1;--teal-text:#1f6b5c;--teal-muted:#b0d9cf;
+  --font-display:'DM Sans',system-ui,sans-serif;--font-body:'Instrument Sans',system-ui,sans-serif;--font-mono:'JetBrains Mono',monospace;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;
+  --shadow-sm:0 1px 3px rgba(26,23,20,.05);--shadow-md:0 4px 16px rgba(26,23,20,.06);--shadow-lg:0 10px 32px rgba(26,23,20,.08);--shadow-ring:0 0 0 3px rgba(91,79,199,.15);
+  --sidebar-width:272px;--topbar-height:56px;--ease-out:cubic-bezier(.16,1,.3,1);--duration-fast:120ms;--duration-normal:200ms;--duration-slow:350ms;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0}
+body{font-family:var(--font-body);background:var(--surface-0);color:var(--text-primary);-webkit-font-smoothing:antialiased;line-height:1.5}
+button{cursor:pointer;font-family:inherit;border:none;background:none}input,select,textarea{font-family:inherit}
+
+/* APP SHELL */
+.app{display:grid;grid-template-columns:var(--sidebar-width) 1fr;min-height:100vh}
+.sidebar{background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:hidden}
+.brand{height:var(--topbar-height);display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--sidebar-border);flex-shrink:0}
+.brand-mark{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#1a1714,#3d3830);color:var(--text-inverse);display:grid;place-items:center;font-family:var(--font-display);font-size:12px;font-weight:700}
+.brand-info h1{font-family:var(--font-display);font-size:14px;font-weight:700}.brand-info p{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+.sidebar-search{padding:12px 16px;border-bottom:1px solid var(--sidebar-border);flex-shrink:0}
+.sidebar-search input{width:100%;height:36px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-2);padding:0 12px;font-size:13px;color:var(--text-primary);outline:none}
+.sidebar-search input:focus{border-color:var(--accent)}
+.sidebar-nav{flex:1;overflow-y:auto;padding:8px 10px 20px}.nav-section{margin-bottom:4px}
+.nav-section-label{font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--sidebar-section-text);text-transform:uppercase;letter-spacing:.06em;padding:10px 10px 6px}
+.nav-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:var(--radius-md);font-size:13px;color:var(--sidebar-item-text);font-weight:500;transition:all var(--duration-normal) var(--ease-out);margin-bottom:2px}
+.nav-item:hover{background:var(--sidebar-hover);color:var(--sidebar-active-text)}.nav-item.active{background:var(--accent-soft);color:var(--accent-text);font-weight:650}
+.nav-badge{min-width:20px;height:20px;padding:0 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.nav-badge.warn{background:var(--warning-soft);color:var(--warning-text)}.nav-badge.danger{background:var(--danger-soft);color:var(--danger-text)}
+.main{display:flex;flex-direction:column;min-width:0}
+.topbar{height:var(--topbar-height);display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid var(--surface-3);background:rgba(255,255,255,.88);backdrop-filter:blur(12px);flex-shrink:0;position:sticky;top:0;z-index:50}
+.breadcrumbs{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-tertiary)}.breadcrumbs .sep{color:var(--surface-4)}.breadcrumbs .current{color:var(--text-primary);font-weight:650}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;display:grid;place-items:center;font-family:var(--font-display);font-size:12px;font-weight:700}
+.content{padding:24px;flex:1}
+
+/* BUTTONS */
+.btn{height:38px;padding:0 16px;border-radius:var(--radius-md);font-size:13px;font-weight:650;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-primary);transition:all var(--duration-normal) var(--ease-out)}
+.btn:hover{border-color:var(--surface-4);background:var(--surface-hover)}.btn.primary{background:var(--accent);border-color:var(--accent);color:white}.btn.primary:hover{background:var(--accent-hover)}
+.btn.sm{height:32px;padding:0 12px;font-size:12px}.btn.xs{height:28px;padding:0 10px;font-size:11px}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--text-secondary)}.btn.ghost:hover{background:var(--surface-2);color:var(--text-primary)}
+.btn.success{background:var(--success);border-color:var(--success);color:white}.btn.success:hover{background:var(--success-text)}
+.btn.warning-outline{border-color:#f5d5a0;color:var(--warning-text)}.btn.warning-outline:hover{background:var(--warning-soft)}
+.btn.danger-outline{border-color:#f5baba;color:var(--danger-text)}.btn.danger-outline:hover{background:var(--danger-soft)}
+.btn:active{transform:scale(.97)}
+
+/* PILLS */
+.pill{height:22px;padding:0 9px;border-radius:999px;font-size:10px;font-weight:700;display:inline-flex;align-items:center;border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-tertiary);white-space:nowrap;flex-shrink:0}
+.pill.accent{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-muted)}
+.pill.green{background:var(--success-soft);color:var(--success-text);border-color:#b0dfc4}
+.pill.orange{background:var(--warning-soft);color:var(--warning-text);border-color:#f5d5a0}
+.pill.red{background:var(--danger-soft);color:var(--danger-text);border-color:#f5baba}
+.pill.blue{background:var(--info-soft);color:var(--info-text);border-color:#b3d1ec}
+.pill.teal{background:var(--teal-soft);color:var(--teal-text);border-color:var(--teal-muted)}
+.pill.dark{background:var(--text-primary);color:var(--text-inverse);border-color:var(--text-primary)}
+
+/* SUMMARY */
+.summary-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+.sc{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:13px 15px;box-shadow:var(--shadow-sm);transition:all var(--duration-normal) var(--ease-out)}
+.sc.strong{border-color:var(--accent-muted);background:linear-gradient(180deg,#fff,#f5f3ff)}.sc.alert{border-color:#f5d5a0;background:linear-gradient(180deg,#fff,#fefaf3)}.sc.danger{border-color:#f5baba;background:linear-gradient(180deg,#fff,#fef5f5)}.sc.success{border-color:#b0dfc4;background:linear-gradient(180deg,#fff,#f5fdf8)}.sc.info{border-color:#b3d1ec;background:linear-gradient(180deg,#fff,#f5f9fe)}
+.sc .sc-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary)}
+.sc .sc-value{font-family:var(--font-display);font-size:22px;font-weight:800;letter-spacing:-.03em;margin-top:4px}
+.sc .sc-meta{font-size:12px;color:var(--text-tertiary);margin-top:2px}
+
+/* TABS */
+.tabs{display:flex;gap:4px;margin-bottom:16px;background:var(--surface-2);border-radius:var(--radius-lg);padding:4px;width:fit-content}
+.tab{height:34px;padding:0 16px;border-radius:var(--radius-md);font-size:12px;font-weight:650;color:var(--text-secondary);display:inline-flex;align-items:center;gap:6px;transition:all var(--duration-normal) var(--ease-out)}
+.tab:hover{color:var(--text-primary)}.tab.active{background:var(--surface-1);color:var(--text-primary);box-shadow:var(--shadow-sm)}
+.tab-count{font-size:10px;font-weight:800;color:var(--text-tertiary);background:var(--surface-3);padding:1px 6px;border-radius:999px}.tab.active .tab-count{background:var(--accent-soft);color:var(--accent-text)}
+
+/* WORKSPACE */
+.workspace{display:grid;grid-template-columns:380px minmax(0,1fr);gap:16px;align-items:start}
+.queue-panel{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);box-shadow:var(--shadow-sm);overflow:hidden}
+.queue-header{padding:14px 16px;border-bottom:1px solid var(--surface-3);display:flex;align-items:center;justify-content:space-between}
+.queue-header h3{font-family:var(--font-display);font-size:14px;font-weight:700}
+.queue-search{padding:10px 14px;border-bottom:1px solid var(--surface-2)}
+.queue-search input{width:100%;height:34px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-2);padding:0 12px;font-size:12px;outline:none}
+.queue-search input:focus{border-color:var(--accent);background:white}
+.queue-list{max-height:calc(100vh - 380px);overflow-y:auto}
+.q-category{border-bottom:1px solid var(--surface-2)}.q-category:last-child{border-bottom:none}
+.q-cat-label{padding:10px 16px 6px;font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;justify-content:space-between}
+.q-cat-count{font-size:10px;font-weight:700;background:var(--surface-2);padding:2px 7px;border-radius:999px;color:var(--text-tertiary)}
+.q-item{padding:10px 16px;cursor:pointer;transition:background var(--duration-fast) var(--ease-out);display:flex;align-items:center;gap:12px}
+.q-item:hover{background:var(--surface-hover)}.q-item.active{background:var(--accent-soft)}
+.q-swatch{width:40px;height:40px;border-radius:var(--radius-md);border:1px solid var(--surface-3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
+.q-swatch .ms{display:grid;grid-template-columns:1fr 1fr;gap:2px;width:100%;height:100%}.q-swatch .ms span{display:block}
+.q-body{flex:1;min-width:0}.q-body h4{font-family:var(--font-display);font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q-body p{font-size:11px;color:var(--text-tertiary);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+
+/* DETAIL */
+.d2{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start}
+.d-main{display:flex;flex-direction:column;gap:14px}.d-rail{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);box-shadow:var(--shadow-sm);overflow:hidden}
+.d-hdr{padding:20px 22px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.d-hdr-left h2{font-family:var(--font-display);font-size:20px;font-weight:750;letter-spacing:-.02em}
+.dh-cat{font-size:12px;color:var(--text-tertiary);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.dh-desc{font-size:13px;color:var(--text-secondary);margin-top:4px;max-width:480px}
+.dh-pills{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.dh-actions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap}
+.d-meta{display:grid;grid-template-columns:repeat(2,1fr);gap:0;border-top:1px solid var(--surface-2)}
+.dm{padding:14px 22px;border-bottom:1px solid var(--surface-2);border-right:1px solid var(--surface-2)}.dm:nth-child(even){border-right:none}
+.dm .k{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary)}
+.dm .v{font-family:var(--font-display);font-size:14px;font-weight:700;margin-top:3px}.dm .m{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+
+/* OPTIONS TABLE */
+.o-card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);box-shadow:var(--shadow-sm)}
+.o-hdr{padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--surface-2)}
+.o-hdr h3{font-family:var(--font-display);font-size:15px;font-weight:700}
+.ot{width:100%;border-collapse:collapse}
+.ot th{font-family:var(--font-display);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary);text-align:left;padding:10px 12px;background:var(--surface-2);border-bottom:1px solid var(--surface-3)}
+.ot th:first-child{padding-left:20px}.ot th:last-child{padding-right:20px;text-align:right}
+.ot td{padding:12px;font-size:13px;border-bottom:1px solid var(--surface-2);vertical-align:middle}
+.ot td:first-child{padding-left:20px}.ot td:last-child{padding-right:20px;text-align:right}
+.ot tr:last-child td{border-bottom:none}.ot tr:hover{background:var(--surface-hover)}
+.ot tr.rec{background:rgba(91,79,199,.03)}.ot tr.sel{background:rgba(45,138,94,.05)}
+.on{display:flex;align-items:center;gap:10px}
+.os{width:32px;height:32px;border-radius:var(--radius-sm);border:1px solid var(--surface-3);flex-shrink:0}
+.ont h5{font-family:var(--font-display);font-size:13px;font-weight:700}
+.ont p{font-size:11px;color:var(--text-tertiary);margin-top:1px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op{font-family:var(--font-display);font-weight:700}.op.inc{color:var(--success-text)}.op.upg{color:var(--warning-text)}.op.prem{color:#a04d1a}
+.ol{font-family:var(--font-mono);font-size:12px;color:var(--text-secondary)}.ol.w{color:var(--warning-text);font-weight:600}
+.oa{font-size:11px;font-weight:600}.oa.ok{color:var(--success-text)}.oa.lim{color:var(--warning-text)}.oa.bo{color:var(--danger-text)}
+
+/* CLIENT STATUS */
+.cs-body{padding:16px 20px}
+.cs-progress{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.cs-bar{flex:1;height:6px;border-radius:999px;background:var(--surface-3);overflow:hidden}
+.cs-fill{height:100%;border-radius:999px;background:var(--accent);transition:width var(--duration-slow) var(--ease-out)}
+.cs-pct{font-family:var(--font-display);font-size:13px;font-weight:700;white-space:nowrap;flex-shrink:0}
+.cs-tl{display:flex;flex-direction:column}
+.cs-s{display:flex;gap:12px;position:relative;padding-bottom:14px}.cs-s:last-child{padding-bottom:0}
+.cs-s::before{content:'';position:absolute;left:11px;top:24px;bottom:0;width:2px;background:var(--surface-3)}.cs-s:last-child::before{display:none}.cs-s.done::before{background:var(--accent-muted)}
+.cs-d{width:24px;height:24px;border-radius:50%;border:2px solid var(--surface-3);background:white;display:grid;place-items:center;flex-shrink:0;position:relative;z-index:1}
+.cs-s.done .cs-d{background:var(--accent);border-color:var(--accent)}.cs-s.done .cs-d svg{display:block}
+.cs-s.cur .cs-d{border-color:var(--accent);background:white;box-shadow:0 0 0 4px var(--accent-soft)}
+.cs-d svg{display:none;width:12px;height:12px;color:white}
+.cs-st h5{font-size:13px;font-weight:650}.cs-st p{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+.cs-s.done .cs-st h5{color:var(--text-secondary)}
+
+/* ACTIVITY */
+.a-list{padding:6px 20px 16px}
+.a-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--surface-2)}.a-item:last-child{border-bottom:none}
+.a-dot{width:8px;height:8px;border-radius:50%;background:var(--surface-4);flex-shrink:0;margin-top:5px}
+.a-dot.purple{background:var(--accent)}.a-dot.green{background:var(--success)}.a-dot.orange{background:var(--warning)}.a-dot.teal{background:var(--teal)}
+.a-text{flex:1;font-size:12px;color:var(--text-secondary);line-height:1.45}.a-text strong{color:var(--text-primary);font-weight:650}
+.a-time{font-size:11px;color:var(--text-tertiary);white-space:nowrap;flex-shrink:0}
+
+/* BUDGET ROWS */
+.b-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--surface-2);font-size:13px}.b-row:last-child{border-bottom:none}
+.b-row .bk{color:var(--text-secondary)}.b-row .bv{font-family:var(--font-display);font-weight:700}
+.b-row.total{padding-top:10px;border-top:2px solid var(--surface-3)}.b-row.total .bk{font-weight:700;color:var(--text-primary)}.b-row.total .bv{font-size:15px}
+
+/* BANNERS */
+.rev-banner{background:var(--warning-soft);border:1px solid #f0cc8a;border-radius:var(--radius-lg);padding:14px 18px;display:flex;align-items:flex-start;gap:12px}
+.rev-banner h4{font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--warning-text)}.rev-banner p{font-size:12px;color:var(--text-secondary);margin-top:2px}
+.draft-banner{background:var(--surface-2);border:1px dashed var(--surface-4);border-radius:var(--radius-lg);padding:20px;text-align:center}
+.draft-banner h4{font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:4px}.draft-banner p{font-size:12px;color:var(--text-secondary);margin-bottom:12px}
+
+/* FORM */
+.f-sec{padding:16px 20px;border-bottom:1px solid var(--surface-2)}.f-sec:last-child{border-bottom:none}
+.f-sec h4{font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:12px}
+.f-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}.f-row.full{grid-template-columns:1fr}
+.f-grp{display:flex;flex-direction:column;gap:4px}
+.f-grp label{font-size:12px;font-weight:650;color:var(--text-secondary)}
+.f-grp input,.f-grp select,.f-grp textarea{height:38px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-2);padding:0 12px;font-size:13px;color:var(--text-primary);outline:none}
+.f-grp input:focus,.f-grp select:focus,.f-grp textarea:focus{border-color:var(--accent);background:white}
+.f-grp textarea{height:80px;padding:10px 12px;resize:vertical}.f-grp .hint{font-size:11px;color:var(--text-tertiary);margin-top:2px}
+.f-toggle{display:flex;align-items:center;gap:10px;padding:10px 0}
+.t-track{width:36px;height:20px;border-radius:10px;background:var(--surface-3);position:relative;cursor:pointer;transition:background var(--duration-normal) var(--ease-out)}
+.t-track.on{background:var(--accent)}
+.t-track::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:white;box-shadow:0 1px 3px rgba(0,0,0,.15);transition:transform var(--duration-normal) var(--ease-out)}
+.t-track.on::after{transform:translateX(16px)}
+.omf{background:var(--surface-2);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:14px 16px;margin-top:10px}
+
+.r-hdr{padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--surface-2)}
+.r-hdr h3{font-family:var(--font-display);font-size:14px;font-weight:700}
+@media(max-width:1200px){.workspace{grid-template-columns:1fr}.d2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">B</div><div class="brand-info"><h1>BuiltCRM</h1><p>Contractor Portal</p></div></div>
+    <div class="sidebar-search"><input type="text" placeholder="Search projects…" /></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section"><div class="nav-section-label">Workspace</div>
+        <div class="nav-item"><span>Dashboard</span></div>
+        <div class="nav-item"><span>Project Directory</span><span class="nav-badge">24</span></div>
+        <div class="nav-item"><span>Inbox</span><span class="nav-badge">8</span></div>
+      </div>
+      <div class="nav-section"><div class="nav-section-label">The Harrison Residence</div>
+        <div class="nav-item"><span>Project Home</span></div>
+        <div class="nav-item"><span>RFIs / Issues</span><span class="nav-badge">3</span></div>
+        <div class="nav-item"><span>Change Orders</span><span class="nav-badge">2</span></div>
+        <div class="nav-item"><span>Approvals</span><span class="nav-badge">5</span></div>
+        <div class="nav-item active"><span>Selections</span><span class="nav-badge">8</span></div>
+        <div class="nav-item"><span>Compliance</span><span class="nav-badge warn">4</span></div>
+        <div class="nav-item"><span>Upload Requests</span><span class="nav-badge">7</span></div>
+        <div class="nav-item"><span>Billing / Draw</span></div>
+        <div class="nav-item"><span>Schedule</span></div>
+        <div class="nav-item"><span>Documents</span></div>
+        <div class="nav-item"><span>Messages</span></div>
+      </div>
+    </nav>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div class="breadcrumbs"><span>The Harrison Residence</span><span class="sep">›</span><span class="current" id="bc">Selections</span></div>
+      <div class="topbar-actions">
+        <button class="btn sm" onclick="go('create')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> New Item</button>
+        <button class="btn sm"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</button>
+        <div class="avatar">DC</div>
+      </div>
+    </header>
+    <div class="content" id="C"></div>
+  </div>
+</div>
+<script>
+const I=[
+{id:'flooring',t:'Flooring Finish',cat:'Kitchen',desc:'Three hardwood options for the main living areas. This selection affects the install schedule — flooring must be ordered before framing completion.',st:'published',cs:'exploring',al:2800,dl:'Apr 9, 2026',od:true,odD:3,sched:true,sn:'Must order before framing completion',rh:48,pub:'Apr 3, 2026',sw:['#c2a87a','#8b7355','#d4c8b0',''],opts:[
+{n:'White Oak Natural',d:'7" wide plank, matte finish, FSC certified',sw:'linear-gradient(135deg,#c2a87a,#a08855)',tr:'included',tl:'Included',p:2640,ld:5,lw:false,rec:true,sku:'WO-NAT-7M',sup:'Heritage Hardwoods',av:'In Stock'},
+{n:'Espresso Walnut',d:'5" plank, semi-gloss, rich dark tone',sw:'linear-gradient(135deg,#8b7355,#6b5540)',tr:'upgrade',tl:'Upgrade',p:3450,ld:12,lw:true,rec:false,sku:'EW-SG-5P',sup:'Pacific Lumber Co.',av:'In Stock'},
+{n:'Coastal Ash',d:'6" wide plank, wire-brushed, light finish',sw:'linear-gradient(135deg,#d4c8b0,#bfb59a)',tr:'included',tl:'Included',p:2580,ld:5,lw:false,rec:false,sku:'CA-WB-6W',sup:'Heritage Hardwoods',av:'Limited'}],
+act:[{c:'teal',x:'<strong>Sarah Harrison</strong> used compare mode',t:'Apr 7'},{c:'teal',x:'<strong>Sarah Harrison</strong> viewed detail page',t:'Apr 5'},{c:'purple',x:'<strong>Dan Carter</strong> published with 3 options',t:'Apr 3'},{c:'purple',x:'<strong>Dan Carter</strong> set allowance $2,800 and deadline Apr 9',t:'Apr 3'},{c:'purple',x:'<strong>Dan Carter</strong> created in Kitchen',t:'Apr 2'}],
+tl:[{l:'Published',d:'You published · Apr 3',done:1},{l:'Viewed by Client',d:'Sarah Harrison opened · Apr 5',done:1},{l:'Exploring Options',d:'Client used compare · Apr 7',cur:1},{l:'Provisional Selection',d:'Waiting for choice'},{l:'Confirmed',d:'Lock after revision window'}],pp:40},
+
+{id:'cabinet',t:'Cabinet Paint Color',cat:'Kitchen',desc:'Three curated paint colors for upper and lower cabinets. All options included — no upgrade cost.',st:'published',cs:'exploring',al:0,dl:'Apr 18, 2026',od:false,sched:false,sn:'',rh:48,pub:'Apr 6, 2026',sw:['#f5f2eb','#b5bfa8','#4a4a4a',''],opts:[
+{n:'Swiss Coffee',d:'Warm off-white, Benjamin Moore OC-45',sw:'linear-gradient(135deg,#f5f2eb,#e8e3d8)',tr:'included',tl:'Included',p:0,ld:3,lw:false,rec:true,sku:'BM-OC45',sup:'Benjamin Moore',av:'In Stock'},
+{n:'Sage Mist',d:'Soft green-gray, calming natural tone',sw:'linear-gradient(135deg,#b5bfa8,#99a68a)',tr:'included',tl:'Included',p:0,ld:3,lw:false,rec:false,sku:'SW-9132',sup:'Sherwin-Williams',av:'In Stock'},
+{n:'Iron Ore',d:'Deep charcoal, bold modern contrast',sw:'linear-gradient(135deg,#4a4a4a,#333)',tr:'included',tl:'Included',p:0,ld:3,lw:false,rec:false,sku:'SW-7069',sup:'Sherwin-Williams',av:'In Stock'}],
+act:[{c:'teal',x:'<strong>Sarah Harrison</strong> viewed options',t:'Apr 8'},{c:'purple',x:'<strong>Dan Carter</strong> published with 3 options',t:'Apr 6'},{c:'purple',x:'<strong>Dan Carter</strong> created',t:'Apr 5'}],
+tl:[{l:'Published',d:'You published · Apr 6',done:1},{l:'Viewed by Client',d:'Sarah opened · Apr 8',done:1},{l:'Exploring Options',d:'Client browsing',cur:1},{l:'Provisional Selection',d:'Waiting'},{l:'Confirmed',d:'Lock after revision'}],pp:40},
+
+{id:'countertop',t:'Countertop Material',cat:'Kitchen',desc:'Quartz or granite options for kitchen island and perimeter counters. High-impact visual and budget decision.',st:'draft',cs:null,al:4200,dl:'Apr 25, 2026',od:false,sched:true,sn:'Template after cabinet install — 3 week lead',rh:48,sw:['#e0d8cc','#3a3a3a','',''],opts:[
+{n:'Calacatta Quartz',d:'White base with bold gray veining, engineered',sw:'linear-gradient(135deg,#e0d8cc,#cfc5b5)',tr:'included',tl:'Included',p:3900,ld:15,lw:true,rec:true,sku:'CQ-CAL-3CM',sup:'Caesarstone',av:'In Stock'},
+{n:'Absolute Black Granite',d:'Polished solid black, natural stone',sw:'linear-gradient(135deg,#3a3a3a,#222)',tr:'upgrade',tl:'Upgrade',p:5100,ld:18,lw:true,rec:false,sku:'ABG-POL-3CM',sup:'MSI Surfaces',av:'In Stock'}],
+act:[{c:'purple',x:'<strong>Dan Carter</strong> added 2 options',t:'Apr 9'},{c:'purple',x:'<strong>Dan Carter</strong> created as draft',t:'Apr 9'}],tl:null,pp:0},
+
+{id:'tile',t:'Tile Pattern',cat:'Master Bathroom',desc:'Backsplash tile for shower surround. Original selection (Herringbone Marble) became unavailable — reopened with two replacement options.',st:'revision',cs:'revision_open',al:1600,dl:'Apr 15, 2026',od:false,sched:true,sn:'Tile install blocked until decision',rh:48,pub:'Apr 10, 2026',
+revReason:'Supplier notified us that Herringbone Marble is on backorder with no confirmed restock date.',prevChoice:'Herringbone Marble',
+sw:['#c5d0d8','#8a9ca8','',''],opts:[
+{n:'Chevron Porcelain',d:'Similar visual to original, durable porcelain marble-look',sw:'linear-gradient(135deg,#c5d0d8,#b0bcc5)',tr:'included',tl:'Included',p:1520,ld:5,lw:false,rec:true,sku:'CP-CHEV-WH',sup:'Daltile',av:'In Stock'},
+{n:'Subway Slate',d:'Modern matte slate tile, classic subway layout',sw:'linear-gradient(135deg,#8a9ca8,#6b8090)',tr:'upgrade',tl:'Upgrade',p:2020,ld:8,lw:false,rec:false,sku:'SS-MAT-4x12',sup:'Daltile',av:'In Stock'}],
+act:[{c:'orange',x:'<strong>Dan Carter</strong> reopened — original unavailable',t:'Apr 10'},{c:'purple',x:'<strong>Dan Carter</strong> added 2 replacements',t:'Apr 10'},{c:'green',x:'<strong>Sarah Harrison</strong> had confirmed Herringbone Marble',t:'Apr 6'},{c:'purple',x:'<strong>Dan Carter</strong> originally published with 3 options',t:'Apr 1'}],
+tl:[{l:'Published',d:'Originally · Apr 1',done:1},{l:'Client Confirmed',d:'Herringbone Marble · Apr 6',done:1},{l:'Reopened for Revision',d:'Original unavailable · Apr 10',cur:1},{l:'Client Re-selects',d:'Waiting for new choice'},{l:'Re-confirmed',d:'Lock after revision'}],pp:50},
+
+{id:'vanity',t:'Vanity Hardware',cat:'Master Bathroom',desc:'Drawer pulls and knobs for the double vanity. Choosing between brushed brass, matte black, and polished nickel.',st:'draft',cs:null,al:350,dl:'Not set',od:false,sched:false,sn:'',rh:48,sw:['','','',''],opts:[],
+act:[{c:'purple',x:'<strong>Dan Carter</strong> created as draft',t:'Apr 8'}],tl:null,pp:0},
+
+{id:'fireplace',t:'Fireplace Surround',cat:'Living Room',desc:'Stone surround for the living room gas fireplace. Client selected Stacked Ledgestone (upgrade) and confirmed.',st:'decided',cs:'locked',al:1800,dl:'Apr 6, 2026',od:false,sched:false,sn:'',rh:48,pub:'Apr 4, 2026',
+cDate:'Apr 8, 2026',lDate:'Apr 10, 2026',selOpt:'Stacked Ledgestone',selUp:450,
+sw:['#c0b5a8','#8c7b6b','#a8978a',''],opts:[
+{n:'Smooth River Stone',d:'Natural rounded stone, neutral tone',sw:'linear-gradient(135deg,#c0b5a8,#a89988)',tr:'included',tl:'Included',p:1680,ld:5,lw:false,rec:false,sku:'SRS-NAT-12',sup:'Stone Source',av:'In Stock',sel:false},
+{n:'Stacked Ledgestone',d:'Textured natural stone, warm earth tones',sw:'linear-gradient(135deg,#8c7b6b,#6b5e50)',tr:'upgrade',tl:'Upgrade',p:2250,ld:7,lw:false,rec:true,sku:'SL-WARM-6',sup:'Stone Source',av:'In Stock',sel:true},
+{n:'Travertine Slab',d:'Polished stone, classic Mediterranean',sw:'linear-gradient(135deg,#a8978a,#8a7d70)',tr:'premium',tl:'Premium',p:3100,ld:14,lw:true,rec:false,sku:'TS-POL-2CM',sup:'MSI Surfaces',av:'In Stock',sel:false}],
+act:[{c:'green',x:'<strong>System</strong> locked — revision window expired',t:'Apr 10'},{c:'teal',x:'<strong>Sarah Harrison</strong> confirmed Stacked Ledgestone',t:'Apr 8'},{c:'teal',x:'<strong>Sarah</strong> provisionally selected',t:'Apr 7'},{c:'purple',x:'<strong>Dan Carter</strong> published with 3 options',t:'Apr 4'}],
+tl:[{l:'Published',d:'Apr 4',done:1},{l:'Viewed',d:'Apr 5',done:1},{l:'Provisional',d:'Stacked Ledgestone · Apr 7',done:1},{l:'Confirmed',d:'Apr 8',done:1},{l:'Locked',d:'Revision closed · Apr 10',done:1}],pp:100},
+
+{id:'lighting',t:'Pendant Lighting',cat:'Living Room',desc:'Statement pendant for the dining nook. Need to curate options from supplier catalogs.',st:'draft',cs:null,al:900,dl:'Not set',od:false,sched:false,sn:'',rh:48,sw:['','','',''],opts:[],
+act:[{c:'purple',x:'<strong>Dan Carter</strong> created as draft',t:'Apr 7'}],tl:null,pp:0},
+
+{id:'siding',t:'Siding Color',cat:'Exterior',desc:'Exterior siding color for HardiePlank. Client chose Soft Linen (included) — locked and ordered.',st:'decided',cs:'locked',al:0,dl:'Apr 5, 2026',od:false,sched:true,sn:'Siding delivery on critical path',rh:24,pub:'Mar 28, 2026',
+cDate:'Apr 3, 2026',lDate:'Apr 4, 2026',selOpt:'Soft Linen',selUp:0,
+sw:['#d8d3c8','#4a5568','',''],opts:[
+{n:'Soft Linen',d:'Warm off-white, James Hardie ColorPlus',sw:'linear-gradient(135deg,#d8d3c8,#ccc7ba)',tr:'included',tl:'Included',p:0,ld:10,lw:false,rec:true,sku:'JH-CP-SL',sup:'James Hardie',av:'In Stock',sel:true},
+{n:'Evening Blue',d:'Deep navy accent, James Hardie ColorPlus',sw:'linear-gradient(135deg,#4a5568,#2d3748)',tr:'included',tl:'Included',p:0,ld:10,lw:false,rec:false,sku:'JH-CP-EB',sup:'James Hardie',av:'In Stock',sel:false}],
+act:[{c:'green',x:'<strong>System</strong> locked — revision expired',t:'Apr 4'},{c:'teal',x:'<strong>Sarah Harrison</strong> confirmed Soft Linen',t:'Apr 3'},{c:'teal',x:'<strong>Sarah</strong> provisionally selected',t:'Apr 2'},{c:'purple',x:'<strong>Dan Carter</strong> published',t:'Mar 28'}],
+tl:[{l:'Published',d:'Mar 28',done:1},{l:'Selected',d:'Soft Linen · Apr 2',done:1},{l:'Confirmed',d:'Apr 3',done:1},{l:'Locked',d:'Apr 4',done:1}],pp:100}
+];
+
+const F={all:()=>true,draft:i=>i.st==='draft',published:i=>i.st==='published',decided:i=>i.st==='decided',revision:i=>i.st==='revision'};
+let cTab='all',cId='flooring',cView='workspace';
+const $=s=>document.querySelector(s);
+const fmt=c=>c===0?'$0':'$'+(c).toLocaleString();
+const chk=`<svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>`;
+
+function sPill(i){if(i.st==='draft')return'<span class="pill">Draft</span>';if(i.st==='revision')return'<span class="pill red">Revision</span>';if(i.st==='decided')return'<span class="pill green">Confirmed</span>';if(i.od)return'<span class="pill orange">Overdue</span>';if(i.cs==='exploring')return'<span class="pill teal">Exploring</span>';return'<span class="pill blue">Published</span>';}
+function sSub(i){if(i.st==='draft')return'';if(i.st==='decided')return'<span style="font-size:10px;color:var(--text-tertiary)">Locked</span>';if(i.st==='revision')return'<span style="font-size:10px;color:var(--text-tertiary)">Reopened</span>';return'<span style="font-size:10px;color:var(--text-tertiary)">Published</span>';}
+
+function grp(items){const c={};items.forEach(i=>{if(!c[i.cat])c[i.cat]=[];c[i.cat].push(i)});return c;}
+
+function rQ(items){const cats=grp(items);let h='';for(const[cat,its]of Object.entries(cats)){h+=`<div class="q-category"><div class="q-cat-label">${cat}<span class="q-cat-count">${its.length}</span></div>`;its.forEach(i=>{const a=i.id===cId?' active':'';const sw=i.opts.length>0?`<div class="ms">${i.sw.map(s=>s?`<span style="background:${s}"></span>`:`<span style="background:var(--surface-2)"></span>`).join('')}</div>`:`<svg width="16" height="16" fill="none" stroke="var(--text-tertiary)" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>`;h+=`<div class="q-item${a}" onclick="sel('${i.id}')"><div class="q-swatch"${i.opts.length===0?' style="display:grid;place-items:center;background:var(--surface-2)"':''}>${sw}</div><div class="q-body"><h4>${i.t}</h4><p>${i.opts.length} opt${i.opts.length!==1?'s':''} · Allow. ${fmt(i.al)}</p></div><div class="q-right">${sPill(i)}${sSub(i)}</div></div>`;});h+='</div>';}return h;}
+
+function rOT(i,showSt){if(i.opts.length===0)return`<div class="draft-banner"><h4>No options yet</h4><p>Add at least 2 curated options before publishing.</p><button class="btn sm primary"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add First Option</button></div>`;
+let h=`<table class="ot"><thead><tr><th>Option</th><th>Tier</th><th>Price</th><th>Lead Time</th><th>Supplier / SKU</th><th>Avail.</th><th>${showSt?'Status':'Tags'}</th></tr></thead><tbody>`;
+i.opts.forEach(o=>{const rc=o.sel?'sel':o.rec?'rec':'';const tc=o.tr==='included'?'green':o.tr==='upgrade'?'orange':'';const tp=o.tr==='premium'?'<span class="pill" style="background:#fef0e6;border-color:#f5c9a0;color:#a04d1a">Premium</span>':`<span class="pill ${tc}">${o.tl}</span>`;const pc=o.tr==='included'?'inc':o.tr==='upgrade'?'upg':'prem';const ac=o.av==='In Stock'?'ok':o.av==='Limited'?'lim':'bo';let lc=showSt&&o.sel?'<span class="pill green">Selected</span>':showSt?'<span style="font-size:12px;color:var(--text-tertiary)">—</span>':o.rec?'<span class="pill accent">Recommended</span>':`<button class="btn xs ghost" style="font-size:10px">Set Rec.</button>`;
+h+=`<tr class="${rc}"><td><div class="on"><div class="os" style="background:${o.sw}"></div><div class="ont"><h5>${o.n}</h5><p>${o.d}</p></div></div></td><td>${tp}</td><td><span class="op ${pc}">${fmt(o.p)}</span></td><td><span class="ol${o.lw?' w':''}">${o.ld}d</span></td><td><div style="font-size:12px"><div style="font-weight:600">${o.sup}</div><div style="color:var(--text-tertiary);font-family:var(--font-mono);font-size:11px">${o.sku}</div></div></td><td><span class="oa ${ac}">${o.av}</span></td><td style="text-align:right">${lc}</td></tr>`;});
+return h+'</tbody></table>';}
+
+function rTL(i){if(!i.tl)return`<div class="cs-body"><div class="draft-banner" style="border:none;background:var(--surface-2);padding:16px"><p style="margin-bottom:0">Publish this item to track client decisions.</p></div></div>`;
+let h=`<div class="cs-body"><div class="cs-progress"><div class="cs-bar"><div class="cs-fill" style="width:${i.pp}%"></div></div><span class="cs-pct">${i.pp}%</span></div><div class="cs-tl">`;
+i.tl.forEach(s=>{const c=s.done?'done':s.cur?'cur':'';h+=`<div class="cs-s ${c}"><div class="cs-d">${chk}</div><div class="cs-st"><h5>${s.l}</h5><p>${s.d}</p></div></div>`;});
+return h+'</div></div>';}
+
+function rAct(i){return i.act.map(a=>`<div class="a-item"><div class="a-dot ${a.c}"></div><div class="a-text">${a.x}</div><div class="a-time">${a.t}</div></div>`).join('');}
+
+function rD(i){const dr=i.st==='draft',dc=i.st==='decided',rv=i.st==='revision';
+let pills='';if(dr)pills='<span class="pill">Draft — not visible to client</span>';else if(rv)pills=`<span class="pill red">Revision — reopened</span><span class="pill accent">Published</span><span class="pill">${i.opts.length} options</span>`;else if(dc)pills='<span class="pill green">Confirmed</span><span class="pill dark">Locked</span>';else if(i.od)pills=`<span class="pill orange">Overdue — ${i.odD}d past deadline</span><span class="pill accent">Published</span><span class="pill">${i.opts.length} options</span>`;else pills=`<span class="pill accent">Published</span><span class="pill">${i.opts.length} options</span>`;
+
+let acts='';const eBtn=`<button class="btn sm ghost"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit</button>`;
+const dupBtn=`<button class="btn sm ghost"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Duplicate</button>`;
+if(dr){acts=eBtn;if(i.opts.length>=2)acts+=`<button class="btn sm success"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg> Publish</button>`;acts+=dupBtn;}
+else if(dc)acts=`<button class="btn sm warning-outline"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Reopen for Revision</button>`;
+else if(rv)acts=eBtn;
+else{acts=eBtn;if(i.od)acts+=`<button class="btn sm warning-outline"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg> Nudge Client</button>`;acts+=dupBtn;}
+
+let meta='';
+meta+=`<div class="dm"><div class="k">Allowance</div><div class="v">${fmt(i.al)}</div><div class="m">${i.al>0?'At or below = "Included"':'All included'}</div></div>`;
+if(dc){meta+=`<div class="dm"><div class="k">Client's Choice</div><div class="v" style="color:var(--accent-text)">${i.selOpt}</div><div class="m">${i.selUp>0?'Upgrade · +'+fmt(i.selUp):'Included'}</div></div>`;
+meta+=`<div class="dm"><div class="k">Confirmed</div><div class="v">${i.cDate}</div><div class="m">Locked ${i.lDate}</div></div>`;
+meta+=`<div class="dm"><div class="k">Lead Time</div><div class="v">${(i.opts.find(o=>o.sel)||{}).ld||'—'}d</div><div class="m">Order placed</div></div>`;}
+else{meta+=`<div class="dm"><div class="k">Decision Deadline</div><div class="v"${i.od?' style="color:var(--danger)"':''}>${i.dl}</div><div class="m">${i.od?i.odD+'d overdue':''}</div></div>`;
+meta+=`<div class="dm"><div class="k">Schedule Impact</div><div class="v">${i.sched?'Yes — affects install':'No direct impact'}</div><div class="m">${i.sn||'—'}</div></div>`;
+meta+=`<div class="dm"><div class="k">Revision Window</div><div class="v">${i.rh}h</div><div class="m">After confirmation</div></div>`;}
+
+let rev='';if(rv)rev=`<div class="rev-banner"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><div><h4>Reopened for Revision</h4><p>${i.revReason} Previous choice: <strong>${i.prevChoice}</strong></p></div></div>`;
+
+let csPill='';if(dr)csPill='<span class="pill">Draft</span>';else if(dc)csPill='<span class="pill green">Locked</span>';else if(rv)csPill='<span class="pill orange">Revision</span>';else if(i.od)csPill='<span class="pill orange">Awaiting</span>';else csPill='<span class="pill blue">In Progress</span>';
+
+let budgetCard='';if(dc){const so=i.opts.find(o=>o.sel);budgetCard=`<div class="card"><div class="f-sec"><h4>Financial Impact</h4><div class="b-row"><span class="bk">Allowance</span><span class="bv">${fmt(i.al)}</span></div><div class="b-row"><span class="bk">Selected price</span><span class="bv">${fmt(so?.p||0)}</span></div><div class="b-row total"><span class="bk">Upgrade cost</span><span class="bv" style="color:${i.selUp>0?'var(--warning-text)':'var(--success-text)'}">${i.selUp>0?'+'+fmt(i.selUp):'$0'}</span></div><div class="b-row"><span class="bk">Order status</span><span class="bv" style="color:var(--success-text)">Placed</span></div></div></div>`;}
+
+return`<div class="d2"><div class="d-main">${rev}<div class="card"><div class="d-hdr"><div class="d-hdr-left"><div class="dh-cat">${i.cat}</div><h2>${i.t}</h2><div class="dh-desc">${i.desc}</div><div class="dh-pills">${pills}</div></div><div class="dh-actions">${acts}</div></div><div class="d-meta">${meta}</div></div>
+<div class="o-card"><div class="o-hdr"><h3>${dc?'Options (Decided)':'Curated Options'}</h3><div style="display:flex;gap:8px;align-items:center"><span style="font-size:12px;color:var(--text-tertiary)">${i.opts.length} option${i.opts.length!==1?'s':''}</span>${!dc?'<button class="btn xs primary"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add</button>':''}</div></div>${rOT(i,dc||rv)}</div></div>
+<div class="d-rail"><div class="card"><div class="r-hdr"><h3>Client Decision</h3>${csPill}</div>${rTL(i)}</div>${budgetCard}<div class="card"><div class="r-hdr"><h3>Activity</h3></div><div class="a-list">${rAct(i)}</div></div></div></div>`;}
+
+function rSum(){const tot=I.length,dr=I.filter(i=>i.st==='draft').length,pub=I.filter(i=>i.st==='published'||i.st==='revision').length;
+const aw=I.filter(i=>(i.st==='published'||i.st==='revision')).length,od=I.filter(i=>i.od).length,dec=I.filter(i=>i.st==='decided').length;
+const ut=I.filter(i=>i.st==='decided').reduce((s,i)=>s+(i.selUp||0),0),ta=I.reduce((s,i)=>s+i.al,0);
+return`<div class="summary-strip"><div class="sc strong"><div class="sc-label">Total Items</div><div class="sc-value">${tot}</div><div class="sc-meta">${pub} published · ${dr} draft</div></div>
+<div class="sc alert"><div class="sc-label">Awaiting Decision</div><div class="sc-value">${aw}</div><div class="sc-meta">Published, no confirmation</div></div>
+<div class="sc danger"><div class="sc-label">Overdue</div><div class="sc-value">${od}</div><div class="sc-meta">Past deadline</div></div>
+<div class="sc success"><div class="sc-label">Upgrade Impact</div><div class="sc-value">+${fmt(ut)}</div><div class="sc-meta">${dec} confirmed</div></div>
+<div class="sc info"><div class="sc-label">Total Allowances</div><div class="sc-value">${fmt(ta)}</div><div class="sc-meta">All categories</div></div></div>`;}
+
+function render(){if(cView==='create'){rCreate();return;}
+const fl=I.filter(F[cTab]);if(!fl.find(i=>i.id===cId)&&fl.length)cId=fl[0].id;
+const ai=I.find(i=>i.id===cId);const tc={all:I.length,draft:I.filter(i=>i.st==='draft').length,published:I.filter(i=>i.st==='published').length,decided:I.filter(i=>i.st==='decided').length,revision:I.filter(i=>i.st==='revision').length};
+let h=`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:16px"><div><h2 style="font-family:var(--font-display);font-size:24px;font-weight:750;letter-spacing:-.03em">Selections Management</h2><p style="margin-top:4px;font-size:13px;color:var(--text-secondary);max-width:560px">Create and curate finish options for your clients. Publish when ready — items are invisible to the homeowner until published.</p></div><div style="display:flex;gap:8px;flex-shrink:0;padding-top:4px"><button class="btn sm"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg> Filter</button><button class="btn sm primary" onclick="go('create')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> New Item</button></div></div>`;
+h+=rSum();
+h+='<div class="tabs">';['all','draft','published','decided','revision'].forEach(t=>{h+=`<button class="tab${cTab===t?' active':''}" onclick="fTab('${t}')">${t[0].toUpperCase()+t.slice(1)} <span class="tab-count">${tc[t]}</span></button>`;});h+='</div>';
+if(!fl.length)h+=`<div style="text-align:center;padding:60px 20px"><h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-top:12px">No items in this view</h3><p style="font-size:13px;color:var(--text-secondary);margin-top:4px">Items will appear here when they match this filter.</p></div>`;
+else h+=`<div class="workspace"><div class="queue-panel"><div class="queue-header"><h3>Selection Items</h3><span style="font-size:12px;color:var(--text-tertiary)">${fl.length} item${fl.length!==1?'s':''}</span></div><div class="queue-search"><input type="text" placeholder="Search selections…" /></div><div class="queue-list">${rQ(fl)}</div></div><div id="DA">${ai?rD(ai):''}</div></div>`;
+$('#C').innerHTML=h;$('#bc').textContent='Selections';}
+
+function rCreate(){let h=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px"><button class="btn sm ghost" onclick="go('workspace')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back</button><h2 style="font-family:var(--font-display);font-size:22px;font-weight:750;letter-spacing:-.02em">New Selection Item</h2></div>`;
+h+=`<div class="d2"><div class="d-main"><div class="card"><div class="f-sec"><h4>Item Details</h4><div class="f-row"><div class="f-grp"><label>Category</label><select><option>Kitchen</option><option>Master Bathroom</option><option>Living Room</option><option>Exterior</option><option>+ New Category…</option></select></div><div class="f-grp"><label>Item Title</label><input type="text" placeholder="e.g., Backsplash Tile"/></div></div><div class="f-row full"><div class="f-grp"><label>Description</label><textarea placeholder="Explain what this selection is for…"></textarea><div class="hint">Shown to the homeowner for context.</div></div></div></div>
+<div class="f-sec"><h4>Budget & Timing</h4><div class="f-row"><div class="f-grp"><label>Allowance ($)</label><input type="text" placeholder="0.00"/><div class="hint">At or below = "Included" for client.</div></div><div class="f-grp"><label>Decision Deadline</label><input type="date"/></div></div>
+<div class="f-toggle"><div class="t-track on" onclick="this.classList.toggle('on')"></div><div><label>Affects Schedule</label><div class="hint">Warn client that late decisions impact timeline.</div></div></div>
+<div class="f-row full" style="margin-top:8px"><div class="f-grp"><label>Schedule Impact Note</label><input type="text" placeholder="e.g., Must order before framing"/></div></div>
+<div class="f-row"><div class="f-grp"><label>Revision Window (hours)</label><input type="text" value="48"/><div class="hint">Client can change mind after confirming.</div></div><div class="f-grp"><label>Sort Order</label><input type="text" value="0"/></div></div></div></div>
+<div class="card"><div class="f-sec"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h4 style="margin:0">Options</h4><button class="btn xs primary"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add Option</button></div>
+<p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px">Add 2–5 curated options. Include supplier info and SKU for procurement tracking.</p>
+${[1,2].map(n=>`<div class="omf"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-family:var(--font-display);font-size:13px;font-weight:700">Option ${n}</span><div style="display:flex;gap:6px">${n===1?'<span class="pill accent">Recommended</span>':''}<button class="btn xs ghost" style="color:var(--danger-text)">Remove</button></div></div>
+<div class="f-row"><div class="f-grp"><label>Name</label><input type="text" placeholder="Option name"/></div><div class="f-grp"><label>Price ($)</label><input type="text" placeholder="0.00"/></div></div>
+<div class="f-row"><div class="f-grp"><label>Lead Time (days)</label><input type="text" placeholder="5"/></div><div class="f-grp"><label>Tier</label><select><option>Auto-calculate</option><option>Included</option><option>Upgrade</option><option>Premium</option></select></div></div>
+<div class="f-row"><div class="f-grp"><label>Supplier</label><input type="text" placeholder="Supplier name"/></div><div class="f-grp"><label>SKU / Model #</label><input type="text" placeholder="Model number"/></div></div>
+<div class="f-row full"><div class="f-grp"><label>Description</label><input type="text" placeholder="Brief description for option card"/></div></div></div>`).join('')}
+</div></div></div>
+<div class="d-rail"><div class="card"><div class="f-sec"><h4>Publish Settings</h4><p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px">Items stay draft until published. Homeowner cannot see drafts.</p><div style="display:flex;flex-direction:column;gap:8px"><button class="btn primary" style="width:100%"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg> Publish to Client</button><button class="btn" style="width:100%">Save as Draft</button></div>
+<div class="f-toggle" style="margin-top:12px"><div class="t-track on" onclick="this.classList.toggle('on')"></div><div><label>Notify Client on Publish</label><div class="hint">Send email when this item goes live.</div></div></div></div></div>
+<div class="card"><div class="f-sec"><h4>Publish Checklist</h4><div style="display:flex;flex-direction:column;gap:8px">${['Title and description','Allowance amount set','At least 2 options','One marked recommended','Decision deadline set','Supplier info on all options'].map(t=>`<div style="display:flex;align-items:center;gap:8px;font-size:13px"><div style="width:18px;height:18px;border-radius:4px;border:2px solid var(--surface-4);flex-shrink:0"></div><span>${t}</span></div>`).join('')}</div></div></div>
+<div class="card"><div class="f-sec"><h4>Client Preview</h4><p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">How it looks in the homeowner portal.</p><div style="background:var(--surface-2);border:1px solid var(--surface-3);border-radius:var(--radius-lg);overflow:hidden"><div style="height:56px;background:linear-gradient(135deg,var(--surface-3),var(--surface-4));display:flex;align-items:flex-end;padding:8px 10px"><div style="display:flex;gap:4px"><div style="width:22px;height:22px;border-radius:6px;background:var(--surface-4);border:1.5px solid rgba(255,255,255,.7)"></div><div style="width:22px;height:22px;border-radius:6px;background:var(--surface-4);border:1.5px solid rgba(255,255,255,.7)"></div></div></div><div style="padding:10px 12px"><div style="font-family:var(--font-display);font-size:12px;font-weight:700">Item Title</div><div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">Description…</div><div style="display:flex;gap:4px;margin-top:6px"><span class="pill" style="font-size:9px;height:18px;padding:0 6px">Status</span><span class="pill" style="font-size:9px;height:18px;padding:0 6px">N options</span></div></div></div></div></div>
+</div></div>`;
+$('#C').innerHTML=h;$('#bc').textContent='New Selection Item';}
+
+function go(v){cView=v;render();window.scrollTo(0,0);}
+function sel(id){cId=id;cView='workspace';render();}
+function fTab(t){cTab=t;const fl=I.filter(F[t]);if(fl.length)cId=fl[0].id;render();}
+render();
+</script>
+</body>
+</html>

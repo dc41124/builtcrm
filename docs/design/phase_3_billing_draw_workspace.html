@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BuiltCRM — Draw Request #7 · Riverside Tower</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --surface-0:#eef0f3;--surface-1:#ffffff;--surface-2:#f3f4f6;--surface-3:#e2e5e9;--surface-4:#d1d5db;
+  --surface-hover:#f5f6f8;--surface-incard:#f8f9fa;
+  --sidebar-bg:#ffffff;--sidebar-hover:#f5f6f8;--sidebar-active:#eef0f3;--sidebar-active-text:#1a1714;
+  --sidebar-section-text:#8b919a;--sidebar-item-text:#5a6170;--sidebar-border:#e8eaee;
+  --text-primary:#1a1714;--text-secondary:#6b655b;--text-tertiary:#9c958a;
+  --accent:#5b4fc7;--accent-hover:#4f44b3;--accent-soft:#eeedfb;--accent-text:#4a3fb0;
+  --success:#2d8a5e;--success-soft:#edf7f1;--success-text:#1e6b46;
+  --warning:#c17a1a;--warning-soft:#fdf4e6;--warning-text:#96600f;
+  --danger:#c93b3b;--danger-soft:#fdeaea;--danger-text:#a52e2e;
+  --info:#3178b9;--info-soft:#e8f1fa;--info-text:#276299;
+  --font-display:'DM Sans',system-ui,sans-serif;--font-body:'Instrument Sans',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;
+  --shadow-sm:0 1px 3px rgba(26,23,20,.05);--shadow-md:0 4px 16px rgba(26,23,20,.06);
+  --sidebar-width:272px;--topbar-height:56px;
+  --ease-out:cubic-bezier(.16,1,.3,1);--dur-fast:120ms;--dur-normal:200ms;--dur-slow:350ms;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0}
+body{font-family:var(--font-body);background:var(--surface-0);color:var(--text-primary);-webkit-font-smoothing:antialiased;line-height:1.5;font-size:14px}
+
+.app{display:grid;grid-template-columns:var(--sidebar-width) 1fr;min-height:100vh}
+
+/* Sidebar - same as dashboard */
+.sidebar{background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:hidden}
+.brand{height:var(--topbar-height);display:flex;align-items:center;gap:var(--sp-3);padding:0 var(--sp-4) 0 var(--sp-5);border-bottom:1px solid var(--sidebar-border);flex-shrink:0}
+.brand-mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#2c2541,#5b4fc7);display:grid;place-items:center;color:#fff;font-family:var(--font-display);font-size:12px;font-weight:700;flex-shrink:0}
+.brand-info{flex:1;min-width:0}
+.brand-name{font-family:var(--font-display);font-size:14px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+.brand-ctx{font-size:11.5px;color:var(--text-tertiary);line-height:1.2;margin-top:1px}
+.sb-search{padding:var(--sp-3) var(--sp-4);border-bottom:1px solid var(--sidebar-border);flex-shrink:0}
+.sb-search input{width:100%;height:34px;border:1px solid var(--surface-3);border-radius:var(--radius-md);padding:0 var(--sp-3) 0 34px;background:var(--surface-1) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%239c958a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") no-repeat 10px center;font-family:var(--font-body);font-size:13px;color:var(--text-primary);outline:none}
+.sb-nav{flex:1;overflow-y:auto;padding:var(--sp-2) var(--sp-3) var(--sp-6)}
+.ns{margin-bottom:var(--sp-1)}.ns-h{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2);font-size:11px;font-weight:650;color:var(--sidebar-section-text);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;border-radius:var(--radius-sm)}
+.ns-chv{width:14px;height:14px;transition:transform var(--dur-normal) var(--ease-out)}.ns.closed .ns-chv{transform:rotate(-90deg)}.ns.closed .ns-items{display:none}
+.ni{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);padding:6px 10px 6px 12px;border-radius:var(--radius-md);font-size:13px;font-weight:500;color:var(--sidebar-item-text);cursor:pointer;transition:all var(--dur-fast) var(--ease-out);margin-bottom:1px;position:relative}
+.ni:hover{background:var(--sidebar-hover);color:var(--text-primary)}
+.ni.active{background:var(--sidebar-active);color:var(--sidebar-active-text);font-weight:620}
+.ni.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:16px;border-radius:0 3px 3px 0;background:var(--accent)}
+.ni-badge{min-width:18px;height:18px;padding:0 6px;border-radius:999px;font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-display);flex-shrink:0;background:var(--accent-soft);color:var(--accent-text)}
+.ni-badge.w{background:var(--warning-soft);color:var(--warning-text)}
+.np{display:flex;align-items:center;gap:var(--sp-2);padding:5px 10px 5px 12px;border-radius:var(--radius-md);font-size:13px;font-weight:460;color:var(--text-secondary);cursor:pointer;margin-bottom:1px}
+.np:hover{background:var(--sidebar-hover);color:var(--text-primary)}
+.np.active{background:var(--surface-1);color:var(--text-primary);font-weight:580;border:1px solid var(--surface-3);box-shadow:var(--shadow-sm)}
+.np-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}.np-dot.a{background:var(--warning)}.np-dot.g{background:var(--success)}
+.np-ph{font-size:10.5px;color:var(--text-tertiary);font-weight:550;letter-spacing:.02em;margin-left:auto;flex-shrink:0}
+.sb-foot{border-top:1px solid var(--sidebar-border);padding:var(--sp-3) var(--sp-4);flex-shrink:0}
+.sb-user{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-2);border-radius:var(--radius-md);cursor:pointer}
+.u-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#5b4fc7,#7c6fe0);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-size:11.5px;font-weight:700;flex-shrink:0}
+
+/* Topbar */
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{height:var(--topbar-height);display:flex;align-items:center;justify-content:space-between;padding:0 var(--sp-6);border-bottom:1px solid var(--surface-3);background:rgba(238,240,243,.85);backdrop-filter:blur(12px);position:sticky;top:0;z-index:50}
+.bc{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-tertiary)}.bc .cur{color:var(--text-primary);font-weight:620}.bc .sep{font-size:11px;color:var(--surface-4)}
+.tb-acts{display:flex;align-items:center;gap:var(--sp-2)}
+.tb-btn{width:34px;height:34px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-tertiary);display:grid;place-items:center;cursor:pointer;position:relative}
+.tb-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#5b4fc7,#7c6fe0);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-size:11.5px;font-weight:700;cursor:pointer;margin-left:var(--sp-1)}
+
+.content{padding:var(--sp-6);flex:1}
+
+/* Buttons */
+.btn{height:34px;padding:0 14px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);font-family:var(--font-body);font-size:13px;font-weight:560;color:var(--text-primary);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all var(--dur-fast) var(--ease-out);white-space:nowrap}
+.btn:hover{background:var(--surface-hover);border-color:var(--surface-4)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.primary:hover{background:var(--accent-hover)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--text-secondary)}
+.btn.ghost:hover{background:var(--surface-hover);color:var(--text-primary)}
+.btn.success{background:var(--success);border-color:var(--success);color:#fff;font-weight:600}
+
+.pill{height:22px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:650;display:inline-flex;align-items:center;white-space:nowrap}
+.pill.red{background:var(--danger-soft);color:var(--danger-text)}.pill.amber{background:var(--warning-soft);color:var(--warning-text)}
+.pill.green{background:var(--success-soft);color:var(--success-text)}.pill.blue{background:var(--info-soft);color:var(--info-text)}
+.pill.purple{background:var(--accent-soft);color:var(--accent-text)}.pill.gray{background:var(--surface-2);color:var(--text-secondary)}
+
+/* ================================================================
+   PAGE HEADER — Draw request identity
+   ================================================================ */
+.draw-header{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--sp-6);margin-bottom:var(--sp-5)}
+.draw-id{display:flex;align-items:center;gap:var(--sp-3);margin-bottom:6px}
+.draw-number{font-family:var(--font-display);font-size:26px;font-weight:750;letter-spacing:-.03em}
+.draw-status-row{display:flex;gap:var(--sp-2);align-items:center;margin-top:4px}
+.draw-meta-row{display:flex;gap:var(--sp-5);margin-top:8px;font-size:13px;color:var(--text-secondary)}
+.draw-meta-row strong{font-weight:620;color:var(--text-primary)}
+.draw-actions{display:flex;gap:var(--sp-2);flex-shrink:0;padding-top:2px}
+
+/* ================================================================
+   G702 SUMMARY — AIA Application for Payment cover sheet
+   ================================================================ */
+.g702{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);padding:var(--sp-5);margin-bottom:var(--sp-4)}
+.g702-title{font-family:var(--font-display);font-size:13px;font-weight:680;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:var(--sp-4);display:flex;align-items:center;gap:var(--sp-2)}
+.g702-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-4)}
+.g702-item{padding:var(--sp-3);border-radius:var(--radius-md);background:var(--surface-incard);border:1px solid var(--surface-3)}
+.g702-item.highlight{border-color:var(--accent);background:var(--accent-soft)}
+.g702-label{font-size:10.5px;font-weight:640;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+.g702-value{font-family:var(--font-mono);font-size:16px;font-weight:600;color:var(--text-primary);letter-spacing:-.01em}
+.g702-item.highlight .g702-value{color:var(--accent-text)}
+.g702-hint{font-size:11px;color:var(--text-secondary);margin-top:2px}
+
+/* ================================================================
+   G703 TABLE — Continuation sheet (the centerpiece)
+   ================================================================ */
+.g703-card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);overflow:hidden;margin-bottom:var(--sp-4)}
+.g703-header{display:flex;align-items:center;justify-content:space-between;padding:var(--sp-4) var(--sp-5);border-bottom:1px solid var(--surface-3)}
+.g703-title{font-family:var(--font-display);font-size:15px;font-weight:680;letter-spacing:-.01em}
+.g703-subtitle{font-size:12.5px;color:var(--text-tertiary);margin-top:2px}
+
+.g703-wrap{overflow-x:auto}
+.g703-table{width:100%;border-collapse:collapse;font-size:13px;min-width:1000px}
+.g703-table thead{background:var(--surface-incard);position:sticky;top:0;z-index:2}
+.g703-table th{padding:10px 12px;text-align:left;font-size:10.5px;font-weight:680;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid var(--surface-3);white-space:nowrap}
+.g703-table th.right,.g703-table td.right{text-align:right}
+.g703-table th.center,.g703-table td.center{text-align:center}
+.g703-table tbody tr{border-bottom:1px solid var(--surface-3);transition:background var(--dur-fast)}
+.g703-table tbody tr:hover{background:var(--surface-incard)}
+.g703-table tbody tr.co-row{background:rgba(238,237,251,.35)}
+.g703-table td{padding:10px 12px;font-family:var(--font-mono);font-size:12.5px;color:var(--text-primary);white-space:nowrap}
+.g703-table td.desc{font-family:var(--font-body);white-space:normal;max-width:220px;min-width:160px}
+.g703-table td.editable{background:rgba(91,79,199,.04);border-left:2px solid var(--accent);font-weight:600}
+.g703-table td .co-tag{font-family:var(--font-body);font-size:10px;font-weight:650;color:var(--accent-text);background:var(--accent-soft);padding:1px 6px;border-radius:4px;margin-left:6px}
+
+.g703-table tfoot{background:var(--surface-incard);font-weight:700;border-top:2px solid var(--surface-4)}
+.g703-table tfoot td{padding:12px;font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary)}
+
+/* ================================================================
+   BOTTOM GRID — Retainage, Lien Waivers, Actions
+   ================================================================ */
+.bottom-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-4);align-items:start}
+.card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);overflow:hidden}
+.c-head{display:flex;align-items:center;justify-content:space-between;padding:var(--sp-4) var(--sp-5);border-bottom:1px solid var(--surface-3)}
+.c-title{font-family:var(--font-display);font-size:15px;font-weight:680;letter-spacing:-.01em}
+.c-sub{font-size:12.5px;color:var(--text-tertiary);margin-top:2px}
+.c-body{padding:var(--sp-4) var(--sp-5)}
+
+.ret-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--surface-3)}
+.ret-row:last-child{border-bottom:none}
+.ret-label{font-size:13px;color:var(--text-secondary)}
+.ret-value{font-family:var(--font-mono);font-size:14px;font-weight:600}
+.ret-row.total .ret-label{font-weight:650;color:var(--text-primary)}
+.ret-row.total .ret-value{font-size:16px;font-weight:700;color:var(--text-primary)}
+
+.lw-row{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);padding:8px 0;border-bottom:1px solid var(--surface-3)}
+.lw-row:last-child{border-bottom:none}
+.lw-info h5{font-family:var(--font-display);font-size:13px;font-weight:600;line-height:1.3}
+.lw-info p{font-size:12px;color:var(--text-secondary);margin-top:1px}
+
+.doc-row{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);padding:8px 0;border-bottom:1px solid var(--surface-3)}
+.doc-row:last-child{border-bottom:none}
+.doc-name{font-size:13px;font-weight:560}.doc-type{font-size:11px;color:var(--text-tertiary)}
+
+/* Animations */
+@keyframes fadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.content>*{animation:fadeInUp var(--dur-slow) var(--ease-out) both}
+.content>*:nth-child(1){animation-delay:0ms}.content>*:nth-child(2){animation-delay:60ms}
+.content>*:nth-child(3){animation-delay:120ms}.content>*:nth-child(4){animation-delay:180ms}
+
+@media(max-width:1280px){.g702-grid{grid-template-columns:repeat(2,1fr)}.bottom-grid{grid-template-columns:1fr}}
+@media(max-width:900px){.app{grid-template-columns:1fr}.sidebar{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="brand"><div class="brand-mark">B</div><div class="brand-info"><div class="brand-name">BuiltCRM</div><div class="brand-ctx">Summit Contracting</div></div></div>
+  <div class="sb-search"><input placeholder="Search projects, people…" /></div>
+  <nav class="sb-nav">
+    <div class="ns"><div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Core</div><div class="ns-items"><div class="ni"><span>Dashboard</span></div><div class="ni"><span>Approvals</span><span class="ni-badge">4</span></div><div class="ni"><span>Messages</span></div></div></div>
+    <div class="ns"><div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Financials</div><div class="ns-items"><div class="ni"><span>Budget Overview</span></div><div class="ni active"><span>Draws & Billing</span><span class="ni-badge w">2</span></div><div class="ni"><span>Retainage</span></div><div class="ni"><span>Payment Tracking</span></div></div></div>
+    <div class="ns"><div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Workflows</div><div class="ns-items"><div class="ni"><span>RFIs</span></div><div class="ni"><span>Change Orders</span></div><div class="ni"><span>Compliance</span></div><div class="ni"><span>Documents</span></div></div></div>
+    <div class="ns"><div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Projects</div><div class="ns-items"><div class="np active"><div class="np-dot a"></div><span>Riverside Tower Fit-Out</span><span class="np-ph">PH 3</span></div><div class="np"><div class="np-dot g"></div><span>West End Medical</span><span class="np-ph">PH 2</span></div></div></div>
+  </nav>
+  <div class="sb-foot"><div class="sb-user"><div class="u-av">DC</div><div><div style="font-size:13px;font-weight:580">Daniel Chen</div><div style="font-size:11px;color:var(--text-tertiary)">Project Manager</div></div></div></div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="bc">
+      <span>Contractor Portal</span><span class="sep">›</span>
+      <span>Riverside Tower Fit-Out</span><span class="sep">›</span>
+      <span>Financials</span><span class="sep">›</span>
+      <span class="cur">Draw #7</span>
+    </div>
+    <div class="tb-acts"><div class="tb-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 11-6 0m6 0H9"/></svg></div><div class="tb-av">DC</div></div>
+  </div>
+
+  <div class="content">
+
+    <!-- ========================================================
+         DRAW HEADER
+         ======================================================== -->
+    <div class="draw-header">
+      <div>
+        <div class="draw-id">
+          <h1 class="draw-number">Draw Request #7</h1>
+        </div>
+        <div class="draw-status-row">
+          <span class="pill amber">Draft — Ready for review</span>
+          <span class="pill gray">Application No. 7</span>
+        </div>
+        <div class="draw-meta-row">
+          <span><strong>Project:</strong> Riverside Tower Fit-Out</span>
+          <span><strong>Period:</strong> Mar 1 – Mar 31, 2026</span>
+          <span><strong>Architect:</strong> Morrison + Partners</span>
+          <span><strong>Contract date:</strong> Sep 15, 2025</span>
+        </div>
+      </div>
+      <div class="draw-actions">
+        <button class="btn">Export PDF</button>
+        <button class="btn">Save draft</button>
+        <button class="btn primary">Submit for review</button>
+      </div>
+    </div>
+
+    <!-- ========================================================
+         G702 SUMMARY — Application for Payment cover sheet
+         9 AIA-standard lines
+         ======================================================== -->
+    <div class="g702">
+      <div class="g702-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg>
+        AIA G702 — Application Summary
+      </div>
+      <div class="g702-grid">
+        <div class="g702-item">
+          <div class="g702-label">1. Original contract sum</div>
+          <div class="g702-value">$1,420,000</div>
+        </div>
+        <div class="g702-item">
+          <div class="g702-label">2. Net change orders</div>
+          <div class="g702-value">+$62,500</div>
+          <div class="g702-hint">3 approved COs</div>
+        </div>
+        <div class="g702-item">
+          <div class="g702-label">3. Contract sum to date</div>
+          <div class="g702-value">$1,482,500</div>
+        </div>
+        <div class="g702-item">
+          <div class="g702-label">4. Total completed & stored</div>
+          <div class="g702-value">$921,350</div>
+          <div class="g702-hint">62.1% of contract</div>
+        </div>
+        <div class="g702-item">
+          <div class="g702-label">5. Total retainage</div>
+          <div class="g702-value">$92,135</div>
+          <div class="g702-hint">10% retainage rate</div>
+        </div>
+        <div class="g702-item">
+          <div class="g702-label">6. Total earned less retainage</div>
+          <div class="g702-value">$829,215</div>
+        </div>
+        <div class="g702-item">
+          <div class="g702-label">7. Less previous certificates</div>
+          <div class="g702-value">$644,815</div>
+          <div class="g702-hint">Draws #1–6 approved</div>
+        </div>
+        <div class="g702-item highlight">
+          <div class="g702-label">8. Current payment due</div>
+          <div class="g702-value">$184,400</div>
+        </div>
+        <div class="g702-item">
+          <div class="g702-label">9. Balance to finish + retainage</div>
+          <div class="g702-value">$653,285</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================
+         G703 TABLE — Continuation Sheet
+         This is the centerpiece of the billing workspace
+         ======================================================== -->
+    <div class="g703-card">
+      <div class="g703-header">
+        <div>
+          <div class="g703-title">G703 — Continuation Sheet</div>
+          <div class="g703-subtitle">Schedule of values with work completed this period. Purple columns are editable.</div>
+        </div>
+        <div style="display:flex;gap:var(--sp-2)">
+          <button class="btn ghost" style="font-size:12px">Collapse all</button>
+          <button class="btn" style="font-size:12px">Add line item</button>
+        </div>
+      </div>
+      <div class="g703-wrap">
+        <table class="g703-table">
+          <thead>
+            <tr>
+              <th style="width:50px">Item</th>
+              <th>Description of work</th>
+              <th class="right">Scheduled value</th>
+              <th class="right">Previous</th>
+              <th class="right" style="background:rgba(91,79,199,.06)">This period</th>
+              <th class="right" style="background:rgba(91,79,199,.06)">Materials stored</th>
+              <th class="right">Total to date</th>
+              <th class="center">% Complete</th>
+              <th class="right">Balance to finish</th>
+              <th class="right">Retainage</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td>
+              <td class="desc">General conditions</td>
+              <td class="right">$142,000</td>
+              <td class="right">$92,300</td>
+              <td class="right editable">$14,200</td>
+              <td class="right editable">$0</td>
+              <td class="right">$106,500</td>
+              <td class="center">75.0%</td>
+              <td class="right">$35,500</td>
+              <td class="right">$10,650</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td class="desc">Sitework & excavation</td>
+              <td class="right">$186,000</td>
+              <td class="right">$186,000</td>
+              <td class="right editable">$0</td>
+              <td class="right editable">$0</td>
+              <td class="right">$186,000</td>
+              <td class="center">100.0%</td>
+              <td class="right">$0</td>
+              <td class="right">$18,600</td>
+            </tr>
+            <tr>
+              <td>3</td>
+              <td class="desc">Concrete & foundations</td>
+              <td class="right">$224,000</td>
+              <td class="right">$224,000</td>
+              <td class="right editable">$0</td>
+              <td class="right editable">$0</td>
+              <td class="right">$224,000</td>
+              <td class="center">100.0%</td>
+              <td class="right">$0</td>
+              <td class="right">$22,400</td>
+            </tr>
+            <tr>
+              <td>4</td>
+              <td class="desc">Structural steel</td>
+              <td class="right">$198,000</td>
+              <td class="right">$138,600</td>
+              <td class="right editable">$29,700</td>
+              <td class="right editable">$0</td>
+              <td class="right">$168,300</td>
+              <td class="center">85.0%</td>
+              <td class="right">$29,700</td>
+              <td class="right">$16,830</td>
+            </tr>
+            <tr>
+              <td>5</td>
+              <td class="desc">Mechanical / HVAC</td>
+              <td class="right">$165,000</td>
+              <td class="right">$49,500</td>
+              <td class="right editable">$41,250</td>
+              <td class="right editable">$12,000</td>
+              <td class="right">$102,750</td>
+              <td class="center">62.3%</td>
+              <td class="right">$62,250</td>
+              <td class="right">$10,275</td>
+            </tr>
+            <tr>
+              <td>6</td>
+              <td class="desc">Electrical</td>
+              <td class="right">$148,000</td>
+              <td class="right">$37,000</td>
+              <td class="right editable">$44,400</td>
+              <td class="right editable">$8,200</td>
+              <td class="right">$89,600</td>
+              <td class="center">60.5%</td>
+              <td class="right">$58,400</td>
+              <td class="right">$8,960</td>
+            </tr>
+            <tr>
+              <td>7</td>
+              <td class="desc">Interior finishes</td>
+              <td class="right">$195,000</td>
+              <td class="right">$0</td>
+              <td class="right editable">$24,000</td>
+              <td class="right editable">$6,200</td>
+              <td class="right">$30,200</td>
+              <td class="center">15.5%</td>
+              <td class="right">$164,800</td>
+              <td class="right">$3,020</td>
+            </tr>
+            <tr>
+              <td>8</td>
+              <td class="desc">Plumbing</td>
+              <td class="right">$100,000</td>
+              <td class="right">$20,000</td>
+              <td class="right editable">$14,000</td>
+              <td class="right editable">$0</td>
+              <td class="right">$34,000</td>
+              <td class="center">34.0%</td>
+              <td class="right">$66,000</td>
+              <td class="right">$3,400</td>
+            </tr>
+            <tr class="co-row">
+              <td>9</td>
+              <td class="desc">Mechanical reroute <span class="co-tag">CO-14</span></td>
+              <td class="right">$42,500</td>
+              <td class="right">$0</td>
+              <td class="right editable">$0</td>
+              <td class="right editable">$0</td>
+              <td class="right">$0</td>
+              <td class="center">0.0%</td>
+              <td class="right">$42,500</td>
+              <td class="right">$0</td>
+            </tr>
+            <tr class="co-row">
+              <td>10</td>
+              <td class="desc">Curtain wall upgrade <span class="co-tag">CO-08</span></td>
+              <td class="right">$62,000</td>
+              <td class="right">$30,000</td>
+              <td class="right editable">$12,000</td>
+              <td class="right editable">$0</td>
+              <td class="right">$42,000</td>
+              <td class="center">67.7%</td>
+              <td class="right">$20,000</td>
+              <td class="right">$4,200</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td></td>
+              <td style="font-family:var(--font-display)">Totals</td>
+              <td class="right">$1,462,500</td>
+              <td class="right">$777,400</td>
+              <td class="right" style="color:var(--accent-text)">$179,550</td>
+              <td class="right" style="color:var(--accent-text)">$26,400</td>
+              <td class="right">$983,350</td>
+              <td class="center">67.2%</td>
+              <td class="right">$479,150</td>
+              <td class="right">$98,335</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- ========================================================
+         BOTTOM GRID — Retainage, Lien Waivers, Package & Actions
+         ======================================================== -->
+    <div class="bottom-grid">
+      <!-- Retainage summary -->
+      <div class="card">
+        <div class="c-head"><div><div class="c-title">Retainage</div><div class="c-sub">10% standard rate</div></div></div>
+        <div class="c-body">
+          <div class="ret-row"><span class="ret-label">On completed work</span><span class="ret-value">$89,555</span></div>
+          <div class="ret-row"><span class="ret-label">On stored materials</span><span class="ret-value">$2,640</span></div>
+          <div class="ret-row total"><span class="ret-label">Total retainage held</span><span class="ret-value">$92,195</span></div>
+          <div style="margin-top:var(--sp-3);padding-top:var(--sp-3);border-top:1px solid var(--surface-3)">
+            <div class="ret-row"><span class="ret-label">Released to date</span><span class="ret-value" style="color:var(--success)">$0</span></div>
+            <div class="ret-row total"><span class="ret-label">Net retainage balance</span><span class="ret-value">$92,195</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lien waivers -->
+      <div class="card">
+        <div class="c-head"><div><div class="c-title">Lien waivers</div><div class="c-sub">Required for draw closeout</div></div></div>
+        <div class="c-body">
+          <div class="lw-row">
+            <div class="lw-info"><h5>ProVolt Electric</h5><p>Conditional progress · $44,400</p></div>
+            <span class="pill green">Received</span>
+          </div>
+          <div class="lw-row">
+            <div class="lw-info"><h5>Summit Mechanical</h5><p>Conditional progress · $41,250</p></div>
+            <span class="pill amber">Requested</span>
+          </div>
+          <div class="lw-row">
+            <div class="lw-info"><h5>Apex Interiors</h5><p>Conditional progress · $24,000</p></div>
+            <span class="pill amber">Requested</span>
+          </div>
+          <div class="lw-row">
+            <div class="lw-info"><h5>CoreForm Concrete</h5><p>Unconditional progress · $0</p></div>
+            <span class="pill green">Received</span>
+          </div>
+          <div style="margin-top:var(--sp-3);font-size:12px;color:var(--text-secondary)">2 of 4 received · 2 outstanding</div>
+        </div>
+      </div>
+
+      <!-- Supporting docs & actions -->
+      <div class="card">
+        <div class="c-head"><div><div class="c-title">Package documents</div><div class="c-sub">Attachments for this draw</div></div></div>
+        <div class="c-body">
+          <div class="doc-row">
+            <div><div class="doc-name">G702_Application_Draw7.pdf</div><div class="doc-type">Generated · Cover sheet</div></div>
+            <span class="pill gray">Auto</span>
+          </div>
+          <div class="doc-row">
+            <div><div class="doc-name">G703_Continuation_Draw7.pdf</div><div class="doc-type">Generated · Line items</div></div>
+            <span class="pill gray">Auto</span>
+          </div>
+          <div class="doc-row">
+            <div><div class="doc-name">progress_photos_mar2026.zip</div><div class="doc-type">Uploaded · Milestone backup</div></div>
+            <span class="pill blue">Attached</span>
+          </div>
+          <div class="doc-row">
+            <div><div class="doc-name">schedule_update_mar2026.pdf</div><div class="doc-type">Uploaded · Schedule note</div></div>
+            <span class="pill blue">Attached</span>
+          </div>
+          <div style="margin-top:var(--sp-4);display:flex;gap:var(--sp-2)">
+            <button class="btn" style="flex:1;justify-content:center">Attach file</button>
+            <button class="btn success" style="flex:1;justify-content:center">Submit for review</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+</div>
+<script>
+document.querySelectorAll('.ns-h').forEach(h=>{h.addEventListener('click',()=>{h.closest('.ns').classList.toggle('closed')})});
+</script>
+</body>
+</html>

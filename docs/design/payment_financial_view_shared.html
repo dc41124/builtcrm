@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BuiltCRM — Payment / Financial View (Contractor + Subcontractor)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --surface-0:#eef0f3;--surface-1:#ffffff;--surface-2:#f3f4f6;--surface-3:#e2e5e9;--surface-4:#d1d5db;
+  --surface-hover:#f5f6f8;--surface-active:#e5e7eb;
+  --sidebar-bg:#ffffff;--sidebar-hover:#f5f6f8;--sidebar-active:#eef0f3;
+  --sidebar-active-text:#1a1714;--sidebar-section-text:#8b919a;--sidebar-item-text:#5a6170;--sidebar-border:#e8eaee;
+  --text-primary:#1a1714;--text-secondary:#6b655b;--text-tertiary:#9c958a;--text-inverse:#faf9f7;
+  --accent:#5b4fc7;--accent-hover:#4f44b3;--accent-soft:#eeedfb;--accent-text:#4a3fb0;--accent-muted:#c7c2ea;
+  --success:#2d8a5e;--success-soft:#edf7f1;--success-text:#1e6b46;
+  --warning:#c17a1a;--warning-soft:#fdf4e6;--warning-text:#96600f;
+  --danger:#c93b3b;--danger-soft:#fdeaea;--danger-text:#a52e2e;
+  --info:#3178b9;--info-soft:#e8f1fa;--info-text:#276299;
+  --font-display:'DM Sans',system-ui,sans-serif;--font-body:'Instrument Sans',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;
+  --shadow-sm:0 1px 3px rgba(26,23,20,.05);--shadow-md:0 4px 16px rgba(26,23,20,.06);
+  --shadow-lg:0 10px 32px rgba(26,23,20,.08);--shadow-ring:0 0 0 3px rgba(91,79,199,.15);
+  --sidebar-width:272px;--topbar-height:56px;
+  --ease-out:cubic-bezier(.16,1,.3,1);--duration-normal:200ms;--duration-fast:120ms;
+}
+.app.sub-theme{--accent:#3d6b8e;--accent-hover:#345d7c;--accent-soft:#e8f0f6;--accent-text:#2e5a78;--accent-muted:#b3cede;--shadow-ring:0 0 0 3px rgba(61,107,142,.15)}
+*,*::before,*::after{box-sizing:border-box;margin:0}
+body{font-family:var(--font-body);background:var(--surface-0);color:var(--text-primary);-webkit-font-smoothing:antialiased;line-height:1.5}
+button{cursor:pointer;font-family:inherit;border:none;background:none}input,select,textarea{font-family:inherit}
+
+/* SHELL */
+.app{display:grid;grid-template-columns:var(--sidebar-width) 1fr;min-height:100vh}
+.sidebar{background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:hidden}
+.brand{height:var(--topbar-height);display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--sidebar-border);flex-shrink:0}
+.brand-mark{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#1a1714,#3d3830);color:#faf9f7;display:grid;place-items:center;font-family:var(--font-display);font-size:12px;font-weight:700}
+.brand-info h1{font-family:var(--font-display);font-size:14px;font-weight:700}
+.brand-info p{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+.sidebar-nav{flex:1;overflow-y:auto;padding:8px 10px 20px}
+.nav-section{margin-bottom:4px}
+.nav-section-label{font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--sidebar-section-text);text-transform:uppercase;letter-spacing:.06em;padding:10px 10px 6px}
+.nav-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:var(--radius-md);font-size:13px;color:var(--sidebar-item-text);font-weight:500;transition:all var(--duration-normal) var(--ease-out);margin-bottom:2px;cursor:default}
+.nav-item:hover{background:var(--sidebar-hover);color:var(--sidebar-active-text)}
+.nav-item.active{background:var(--accent-soft);color:var(--accent-text);font-weight:650}
+.nav-badge{min-width:20px;height:20px;padding:0 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-display);flex-shrink:0}
+.nav-badge.warn{background:var(--warning-soft);color:var(--warning-text)}
+.nav-badge.danger{background:var(--danger-soft);color:var(--danger-text)}
+.sidebar-footer{border-top:1px solid var(--sidebar-border);padding:12px 16px;flex-shrink:0}
+.sidebar-user{display:flex;align-items:center;gap:10px;padding:6px}
+.user-avatar-sm{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-muted));color:white;display:grid;place-items:center;font-family:var(--font-display);font-size:11px;font-weight:700;flex-shrink:0}
+.user-name{font-size:13px;font-weight:580;color:var(--text-primary)}
+.user-role{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+.main{display:flex;flex-direction:column;min-width:0}
+.topbar{height:var(--topbar-height);display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid var(--surface-3);background:rgba(255,255,255,.88);backdrop-filter:blur(12px);flex-shrink:0;position:sticky;top:0;z-index:50}
+.breadcrumbs{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-tertiary)}
+.breadcrumbs .sep{color:var(--surface-4)}.breadcrumbs .current{color:var(--text-primary);font-weight:650}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;display:grid;place-items:center;font-family:var(--font-display);font-size:12px;font-weight:700}
+.content{padding:24px;flex:1}
+
+.portal-switch{display:flex;gap:4px;margin-bottom:20px;background:var(--surface-2);border-radius:var(--radius-lg);padding:4px;width:fit-content}
+.portal-tab{height:36px;padding:0 16px;border-radius:var(--radius-md);font-size:13px;font-weight:650;color:var(--text-secondary);display:inline-flex;align-items:center;gap:7px;transition:all var(--duration-normal) var(--ease-out);white-space:nowrap;flex-shrink:0}
+.portal-tab:hover{color:var(--text-primary)}
+.portal-tab.active{background:var(--surface-1);color:var(--text-primary);box-shadow:var(--shadow-sm)}
+.portal-dot{width:8px;height:8px;border-radius:50%}
+.portal-dot.purple{background:#5b4fc7}.portal-dot.steel{background:#3d6b8e}
+.view{display:none}.view.active{display:block}
+
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:16px}
+.page-header h2{font-family:var(--font-display);font-size:24px;font-weight:750;letter-spacing:-.03em}
+.page-header-sub{font-size:13px;color:var(--text-secondary);margin-top:4px}
+.btn-primary{height:38px;padding:0 18px;border-radius:var(--radius-md);background:var(--accent);color:white;font-size:13px;font-weight:650;display:inline-flex;align-items:center;gap:7px;transition:all var(--duration-normal) var(--ease-out)}
+.btn-primary:hover{background:var(--accent-hover);box-shadow:var(--shadow-md)}
+.btn-primary svg{width:16px;height:16px}
+.btn-ghost{height:34px;padding:0 14px;border-radius:var(--radius-md);font-size:13px;font-weight:600;color:var(--text-secondary);border:1px solid var(--surface-3);display:inline-flex;align-items:center;gap:6px;transition:all var(--duration-fast)}
+.btn-ghost:hover{background:var(--surface-hover);border-color:var(--surface-4);color:var(--text-primary)}
+.btn-ghost svg{width:14px;height:14px}
+
+/* CONTRACT SUMMARY BANNER */
+.contract-banner{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);padding:20px 24px;margin-bottom:20px}
+.contract-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.contract-title{font-family:var(--font-display);font-size:15px;font-weight:720;letter-spacing:-.02em}
+.contract-updated{font-size:11.5px;color:var(--text-tertiary)}
+.contract-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px}
+.contract-cell{text-align:center;padding:12px 8px;border-radius:var(--radius-lg);background:var(--surface-2)}
+.contract-cell.highlight{background:var(--accent-soft)}
+.contract-cell.warn{background:var(--warning-soft)}
+.contract-val{font-family:var(--font-mono);font-size:18px;font-weight:700;letter-spacing:-.02em;color:var(--text-primary);margin-bottom:2px}
+.contract-cell.highlight .contract-val{color:var(--accent-text)}
+.contract-cell.warn .contract-val{color:var(--warning-text)}
+.contract-label{font-size:11px;color:var(--text-tertiary);font-weight:600}
+.contract-cell.highlight .contract-label{color:var(--accent-text)}
+.contract-cell.warn .contract-label{color:var(--warning-text)}
+
+/* BILLING PROGRESS BAR */
+.billing-bar-wrap{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);padding:20px 24px;margin-bottom:20px}
+.billing-bar-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.billing-bar-title{font-family:var(--font-display);font-size:14px;font-weight:700}
+.billing-pct{font-family:var(--font-display);font-size:18px;font-weight:750;color:var(--accent-text)}
+.billing-track{width:100%;height:14px;background:var(--surface-2);border-radius:999px;overflow:hidden;display:flex}
+.billing-seg{height:100%;transition:width .6s var(--ease-out)}
+.billing-legend{display:flex;gap:20px;margin-top:10px;flex-wrap:wrap}
+.billing-leg-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);font-weight:560}
+.billing-leg-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.billing-leg-val{font-family:var(--font-mono);font-weight:650;color:var(--text-primary);font-size:12px}
+
+/* TWO COLUMN LAYOUT */
+.fin-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+.fin-grid.single{grid-template-columns:1fr}
+
+/* CARD */
+.card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);overflow:hidden}
+.card-header{padding:18px 20px 14px;border-bottom:1px solid var(--surface-3);display:flex;justify-content:space-between;align-items:center}
+.card-title{font-family:var(--font-display);font-size:14px;font-weight:720;letter-spacing:-.01em}
+.card-subtitle{font-size:11.5px;color:var(--text-tertiary);margin-top:2px}
+
+/* DRAW HISTORY TABLE */
+.draw-table{width:100%;border-collapse:collapse}
+.draw-table th{font-family:var(--font-display);font-size:10.5px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;padding:10px 14px;text-align:left;border-bottom:1px solid var(--surface-3);white-space:nowrap;background:var(--surface-2)}
+.draw-table td{padding:12px 14px;border-bottom:1px solid var(--surface-3);font-size:13px;vertical-align:middle}
+.draw-table tbody tr{transition:background var(--duration-fast);cursor:pointer}
+.draw-table tbody tr:hover{background:var(--surface-hover)}
+.draw-num{font-family:var(--font-display);font-weight:700;color:var(--text-primary)}
+.draw-amount{font-family:var(--font-mono);font-weight:600}
+.draw-status{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:620}
+.draw-status .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.draw-status .dot.paid{background:var(--success)}
+.draw-status .dot.approved{background:var(--info)}
+.draw-status .dot.review{background:var(--warning)}
+.draw-status .dot.draft{background:var(--surface-4)}
+.draw-status .dot.returned{background:var(--danger)}
+
+/* SUB PAYMENT TABLE */
+.sub-pay-row{padding:12px 16px;border-bottom:1px solid var(--surface-3);display:flex;align-items:center;gap:14px}
+.sub-pay-row:last-child{border-bottom:none}
+.sub-pay-avatar{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-family:var(--font-display);font-size:11px;font-weight:700;color:white;flex-shrink:0}
+.sub-pay-info{flex:1;min-width:0}
+.sub-pay-name{font-size:13px;font-weight:640;color:var(--text-primary)}
+.sub-pay-trade{font-size:11.5px;color:var(--text-tertiary)}
+.sub-pay-amounts{display:flex;gap:16px;flex-shrink:0;align-items:center}
+.sub-pay-col{text-align:right}
+.sub-pay-val{font-family:var(--font-mono);font-size:13px;font-weight:650;color:var(--text-primary)}
+.sub-pay-label{font-size:10px;color:var(--text-tertiary);font-weight:600;margin-top:1px}
+.sub-pay-status{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:620;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.sub-pay-status.current{background:var(--success-soft);color:var(--success-text)}
+.sub-pay-status.outstanding{background:var(--warning-soft);color:var(--warning-text)}
+.sub-pay-status.held{background:var(--danger-soft);color:var(--danger-text)}
+
+/* RETAINAGE CARD */
+.retainage-bar{display:flex;align-items:center;gap:16px;padding:16px 20px}
+.retainage-visual{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;position:relative}
+.retainage-visual svg{transform:rotate(-90deg)}
+.retainage-visual .pct{position:absolute;font-family:var(--font-display);font-size:14px;font-weight:750;color:var(--text-primary)}
+.retainage-info{flex:1}
+.retainage-title{font-family:var(--font-display);font-size:14px;font-weight:700}
+.retainage-detail{font-size:12.5px;color:var(--text-secondary);margin-top:3px}
+.retainage-amounts{display:flex;gap:20px;margin-top:8px}
+.retainage-amounts span{font-size:12px;font-weight:560;color:var(--text-tertiary)}
+.retainage-amounts strong{font-family:var(--font-mono);color:var(--text-primary);font-weight:650}
+
+/* SUB PAYMENT TIMELINE */
+.pay-timeline{padding:16px 20px}
+.pay-tl-item{display:flex;gap:12px;margin-bottom:14px;position:relative}
+.pay-tl-item:not(:last-child)::after{content:'';position:absolute;left:13px;top:30px;bottom:-8px;width:1.5px;background:var(--surface-3)}
+.pay-tl-dot{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;z-index:1}
+.pay-tl-dot svg{width:12px;height:12px}
+.pay-tl-dot.paid{background:var(--success-soft);color:var(--success-text);border:2px solid #a8d5b8}
+.pay-tl-dot.pending{background:var(--warning-soft);color:var(--warning-text);border:2px solid #e0c595}
+.pay-tl-dot.submitted{background:var(--info-soft);color:var(--info-text);border:2px solid #a8c8e0}
+.pay-tl-body{flex:1}
+.pay-tl-title{font-size:13px;font-weight:640;color:var(--text-primary)}
+.pay-tl-meta{font-size:11.5px;color:var(--text-tertiary);margin-top:2px}
+.pay-tl-amount{font-family:var(--font-mono);font-size:13px;font-weight:650;color:var(--text-primary);flex-shrink:0}
+
+/* Animations */
+@keyframes fadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.content > *{animation:fadeInUp .3s var(--ease-out) both}
+.content > *:nth-child(1){animation-delay:0ms}
+.content > *:nth-child(2){animation-delay:50ms}
+.content > *:nth-child(3){animation-delay:100ms}
+.content > *:nth-child(4){animation-delay:150ms}
+.content > *:nth-child(5){animation-delay:200ms}
+.content > *:nth-child(6){animation-delay:250ms}
+
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--surface-4);border-radius:10px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-tertiary)}
+</style>
+</head>
+<body>
+
+<div class="app" id="appShell">
+<aside class="sidebar">
+  <div class="brand"><div class="brand-mark">B</div><div class="brand-info"><h1>BuiltCRM</h1><p id="portalLabel">Contractor Portal</p></div></div>
+  <nav class="sidebar-nav" id="sidebarNav"></nav>
+  <div class="sidebar-footer"><div class="sidebar-user"><div class="user-avatar-sm" id="footerAvatar">DC</div><div><div class="user-name" id="footerName">Dan Carter</div><div class="user-role" id="footerRole">Project Manager</div></div></div></div>
+</aside>
+<div class="main">
+  <header class="topbar">
+    <div class="breadcrumbs"><span id="bcPortal">Contractor Portal</span><span class="sep">›</span><span>Riverside Tower Fit-Out</span><span class="sep">›</span><span class="current" id="bcPage">Financials</span></div>
+    <div class="topbar-actions"><div class="avatar" id="userAvatar">DC</div></div>
+  </header>
+  <div class="content">
+    <div class="portal-switch">
+      <button class="portal-tab active" onclick="switchPortal('contractor')"><span class="portal-dot purple"></span>Contractor</button>
+      <button class="portal-tab" onclick="switchPortal('sub')"><span class="portal-dot steel"></span>Subcontractor</button>
+    </div>
+
+    <!-- ===== CONTRACTOR VIEW ===== -->
+    <div class="view active" id="view-contractor">
+      <div class="page-header">
+        <div>
+          <h2>Financials</h2>
+          <div class="page-header-sub">Riverside Tower Fit-Out · Contract financial overview</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-ghost">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export Report
+          </button>
+          <button class="btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+            New Draw Request
+          </button>
+        </div>
+      </div>
+
+      <!-- Contract summary -->
+      <div class="contract-banner">
+        <div class="contract-top">
+          <div class="contract-title">Contract Summary</div>
+          <div class="contract-updated">As of Draw #5 · Approved Apr 2, 2026</div>
+        </div>
+        <div class="contract-grid">
+          <div class="contract-cell">
+            <div class="contract-val">$2,180,000</div>
+            <div class="contract-label">Original Contract</div>
+          </div>
+          <div class="contract-cell">
+            <div class="contract-val">+$247,200</div>
+            <div class="contract-label">Change Orders (6)</div>
+          </div>
+          <div class="contract-cell highlight">
+            <div class="contract-val">$2,427,200</div>
+            <div class="contract-label">Revised Contract Value</div>
+          </div>
+          <div class="contract-cell">
+            <div class="contract-val">$1,482,300</div>
+            <div class="contract-label">Billed to Date</div>
+          </div>
+          <div class="contract-cell warn">
+            <div class="contract-val">$944,900</div>
+            <div class="contract-label">Remaining to Bill</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Billing progress bar -->
+      <div class="billing-bar-wrap">
+        <div class="billing-bar-header">
+          <div class="billing-bar-title">Billing &amp; Payment Progress</div>
+          <div class="billing-pct">61% Billed</div>
+        </div>
+        <div class="billing-track">
+          <div class="billing-seg" style="width:46%;background:var(--success);border-radius:999px 0 0 999px"></div>
+          <div class="billing-seg" style="width:8%;background:var(--info)"></div>
+          <div class="billing-seg" style="width:1%;background:var(--warning)"></div>
+          <div class="billing-seg" style="width:6%;background:var(--accent);border-radius:0 999px 999px 0"></div>
+        </div>
+        <div class="billing-legend">
+          <div class="billing-leg-item"><div class="billing-leg-dot" style="background:var(--success)"></div>Paid <span class="billing-leg-val">$1,120,400</span></div>
+          <div class="billing-leg-item"><div class="billing-leg-dot" style="background:var(--info)"></div>Approved / Unpaid <span class="billing-leg-val">$213,670</span></div>
+          <div class="billing-leg-item"><div class="billing-leg-dot" style="background:var(--warning)"></div>Under Review <span class="billing-leg-val">$0</span></div>
+          <div class="billing-leg-item"><div class="billing-leg-dot" style="background:var(--accent)"></div>Retainage Held <span class="billing-leg-val">$148,230</span></div>
+          <div class="billing-leg-item"><div class="billing-leg-dot" style="background:var(--surface-3)"></div>Remaining <span class="billing-leg-val">$944,900</span></div>
+        </div>
+      </div>
+
+      <!-- Two columns: Draw history + Sub payments -->
+      <div class="fin-grid">
+        <!-- Draw history -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Draw History</div>
+              <div class="card-subtitle">5 completed · 1 in preparation</div>
+            </div>
+            <button class="btn-ghost" style="height:28px;font-size:11.5px;padding:0 10px">View all</button>
+          </div>
+          <table class="draw-table">
+            <thead>
+              <tr><th>Draw</th><th>Period</th><th>Amount</th><th>Status</th><th>Paid</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="draw-num">Draw #6</span></td>
+                <td style="font-size:12px;color:var(--text-secondary)">Apr 1–30</td>
+                <td><span class="draw-amount">$162,900</span></td>
+                <td><span class="draw-status"><span class="dot draft"></span> Draft</span></td>
+                <td style="font-size:12px;color:var(--text-tertiary)">—</td>
+              </tr>
+              <tr>
+                <td><span class="draw-num">Draw #5</span></td>
+                <td style="font-size:12px;color:var(--text-secondary)">Mar 1–31</td>
+                <td><span class="draw-amount">$213,670</span></td>
+                <td><span class="draw-status"><span class="dot approved"></span> Approved</span></td>
+                <td style="font-size:12px;color:var(--text-tertiary)">Pending</td>
+              </tr>
+              <tr>
+                <td><span class="draw-num">Draw #4</span></td>
+                <td style="font-size:12px;color:var(--text-secondary)">Feb 1–28</td>
+                <td><span class="draw-amount">$285,400</span></td>
+                <td><span class="draw-status"><span class="dot paid"></span> Paid</span></td>
+                <td style="font-size:12px;color:var(--text-secondary)">Mar 14</td>
+              </tr>
+              <tr>
+                <td><span class="draw-num">Draw #3</span></td>
+                <td style="font-size:12px;color:var(--text-secondary)">Jan 1–31</td>
+                <td><span class="draw-amount">$312,600</span></td>
+                <td><span class="draw-status"><span class="dot paid"></span> Paid</span></td>
+                <td style="font-size:12px;color:var(--text-secondary)">Feb 12</td>
+              </tr>
+              <tr>
+                <td><span class="draw-num">Draw #2</span></td>
+                <td style="font-size:12px;color:var(--text-secondary)">Dec 1–31</td>
+                <td><span class="draw-amount">$289,100</span></td>
+                <td><span class="draw-status"><span class="dot paid"></span> Paid</span></td>
+                <td style="font-size:12px;color:var(--text-secondary)">Jan 10</td>
+              </tr>
+              <tr>
+                <td><span class="draw-num">Draw #1</span></td>
+                <td style="font-size:12px;color:var(--text-secondary)">Nov 1–30</td>
+                <td><span class="draw-amount">$233,300</span></td>
+                <td><span class="draw-status"><span class="dot paid"></span> Paid</span></td>
+                <td style="font-size:12px;color:var(--text-secondary)">Dec 8</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Sub payment status -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Subcontractor Payment Status</div>
+              <div class="card-subtitle">5 active subcontractors</div>
+            </div>
+          </div>
+          <div>
+            <div class="sub-pay-row">
+              <div class="sub-pay-avatar" style="background:#3d6b8e">AM</div>
+              <div class="sub-pay-info">
+                <div class="sub-pay-name">Meridian MEP</div>
+                <div class="sub-pay-trade">Mechanical · Electrical · Plumbing</div>
+              </div>
+              <div class="sub-pay-amounts">
+                <div class="sub-pay-col"><div class="sub-pay-val">$410,000</div><div class="sub-pay-label">Contract</div></div>
+                <div class="sub-pay-col"><div class="sub-pay-val">$287,000</div><div class="sub-pay-label">Paid</div></div>
+                <span class="sub-pay-status current">Current</span>
+              </div>
+            </div>
+            <div class="sub-pay-row">
+              <div class="sub-pay-avatar" style="background:var(--info)">NR</div>
+              <div class="sub-pay-info">
+                <div class="sub-pay-name">Northline Electrical</div>
+                <div class="sub-pay-trade">Electrical systems</div>
+              </div>
+              <div class="sub-pay-amounts">
+                <div class="sub-pay-col"><div class="sub-pay-val">$380,000</div><div class="sub-pay-label">Contract</div></div>
+                <div class="sub-pay-col"><div class="sub-pay-val">$266,000</div><div class="sub-pay-label">Paid</div></div>
+                <span class="sub-pay-status outstanding">$30,400 due</span>
+              </div>
+            </div>
+            <div class="sub-pay-row">
+              <div class="sub-pay-avatar" style="background:var(--success)">CP</div>
+              <div class="sub-pay-info">
+                <div class="sub-pay-name">Capital Plumbing</div>
+                <div class="sub-pay-trade">Plumbing · Fire suppression</div>
+              </div>
+              <div class="sub-pay-amounts">
+                <div class="sub-pay-col"><div class="sub-pay-val">$195,000</div><div class="sub-pay-label">Contract</div></div>
+                <div class="sub-pay-col"><div class="sub-pay-val">$140,400</div><div class="sub-pay-label">Paid</div></div>
+                <span class="sub-pay-status current">Current</span>
+              </div>
+            </div>
+            <div class="sub-pay-row">
+              <div class="sub-pay-avatar" style="background:var(--warning)">AF</div>
+              <div class="sub-pay-info">
+                <div class="sub-pay-name">Apex Finishes</div>
+                <div class="sub-pay-trade">Interior finishes · Drywall</div>
+              </div>
+              <div class="sub-pay-amounts">
+                <div class="sub-pay-col"><div class="sub-pay-val">$290,000</div><div class="sub-pay-label">Contract</div></div>
+                <div class="sub-pay-col"><div class="sub-pay-val">$78,300</div><div class="sub-pay-label">Paid</div></div>
+                <span class="sub-pay-status current">Current</span>
+              </div>
+            </div>
+            <div class="sub-pay-row">
+              <div class="sub-pay-avatar" style="background:var(--danger)">NS</div>
+              <div class="sub-pay-info">
+                <div class="sub-pay-name">Northline Steel</div>
+                <div class="sub-pay-trade">Structural steel</div>
+              </div>
+              <div class="sub-pay-amounts">
+                <div class="sub-pay-col"><div class="sub-pay-val">$520,000</div><div class="sub-pay-label">Contract</div></div>
+                <div class="sub-pay-col"><div class="sub-pay-val">$457,600</div><div class="sub-pay-label">Paid</div></div>
+                <span class="sub-pay-status current">Current</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Retainage card -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header">
+          <div><div class="card-title">Retainage Summary</div><div class="card-subtitle">10% retainage on all work completed</div></div>
+          <button class="btn-ghost" style="height:28px;font-size:11.5px;padding:0 10px">Request Release</button>
+        </div>
+        <div class="retainage-bar">
+          <div class="retainage-visual">
+            <svg width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="none" stroke="var(--surface-3)" stroke-width="6"/><circle cx="32" cy="32" r="28" fill="none" stroke="var(--accent)" stroke-width="6" stroke-dasharray="176" stroke-dashoffset="132" stroke-linecap="round"/></svg>
+            <span class="pct">25%</span>
+          </div>
+          <div class="retainage-info">
+            <div class="retainage-title">$148,230 held in retainage</div>
+            <div class="retainage-detail">Retainage will be eligible for release at substantial completion (target Jul 31, 2026)</div>
+            <div class="retainage-amounts">
+              <span>Accumulated: <strong>$148,230</strong></span>
+              <span>Released: <strong>$0</strong></span>
+              <span>Balance: <strong>$148,230</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SUBCONTRACTOR VIEW ===== -->
+    <div class="view" id="view-sub">
+      <div class="page-header">
+        <div>
+          <h2>Payments</h2>
+          <div class="page-header-sub">Riverside Tower Fit-Out · Your payment status with Carter Construction</div>
+        </div>
+      </div>
+
+      <!-- Sub contract summary -->
+      <div class="contract-banner">
+        <div class="contract-top">
+          <div class="contract-title">Your Contract Summary</div>
+          <div class="contract-updated">Meridian MEP — Mechanical, Electrical &amp; Plumbing scope</div>
+        </div>
+        <div class="contract-grid" style="grid-template-columns:repeat(4,1fr)">
+          <div class="contract-cell">
+            <div class="contract-val">$410,000</div>
+            <div class="contract-label">Contract Value</div>
+          </div>
+          <div class="contract-cell highlight">
+            <div class="contract-val">$332,100</div>
+            <div class="contract-label">Total Earned</div>
+          </div>
+          <div class="contract-cell">
+            <div class="contract-val">$287,000</div>
+            <div class="contract-label">Total Paid</div>
+          </div>
+          <div class="contract-cell warn">
+            <div class="contract-val">$77,900</div>
+            <div class="contract-label">Remaining</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sub billing progress -->
+      <div class="billing-bar-wrap">
+        <div class="billing-bar-header">
+          <div class="billing-bar-title">Payment Progress</div>
+          <div class="billing-pct">70% Paid</div>
+        </div>
+        <div class="billing-track">
+          <div class="billing-seg" style="width:70%;background:var(--success);border-radius:999px 0 0 999px"></div>
+          <div class="billing-seg" style="width:4%;background:var(--info)"></div>
+          <div class="billing-seg" style="width:7%;background:var(--accent);border-radius:0 999px 999px 0"></div>
+        </div>
+        <div class="billing-legend">
+          <div class="billing-leg-item"><div class="billing-leg-dot" style="background:var(--success)"></div>Paid <span class="billing-leg-val">$287,000</span></div>
+          <div class="billing-leg-item"><div class="billing-leg-dot" style="background:var(--info)"></div>Approved / Awaiting Payment <span class="billing-leg-val">$12,000</span></div>
+          <div class="billing-leg-item"><div class="billing-leg-dot" style="background:var(--accent)"></div>Retainage Held <span class="billing-leg-val">$33,100</span></div>
+          <div class="billing-leg-item"><div class="billing-leg-dot" style="background:var(--surface-3)"></div>Remaining <span class="billing-leg-val">$77,900</span></div>
+        </div>
+      </div>
+
+      <div class="fin-grid">
+        <!-- Payment timeline -->
+        <div class="card">
+          <div class="card-header">
+            <div><div class="card-title">Payment History</div><div class="card-subtitle">Your billing submissions and payments received</div></div>
+          </div>
+          <div class="pay-timeline">
+            <div class="pay-tl-item">
+              <div class="pay-tl-dot submitted"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+              <div class="pay-tl-body">
+                <div class="pay-tl-title">Draw #5 — Submitted</div>
+                <div class="pay-tl-meta">Mar 28, 2026 · Included in GC billing package</div>
+              </div>
+              <div class="pay-tl-amount">$45,100</div>
+            </div>
+            <div class="pay-tl-item">
+              <div class="pay-tl-dot pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+              <div class="pay-tl-body">
+                <div class="pay-tl-title">Draw #5 — Approved, Awaiting Payment</div>
+                <div class="pay-tl-meta">Apr 2, 2026 · Payment expected within 10 business days</div>
+              </div>
+              <div class="pay-tl-amount">$12,000</div>
+            </div>
+            <div class="pay-tl-item">
+              <div class="pay-tl-dot paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <div class="pay-tl-body">
+                <div class="pay-tl-title">Draw #4 — Paid</div>
+                <div class="pay-tl-meta">Mar 14, 2026 · Check #4821</div>
+              </div>
+              <div class="pay-tl-amount">$68,000</div>
+            </div>
+            <div class="pay-tl-item">
+              <div class="pay-tl-dot paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <div class="pay-tl-body">
+                <div class="pay-tl-title">Draw #3 — Paid</div>
+                <div class="pay-tl-meta">Feb 12, 2026 · Check #4789</div>
+              </div>
+              <div class="pay-tl-amount">$82,000</div>
+            </div>
+            <div class="pay-tl-item">
+              <div class="pay-tl-dot paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <div class="pay-tl-body">
+                <div class="pay-tl-title">Draw #2 — Paid</div>
+                <div class="pay-tl-meta">Jan 10, 2026 · Check #4756</div>
+              </div>
+              <div class="pay-tl-amount">$72,000</div>
+            </div>
+            <div class="pay-tl-item">
+              <div class="pay-tl-dot paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <div class="pay-tl-body">
+                <div class="pay-tl-title">Draw #1 — Paid</div>
+                <div class="pay-tl-meta">Dec 8, 2025 · Check #4720</div>
+              </div>
+              <div class="pay-tl-amount">$65,000</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Retainage + Lien waivers -->
+        <div style="display:flex;flex-direction:column;gap:20px">
+          <div class="card">
+            <div class="card-header">
+              <div><div class="card-title">Retainage Held</div><div class="card-subtitle">10% withheld on all approved work</div></div>
+            </div>
+            <div class="retainage-bar">
+              <div class="retainage-visual">
+                <svg width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="none" stroke="var(--surface-3)" stroke-width="6"/><circle cx="32" cy="32" r="28" fill="none" stroke="var(--accent)" stroke-width="6" stroke-dasharray="176" stroke-dashoffset="158" stroke-linecap="round"/></svg>
+                <span class="pct">10%</span>
+              </div>
+              <div class="retainage-info">
+                <div class="retainage-title">$33,100 held in retainage</div>
+                <div class="retainage-detail">Retainage is released after substantial completion and your closeout documents are accepted.</div>
+                <div class="retainage-amounts">
+                  <span>Accumulated: <strong>$33,100</strong></span>
+                  <span>Released: <strong>$0</strong></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div><div class="card-title">Lien Waiver Status</div><div class="card-subtitle">Required for each draw payment</div></div>
+            </div>
+            <div style="padding:4px 0">
+              <div class="sub-pay-row">
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:620;color:var(--text-primary)">Draw #5 — Conditional Waiver</div>
+                  <div style="font-size:11.5px;color:var(--text-tertiary);margin-top:2px">Submitted Mar 28 · Covers $45,100</div>
+                </div>
+                <span class="sub-pay-status current">Submitted</span>
+              </div>
+              <div class="sub-pay-row">
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:620;color:var(--text-primary)">Draw #4 — Unconditional Waiver</div>
+                  <div style="font-size:11.5px;color:var(--text-tertiary);margin-top:2px">Submitted Feb 28 · Covers $68,000</div>
+                </div>
+                <span class="sub-pay-status current">Accepted</span>
+              </div>
+              <div class="sub-pay-row">
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:620;color:var(--text-primary)">Draw #3 — Unconditional Waiver</div>
+                  <div style="font-size:11.5px;color:var(--text-tertiary);margin-top:2px">Submitted Jan 28 · Covers $82,000</div>
+                </div>
+                <span class="sub-pay-status current">Accepted</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const contractorNav = `
+  <div class="nav-section"><div class="nav-section-label">Overview</div>
+    <div class="nav-item"><span>Dashboard</span></div>
+  </div>
+  <div class="nav-section"><div class="nav-section-label">Riverside Tower Fit-Out</div>
+    <div class="nav-item"><span>Project Home</span></div>
+    <div class="nav-item"><span>RFIs / Issues</span><span class="nav-badge">3</span></div>
+    <div class="nav-item"><span>Change Orders</span><span class="nav-badge warn">2</span></div>
+    <div class="nav-item"><span>Approvals</span><span class="nav-badge">4</span></div>
+    <div class="nav-item active"><span>Billing / Draws</span></div>
+    <div class="nav-item"><span>Compliance</span><span class="nav-badge warn">1</span></div>
+    <div class="nav-item"><span>Upload Requests</span><span class="nav-badge">2</span></div>
+    <div class="nav-item"><span>Selections</span></div>
+    <div class="nav-item"><span>Documents</span></div>
+    <div class="nav-item"><span>Schedule</span></div>
+    <div class="nav-item"><span>Messages</span><span class="nav-badge">3</span></div>
+  </div>
+  <div class="nav-section"><div class="nav-section-label">Organization</div>
+    <div class="nav-item"><span>Subcontractors</span></div>
+    <div class="nav-item"><span>Clients</span></div>
+    <div class="nav-item"><span>Team</span></div>
+  </div>`;
+const subNav = `
+  <div class="nav-section"><div class="nav-section-label">Your Projects</div>
+    <div class="nav-item"><span>Today Board</span></div>
+  </div>
+  <div class="nav-section"><div class="nav-section-label">Riverside Tower Fit-Out</div>
+    <div class="nav-item"><span>Project Home</span></div>
+    <div class="nav-item"><span>RFIs / Issues</span><span class="nav-badge danger">2</span></div>
+    <div class="nav-item"><span>Upload Requests</span><span class="nav-badge">1</span></div>
+    <div class="nav-item"><span>Compliance</span><span class="nav-badge warn">1</span></div>
+    <div class="nav-item"><span>Documents</span></div>
+    <div class="nav-item active"><span>Payments</span></div>
+    <div class="nav-item"><span>Schedule</span></div>
+    <div class="nav-item"><span>Messages</span><span class="nav-badge">1</span></div>
+  </div>`;
+const portalConfigs = {
+  contractor: { nav: contractorNav, theme: '', label: 'Contractor Portal', avatar: 'DC', name: 'Dan Carter', role: 'Project Manager', page: 'Financials' },
+  sub: { nav: subNav, theme: 'sub-theme', label: 'Subcontractor Portal', avatar: 'AM', name: 'Alex Morgan', role: 'Meridian MEP', page: 'Payments' },
+};
+function switchPortal(portal) {
+  const app = document.getElementById('appShell');
+  const cfg = portalConfigs[portal];
+  app.classList.remove('sub-theme');
+  if (cfg.theme) app.classList.add(cfg.theme);
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + portal).classList.add('active');
+  document.querySelectorAll('.portal-tab').forEach(t => t.classList.remove('active'));
+  const idx = { contractor: 0, sub: 1 }[portal];
+  document.querySelectorAll('.portal-tab')[idx].classList.add('active');
+  document.getElementById('portalLabel').textContent = cfg.label;
+  document.getElementById('bcPortal').textContent = cfg.label;
+  document.getElementById('bcPage').textContent = cfg.page;
+  document.getElementById('userAvatar').textContent = cfg.avatar;
+  document.getElementById('footerAvatar').textContent = cfg.avatar;
+  document.getElementById('footerName').textContent = cfg.name;
+  document.getElementById('footerRole').textContent = cfg.role;
+  document.getElementById('sidebarNav').innerHTML = cfg.nav;
+}
+switchPortal('contractor');
+</script>
+</body>
+</html>

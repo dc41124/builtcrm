@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BuiltCRM — Subcontractor · Riverside Tower</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root{--surface-0:#eef0f3;--surface-1:#ffffff;--surface-2:#f3f4f6;--surface-3:#e2e5e9;--surface-4:#d1d5db;--surface-hover:#f5f6f8;--surface-incard:#f8f9fa;--sidebar-bg:#ffffff;--sidebar-hover:#f5f6f8;--sidebar-active:#eef0f3;--sidebar-active-text:#1a1714;--sidebar-section-text:#8b919a;--sidebar-item-text:#5a6170;--sidebar-border:#e8eaee;--text-primary:#1a1714;--text-secondary:#6b655b;--text-tertiary:#9c958a;--accent:#5b4fc7;--accent-hover:#4f44b3;--accent-soft:#eeedfb;--accent-text:#4a3fb0;--success:#2d8a5e;--success-soft:#edf7f1;--success-text:#1e6b46;--warning:#c17a1a;--warning-soft:#fdf4e6;--warning-text:#96600f;--danger:#c93b3b;--danger-soft:#fdeaea;--danger-text:#a52e2e;--info:#3178b9;--info-soft:#e8f1fa;--info-text:#276299;--sub-accent:#3d6b8e;--sub-accent-soft:#e6eff5;--sub-accent-text:#2d5577;--font-display:'DM Sans',system-ui,sans-serif;--font-body:'Instrument Sans',system-ui,sans-serif;--font-mono:'JetBrains Mono',monospace;--sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;--shadow-sm:0 1px 3px rgba(26,23,20,.05);--shadow-md:0 4px 16px rgba(26,23,20,.06);--sidebar-width:264px;--topbar-height:56px;--ease-out:cubic-bezier(.16,1,.3,1);--dur-fast:120ms;--dur-normal:200ms;--dur-slow:350ms}
+*,*::before,*::after{box-sizing:border-box;margin:0}body{font-family:var(--font-body);background:var(--surface-0);color:var(--text-primary);-webkit-font-smoothing:antialiased;line-height:1.5;font-size:14px}.app{display:grid;grid-template-columns:var(--sidebar-width) 1fr;min-height:100vh}
+.sidebar{background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:hidden}.brand{height:var(--topbar-height);display:flex;align-items:center;gap:var(--sp-3);padding:0 var(--sp-4) 0 var(--sp-5);border-bottom:1px solid var(--sidebar-border);flex-shrink:0}.brand-mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#2d4a5e,#3d6b8e);display:grid;place-items:center;color:#fff;font-family:var(--font-display);font-size:12px;font-weight:700;flex-shrink:0}
+.sb-compliance{margin:var(--sp-3) var(--sp-3) 0;padding:var(--sp-3) var(--sp-4);border-radius:var(--radius-lg);display:flex;align-items:center;gap:var(--sp-3);cursor:pointer}.sb-compliance.warn{background:var(--warning-soft);border:1px solid rgba(193,122,26,.25)}.sb-compliance-icon{width:28px;height:28px;border-radius:var(--radius-sm);display:grid;place-items:center;flex-shrink:0}.sb-compliance.warn .sb-compliance-icon{background:rgba(193,122,26,.15);color:var(--warning-text)}.sb-compliance-text h4{font-family:var(--font-display);font-size:12px;font-weight:650;color:var(--warning-text)}.sb-compliance-text p{font-size:11px;color:var(--text-secondary)}
+.sb-search{padding:var(--sp-3) var(--sp-4);border-bottom:1px solid var(--sidebar-border);flex-shrink:0}.sb-search input{width:100%;height:34px;border:1px solid var(--surface-3);border-radius:var(--radius-md);padding:0 var(--sp-3) 0 34px;background:var(--surface-1) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%239c958a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") no-repeat 10px center;font-family:var(--font-body);font-size:13px;color:var(--text-primary);outline:none}
+.sb-nav{flex:1;overflow-y:auto;padding:var(--sp-2) var(--sp-3) var(--sp-6)}.ns{margin-bottom:var(--sp-1)}.ns-h{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2);font-size:11px;font-weight:650;color:var(--sidebar-section-text);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;border-radius:var(--radius-sm)}.ns-chv{width:14px;height:14px;transition:transform var(--dur-normal) var(--ease-out)}.ns.closed .ns-chv{transform:rotate(-90deg)}.ns.closed .ns-items{display:none}
+.ni{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);padding:6px 10px 6px 12px;border-radius:var(--radius-md);font-size:13px;font-weight:500;color:var(--sidebar-item-text);cursor:pointer;transition:all var(--dur-fast) var(--ease-out);margin-bottom:1px;position:relative}.ni:hover{background:var(--sidebar-hover);color:var(--text-primary)}.ni.active{background:var(--sidebar-active);color:var(--sidebar-active-text);font-weight:620}.ni.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:16px;border-radius:0 3px 3px 0;background:var(--sub-accent)}
+.ni-badge{min-width:18px;height:18px;padding:0 6px;border-radius:999px;font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-display);flex-shrink:0;background:var(--sub-accent-soft);color:var(--sub-accent-text)}.ni-badge.w{background:var(--warning-soft);color:var(--warning-text)}.ni-badge.d{background:var(--danger-soft);color:var(--danger-text)}
+.np{display:flex;align-items:center;gap:var(--sp-2);padding:5px 10px 5px 12px;border-radius:var(--radius-md);font-size:13px;font-weight:460;color:var(--text-secondary);cursor:pointer;margin-bottom:1px}.np:hover{background:var(--sidebar-hover);color:var(--text-primary)}.np.active{background:var(--surface-1);color:var(--text-primary);font-weight:580;border:1px solid var(--surface-3);box-shadow:var(--shadow-sm)}.np-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}.np-dot.g{background:var(--success)}.np-dot.a{background:var(--warning)}.np-trade{font-size:10.5px;color:var(--text-tertiary);font-weight:550;letter-spacing:.02em;margin-left:auto;flex-shrink:0}
+.sb-foot{border-top:1px solid var(--sidebar-border);padding:var(--sp-3) var(--sp-4);flex-shrink:0}.u-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#3d6b8e,#5a8ab0);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-size:11.5px;font-weight:700;flex-shrink:0}
+.main{min-width:0;display:flex;flex-direction:column}.topbar{height:var(--topbar-height);display:flex;align-items:center;justify-content:space-between;padding:0 var(--sp-6);border-bottom:1px solid var(--surface-3);background:rgba(238,240,243,.85);backdrop-filter:blur(12px);position:sticky;top:0;z-index:50}.bc{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-tertiary)}.bc .cur{color:var(--text-primary);font-weight:620}.bc .sep{font-size:11px;color:var(--surface-4)}.tb-acts{display:flex;align-items:center;gap:var(--sp-2)}.tb-btn{width:34px;height:34px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-tertiary);display:grid;place-items:center;cursor:pointer;position:relative}.tb-btn .nd{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--danger);border:2px solid var(--surface-1)}.tb-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3d6b8e,#5a8ab0);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-size:11.5px;font-weight:700;cursor:pointer;margin-left:var(--sp-1)}
+.content{padding:var(--sp-6);flex:1}.btn{height:34px;padding:0 14px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);font-family:var(--font-body);font-size:13px;font-weight:560;color:var(--text-primary);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all var(--dur-fast) var(--ease-out);white-space:nowrap}.btn:hover{background:var(--surface-hover)}.btn.primary{background:var(--sub-accent);border-color:var(--sub-accent);color:#fff;font-weight:600}.btn.ghost{background:transparent;border-color:transparent;color:var(--text-secondary)}
+.pill{height:22px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:650;display:inline-flex;align-items:center;white-space:nowrap}.pill.red{background:var(--danger-soft);color:var(--danger-text)}.pill.amber{background:var(--warning-soft);color:var(--warning-text)}.pill.green{background:var(--success-soft);color:var(--success-text)}.pill.blue{background:var(--sub-accent-soft);color:var(--sub-accent-text)}.pill.gray{background:var(--surface-2);color:var(--text-secondary)}.time-l{font-size:11.5px;color:var(--text-tertiary);font-weight:530;white-space:nowrap}
+
+/* Page header with scope context */
+.pg-h{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--sp-6);margin-bottom:var(--sp-5)}.pg-t{font-family:var(--font-display);font-size:26px;font-weight:750;letter-spacing:-.03em;line-height:1.15}.pg-st{margin-top:6px;font-size:14px;color:var(--text-secondary)}.pg-acts{display:flex;gap:var(--sp-2);flex-shrink:0}
+.scope-strip{display:flex;gap:var(--sp-4);flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--text-secondary)}.scope-strip strong{font-weight:620;color:var(--text-primary)}
+
+/* KPI strip */
+.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-3);margin-bottom:var(--sp-5)}.kpi{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:var(--sp-4);transition:all var(--dur-normal) var(--ease-out)}.kpi:hover{box-shadow:var(--shadow-md)}.kpi.alert{border-color:var(--warning);border-width:1.5px}.kpi-label{font-size:11px;font-weight:620;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}.kpi-val{font-family:var(--font-display);font-size:22px;font-weight:750;letter-spacing:-.03em;line-height:1.1}.kpi-meta{font-size:12px;color:var(--text-secondary);margin-top:4px}.kpi-trend{font-weight:620;font-size:11.5px}.kpi-trend.warn{color:var(--warning-text)}.kpi-trend.down{color:var(--danger-text)}
+
+/* Main grid */
+.dash{display:grid;grid-template-columns:1fr 320px;gap:var(--sp-4);align-items:start}.dash-m{display:flex;flex-direction:column;gap:var(--sp-4)}.dash-r{display:flex;flex-direction:column;gap:var(--sp-4)}
+.card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);overflow:hidden}.c-head{display:flex;align-items:center;justify-content:space-between;padding:var(--sp-4) var(--sp-5);border-bottom:1px solid var(--surface-3)}.c-title{font-family:var(--font-display);font-size:15px;font-weight:680;letter-spacing:-.01em}.c-sub{font-size:12.5px;color:var(--text-tertiary);margin-top:2px}.c-body{padding:var(--sp-4) var(--sp-5)}
+.c-tabs{display:flex;padding:0 var(--sp-5);border-bottom:1px solid var(--surface-3);background:var(--surface-incard)}.c-tab{padding:10px 14px;font-size:13px;font-weight:530;color:var(--text-tertiary);cursor:pointer;border-bottom:2px solid transparent;transition:all var(--dur-fast);margin-bottom:-1px;white-space:nowrap}.c-tab:hover{color:var(--text-secondary)}.c-tab.active{color:var(--text-primary);font-weight:640;border-bottom-color:var(--sub-accent)}
+.lr{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-4);padding:var(--sp-3) var(--sp-4);border-radius:var(--radius-md);cursor:pointer;transition:background var(--dur-fast)}.lr:hover{background:var(--surface-incard)}.lr+.lr{border-top:1px solid var(--surface-3)}.lr.urg{border-left:3px solid var(--danger);padding-left:calc(var(--sp-4) - 3px)}.lr h5{font-family:var(--font-display);font-size:13.5px;font-weight:600;letter-spacing:-.01em;line-height:1.3}.lr p{font-size:12.5px;color:var(--text-secondary);margin-top:2px;line-height:1.4}.lr-meta{display:flex;align-items:center;gap:var(--sp-2);flex-shrink:0}
+
+/* Scope info card */
+.scope-card{background:var(--surface-incard);border:1px solid var(--surface-3);border-radius:var(--radius-md);padding:var(--sp-3) var(--sp-4);display:flex;justify-content:space-between;align-items:center}.scope-card+.scope-card{margin-top:var(--sp-2)}.scope-card-label{font-size:12.5px;color:var(--text-secondary)}.scope-card-value{font-family:var(--font-display);font-size:13px;font-weight:620}
+
+/* File rows */
+.file-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--surface-3)}.file-row:last-child{border-bottom:none}.file-name{font-size:13px;font-weight:560}.file-type{font-size:11px;color:var(--text-tertiary)}
+
+/* Timeline */
+.tl{display:flex;flex-direction:column}.tl-item{display:flex;align-items:flex-start;gap:var(--sp-3);padding:8px 0;border-bottom:1px solid var(--surface-3)}.tl-item:last-child{border-bottom:none}.tl-date{width:36px;flex-shrink:0;text-align:center}.tl-day{font-family:var(--font-display);font-size:16px;font-weight:720;line-height:1.1;letter-spacing:-.02em}.tl-mon{font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em}.tl-content h5{font-family:var(--font-display);font-size:13px;font-weight:600;line-height:1.3}.tl-content p{font-size:12px;color:var(--text-secondary);margin-top:1px}
+
+@keyframes fadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}.content>*{animation:fadeInUp var(--dur-slow) var(--ease-out) both}.content>*:nth-child(1){animation-delay:0ms}.content>*:nth-child(2){animation-delay:60ms}.content>*:nth-child(3){animation-delay:120ms}
+@media(max-width:1280px){.kpi-strip{grid-template-columns:repeat(2,1fr)}.dash{grid-template-columns:1fr}}@media(max-width:900px){.app{grid-template-columns:1fr}.sidebar{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+  <div class="brand"><div class="brand-mark">B</div><div style="flex:1;min-width:0"><div style="font-family:var(--font-display);font-size:14px;font-weight:700;letter-spacing:-.02em">BuiltCRM</div><div style="font-size:11.5px;color:var(--text-tertiary)">Northline Electrical</div></div></div>
+  <div class="sb-compliance warn"><div class="sb-compliance-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 4.5v5c0 5.55-3.84 10.74-9 12-5.16-1.26-9-6.45-9-12v-5L12 2z"/><path d="M12 8v4"/><circle cx="12" cy="15" r=".5" fill="currentColor"/></svg></div><div class="sb-compliance-text"><h4>Insurance expiring today</h4><p>Upload renewal to maintain access</p></div></div>
+  <div class="sb-search"><input placeholder="Search across projects…" /></div>
+  <nav class="sb-nav">
+    <div class="ns"><div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Work</div><div class="ns-items"><div class="ni"><span>Today Board</span></div><div class="ni"><span>RFIs & Questions</span><span class="ni-badge">1</span></div><div class="ni"><span>Upload Requests</span><span class="ni-badge w">1</span></div><div class="ni"><span>Schedule</span></div><div class="ni"><span>Documents</span></div></div></div>
+    <div class="ns"><div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Money</div><div class="ns-items"><div class="ni"><span>POs & Payments</span></div></div></div>
+    <div class="ns"><div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Compliance</div><div class="ns-items"><div class="ni"><span>Insurance & Certs</span><span class="ni-badge d">1</span></div></div></div>
+    <div class="ns"><div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Projects</div><div class="ns-items"><div class="np active"><div class="np-dot a"></div><span>Riverside Tower</span><span class="np-trade">Elec</span></div><div class="np"><div class="np-dot g"></div><span>West End Medical</span><span class="np-trade">Elec</span></div><div class="np"><div class="np-dot g"></div><span>Northline Office</span><span class="np-trade">Elec</span></div></div></div>
+    <div class="ns"><div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Messages</div><div class="ns-items"><div class="ni"><span>Inbox</span><span class="ni-badge">2</span></div></div></div>
+  </nav>
+  <div class="sb-foot"><div style="display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-2);border-radius:var(--radius-md);cursor:pointer"><div class="u-av">JT</div><div><div style="font-size:13px;font-weight:580">Jake Torres</div><div style="font-size:11px;color:var(--text-tertiary)">Field Coordinator</div></div></div></div>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <div class="bc"><span>Subcontractor Portal</span><span class="sep">›</span><span>Riverside Tower Fit-Out</span><span class="sep">›</span><span class="cur">Project Home</span></div>
+    <div class="tb-acts"><div class="tb-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 11-6 0m6 0H9"/></svg><div class="nd"></div></div><div class="tb-av">JT</div></div>
+  </div>
+
+  <div class="content">
+    <!-- Project header with scope context -->
+    <div class="pg-h">
+      <div>
+        <h1 class="pg-t">Riverside Tower Fit-Out</h1>
+        <div style="display:flex;gap:var(--sp-2);margin-top:8px">
+          <span class="pill blue">Electrical scope</span>
+          <span class="pill amber">Phase 3 · Interior rough-in</span>
+        </div>
+        <div class="scope-strip">
+          <span><strong>Trade:</strong> Electrical</span>
+          <span><strong>Assigned area:</strong> East corridor + Level 4</span>
+          <span><strong>GC PM:</strong> Daniel Chen</span>
+          <span><strong>PO:</strong> PO-244</span>
+        </div>
+      </div>
+      <div class="pg-acts">
+        <button class="btn">Upload File</button>
+        <button class="btn">Message GC</button>
+        <button class="btn primary">Open Tasks</button>
+      </div>
+    </div>
+
+    <!-- KPI strip — project-specific -->
+    <section class="kpi-strip">
+      <div class="kpi">
+        <div class="kpi-label">Tasks today</div>
+        <div class="kpi-val">4</div>
+        <div class="kpi-meta"><span class="kpi-trend warn">1 due before 2 PM</span></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">GC requests</div>
+        <div class="kpi-val">2</div>
+        <div class="kpi-meta">1 needs same-day response</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">PO status</div>
+        <div class="kpi-val" style="font-family:var(--font-mono)">C$42K</div>
+        <div class="kpi-meta">Revision pending</div>
+      </div>
+      <div class="kpi alert">
+        <div class="kpi-label">Compliance</div>
+        <div class="kpi-val">1</div>
+        <div class="kpi-meta"><span class="kpi-trend down">Affects this project</span></div>
+      </div>
+    </section>
+
+    <!-- Main grid -->
+    <section class="dash">
+      <div class="dash-m">
+        <!-- What needs attention -->
+        <div class="card">
+          <div class="c-head">
+            <div><div class="c-title">What needs attention</div><div class="c-sub">GC requests and tasks on this project</div></div>
+            <button class="btn ghost" style="font-size:12px">View all</button>
+          </div>
+          <div class="c-tabs">
+            <div class="c-tab active">Today</div>
+            <div class="c-tab">RFIs</div>
+            <div class="c-tab">Uploads</div>
+          </div>
+          <div class="c-body">
+            <div class="lr urg">
+              <div>
+                <h5>Upload revised switch schedule</h5>
+                <p>GC requested before internal review window closes this afternoon.</p>
+              </div>
+              <div class="lr-meta"><span class="pill red">Due 2 PM</span></div>
+            </div>
+            <div class="lr">
+              <div>
+                <h5>Respond to RFI-012 — conduit routing</h5>
+                <p>Clarify east corridor routing after yesterday's field coordination note.</p>
+              </div>
+              <div class="lr-meta"><span class="pill amber">Today</span></div>
+            </div>
+            <div class="lr">
+              <div>
+                <h5>Upload progress photos — electrical room</h5>
+                <p>Level 4 electrical room and corridor shots for owner update pack.</p>
+              </div>
+              <div class="lr-meta"><span class="pill blue">Open</span></div>
+            </div>
+            <div class="lr">
+              <div>
+                <h5>East corridor rough-in closeout verification</h5>
+                <p>Final device placement verification and photo submission.</p>
+              </div>
+              <div class="lr-meta"><span class="pill green">On track</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent project activity -->
+        <div class="card">
+          <div class="c-head"><div><div class="c-title">Recent on this project</div></div></div>
+          <div class="c-body">
+            <div class="lr">
+              <div>
+                <h5>Lighting controls submittal approved</h5>
+                <p>Package cleared for field use — download from Documents.</p>
+              </div>
+              <div class="lr-meta"><span class="pill green">Approved</span><span class="time-l">47m</span></div>
+            </div>
+            <div class="lr">
+              <div>
+                <h5>Field coordination note added</h5>
+                <p>East corridor routing issue logged after walkthrough with GC super.</p>
+              </div>
+              <div class="lr-meta"><span class="time-l">1h</span></div>
+            </div>
+            <div class="lr">
+              <div>
+                <h5>Owner photo request received</h5>
+                <p>Electrical room progress imagery needed for weekly summary.</p>
+              </div>
+              <div class="lr-meta"><span class="pill blue">Request</span><span class="time-l">3h</span></div>
+            </div>
+            <div class="lr">
+              <div>
+                <h5>PO-244 revision submitted by GC</h5>
+                <p>Updated amount approved. Waiting for revised issue copy.</p>
+              </div>
+              <div class="lr-meta"><span class="time-l">Yesterday</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right rail -->
+      <div class="dash-r">
+        <!-- Your scope on this project -->
+        <div class="card">
+          <div class="c-head"><div><div class="c-title">Your scope</div></div></div>
+          <div class="c-body">
+            <div class="scope-card"><span class="scope-card-label">Trade</span><span class="scope-card-value">Electrical</span></div>
+            <div class="scope-card"><span class="scope-card-label">Assigned area</span><span class="scope-card-value">East corridor + Level 4</span></div>
+            <div class="scope-card"><span class="scope-card-label">PO value</span><span class="scope-card-value" style="font-family:var(--font-mono)">C$148,000</span></div>
+            <div class="scope-card"><span class="scope-card-label">Billed to date</span><span class="scope-card-value" style="font-family:var(--font-mono);color:var(--success)">C$89,600</span></div>
+            <div class="scope-card"><span class="scope-card-label">Retainage held</span><span class="scope-card-value" style="font-family:var(--font-mono)">C$8,960</span></div>
+          </div>
+        </div>
+
+        <!-- Upcoming on this project -->
+        <div class="card">
+          <div class="c-head"><div><div class="c-title">Upcoming</div></div></div>
+          <div class="c-body">
+            <div class="tl">
+              <div class="tl-item"><div class="tl-date"><div class="tl-day">16</div><div class="tl-mon">Apr</div></div><div class="tl-content"><h5>Electrical rough-in inspection</h5><p>City inspector · your scope</p></div></div>
+              <div class="tl-item"><div class="tl-date"><div class="tl-day">18</div><div class="tl-mon">Apr</div></div><div class="tl-content"><h5>Draw #7 lien waiver due</h5><p>Conditional progress · $44,400</p></div></div>
+              <div class="tl-item"><div class="tl-date"><div class="tl-day">28</div><div class="tl-mon">Apr</div></div><div class="tl-content"><h5>Phase 3 completion target</h5><p>Interior rough-in milestone</p></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scoped documents -->
+        <div class="card">
+          <div class="c-head"><div><div class="c-title">Your documents</div></div><button class="btn ghost" style="font-size:12px">View all</button></div>
+          <div class="c-body">
+            <div class="file-row"><div><div class="file-name">E-14_electrical_rev3.pdf</div><div class="file-type">Drawing set · latest revision</div></div><span class="pill green" style="font-size:10px">Current</span></div>
+            <div class="file-row"><div><div class="file-name">lighting_controls_approved.pdf</div><div class="file-type">Approved submittal</div></div><span class="pill green" style="font-size:10px">Approved</span></div>
+            <div class="file-row"><div><div class="file-name">PO-244_revision.pdf</div><div class="file-type">Purchase order</div></div><span class="pill amber" style="font-size:10px">Revised</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+</div>
+<script>
+document.querySelectorAll('.ns-h').forEach(h=>{h.addEventListener('click',()=>{h.closest('.ns').classList.toggle('closed')})});
+document.querySelectorAll('.c-tabs').forEach(tabs=>{tabs.querySelectorAll('.c-tab').forEach(tab=>{tab.addEventListener('click',()=>{tabs.querySelectorAll('.c-tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active')})})});
+</script>
+</body>
+</html>

@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BuiltCRM — Billing / Draw Review (Commercial Client)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root{--surface-0:#eef0f3;--surface-1:#ffffff;--surface-2:#f3f4f6;--surface-3:#e2e5e9;--surface-4:#d1d5db;--surface-hover:#f5f6f8;--surface-active:#e5e7eb;--sidebar-bg:#ffffff;--sidebar-hover:#f5f6f8;--sidebar-active:#eef0f3;--sidebar-active-text:#1a1714;--sidebar-section-text:#8b919a;--sidebar-item-text:#5a6170;--sidebar-border:#e8eaee;--text-primary:#1a1714;--text-secondary:#6b655b;--text-tertiary:#9c958a;--text-inverse:#faf9f7;
+/* Commercial client blue */
+--accent:#3178b9;--accent-hover:#2968a3;--accent-soft:#e8f1fa;--accent-text:#276299;--accent-muted:#b3d1ec;
+--success:#2d8a5e;--success-soft:#edf7f1;--success-text:#1e6b46;--warning:#c17a1a;--warning-soft:#fdf4e6;--warning-text:#96600f;--danger:#c93b3b;--danger-soft:#fdeaea;--danger-text:#a52e2e;--info:#3178b9;--info-soft:#e8f1fa;--info-text:#276299;--font-display:'DM Sans',system-ui,sans-serif;--font-body:'Instrument Sans',system-ui,sans-serif;--font-mono:'JetBrains Mono',monospace;--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;--shadow-sm:0 1px 3px rgba(26,23,20,.05);--shadow-md:0 4px 16px rgba(26,23,20,.06);--shadow-lg:0 10px 32px rgba(26,23,20,.08);--shadow-ring:0 0 0 3px rgba(49,120,185,.15);--sidebar-width:272px;--topbar-height:56px;--ease-out:cubic-bezier(.16,1,.3,1);--duration-normal:200ms}
+*,*::before,*::after{box-sizing:border-box;margin:0}body{font-family:var(--font-body);background:var(--surface-0);color:var(--text-primary);-webkit-font-smoothing:antialiased;line-height:1.5}button{cursor:pointer;font-family:inherit;border:none;background:none}input,select,textarea{font-family:inherit}
+
+.app{display:grid;grid-template-columns:var(--sidebar-width) 1fr;min-height:100vh}.sidebar{background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:hidden}.brand{height:var(--topbar-height);display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--sidebar-border);flex-shrink:0}.brand-mark{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#1a1714,#3d3830);color:var(--text-inverse);display:grid;place-items:center;font-family:var(--font-display);font-size:12px;font-weight:700}.brand-info h1{font-family:var(--font-display);font-size:14px;font-weight:700}.brand-info p{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+.sidebar-search{padding:12px 16px;border-bottom:1px solid var(--sidebar-border);flex-shrink:0}.sidebar-search input{width:100%;height:36px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-2);padding:0 12px;font-size:13px;color:var(--text-primary);outline:none}.sidebar-search input:focus{border-color:var(--accent)}
+.sidebar-nav{flex:1;overflow-y:auto;padding:8px 10px 20px}.nav-section{margin-bottom:4px}.nav-section-label{font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--sidebar-section-text);text-transform:uppercase;letter-spacing:.06em;padding:10px 10px 6px}.nav-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:var(--radius-md);font-size:13px;color:var(--sidebar-item-text);font-weight:500;transition:all var(--duration-normal) var(--ease-out);margin-bottom:2px}.nav-item:hover{background:var(--sidebar-hover);color:var(--sidebar-active-text)}.nav-item.active{background:var(--accent-soft);color:var(--accent-text);font-weight:650}.nav-badge{min-width:20px;height:20px;padding:0 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+
+.main{display:flex;flex-direction:column;min-width:0}.topbar{height:var(--topbar-height);display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid var(--surface-3);background:rgba(255,255,255,.88);backdrop-filter:blur(12px);flex-shrink:0;position:sticky;top:0;z-index:50}.breadcrumbs{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-tertiary)}.breadcrumbs .sep{color:var(--surface-4)}.breadcrumbs .current{color:var(--text-primary);font-weight:650}.avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;display:grid;place-items:center;font-family:var(--font-display);font-size:12px;font-weight:700}.content{padding:24px;flex:1}
+
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:16px}.page-header h2{font-family:var(--font-display);font-size:24px;font-weight:750;letter-spacing:-.03em}.page-header p{margin-top:4px;font-size:13px;color:var(--text-secondary);max-width:560px}.page-header-pills{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}.page-header-actions{display:flex;gap:8px;flex-shrink:0;padding-top:4px}
+.summary-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}.sc{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:13px 15px;box-shadow:var(--shadow-sm)}.sc.strong{border-color:var(--accent-muted);background:linear-gradient(180deg,#fff,color-mix(in srgb,var(--accent-soft) 40%,#fff))}.sc.alert{border-color:#f5d5a0;background:linear-gradient(180deg,#fff,#fefaf3)}.sc.success{border-color:#b0dfc4;background:linear-gradient(180deg,#fff,#f5fdf8)}.sc .sc-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary)}.sc .sc-value{font-family:var(--font-display);font-size:22px;font-weight:800;letter-spacing:-.03em;margin-top:4px}.sc .sc-meta{font-size:12px;color:var(--text-tertiary);margin-top:2px}
+
+.btn{height:38px;padding:0 16px;border-radius:var(--radius-md);font-size:13px;font-weight:650;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-primary);transition:all var(--duration-normal) var(--ease-out)}.btn:hover{border-color:var(--surface-4);background:var(--surface-hover)}.btn.primary{background:var(--accent);border-color:var(--accent);color:white}.btn.primary:hover{background:var(--accent-hover)}.btn.sm{height:32px;padding:0 12px;font-size:12px}.btn.danger-outline{border-color:#f5baba;color:var(--danger-text)}.btn.danger-outline:hover{background:var(--danger-soft)}.btn:active{transform:scale(.97)}
+.pill{height:22px;padding:0 9px;border-radius:999px;font-size:10px;font-weight:700;display:inline-flex;align-items:center;border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-tertiary);white-space:nowrap;flex-shrink:0}.pill.accent{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-muted)}.pill.green{background:var(--success-soft);color:var(--success-text);border-color:#b0dfc4}.pill.orange{background:var(--warning-soft);color:var(--warning-text);border-color:#f5d5a0}.pill.red{background:var(--danger-soft);color:var(--danger-text);border-color:#f5baba}.pill.blue{background:var(--info-soft);color:var(--info-text);border-color:#b3d1ec}
+.mini-tag{height:20px;padding:0 7px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid var(--surface-3);background:var(--surface-2);color:var(--text-tertiary);display:inline-flex;align-items:center;white-space:nowrap;flex-shrink:0}
+
+.page-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+.workspace{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);box-shadow:var(--shadow-sm);overflow:hidden}.workspace-head{padding:18px 20px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.workspace-head h3{font-family:var(--font-display);font-size:15px;font-weight:700}.workspace-head .sub{font-size:12px;color:var(--text-tertiary);margin-top:2px}
+.workspace-tabs{display:flex;gap:6px;padding:12px 20px 0;flex-wrap:wrap}.tab{height:32px;padding:0 14px;border-radius:999px;border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-secondary);font-size:12px;font-weight:650;display:inline-flex;align-items:center;transition:all var(--duration-normal) var(--ease-out)}.tab:hover{border-color:var(--surface-4);color:var(--text-primary)}.tab.active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-muted)}
+.master-detail{display:grid;grid-template-columns:340px minmax(0,1fr);padding:16px 20px 20px;gap:14px;align-items:start}
+.queue-toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:10px}.queue-filter{height:30px;padding:0 10px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);font-size:12px;color:var(--text-secondary);outline:none}
+.thread-list{display:flex;flex-direction:column;gap:6px}
+
+.draw-card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:12px 14px;cursor:pointer;transition:all var(--duration-normal) var(--ease-out)}.draw-card:hover{border-color:var(--surface-4);box-shadow:var(--shadow-sm)}.draw-card.active{border-color:var(--accent-muted);background:color-mix(in srgb,var(--accent-soft) 30%,#fff);box-shadow:var(--shadow-ring)}
+.dc-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.dc-top>div:first-child{min-width:0;flex:1}.dc-id{font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary)}.dc-title{font-family:var(--font-display);font-size:13px;font-weight:700;margin-top:2px}.dc-desc{font-size:12px;color:var(--text-secondary);margin-top:2px;line-height:1.4}.dc-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}.dc-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:11px;color:var(--text-tertiary)}
+
+.detail-pane{min-height:400px}
+.detail-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--surface-2)}.detail-header h3{font-family:var(--font-display);font-size:18px;font-weight:750;letter-spacing:-.02em}.detail-header .dh-sub{font-size:13px;color:var(--text-secondary);margin-top:6px;line-height:1.5;max-width:480px}.detail-header-pills{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;padding-top:2px;align-items:flex-start}
+.detail-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:14px}.detail-grid.four{grid-template-columns:repeat(4,1fr)}.dg-item{background:var(--surface-2);border:1px solid var(--surface-3);border-radius:var(--radius-md);padding:10px 12px}.dg-item .k{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary)}.dg-item .v{font-family:var(--font-display);font-size:14px;font-weight:700;margin-top:3px}.dg-item .m{font-size:12px;color:var(--text-secondary);margin-top:2px}.dg-item.highlight{border-color:var(--accent-muted);background:color-mix(in srgb,var(--accent-soft) 50%,#fff)}
+
+.detail-section{margin-top:16px;border:1px solid var(--surface-3);border-radius:var(--radius-lg);overflow:hidden}.ds-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--surface-3)}.ds-head h4{font-family:var(--font-display);font-size:13px;font-weight:700}.ds-head .ds-actions{display:flex;gap:6px;align-items:center}.ds-body{padding:14px 16px}.ds-body p{font-size:13px;color:var(--text-secondary);line-height:1.55}
+
+/* G702 summary strip */
+.g702-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.g702-item{text-align:center;padding:10px 8px;border:1px solid var(--surface-3);border-radius:var(--radius-md);background:var(--surface-1)}.g702-item .g-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-tertiary)}.g702-item .g-value{font-family:var(--font-display);font-size:16px;font-weight:800;margin-top:4px;letter-spacing:-.02em}.g702-item.accent-bg{background:color-mix(in srgb,var(--accent-soft) 50%,#fff);border-color:var(--accent-muted)}
+
+/* SOV line items table (simplified client view) */
+.sov-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:12px}.sov-table th{text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-tertiary);padding:8px 10px;border-bottom:2px solid var(--surface-3);background:var(--surface-2)}.sov-table td{padding:8px 10px;border-bottom:1px solid var(--surface-2);color:var(--text-secondary)}.sov-table td:first-child{font-weight:600;color:var(--text-primary)}.sov-table .mono{font-family:var(--font-mono);font-size:11px}.sov-table tr:hover{background:var(--surface-hover)}
+
+/* Lien waiver status */
+.lien-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--surface-3);border-radius:var(--radius-md);background:var(--surface-1);margin-top:6px}.lien-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}.lien-dot.received{background:var(--success)}.lien-dot.pending{background:var(--warning)}.lien-dot.missing{background:var(--danger)}.lien-info{flex:1;min-width:0}.lien-info h5{font-family:var(--font-display);font-size:13px;font-weight:700}.lien-info p{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+
+/* Decision options */
+.decision-options{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.decision-option{border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:14px;cursor:pointer;transition:all var(--duration-normal) var(--ease-out)}.decision-option:hover{border-color:var(--accent-muted);box-shadow:var(--shadow-sm)}.decision-option.selected{border-color:var(--accent);background:color-mix(in srgb,var(--accent-soft) 40%,#fff);box-shadow:var(--shadow-ring)}.decision-option h5{font-family:var(--font-display);font-size:13px;font-weight:700}.decision-option p{font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.4}
+.decision-compose{border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:14px 16px;background:linear-gradient(180deg,#fff,var(--surface-2));margin-top:12px}.decision-compose h5{font-family:var(--font-display);font-size:14px;font-weight:700}.decision-compose p{font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.5}
+.note-area{width:100%;min-height:80px;border:1px solid var(--surface-3);border-radius:var(--radius-md);padding:10px 12px;font-size:13px;color:var(--text-primary);resize:vertical;outline:none;margin-top:10px;background:var(--surface-1)}.note-area:focus{border-color:var(--accent)}
+.decision-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+
+.file-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--surface-2)}.file-row:last-child{border-bottom:none}.file-row h5{font-size:13px;font-weight:600}.file-row p{font-size:12px;color:var(--text-secondary);margin-top:1px}.file-chip{font-size:11px;font-weight:700;color:var(--text-tertiary);padding:3px 8px;border-radius:var(--radius-sm);background:var(--surface-2);white-space:nowrap}
+
+.rail{display:flex;flex-direction:column;gap:12px}.rail-card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);box-shadow:var(--shadow-sm);overflow:hidden}.rail-card.alert{border-color:#f5d5a0;background:linear-gradient(180deg,#fefaf3,#fff)}.rail-card.info{border-color:var(--accent-muted);background:linear-gradient(180deg,color-mix(in srgb,var(--accent-soft) 40%,#fff),#fff)}.rch{padding:14px 16px 0}.rch h3{font-family:var(--font-display);font-size:14px;font-weight:700}.rch .sub{font-size:12px;color:var(--text-tertiary);margin-top:2px}.rcb{padding:10px 16px 16px}.rcb p{font-size:13px;color:var(--text-secondary);line-height:1.5}
+.muted-block{background:var(--surface-2);border:1px solid var(--surface-3);border-radius:var(--radius-md);padding:12px}.muted-block h4{font-family:var(--font-display);font-size:13px;font-weight:700;margin-bottom:4px}.muted-block p{font-size:12px}
+
+.activity-list{display:flex;flex-direction:column;gap:0}.activity-item{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--surface-2)}.activity-item:last-child{border-bottom:none}.activity-dot{width:7px;height:7px;border-radius:50%;background:var(--surface-4);margin-top:6px;flex-shrink:0}.activity-dot.action{background:var(--accent)}.activity-dot.ok{background:var(--success)}.activity-dot.warn{background:var(--warning)}.activity-dot.sys{background:var(--text-tertiary)}.activity-text{flex:1;font-size:12px;color:var(--text-secondary);line-height:1.4}.activity-text strong{color:var(--text-primary);font-weight:650}.activity-time{font-size:10px;color:var(--text-tertiary);flex-shrink:0;padding-top:2px}
+
+@media(max-width:1280px){.page-grid{grid-template-columns:1fr}.master-detail{grid-template-columns:1fr}.detail-grid.four,.g702-strip,.decision-options{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){.app{grid-template-columns:1fr}.sidebar{display:none}.summary-strip{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">B</div><div class="brand-info"><h1>BuiltCRM</h1><p>Commercial Client Portal</p></div></div>
+    <div class="sidebar-search"><input type="text" placeholder="Search…"/></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section"><div class="nav-section-label">Workspace</div>
+        <div class="nav-item">Project Home</div>
+        <div class="nav-item">Approvals Center <span class="nav-badge">3</span></div>
+        <div class="nav-item">Messages <span class="nav-badge">1</span></div>
+      </div>
+      <div class="nav-section"><div class="nav-section-label">Project</div>
+        <div class="nav-item" style="background:var(--surface-hover);color:var(--sidebar-active-text);font-weight:600">Riverside Tower Fit-Out <span style="font-size:11px;color:var(--text-tertiary);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Current</span></div>
+      </div>
+      <div class="nav-section"><div class="nav-section-label">Project Tools</div>
+        <div class="nav-item">Progress & Updates</div>
+        <div class="nav-item">Change Orders <span class="nav-badge">2</span></div>
+        <div class="nav-item active">Billing / Draws <span style="font-size:11px;color:var(--accent-text);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Review</span></div>
+        <div class="nav-item">Schedule</div>
+        <div class="nav-item">Documents</div>
+      </div>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="breadcrumbs"><span>Commercial Client Portal</span><span class="sep">›</span><span>Riverside Tower Fit-Out</span><span class="sep">›</span><span class="current">Billing / Draws</span></div>
+      <div style="display:flex;align-items:center;gap:8px"><div class="avatar">CR</div></div>
+    </header>
+
+    <div class="content">
+      <div class="page-header">
+        <div>
+          <h2>Billing / Draws</h2>
+          <p>Review draw packages released by the contractor, inspect line-item progress, verify lien waivers, and return a formal billing decision.</p>
+          <div class="page-header-pills"><span class="pill accent">Formal billing review</span><span class="pill orange">1 package needs your review</span></div>
+        </div>
+        <div class="page-header-actions"><button class="btn">View all draws</button><button class="btn primary">Review active draw</button></div>
+      </div>
+
+      <div class="summary-strip">
+        <div class="sc strong"><div class="sc-label">Pending review</div><div class="sc-value">1</div><div class="sc-meta">Awaiting your billing decision</div></div>
+        <div class="sc"><div class="sc-label">Current draw value</div><div class="sc-value">$162,900</div><div class="sc-meta">Draw 06 — active package</div></div>
+        <div class="sc alert"><div class="sc-label">Payment impact</div><div class="sc-value">Payment timing</div><div class="sc-meta">Decision affects next milestone</div></div>
+        <div class="sc success"><div class="sc-label">Approved this cycle</div><div class="sc-value">1</div><div class="sc-meta">Draw 05 cleared</div></div>
+      </div>
+
+      <div class="page-grid">
+        <div class="workspace">
+          <div class="workspace-head"><div><h3>Billing review workspace</h3><div class="sub">Formal draw-package review. The queue orients you; the detail pane is where the review work happens.</div></div></div>
+          <div class="workspace-tabs" id="tabs">
+            <button class="tab active" data-tab="pending">Needs my review</button>
+            <button class="tab" data-tab="approved">Approved</button>
+            <button class="tab" data-tab="returned">Returned</button>
+          </div>
+          <div class="master-detail">
+            <div>
+              <div class="queue-toolbar"><select class="queue-filter"><option>Sort: Highest value</option><option>Sort: Newest first</option></select></div>
+              <div class="thread-list" id="drawQueue"></div>
+            </div>
+            <div class="detail-pane" id="drawDetail"></div>
+          </div>
+        </div>
+
+        <div class="rail">
+          <div class="rail-card alert">
+            <div class="rch"><h3>Decision needed</h3><div class="sub">Highest-priority billing action.</div></div>
+            <div class="rcb"><div class="muted-block"><h4>Draw 06 affects payment timing</h4><p>The contractor is waiting on your returned review outcome to update the next billing milestone. This is the highest-priority package.</p></div></div>
+          </div>
+          <div class="rail-card">
+            <div class="rch"><h3>Contract snapshot</h3><div class="sub">Current project financial summary.</div></div>
+            <div class="rcb">
+              <div class="file-row"><div><h5>Original contract</h5><p>Base contract value</p></div><div class="file-chip">$2,340,000</div></div>
+              <div class="file-row"><div><h5>Change orders</h5><p>Net approved changes</p></div><div class="file-chip">+$87,200</div></div>
+              <div class="file-row"><div><h5>Revised contract</h5><p>Current contract sum</p></div><div class="file-chip">$2,427,200</div></div>
+              <div class="file-row"><div><h5>Billed to date</h5><p>Total through Draw 06</p></div><div class="file-chip">$1,482,300</div></div>
+              <div class="file-row"><div><h5>Retainage held</h5><p>10% standard</p></div><div class="file-chip">$148,230</div></div>
+            </div>
+          </div>
+          <div class="rail-card">
+            <div class="rch"><h3>Recent activity</h3><div class="sub">Billing events on this project.</div></div>
+            <div class="rcb"><div class="activity-list">
+              <div class="activity-item"><div class="activity-dot action"></div><div class="activity-text">Contractor released <strong>Draw 06</strong> for review</div><div class="activity-time">3d</div></div>
+              <div class="activity-item"><div class="activity-dot ok"></div><div class="activity-text">You approved <strong>Draw 05</strong></div><div class="activity-time">Feb 28</div></div>
+              <div class="activity-item"><div class="activity-dot warn"></div><div class="activity-text">You returned <strong>Draw 04</strong> for clarification</div><div class="activity-time">Feb 14</div></div>
+              <div class="activity-item"><div class="activity-dot ok"></div><div class="activity-text"><strong>Draw 04</strong> resubmitted and approved</div><div class="activity-time">Feb 20</div></div>
+            </div></div>
+          </div>
+          <div class="rail-card info">
+            <div class="rch"><h3>Review principle</h3></div>
+            <div class="rcb"><p>This page is about reviewing one formal package and returning a decision — not browsing invoices. Each draw is a single review object containing value, backup, and a decision return path.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const draws=[
+  {id:'draw-06',num:'Draw 06',desc:'Released by contractor for billing review with invoice backup and milestone support.',status:'Needs my review',pill:'accent',tab:'pending',value:'$162,900',period:'Mar 1–31',tags:['Under review','$162,900','3 days waiting','4 support docs'],time:'Released 3d ago'},
+  {id:'draw-05',num:'Draw 05',desc:'Approved and cleared in the prior review cycle.',status:'Approved',pill:'green',tab:'approved',value:'$151,400',period:'Feb 1–28',tags:['Approved','$151,400','Closed Feb 28'],time:'Approved Feb 28'},
+  {id:'draw-04',num:'Draw 04',desc:'Initially returned for clarification, then resubmitted and approved.',status:'Approved',pill:'green',tab:'approved',value:'$148,200',period:'Jan 1–31',tags:['Returned then approved','$148,200'],time:'Approved Feb 20'},
+  {id:'draw-03',num:'Draw 03',desc:'Approved in standard review cycle.',status:'Approved',pill:'green',tab:'approved',value:'$139,800',period:'Dec 1–31',tags:['Approved','$139,800'],time:'Approved Jan 5'},
+];
+
+const drawDetails={
+  'draw-06':{num:'Draw 06',sub:'Application for payment — current billing period',desc:'This draw package groups current-cycle invoices, support documentation, and milestone backup into one review object. Your decision determines whether it moves forward or returns for clarification.',pills:[{t:'Needs my review',c:'accent'},{t:'Payment timing',c:'orange'}],
+    g702:{contractSum:'$2,427,200',workComplete:'$1,482,300',retainage:'$148,230',currentDue:'$162,900'},
+    sov:[
+      {item:'General conditions',scheduled:'$340,000',prevComplete:'$272,000',thisPeriod:'$34,000',totalComplete:'$306,000',pct:'90%'},
+      {item:'Structural steel',scheduled:'$520,000',prevComplete:'$416,000',thisPeriod:'$41,600',totalComplete:'$457,600',pct:'88%'},
+      {item:'Mechanical systems',scheduled:'$410,000',prevComplete:'$287,000',thisPeriod:'$45,100',totalComplete:'$332,100',pct:'81%'},
+      {item:'Electrical',scheduled:'$380,000',prevComplete:'$266,000',thisPeriod:'$30,400',totalComplete:'$296,400',pct:'78%'},
+      {item:'Interior finishes',scheduled:'$290,000',prevComplete:'$78,300',thisPeriod:'$11,800',totalComplete:'$90,100',pct:'31%'},
+    ],
+    liens:[
+      {org:'Apex Mechanical',status:'received',label:'Conditional waiver received'},
+      {org:'Northline Electrical',status:'pending',label:'Waiver requested — not yet received'},
+      {org:'Capital Plumbing',status:'received',label:'Conditional waiver received'},
+    ],
+    files:[
+      {name:'draw_06_g702_summary.pdf',desc:'G702 application for payment summary',type:'Primary'},
+      {name:'draw_06_g703_continuation.pdf',desc:'G703 continuation sheet with line-item detail',type:'Backup'},
+      {name:'invoice_backup_packet.pdf',desc:'Invoice support for billed amounts',type:'Backup'},
+      {name:'milestone_support_note.pdf',desc:'Milestone allocation and payment timing context',type:'Context'},
+    ],
+    showDecision:true
+  },
+  'draw-05':{num:'Draw 05',sub:'Approved — Feb billing period',desc:'This package was approved on Feb 28 and has been closed for the billing cycle.',pills:[{t:'Approved',c:'green'}],
+    g702:{contractSum:'$2,427,200',workComplete:'$1,319,400',retainage:'$131,940',currentDue:'$151,400'},
+    sov:[{item:'General conditions',scheduled:'$340,000',prevComplete:'$238,000',thisPeriod:'$34,000',totalComplete:'$272,000',pct:'80%'},{item:'Structural steel',scheduled:'$520,000',prevComplete:'$374,400',thisPeriod:'$41,600',totalComplete:'$416,000',pct:'80%'},{item:'Mechanical systems',scheduled:'$410,000',prevComplete:'$246,000',thisPeriod:'$41,000',totalComplete:'$287,000',pct:'70%'},{item:'Electrical',scheduled:'$380,000',prevComplete:'$231,800',thisPeriod:'$34,200',totalComplete:'$266,000',pct:'70%'}],
+    liens:[{org:'Apex Mechanical',status:'received',label:'Unconditional waiver on file'},{org:'Northline Electrical',status:'received',label:'Unconditional waiver on file'},{org:'Capital Plumbing',status:'received',label:'Unconditional waiver on file'}],
+    files:[{name:'draw_05_g702_summary.pdf',desc:'G702 application',type:'Primary'},{name:'draw_05_g703_continuation.pdf',desc:'G703 continuation sheet',type:'Backup'}],
+    showDecision:false
+  },
+  'draw-04':{num:'Draw 04',sub:'Returned then approved — Jan billing period',desc:'Initially returned for milestone allocation clarification. Resubmitted with updated backup and approved Feb 20.',pills:[{t:'Approved',c:'green'},{t:'Was returned',c:'orange'}],
+    g702:{contractSum:'$2,340,000',workComplete:'$1,168,000',retainage:'$116,800',currentDue:'$148,200'},
+    sov:[{item:'General conditions',scheduled:'$340,000',prevComplete:'$204,000',thisPeriod:'$34,000',totalComplete:'$238,000',pct:'70%'}],
+    liens:[{org:'All subcontractors',status:'received',label:'Unconditional waivers on file'}],
+    files:[{name:'draw_04_resubmission.pdf',desc:'Resubmitted package with clarification',type:'Primary'}],
+    showDecision:false
+  },
+  'draw-03':{num:'Draw 03',sub:'Approved — Dec billing period',desc:'Standard review cycle. Approved Jan 5.',pills:[{t:'Approved',c:'green'}],
+    g702:{contractSum:'$2,340,000',workComplete:'$1,019,800',retainage:'$101,980',currentDue:'$139,800'},
+    sov:[],liens:[],files:[{name:'draw_03_package.pdf',desc:'Complete draw package',type:'Primary'}],
+    showDecision:false
+  }
+};
+
+function renderQueue(filter){
+  const q=document.getElementById('drawQueue');
+  const items=filter==='all'?draws:draws.filter(d=>d.tab===filter);
+  q.innerHTML=items.map((d,i)=>`<div class="draw-card${i===0?' active':''}" data-id="${d.id}" onclick="selectDraw('${d.id}')"><div class="dc-top"><div><div class="dc-id">${d.num}</div><div class="dc-title">${d.desc}</div></div><span class="pill ${d.pill}">${d.status}</span></div><div class="dc-tags">${d.tags.map(t=>`<span class="mini-tag">${t}</span>`).join('')}</div><div class="dc-footer"><span>${d.value} · ${d.period||''}</span><span>${d.time}</span></div></div>`).join('');
+  if(items.length)selectDraw(items[0].id);
+  else document.getElementById('drawDetail').innerHTML='<p style="color:var(--text-tertiary);padding:20px">No draws in this view.</p>';
+}
+
+function selectDraw(id){
+  document.querySelectorAll('#drawQueue .draw-card').forEach(c=>c.classList.toggle('active',c.dataset.id===id));
+  const d=drawDetails[id];if(!d)return;
+  const p=document.getElementById('drawDetail');
+  let h=`<div class="detail-header"><div><h3>${d.num}</h3><div class="dh-sub">${d.desc}</div></div><div class="detail-header-pills">${d.pills.map(x=>`<span class="pill ${x.c}">${x.t}</span>`).join('')}</div></div>`;
+
+  // G702 summary
+  h+=`<div class="detail-section"><div class="ds-head"><h4>G702 — Application for payment</h4><div class="ds-actions"><span class="pill accent">AIA standard</span></div></div><div class="ds-body"><div class="g702-strip"><div class="g702-item"><div class="g-label">Contract sum</div><div class="g-value">${d.g702.contractSum}</div></div><div class="g702-item"><div class="g-label">Work complete</div><div class="g-value">${d.g702.workComplete}</div></div><div class="g702-item"><div class="g-label">Retainage</div><div class="g-value">${d.g702.retainage}</div></div><div class="g702-item accent-bg"><div class="g-label">Current due</div><div class="g-value">${d.g702.currentDue}</div></div></div></div></div>`;
+
+  // G703 line items
+  if(d.sov.length){
+    h+=`<div class="detail-section"><div class="ds-head"><h4>G703 — Schedule of values</h4><div class="ds-actions"><span class="mini-tag">${d.sov.length} items</span></div></div><div class="ds-body"><table class="sov-table"><thead><tr><th>Description</th><th>Scheduled</th><th>This period</th><th>Total</th><th>%</th></tr></thead><tbody>`;
+    d.sov.forEach(s=>{h+=`<tr><td>${s.item}</td><td class="mono">${s.scheduled}</td><td class="mono">${s.thisPeriod}</td><td class="mono">${s.totalComplete}</td><td class="mono">${s.pct}</td></tr>`;});
+    h+=`</tbody></table></div></div>`;
+  }
+
+  // Lien waivers (industry standard)
+  if(d.liens.length){
+    h+=`<div class="detail-section"><div class="ds-head"><h4>Lien waivers</h4><div class="ds-actions"><span class="mini-tag">${d.liens.filter(l=>l.status==='received').length}/${d.liens.length} received</span></div></div><div class="ds-body">`;
+    d.liens.forEach(l=>{h+=`<div class="lien-row"><div class="lien-dot ${l.status}"></div><div class="lien-info"><h5>${l.org}</h5><p>${l.label}</p></div><span class="pill ${l.status==='received'?'green':l.status==='pending'?'orange':'red'}">${l.status==='received'?'Received':l.status==='pending'?'Pending':'Missing'}</span></div>`;});
+    h+=`</div></div>`;
+  }
+
+  // Supporting files
+  if(d.files.length){
+    h+=`<div class="detail-section"><div class="ds-head"><h4>Supporting files</h4><div class="ds-actions"><span class="mini-tag">${d.files.length} files</span></div></div><div class="ds-body">`;
+    d.files.forEach(f=>{h+=`<div class="file-row"><div><h5>${f.name}</h5><p>${f.desc}</p></div><div class="file-chip">${f.type}</div></div>`;});
+    h+=`</div></div>`;
+  }
+
+  // Decision section
+  if(d.showDecision){
+    h+=`<div class="detail-section"><div class="ds-head"><h4>Your decision</h4><div class="ds-actions"><span class="pill accent">Action required</span></div></div><div class="ds-body"><p>Select a billing review outcome. These are formal decisions that return to the contractor.</p><div class="decision-options" id="decOpts"><div class="decision-option" data-opt="approve" onclick="selectOpt('approve')"><h5>Approve package</h5><p>Confirm the draw is acceptable. Package moves forward as submitted.</p></div><div class="decision-option selected" data-opt="approve-note" onclick="selectOpt('approve-note')"><h5>Approve with note</h5><p>Approve, but include a billing note with the returned review.</p></div><div class="decision-option" data-opt="return" onclick="selectOpt('return')"><h5>Return for clarification</h5><p>Do not approve. Send back for revision or additional backup.</p></div></div>`;
+    h+=`<div class="decision-compose" id="decCompose"><h5>Approve with note</h5><p>Your approval will move the package forward. The contractor receives your note as part of the billing context.</p><textarea class="note-area" placeholder="Add your billing note here…">Include the final payment timing memo in the next billing cycle packet.</textarea><div class="decision-actions"><button class="btn primary" onclick="this.textContent='✓ Submitted';this.disabled=true;this.style.opacity='.6'">Submit approval with note</button><button class="btn">Cancel</button></div></div>`;
+    h+=`</div></div>`;
+  }
+  p.innerHTML=h;
+}
+
+function selectOpt(opt){
+  document.querySelectorAll('#decOpts .decision-option').forEach(o=>o.classList.toggle('selected',o.dataset.opt===opt));
+  const c=document.getElementById('decCompose');
+  const labels={approve:{t:'Approve package',d:'Your approval confirms the draw is acceptable. No note required.',ph:'',btn:'Submit approval'},
+    'approve-note':{t:'Approve with note',d:'Your approval will move the package forward. The contractor receives your note.',ph:'Add your billing note here…',btn:'Submit approval with note'},
+    return:{t:'Return for clarification',d:'The package will be sent back. Explain what needs clarification or additional backup.',ph:'Describe what needs clarification…',btn:'Return package'}};
+  const l=labels[opt];
+  c.innerHTML=`<h5>${l.t}</h5><p>${l.d}</p>${opt!=='approve'?`<textarea class="note-area" placeholder="${l.ph}"></textarea>`:''}<div class="decision-actions"><button class="btn primary" onclick="this.textContent='✓ Submitted';this.disabled=true;this.style.opacity='.6'">${l.btn}</button><button class="btn">Cancel</button></div>`;
+}
+
+document.getElementById('tabs').addEventListener('click',e=>{const t=e.target.closest('.tab');if(!t)return;document.querySelectorAll('#tabs .tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');renderQueue(t.dataset.tab);});
+
+renderQueue('pending');
+</script>
+</body>
+</html>

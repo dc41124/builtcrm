@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BuiltCRM — Commercial Client Portal · Pages</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ================================================================
+   DESIGN SYSTEM TOKENS — Commercial client variant (blue accent)
+   ================================================================ */
+:root {
+  --surface-0:#eef0f3;--surface-1:#ffffff;--surface-2:#f3f4f6;--surface-3:#e2e5e9;--surface-4:#d1d5db;
+  --surface-hover:#f5f6f8;--surface-incard:#f8f9fa;
+  --sidebar-bg:#ffffff;--sidebar-hover:#f5f6f8;--sidebar-active:#eef0f3;--sidebar-active-text:#1a1714;
+  --sidebar-section-text:#8b919a;--sidebar-item-text:#5a6170;--sidebar-border:#e8eaee;
+  --text-primary:#1a1714;--text-secondary:#6b655b;--text-tertiary:#9c958a;
+  /* Commercial client accent: blue */
+  --accent:#3178b9;--accent-hover:#2968a3;--accent-soft:#e8f1fa;--accent-text:#276299;
+  --success:#2d8a5e;--success-soft:#edf7f1;--success-text:#1e6b46;
+  --warning:#c17a1a;--warning-soft:#fdf4e6;--warning-text:#96600f;
+  --danger:#c93b3b;--danger-soft:#fdeaea;--danger-text:#a52e2e;
+  --info:#3178b9;--info-soft:#e8f1fa;--info-text:#276299;
+  --font-display:'DM Sans',system-ui,sans-serif;--font-body:'Instrument Sans',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;
+  --shadow-sm:0 1px 3px rgba(26,23,20,.05);--shadow-md:0 4px 16px rgba(26,23,20,.06);--shadow-lg:0 8px 32px rgba(26,23,20,.1);
+  --sidebar-width:260px;--topbar-height:56px;
+  --ease-out:cubic-bezier(.16,1,.3,1);--dur-fast:120ms;--dur-normal:200ms;--dur-slow:350ms;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0}
+body{font-family:var(--font-body);background:var(--surface-0);color:var(--text-primary);-webkit-font-smoothing:antialiased;line-height:1.5;font-size:14px}
+.app{display:grid;grid-template-columns:var(--sidebar-width) 1fr;min-height:100vh}
+
+/* ================================================================
+   SIDEBAR — commercial client variant
+   ================================================================ */
+.sidebar{background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:hidden}
+.brand{height:var(--topbar-height);display:flex;align-items:center;gap:var(--sp-3);padding:0 var(--sp-4) 0 var(--sp-5);border-bottom:1px solid var(--sidebar-border);flex-shrink:0}
+.brand-mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#1a3a5c,#3178b9);display:grid;place-items:center;color:#fff;font-family:var(--font-display);font-size:12px;font-weight:700;flex-shrink:0}
+.brand-name{font-family:var(--font-display);font-size:14px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+.brand-ctx{font-size:11.5px;color:var(--text-tertiary);line-height:1.2;margin-top:1px}
+
+.sb-welcome{margin:var(--sp-3) var(--sp-3) 0;padding:var(--sp-4);border:1px solid var(--surface-3);border-radius:var(--radius-lg);background:linear-gradient(180deg,#fff 0%,var(--surface-incard) 100%)}
+.sb-welcome h4{font-family:var(--font-display);font-size:13px;font-weight:650;margin-bottom:4px}
+.sb-welcome p{font-size:12px;color:var(--text-secondary);line-height:1.4}
+
+.sb-nav{flex:1;overflow-y:auto;padding:var(--sp-3) var(--sp-3) var(--sp-6)}
+.ns{margin-bottom:var(--sp-1)}.ns-h{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2);font-size:11px;font-weight:650;color:var(--sidebar-section-text);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;border-radius:var(--radius-sm)}
+.ns-chv{width:14px;height:14px;transition:transform var(--dur-normal) var(--ease-out)}.ns.closed .ns-chv{transform:rotate(-90deg)}.ns.closed .ns-items{display:none}
+.ni{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);padding:6px 10px 6px 12px;border-radius:var(--radius-md);font-size:13px;font-weight:500;color:var(--sidebar-item-text);cursor:pointer;transition:all var(--dur-fast) var(--ease-out);margin-bottom:1px;position:relative}
+.ni:hover{background:var(--sidebar-hover);color:var(--text-primary)}
+.ni.active{background:var(--sidebar-active);color:var(--sidebar-active-text);font-weight:620}
+.ni.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:16px;border-radius:0 3px 3px 0;background:var(--accent)}
+.ni-badge{min-width:18px;height:18px;padding:0 6px;border-radius:999px;font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-display);flex-shrink:0}
+.ni-badge.blue{background:var(--accent-soft);color:var(--accent-text)}
+.ni-badge.amber{background:var(--warning-soft);color:var(--warning-text)}
+
+.sb-foot{border-top:1px solid var(--sidebar-border);padding:var(--sp-3) var(--sp-4);flex-shrink:0}
+.sb-user{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-2);border-radius:var(--radius-md);cursor:pointer}
+.u-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#3178b9,#5a9fd4);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-size:11.5px;font-weight:700;flex-shrink:0}
+
+/* Topbar */
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{height:var(--topbar-height);display:flex;align-items:center;justify-content:space-between;padding:0 var(--sp-6);border-bottom:1px solid var(--surface-3);background:rgba(238,240,243,.85);backdrop-filter:blur(12px);position:sticky;top:0;z-index:50}
+.bc{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-tertiary)}.bc .cur{color:var(--text-primary);font-weight:620}.bc .sep{font-size:11px;color:var(--surface-4)}
+.tb-acts{display:flex;align-items:center;gap:var(--sp-2)}
+.tb-btn{width:34px;height:34px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-tertiary);display:grid;place-items:center;cursor:pointer;position:relative}
+.tb-btn .nd{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--danger);border:2px solid var(--surface-1)}
+.tb-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3178b9,#5a9fd4);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-size:11.5px;font-weight:700;cursor:pointer;margin-left:var(--sp-1)}
+
+.content{padding:var(--sp-6);flex:1}
+
+/* ================================================================
+   PAGE SWITCHER (top tabs for this multi-page file)
+   ================================================================ */
+.page-switcher{display:flex;gap:var(--sp-2);margin-bottom:var(--sp-5);background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:4px;width:fit-content}
+.page-switcher button{height:34px;padding:0 16px;border:none;border-radius:var(--radius-md);font-family:var(--font-body);font-size:13px;font-weight:560;color:var(--text-secondary);cursor:pointer;background:transparent;transition:all var(--dur-fast) var(--ease-out);white-space:nowrap}
+.page-switcher button:hover{color:var(--text-primary);background:var(--surface-hover)}
+.page-switcher button.active{background:var(--accent);color:#fff;font-weight:620;box-shadow:0 1px 4px rgba(49,120,185,.25)}
+.page{display:none}.page.active{display:block;animation:fadeInUp var(--dur-slow) var(--ease-out) both}
+
+/* ================================================================
+   SHARED COMPONENTS
+   ================================================================ */
+.btn{height:34px;padding:0 14px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);font-family:var(--font-body);font-size:13px;font-weight:560;color:var(--text-primary);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all var(--dur-fast) var(--ease-out);white-space:nowrap}
+.btn:hover{background:var(--surface-hover);border-color:var(--surface-4)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.primary:hover{background:var(--accent-hover)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--text-secondary)}
+.btn.sm{height:28px;padding:0 10px;font-size:12px;border-radius:var(--radius-sm)}
+.pill{height:22px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:650;display:inline-flex;align-items:center;white-space:nowrap;flex-shrink:0}
+.pill.red{background:var(--danger-soft);color:var(--danger-text)}.pill.amber{background:var(--warning-soft);color:var(--warning-text)}
+.pill.green{background:var(--success-soft);color:var(--success-text)}.pill.blue{background:var(--info-soft);color:var(--info-text)}
+.pill.purple{background:#eeedfb;color:#4a3fb0}.pill.gray{background:var(--surface-2);color:var(--text-secondary)}
+
+.card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);overflow:hidden}
+.c-head{display:flex;align-items:center;justify-content:space-between;padding:var(--sp-4) var(--sp-5);border-bottom:1px solid var(--surface-3)}
+.c-title{font-family:var(--font-display);font-size:15px;font-weight:680;letter-spacing:-.01em}
+.c-sub{font-size:12.5px;color:var(--text-tertiary);margin-top:2px}
+.c-body{padding:var(--sp-4) var(--sp-5)}
+
+.empty-state{text-align:center;padding:var(--sp-8) var(--sp-6);color:var(--text-tertiary)}
+.empty-state svg{width:48px;height:48px;margin-bottom:var(--sp-3);opacity:.4}
+.empty-state h4{font-family:var(--font-display);font-size:15px;font-weight:650;color:var(--text-secondary);margin-bottom:4px}
+.empty-state p{font-size:13px;max-width:320px;margin:0 auto}
+
+/* Page header */
+.pg-header{margin-bottom:var(--sp-5)}
+.pg-title{font-family:var(--font-display);font-size:22px;font-weight:750;letter-spacing:-.03em;line-height:1.15}
+.pg-subtitle{margin-top:4px;font-size:13.5px;color:var(--text-secondary)}
+
+/* Filter bar */
+.filter-bar{display:flex;align-items:center;gap:var(--sp-2);margin-bottom:var(--sp-4);flex-wrap:wrap}
+.filter-pill{height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--surface-3);background:var(--surface-1);font-family:var(--font-body);font-size:12.5px;font-weight:560;color:var(--text-secondary);cursor:pointer;transition:all var(--dur-fast)}
+.filter-pill:hover{border-color:var(--surface-4);color:var(--text-primary)}
+.filter-pill.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:620}
+.filter-pill .count{font-size:10.5px;margin-left:4px;opacity:.7}
+
+/* ================================================================
+   PAGE 1: PROGRESS & UPDATES
+   ================================================================ */
+.update-card{padding:var(--sp-5);border:1px solid var(--surface-3);border-radius:var(--radius-lg);background:var(--surface-1);transition:all var(--dur-fast)}
+.update-card:hover{box-shadow:var(--shadow-md)}
+.update-card+.update-card{margin-top:var(--sp-3)}
+.update-header{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-4);margin-bottom:var(--sp-3)}
+.update-date{font-size:12px;color:var(--text-tertiary);font-weight:560;white-space:nowrap}
+.update-author{display:flex;align-items:center;gap:var(--sp-2);margin-bottom:var(--sp-3)}
+.update-author-av{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-family:var(--font-display);font-size:10px;font-weight:700;flex-shrink:0;color:#fff}
+.update-author-info{font-size:12px;color:var(--text-secondary)}.update-author-info strong{color:var(--text-primary);font-weight:620}
+.update-title{font-family:var(--font-display);font-size:15px;font-weight:660;letter-spacing:-.01em;line-height:1.3;margin-bottom:var(--sp-2)}
+.update-body{font-size:13.5px;color:var(--text-secondary);line-height:1.55}
+.update-body p+p{margin-top:var(--sp-2)}
+.update-attachments{display:flex;gap:var(--sp-2);margin-top:var(--sp-3);flex-wrap:wrap}
+.update-attachment{display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--surface-3);border-radius:var(--radius-md);font-size:12px;font-weight:550;color:var(--text-secondary);background:var(--surface-incard);cursor:pointer;transition:all var(--dur-fast)}
+.update-attachment:hover{border-color:var(--accent);color:var(--accent-text)}
+.update-attachment svg{width:14px;height:14px;flex-shrink:0}
+.update-tags{display:flex;gap:var(--sp-2);margin-top:var(--sp-3);flex-wrap:wrap}
+
+/* Phase progress summary card */
+.phase-progress{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-3);margin-bottom:var(--sp-4)}
+.phase-item{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:var(--sp-4);text-align:center}
+.phase-item.current{border-color:var(--accent);background:linear-gradient(180deg,var(--surface-1) 0%,var(--accent-soft) 100%)}
+.phase-item h5{font-family:var(--font-display);font-size:12px;font-weight:650;letter-spacing:-.01em;margin-bottom:6px;color:var(--text-primary)}
+.phase-item .phase-bar{height:6px;border-radius:3px;background:var(--surface-3);overflow:hidden;margin-bottom:4px}
+.phase-item .phase-fill{height:100%;border-radius:3px;background:var(--accent);transition:width var(--dur-slow) var(--ease-out)}
+.phase-item .phase-pct{font-family:var(--font-display);font-size:18px;font-weight:750;letter-spacing:-.02em}
+.phase-item .phase-label{font-size:11px;color:var(--text-tertiary);margin-top:2px}
+
+/* Weekly summary block inside update */
+.weekly-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-3);margin-top:var(--sp-3);padding-top:var(--sp-3);border-top:1px solid var(--surface-3)}
+.wm-item{text-align:center}
+.wm-val{font-family:var(--font-display);font-size:16px;font-weight:720;letter-spacing:-.02em}
+.wm-label{font-size:11px;color:var(--text-tertiary);margin-top:2px}
+
+/* ================================================================
+   PAGE 2: PHOTOS
+   ================================================================ */
+.photo-stats{display:flex;gap:var(--sp-5);margin-bottom:var(--sp-4);font-size:13px;color:var(--text-secondary)}
+.photo-stats strong{font-weight:620;color:var(--text-primary)}
+
+.photo-group{margin-bottom:var(--sp-5)}
+.photo-group-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-3)}
+.photo-group-title{font-family:var(--font-display);font-size:14px;font-weight:650;letter-spacing:-.01em}
+.photo-group-date{font-size:12px;color:var(--text-tertiary)}
+.photo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-2)}
+.photo-thumb{aspect-ratio:4/3;border-radius:var(--radius-md);overflow:hidden;cursor:pointer;position:relative;background:var(--surface-3);border:1px solid var(--surface-3);transition:all var(--dur-fast)}
+.photo-thumb:hover{transform:scale(1.02);box-shadow:var(--shadow-lg);border-color:var(--accent)}
+.photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-thumb .photo-overlay{position:absolute;bottom:0;left:0;right:0;padding:6px 8px;background:linear-gradient(transparent,rgba(0,0,0,.6));opacity:0;transition:opacity var(--dur-fast)}
+.photo-thumb:hover .photo-overlay{opacity:1}
+.photo-overlay span{font-size:11px;color:#fff;font-weight:560}
+
+/* Simulated photo placeholders */
+.photo-placeholder{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11px;color:var(--text-tertiary);font-weight:560}
+.photo-placeholder svg{width:24px;height:24px;opacity:.35}
+.ph-1{background:linear-gradient(135deg,#d4e3f5 0%,#b8cfe8 100%)}
+.ph-2{background:linear-gradient(135deg,#e2daf0 0%,#c9bdd6 100%)}
+.ph-3{background:linear-gradient(135deg,#d6ede2 0%,#b3d8c5 100%)}
+.ph-4{background:linear-gradient(135deg,#f0e4d0 0%,#dccbb2 100%)}
+.ph-5{background:linear-gradient(135deg,#d0dfe8 0%,#b2c9d6 100%)}
+.ph-6{background:linear-gradient(135deg,#e8d8d0 0%,#d6bfb2 100%)}
+.ph-7{background:linear-gradient(135deg,#c9dfe8 0%,#a8c7d4 100%)}
+.ph-8{background:linear-gradient(135deg,#dfe2c9 0%,#c7cab0 100%)}
+
+/* Photo lightbox */
+.lightbox{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);align-items:center;justify-content:center;flex-direction:column;gap:var(--sp-4);padding:var(--sp-6)}
+.lightbox.open{display:flex}
+.lightbox-close{position:absolute;top:var(--sp-5);right:var(--sp-5);width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.15);border:none;color:#fff;cursor:pointer;display:grid;place-items:center;transition:background var(--dur-fast)}
+.lightbox-close:hover{background:rgba(255,255,255,.25)}
+.lightbox-img{max-width:80vw;max-height:70vh;border-radius:var(--radius-lg);background:var(--surface-3)}
+.lightbox-img .photo-placeholder{width:640px;height:420px;max-width:80vw;border-radius:var(--radius-lg)}
+.lightbox-caption{color:#fff;text-align:center;max-width:480px}
+.lightbox-caption h4{font-family:var(--font-display);font-size:16px;font-weight:650;margin-bottom:4px}
+.lightbox-caption p{font-size:13px;opacity:.7}
+
+/* ================================================================
+   PAGE 3: DOCUMENTS
+   ================================================================ */
+.doc-layout{display:grid;grid-template-columns:220px 1fr;gap:var(--sp-4);align-items:start}
+.doc-categories{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);padding:var(--sp-3);position:sticky;top:calc(var(--topbar-height) + var(--sp-6) + 90px)}
+.doc-cat{display:flex;align-items:center;justify-content:space-between;padding:8px var(--sp-3);border-radius:var(--radius-md);font-size:13px;font-weight:520;color:var(--sidebar-item-text);cursor:pointer;transition:all var(--dur-fast)}
+.doc-cat:hover{background:var(--surface-hover);color:var(--text-primary)}
+.doc-cat.active{background:var(--accent-soft);color:var(--accent-text);font-weight:620}
+.doc-cat .doc-count{font-size:11px;font-weight:600;color:var(--text-tertiary);min-width:18px;text-align:right}
+.doc-cat.active .doc-count{color:var(--accent-text)}
+
+.doc-list{display:flex;flex-direction:column;gap:var(--sp-2)}
+.doc-row{display:grid;grid-template-columns:1fr auto auto auto;gap:var(--sp-4);align-items:center;padding:var(--sp-3) var(--sp-4);background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);transition:all var(--dur-fast);cursor:pointer}
+.doc-row:hover{box-shadow:var(--shadow-md);border-color:var(--surface-4)}
+.doc-info{min-width:0}
+.doc-name{font-family:var(--font-display);font-size:13.5px;font-weight:620;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.doc-meta{font-size:12px;color:var(--text-tertiary);margin-top:2px}
+.doc-size{font-size:12px;color:var(--text-tertiary);font-family:var(--font-mono);white-space:nowrap}
+.doc-date{font-size:12px;color:var(--text-tertiary);white-space:nowrap}
+.doc-actions{display:flex;gap:var(--sp-1)}
+.doc-action-btn{width:30px;height:30px;border-radius:var(--radius-sm);border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-tertiary);display:grid;place-items:center;cursor:pointer;transition:all var(--dur-fast)}
+.doc-action-btn:hover{border-color:var(--accent);color:var(--accent-text)}
+
+.doc-header-row{display:grid;grid-template-columns:1fr auto auto auto;gap:var(--sp-4);padding:0 var(--sp-4) var(--sp-2);font-size:11px;font-weight:620;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em}
+
+/* Upload zone */
+.upload-zone{border:2px dashed var(--surface-4);border-radius:var(--radius-xl);padding:var(--sp-8) var(--sp-6);text-align:center;cursor:pointer;transition:all var(--dur-normal);margin-bottom:var(--sp-4)}
+.upload-zone:hover{border-color:var(--accent);background:var(--accent-soft)}
+.upload-zone svg{width:40px;height:40px;color:var(--text-tertiary);margin-bottom:var(--sp-2)}
+.upload-zone h4{font-family:var(--font-display);font-size:14px;font-weight:640;margin-bottom:4px}
+.upload-zone p{font-size:12.5px;color:var(--text-tertiary)}
+.upload-zone .upload-types{font-size:11px;color:var(--text-tertiary);margin-top:var(--sp-2)}
+
+/* ================================================================
+   PAGE 4: PAYMENT HISTORY
+   ================================================================ */
+.payment-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-3);margin-bottom:var(--sp-5)}
+.pay-stat{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:var(--sp-4)}
+.pay-stat-label{font-size:11px;font-weight:620;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.pay-stat-val{font-family:var(--font-display);font-size:20px;font-weight:750;letter-spacing:-.03em;line-height:1.1}
+.pay-stat-val.mono{font-family:var(--font-mono)}
+.pay-stat-meta{font-size:12px;color:var(--text-secondary);margin-top:4px}
+.pay-stat .bar-track{height:6px;border-radius:3px;background:var(--surface-3);margin-top:var(--sp-2);overflow:hidden}
+.pay-stat .bar-fill{height:100%;border-radius:3px;transition:width var(--dur-slow) var(--ease-out)}
+
+/* Payment progress bar */
+.payment-progress-card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);padding:var(--sp-5);margin-bottom:var(--sp-4)}
+.payment-progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp-3)}
+.payment-progress-title{font-family:var(--font-display);font-size:15px;font-weight:680;letter-spacing:-.01em}
+.payment-progress-bar{height:24px;border-radius:12px;background:var(--surface-3);overflow:hidden;display:flex;position:relative}
+.ppb-seg{height:100%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;transition:width var(--dur-slow) var(--ease-out);overflow:hidden;white-space:nowrap}
+.ppb-paid{background:var(--success)}
+.ppb-pending{background:var(--warning)}
+.ppb-retainage{background:var(--accent)}
+.ppb-remaining{background:var(--surface-4);color:var(--text-secondary)}
+.payment-progress-legend{display:flex;gap:var(--sp-5);margin-top:var(--sp-3);flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary)}
+.legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+
+/* Payment table */
+.pay-table{width:100%;border-collapse:collapse}
+.pay-table thead th{padding:var(--sp-2) var(--sp-3);font-size:11px;font-weight:650;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;text-align:left;border-bottom:2px solid var(--surface-3);white-space:nowrap}
+.pay-table tbody td{padding:var(--sp-3);font-size:13px;border-bottom:1px solid var(--surface-3);vertical-align:middle}
+.pay-table tbody tr:hover{background:var(--surface-hover)}
+.pay-table .amt{font-family:var(--font-mono);font-weight:600;white-space:nowrap}
+.pay-table .running{font-family:var(--font-mono);font-size:12px;color:var(--text-tertiary);white-space:nowrap}
+.pay-table .method{font-size:12px;color:var(--text-tertiary)}
+.pay-table .receipt-link{font-size:12px;color:var(--accent-text);font-weight:560;cursor:pointer;text-decoration:none}
+.pay-table .receipt-link:hover{text-decoration:underline}
+.lw-status{display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap}
+.lw-bar{width:48px;height:5px;border-radius:3px;background:var(--surface-3);overflow:hidden;flex-shrink:0}
+.lw-fill{height:100%;border-radius:3px}
+.lw-fill.complete{background:var(--success)}.lw-fill.partial{background:var(--warning)}.lw-fill.none{background:var(--surface-4)}
+
+/* Animations */
+@keyframes fadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* Responsive */
+@media(max-width:1280px){.phase-progress{grid-template-columns:repeat(2,1fr)}.payment-summary{grid-template-columns:repeat(2,1fr)}.photo-grid{grid-template-columns:repeat(3,1fr)}.doc-layout{grid-template-columns:1fr}}
+@media(max-width:900px){.app{grid-template-columns:1fr}.sidebar{display:none}.photo-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+<!-- SIDEBAR — Commercial Client -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-mark">B</div>
+    <div style="flex:1;min-width:0"><div class="brand-name">BuiltCRM</div><div class="brand-ctx">Client Portal</div></div>
+  </div>
+
+  <div class="sb-welcome">
+    <h4>Welcome back, Rachel</h4>
+    <p>2 items need your review on Riverside Tower.</p>
+  </div>
+
+  <nav class="sb-nav">
+    <div class="ns">
+      <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Project</div>
+      <div class="ns-items">
+        <div class="ni" data-page="home"><span>Project Home</span></div>
+        <div class="ni" data-page="progress"><span>Progress & Updates</span></div>
+        <div class="ni" data-page="photos"><span>Photos</span></div>
+        <div class="ni" data-page="schedule"><span>Schedule</span></div>
+      </div>
+    </div>
+    <div class="ns">
+      <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Decisions</div>
+      <div class="ns-items">
+        <div class="ni"><span>Approvals</span><span class="ni-badge blue">2</span></div>
+        <div class="ni"><span>Change Orders</span><span class="ni-badge amber">1</span></div>
+      </div>
+    </div>
+    <div class="ns">
+      <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Financial</div>
+      <div class="ns-items">
+        <div class="ni"><span>Billing & Draws</span><span class="ni-badge amber">1</span></div>
+        <div class="ni" data-page="payments"><span>Payment History</span></div>
+      </div>
+    </div>
+    <div class="ns">
+      <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Documents</div>
+      <div class="ns-items">
+        <div class="ni" data-page="documents"><span>Project Files</span></div>
+        <div class="ni"><span>Contracts</span></div>
+      </div>
+    </div>
+    <div class="ns">
+      <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Communication</div>
+      <div class="ns-items">
+        <div class="ni"><span>Messages</span><span class="ni-badge blue">2</span></div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="sb-foot"><div class="sb-user"><div class="u-av">RG</div><div><div style="font-size:13px;font-weight:580">Rachel Greyson</div><div style="font-size:11px;color:var(--text-tertiary)">Project Approver</div></div></div></div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="bc"><span>Client Portal</span><span class="sep">›</span><span>Riverside Tower Fit-Out</span><span class="sep">›</span><span class="cur" id="bc-current">Progress & Updates</span></div>
+    <div class="tb-acts">
+      <div class="tb-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 11-6 0m6 0H9"/></svg><div class="nd"></div></div>
+      <div class="tb-av">RG</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- Page Switcher -->
+    <div class="page-switcher">
+      <button class="active" data-target="progress">Progress & Updates</button>
+      <button data-target="photos">Photos</button>
+      <button data-target="documents">Documents</button>
+      <button data-target="payments">Payment History</button>
+    </div>
+
+    <!-- ============================================================
+         PAGE 1: PROGRESS & UPDATES
+         ============================================================ -->
+    <div class="page active" id="page-progress">
+      <div class="pg-header">
+        <h1 class="pg-title">Progress & Updates</h1>
+        <div class="pg-subtitle">Weekly reports and milestone updates from your contractor, Summit Contracting.</div>
+      </div>
+
+      <!-- Phase progress overview -->
+      <div class="phase-progress">
+        <div class="phase-item">
+          <h5>Phase 1 · Foundations</h5>
+          <div class="phase-bar"><div class="phase-fill" style="width:100%;background:var(--success)"></div></div>
+          <div class="phase-pct" style="color:var(--success)">100%</div>
+          <div class="phase-label">Completed Feb 12</div>
+        </div>
+        <div class="phase-item">
+          <h5>Phase 2 · Structural</h5>
+          <div class="phase-bar"><div class="phase-fill" style="width:100%;background:var(--success)"></div></div>
+          <div class="phase-pct" style="color:var(--success)">100%</div>
+          <div class="phase-label">Completed Mar 18</div>
+        </div>
+        <div class="phase-item current">
+          <h5>Phase 3 · Interior Rough-In</h5>
+          <div class="phase-bar"><div class="phase-fill" style="width:65%"></div></div>
+          <div class="phase-pct">65%</div>
+          <div class="phase-label">Target: Apr 28</div>
+        </div>
+        <div class="phase-item">
+          <h5>Phase 4 · Finishes</h5>
+          <div class="phase-bar"><div class="phase-fill" style="width:0%"></div></div>
+          <div class="phase-pct" style="color:var(--text-tertiary)">0%</div>
+          <div class="phase-label">Starts May 12</div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="filter-bar">
+        <button class="filter-pill active">All updates<span class="count">12</span></button>
+        <button class="filter-pill">Construction<span class="count">7</span></button>
+        <button class="filter-pill">Approvals<span class="count">3</span></button>
+        <button class="filter-pill">Financial<span class="count">2</span></button>
+      </div>
+
+      <!-- Update feed -->
+      <div class="update-card">
+        <div class="update-header">
+          <div style="flex:1">
+            <div class="update-author">
+              <div class="update-author-av" style="background:linear-gradient(135deg,#5b4fc7,#7c6fe0)">DC</div>
+              <div class="update-author-info"><strong>Daniel Chen</strong> · Project Manager, Summit Contracting</div>
+            </div>
+            <div class="update-title">Weekly Report — Week of April 7</div>
+          </div>
+          <div class="update-date">Today, 9:15 AM</div>
+        </div>
+        <div class="update-body">
+          <p>Good progress this week across the electrical and mechanical rough-in work. The east corridor electrical distribution is now complete, and we've begun pulling wire for the west wing lighting circuits. The main panel room passed inspection on Thursday.</p>
+          <p>The HVAC reroute (CO-14) needs your approval before we can proceed with the mechanical work in the south corridor. This is currently on the critical path — the structural conflict we identified last week requires a routing change that affects both schedule and budget. The change order is in your review queue with full documentation.</p>
+        </div>
+        <div class="weekly-metrics">
+          <div class="wm-item"><div class="wm-val">3</div><div class="wm-label">Milestones completed</div></div>
+          <div class="wm-item"><div class="wm-val" style="color:var(--success)">On track</div><div class="wm-label">Schedule status</div></div>
+          <div class="wm-item"><div class="wm-val">12</div><div class="wm-label">Photos added</div></div>
+        </div>
+        <div class="update-attachments">
+          <div class="update-attachment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>Weekly_Report_W15.pdf</div>
+          <div class="update-attachment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>12 progress photos</div>
+        </div>
+        <div class="update-tags">
+          <span class="pill blue">Construction</span>
+          <span class="pill amber">Action needed</span>
+        </div>
+      </div>
+
+      <div class="update-card">
+        <div class="update-header">
+          <div style="flex:1">
+            <div class="update-author">
+              <div class="update-author-av" style="background:linear-gradient(135deg,#5b4fc7,#7c6fe0)">DC</div>
+              <div class="update-author-info"><strong>Daniel Chen</strong> · Project Manager, Summit Contracting</div>
+            </div>
+            <div class="update-title">Draw #6 payment confirmed</div>
+          </div>
+          <div class="update-date">Apr 5</div>
+        </div>
+        <div class="update-body">
+          <p>The March progress payment of $162,900 (Draw #6) has been received and confirmed. This brings total payments to date to $644,815, or approximately 43.5% of the current contract value. Thank you for the prompt processing.</p>
+        </div>
+        <div class="update-tags">
+          <span class="pill green">Financial</span>
+        </div>
+      </div>
+
+      <div class="update-card">
+        <div class="update-header">
+          <div style="flex:1">
+            <div class="update-author">
+              <div class="update-author-av" style="background:linear-gradient(135deg,#5b4fc7,#7c6fe0)">DC</div>
+              <div class="update-author-info"><strong>Daniel Chen</strong> · Project Manager, Summit Contracting</div>
+            </div>
+            <div class="update-title">Weekly Report — Week of March 31</div>
+          </div>
+          <div class="update-date">Apr 1</div>
+        </div>
+        <div class="update-body">
+          <p>Phase 3 interior rough-in work continues on schedule. Plumbing rough-in for the restroom cores is complete and passed inspection. Electrical conduit installation is approximately 60% complete across all floors. We've identified a structural conflict in the south corridor that will require an HVAC routing change — expect a change order submission this week with full documentation and options.</p>
+          <p>Fire suppression rough-in started Monday and is progressing well. The sprinkler contractor has completed the first two floors and expects to finish the remaining areas by mid-April.</p>
+        </div>
+        <div class="weekly-metrics">
+          <div class="wm-item"><div class="wm-val">2</div><div class="wm-label">Milestones completed</div></div>
+          <div class="wm-item"><div class="wm-val" style="color:var(--success)">On track</div><div class="wm-label">Schedule status</div></div>
+          <div class="wm-item"><div class="wm-val">8</div><div class="wm-label">Photos added</div></div>
+        </div>
+        <div class="update-attachments">
+          <div class="update-attachment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>Weekly_Report_W14.pdf</div>
+          <div class="update-attachment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>8 progress photos</div>
+        </div>
+        <div class="update-tags">
+          <span class="pill blue">Construction</span>
+        </div>
+      </div>
+
+      <div class="update-card">
+        <div class="update-header">
+          <div style="flex:1">
+            <div class="update-author">
+              <div class="update-author-av" style="background:linear-gradient(135deg,#5b4fc7,#7c6fe0)">DC</div>
+              <div class="update-author-info"><strong>Daniel Chen</strong> · Project Manager, Summit Contracting</div>
+            </div>
+            <div class="update-title">CO-12 approved — elevator shaft reinforcement complete</div>
+          </div>
+          <div class="update-date">Mar 27</div>
+        </div>
+        <div class="update-body">
+          <p>Thank you for the quick turnaround on CO-12. The elevator shaft reinforcement work has been completed and the additional structural steel is now in place. The elevator subcontractor has confirmed this resolves the load-bearing concern and they're cleared to proceed with their phase of work in May.</p>
+        </div>
+        <div class="update-tags">
+          <span class="pill green">Approval</span>
+          <span class="pill gray">Change order</span>
+        </div>
+      </div>
+
+      <div class="update-card">
+        <div class="update-header">
+          <div style="flex:1">
+            <div class="update-author">
+              <div class="update-author-av" style="background:linear-gradient(135deg,#5b4fc7,#7c6fe0)">DC</div>
+              <div class="update-author-info"><strong>Daniel Chen</strong> · Project Manager, Summit Contracting</div>
+            </div>
+            <div class="update-title">Weekly Report — Week of March 24</div>
+          </div>
+          <div class="update-date">Mar 25</div>
+        </div>
+        <div class="update-body">
+          <p>Phase 2 structural work is now complete as of last Tuesday. All concrete pours passed final inspection and the structural engineer has signed off on the load tests. We've formally transitioned to Phase 3 — interior rough-in — which began on Wednesday with plumbing and electrical teams mobilizing.</p>
+          <p>Draw #7 billing application is being prepared and will be submitted for your review next week covering March progress.</p>
+        </div>
+        <div class="weekly-metrics">
+          <div class="wm-item"><div class="wm-val">4</div><div class="wm-label">Milestones completed</div></div>
+          <div class="wm-item"><div class="wm-val" style="color:var(--success)">On track</div><div class="wm-label">Schedule status</div></div>
+          <div class="wm-item"><div class="wm-val">15</div><div class="wm-label">Photos added</div></div>
+        </div>
+        <div class="update-attachments">
+          <div class="update-attachment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>Weekly_Report_W13.pdf</div>
+        </div>
+        <div class="update-tags">
+          <span class="pill blue">Construction</span>
+          <span class="pill green">Phase transition</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         PAGE 2: PHOTOS
+         ============================================================ -->
+    <div class="page" id="page-photos">
+      <div class="pg-header">
+        <h1 class="pg-title">Project Photos</h1>
+        <div class="pg-subtitle">Progress documentation from your contractor's site team.</div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp-4)">
+        <div class="photo-stats">
+          <span><strong>84</strong> total photos</span>
+          <span><strong>4</strong> photo sets</span>
+          <span>Last upload: <strong>Today</strong></span>
+        </div>
+        <button class="btn sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download all
+        </button>
+      </div>
+
+      <div class="filter-bar">
+        <button class="filter-pill active">All photos</button>
+        <button class="filter-pill">Site progress</button>
+        <button class="filter-pill">Inspections</button>
+        <button class="filter-pill">Electrical</button>
+        <button class="filter-pill">Mechanical</button>
+        <button class="filter-pill">Structural</button>
+      </div>
+
+      <!-- Photo set 1 -->
+      <div class="photo-group">
+        <div class="photo-group-header">
+          <div>
+            <div class="photo-group-title">Week 15 — Interior Rough-In Progress</div>
+            <div style="font-size:12px;color:var(--text-tertiary);margin-top:2px">Uploaded by Daniel Chen · 12 photos</div>
+          </div>
+          <div class="photo-group-date">Today</div>
+        </div>
+        <div class="photo-grid">
+          <div class="photo-thumb" onclick="openLightbox('East corridor electrical panel','Electrical rough-in · main distribution panel installation complete','ph-1')">
+            <div class="photo-placeholder ph-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Electrical panel</div>
+            <div class="photo-overlay"><span>Electrical panel</span></div>
+          </div>
+          <div class="photo-thumb" onclick="openLightbox('West wing conduit run','Electrical conduit installation in progress — west wing corridor','ph-2')">
+            <div class="photo-placeholder ph-2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Conduit run</div>
+            <div class="photo-overlay"><span>Conduit run</span></div>
+          </div>
+          <div class="photo-thumb" onclick="openLightbox('Structural framing — floor 3','Structural steel framing visible through interior rough-in zone','ph-3')">
+            <div class="photo-placeholder ph-3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Floor 3 framing</div>
+            <div class="photo-overlay"><span>Floor 3 framing</span></div>
+          </div>
+          <div class="photo-thumb" onclick="openLightbox('Main panel room','Completed electrical panel room — passed inspection Apr 10','ph-4')">
+            <div class="photo-placeholder ph-4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Panel room</div>
+            <div class="photo-overlay"><span>Panel room</span></div>
+          </div>
+          <div class="photo-thumb" onclick="openLightbox('South corridor overview','Looking south down main corridor — rough-in work in progress','ph-5')">
+            <div class="photo-placeholder ph-5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Corridor view</div>
+            <div class="photo-overlay"><span>Corridor overview</span></div>
+          </div>
+          <div class="photo-thumb" onclick="openLightbox('Fire suppression rough-in','Sprinkler pipe installation — floor 2 east wing','ph-6')">
+            <div class="photo-placeholder ph-6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Fire suppression</div>
+            <div class="photo-overlay"><span>Fire suppression</span></div>
+          </div>
+          <div class="photo-thumb" onclick="openLightbox('Plumbing rough-in detail','Restroom core plumbing — passed inspection','ph-7')">
+            <div class="photo-placeholder ph-7"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Plumbing detail</div>
+            <div class="photo-overlay"><span>Plumbing rough-in</span></div>
+          </div>
+          <div class="photo-thumb" onclick="openLightbox('Site overview — aerial','Drone photo showing overall building progress from above','ph-8')">
+            <div class="photo-placeholder ph-8"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Aerial view</div>
+            <div class="photo-overlay"><span>Aerial overview</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Photo set 2 -->
+      <div class="photo-group">
+        <div class="photo-group-header">
+          <div>
+            <div class="photo-group-title">Week 14 — Plumbing & Electrical Start</div>
+            <div style="font-size:12px;color:var(--text-tertiary);margin-top:2px">Uploaded by Daniel Chen · 8 photos</div>
+          </div>
+          <div class="photo-group-date">Apr 1</div>
+        </div>
+        <div class="photo-grid">
+          <div class="photo-thumb"><div class="photo-placeholder ph-3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Plumbing start</div></div>
+          <div class="photo-thumb"><div class="photo-placeholder ph-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Electrical layout</div></div>
+          <div class="photo-thumb"><div class="photo-placeholder ph-5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Floor 1 overview</div></div>
+          <div class="photo-thumb"><div class="photo-placeholder ph-2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Conduit detail</div></div>
+        </div>
+      </div>
+
+      <!-- Photo set 3 -->
+      <div class="photo-group">
+        <div class="photo-group-header">
+          <div>
+            <div class="photo-group-title">Week 13 — Phase 2 Completion & Phase 3 Transition</div>
+            <div style="font-size:12px;color:var(--text-tertiary);margin-top:2px">Uploaded by Daniel Chen · 15 photos</div>
+          </div>
+          <div class="photo-group-date">Mar 25</div>
+        </div>
+        <div class="photo-grid">
+          <div class="photo-thumb"><div class="photo-placeholder ph-4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Concrete final</div></div>
+          <div class="photo-thumb"><div class="photo-placeholder ph-7"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Steel inspection</div></div>
+          <div class="photo-thumb"><div class="photo-placeholder ph-6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Load test</div></div>
+          <div class="photo-thumb"><div class="photo-placeholder ph-8"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Aerial drone</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         PAGE 3: DOCUMENTS
+         ============================================================ -->
+    <div class="page" id="page-documents">
+      <div class="pg-header" style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <h1 class="pg-title">Project Documents</h1>
+          <div class="pg-subtitle">Project files, contracts, and documents shared by your contractor.</div>
+        </div>
+        <button class="btn primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload document
+        </button>
+      </div>
+
+      <!-- Upload zone -->
+      <div class="upload-zone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <h4>Upload your documents</h4>
+        <p>Drop files here or click to browse. Insurance certificates, signed contracts, tax exemptions, and other owner-provided documents.</p>
+        <div class="upload-types">Accepted: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG · Max 50MB per file</div>
+      </div>
+
+      <div class="doc-layout">
+        <!-- Category sidebar -->
+        <div class="doc-categories">
+          <div class="doc-cat active" data-cat="all">All files <span class="doc-count">18</span></div>
+          <div class="doc-cat" data-cat="contracts">Contracts <span class="doc-count">3</span></div>
+          <div class="doc-cat" data-cat="drawings">Drawings & Plans <span class="doc-count">5</span></div>
+          <div class="doc-cat" data-cat="permits">Permits & Inspections <span class="doc-count">3</span></div>
+          <div class="doc-cat" data-cat="billing">Billing & Financial <span class="doc-count">4</span></div>
+          <div class="doc-cat" data-cat="insurance">Insurance & Compliance <span class="doc-count">2</span></div>
+          <div class="doc-cat" data-cat="owner">Your uploads <span class="doc-count">1</span></div>
+        </div>
+
+        <!-- Document list -->
+        <div>
+          <div class="doc-header-row">
+            <span>File name</span>
+            <span>Size</span>
+            <span>Date</span>
+            <span></span>
+          </div>
+          <div class="doc-list">
+            <!-- Contracts -->
+            <div class="doc-row">
+              <div class="doc-info">
+                <div class="doc-name">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                  Master_Construction_Agreement.pdf
+                </div>
+                <div class="doc-meta">Contract · Signed by both parties</div>
+              </div>
+              <div class="doc-size">2.4 MB</div>
+              <div class="doc-date">Jan 8, 2026</div>
+              <div class="doc-actions">
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div>
+              </div>
+            </div>
+
+            <div class="doc-row">
+              <div class="doc-info">
+                <div class="doc-name">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                  AIA_A101_Owner_Contractor_Agreement.pdf
+                </div>
+                <div class="doc-meta">Contract · AIA standard form</div>
+              </div>
+              <div class="doc-size">1.8 MB</div>
+              <div class="doc-date">Jan 8, 2026</div>
+              <div class="doc-actions">
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div>
+              </div>
+            </div>
+
+            <div class="doc-row">
+              <div class="doc-info">
+                <div class="doc-name">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                  Architectural_Drawings_Rev_D.pdf
+                </div>
+                <div class="doc-meta">Drawing · Revision D — current</div>
+              </div>
+              <div class="doc-size">18.6 MB</div>
+              <div class="doc-date">Feb 14, 2026</div>
+              <div class="doc-actions">
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div>
+              </div>
+            </div>
+
+            <div class="doc-row">
+              <div class="doc-info">
+                <div class="doc-name">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                  MEP_Engineering_Plans_v3.pdf
+                </div>
+                <div class="doc-meta">Drawing · Mechanical / Electrical / Plumbing</div>
+              </div>
+              <div class="doc-size">24.1 MB</div>
+              <div class="doc-date">Feb 14, 2026</div>
+              <div class="doc-actions">
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div>
+              </div>
+            </div>
+
+            <div class="doc-row">
+              <div class="doc-info">
+                <div class="doc-name">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                  Building_Permit_Approved.pdf
+                </div>
+                <div class="doc-meta">Permit · City of Riverside — approved</div>
+              </div>
+              <div class="doc-size">890 KB</div>
+              <div class="doc-date">Jan 15, 2026</div>
+              <div class="doc-actions">
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div>
+              </div>
+            </div>
+
+            <div class="doc-row">
+              <div class="doc-info">
+                <div class="doc-name">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                  G702_Draw_7_Application.pdf
+                </div>
+                <div class="doc-meta">Billing · AIA G702 — pending your review</div>
+              </div>
+              <div class="doc-size">1.2 MB</div>
+              <div class="doc-date">Apr 8, 2026</div>
+              <div class="doc-actions">
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div>
+              </div>
+            </div>
+
+            <div class="doc-row">
+              <div class="doc-info">
+                <div class="doc-name">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                  G703_Draw_7_Continuation_Sheet.pdf
+                </div>
+                <div class="doc-meta">Billing · Line-item detail — pending your review</div>
+              </div>
+              <div class="doc-size">3.4 MB</div>
+              <div class="doc-date">Apr 8, 2026</div>
+              <div class="doc-actions">
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div>
+              </div>
+            </div>
+
+            <div class="doc-row">
+              <div class="doc-info">
+                <div class="doc-name">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                  Contractor_COI_2026.pdf
+                </div>
+                <div class="doc-meta">Insurance · Summit Contracting certificate of insurance</div>
+              </div>
+              <div class="doc-size">440 KB</div>
+              <div class="doc-date">Jan 5, 2026</div>
+              <div class="doc-actions">
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div>
+              </div>
+            </div>
+
+            <div class="doc-row" style="border-color:var(--accent);background:linear-gradient(135deg,var(--surface-1) 0%,var(--accent-soft) 100%)">
+              <div class="doc-info">
+                <div class="doc-name">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  Owner_Property_Insurance_2026.pdf
+                </div>
+                <div class="doc-meta">Your upload · Owner's property insurance certificate</div>
+              </div>
+              <div class="doc-size">520 KB</div>
+              <div class="doc-date">Jan 12, 2026</div>
+              <div class="doc-actions">
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+                <div class="doc-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         PAGE 4: PAYMENT HISTORY
+         ============================================================ -->
+    <div class="page" id="page-payments">
+      <div class="pg-header" style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <h1 class="pg-title">Payment History</h1>
+          <div class="pg-subtitle">Complete record of your payments on the Riverside Tower Fit-Out project.</div>
+        </div>
+        <button class="btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export payment report
+        </button>
+      </div>
+
+      <!-- Summary cards -->
+      <div class="payment-summary">
+        <div class="pay-stat">
+          <div class="pay-stat-label">Current contract value</div>
+          <div class="pay-stat-val mono">$1,482,500</div>
+          <div class="pay-stat-meta">Original $1,420,000 + $62,500 in change orders</div>
+        </div>
+        <div class="pay-stat">
+          <div class="pay-stat-label">Total paid to date</div>
+          <div class="pay-stat-val mono" style="color:var(--success)">$644,815</div>
+          <div class="pay-stat-meta">Across 6 approved draws</div>
+          <div class="bar-track"><div class="bar-fill" style="width:43.5%;background:var(--success)"></div></div>
+        </div>
+        <div class="pay-stat">
+          <div class="pay-stat-label">Retainage held</div>
+          <div class="pay-stat-val mono">$92,135</div>
+          <div class="pay-stat-meta">10% retainage on completed work</div>
+        </div>
+        <div class="pay-stat">
+          <div class="pay-stat-label">Pending payment</div>
+          <div class="pay-stat-val mono" style="color:var(--warning)">$184,400</div>
+          <div class="pay-stat-meta">Draw #7 · awaiting your review</div>
+        </div>
+      </div>
+
+      <!-- Contract payment progress -->
+      <div class="payment-progress-card">
+        <div class="payment-progress-header">
+          <div class="payment-progress-title">Contract payment progress</div>
+          <div style="font-size:13px;color:var(--text-secondary)"><strong style="color:var(--text-primary)">43.5%</strong> paid of total contract</div>
+        </div>
+        <div class="payment-progress-bar">
+          <div class="ppb-seg ppb-paid" style="width:43.5%">$644K paid</div>
+          <div class="ppb-seg ppb-pending" style="width:12.4%">$184K</div>
+          <div class="ppb-seg ppb-retainage" style="width:6.2%"></div>
+          <div class="ppb-seg ppb-remaining" style="width:37.9%">$561K remaining</div>
+        </div>
+        <div class="payment-progress-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--success)"></div>Paid to date</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--warning)"></div>Pending review</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Retainage held</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--surface-4)"></div>Remaining on contract</div>
+        </div>
+      </div>
+
+      <!-- Lien waiver status -->
+      <div class="card" style="margin-bottom:var(--sp-4)">
+        <div class="c-head">
+          <div>
+            <div class="c-title">Lien waiver status</div>
+            <div class="c-sub">Unconditional lien waivers collected from subcontractors per draw</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--sp-3)">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div class="lw-bar" style="width:60px"><div class="lw-fill partial" style="width:73%"></div></div>
+              <span style="font-size:13px;font-weight:620;color:var(--warning-text)">Draw #7: 8 of 11 received</span>
+            </div>
+          </div>
+        </div>
+        <div class="c-body" style="padding:var(--sp-3) var(--sp-5)">
+          <div style="display:flex;gap:var(--sp-6);font-size:13px;color:var(--text-secondary);flex-wrap:wrap">
+            <div><strong style="color:var(--text-primary)">3 outstanding:</strong> Meridian MEP · Apex Fire Protection · Hartfield Flooring</div>
+            <div style="margin-left:auto;color:var(--text-tertiary)">All prior draws: <span style="color:var(--success-text);font-weight:620">100% collected</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment history table -->
+      <div class="card">
+        <div class="c-head">
+          <div>
+            <div class="c-title">Payment ledger</div>
+            <div class="c-sub">All payments made on this project</div>
+          </div>
+        </div>
+        <div class="c-body" style="padding:0;overflow-x:auto">
+          <table class="pay-table">
+            <thead>
+              <tr>
+                <th>Draw</th>
+                <th>Period</th>
+                <th>Submitted</th>
+                <th>Approved</th>
+                <th>Amount paid</th>
+                <th>Retainage</th>
+                <th>Lien waivers</th>
+                <th>Running total</th>
+                <th>Method</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="background:var(--warning-soft)">
+                <td><strong>Draw #7</strong></td>
+                <td>Mar 2026</td>
+                <td>Apr 8</td>
+                <td><span class="pill amber" style="height:20px;font-size:10px">Pending review</span></td>
+                <td class="amt">$184,400</td>
+                <td class="amt">$20,490</td>
+                <td><div class="lw-status"><div class="lw-bar"><div class="lw-fill partial" style="width:73%"></div></div><span style="color:var(--warning-text)">8/11</span></div></td>
+                <td class="running">—</td>
+                <td class="method">—</td>
+                <td><a class="receipt-link" href="#">Review →</a></td>
+              </tr>
+              <tr>
+                <td><strong>Draw #6</strong></td>
+                <td>Feb 2026</td>
+                <td>Mar 5</td>
+                <td>Mar 12</td>
+                <td class="amt">$162,900</td>
+                <td class="amt">$18,100</td>
+                <td><div class="lw-status"><div class="lw-bar"><div class="lw-fill complete" style="width:100%"></div></div><span style="color:var(--success-text)">11/11</span></div></td>
+                <td class="running">$644,815</td>
+                <td class="method">ACH Transfer</td>
+                <td><a class="receipt-link" href="#">Receipt</a></td>
+              </tr>
+              <tr>
+                <td><strong>Draw #5</strong></td>
+                <td>Jan 2026</td>
+                <td>Feb 4</td>
+                <td>Feb 11</td>
+                <td class="amt">$148,250</td>
+                <td class="amt">$16,470</td>
+                <td><div class="lw-status"><div class="lw-bar"><div class="lw-fill complete" style="width:100%"></div></div><span style="color:var(--success-text)">11/11</span></div></td>
+                <td class="running">$481,915</td>
+                <td class="method">ACH Transfer</td>
+                <td><a class="receipt-link" href="#">Receipt</a></td>
+              </tr>
+              <tr>
+                <td><strong>Draw #4</strong></td>
+                <td>Dec 2025</td>
+                <td>Jan 6</td>
+                <td>Jan 14</td>
+                <td class="amt">$134,680</td>
+                <td class="amt">$14,965</td>
+                <td><div class="lw-status"><div class="lw-bar"><div class="lw-fill complete" style="width:100%"></div></div><span style="color:var(--success-text)">10/10</span></div></td>
+                <td class="running">$333,665</td>
+                <td class="method">ACH Transfer</td>
+                <td><a class="receipt-link" href="#">Receipt</a></td>
+              </tr>
+              <tr>
+                <td><strong>Draw #3</strong></td>
+                <td>Nov 2025</td>
+                <td>Dec 3</td>
+                <td>Dec 10</td>
+                <td class="amt">$98,450</td>
+                <td class="amt">$10,940</td>
+                <td><div class="lw-status"><div class="lw-bar"><div class="lw-fill complete" style="width:100%"></div></div><span style="color:var(--success-text)">9/9</span></div></td>
+                <td class="running">$198,985</td>
+                <td class="method">ACH Transfer</td>
+                <td><a class="receipt-link" href="#">Receipt</a></td>
+              </tr>
+              <tr>
+                <td><strong>Draw #2</strong></td>
+                <td>Oct 2025</td>
+                <td>Nov 4</td>
+                <td>Nov 12</td>
+                <td class="amt">$72,135</td>
+                <td class="amt">$8,015</td>
+                <td><div class="lw-status"><div class="lw-bar"><div class="lw-fill complete" style="width:100%"></div></div><span style="color:var(--success-text)">8/8</span></div></td>
+                <td class="running">$100,535</td>
+                <td class="method">ACH Transfer</td>
+                <td><a class="receipt-link" href="#">Receipt</a></td>
+              </tr>
+              <tr>
+                <td><strong>Draw #1</strong></td>
+                <td>Sep 2025</td>
+                <td>Oct 7</td>
+                <td>Oct 15</td>
+                <td class="amt">$28,400</td>
+                <td class="amt">$3,155</td>
+                <td><div class="lw-status"><div class="lw-bar"><div class="lw-fill complete" style="width:100%"></div></div><span style="color:var(--success-text)">6/6</span></div></td>
+                <td class="running">$28,400</td>
+                <td class="method">Wire Transfer</td>
+                <td><a class="receipt-link" href="#">Receipt</a></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Change order impact summary -->
+      <div class="card" style="margin-top:var(--sp-4)">
+        <div class="c-head">
+          <div>
+            <div class="c-title">Change order summary</div>
+            <div class="c-sub">Approved scope changes and their financial impact</div>
+          </div>
+        </div>
+        <div class="c-body" style="padding:0;overflow-x:auto">
+          <table class="pay-table">
+            <thead>
+              <tr>
+                <th>Change order</th>
+                <th>Description</th>
+                <th>Date approved</th>
+                <th>Amount</th>
+                <th>Schedule impact</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="background:var(--warning-soft)">
+                <td><strong>CO-14</strong></td>
+                <td>Mechanical reroute — HVAC conflict</td>
+                <td><span class="pill amber" style="height:20px;font-size:10px">Pending</span></td>
+                <td class="amt">+$42,500</td>
+                <td>+5 days</td>
+                <td><span class="pill amber">Awaiting approval</span></td>
+              </tr>
+              <tr>
+                <td><strong>CO-12</strong></td>
+                <td>Elevator shaft reinforcement</td>
+                <td>Mar 25</td>
+                <td class="amt">+$28,500</td>
+                <td>+3 days</td>
+                <td><span class="pill green">Approved</span></td>
+              </tr>
+              <tr>
+                <td><strong>CO-08</strong></td>
+                <td>Additional fire rating — south stairwell</td>
+                <td>Feb 18</td>
+                <td class="amt">+$18,750</td>
+                <td>No impact</td>
+                <td><span class="pill green">Approved</span></td>
+              </tr>
+              <tr>
+                <td><strong>CO-03</strong></td>
+                <td>Upgraded waterproofing system</td>
+                <td>Nov 12</td>
+                <td class="amt">+$15,250</td>
+                <td>+2 days</td>
+                <td><span class="pill green">Approved</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</main>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" onclick="closeLightbox()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  <div class="lightbox-img"><div class="photo-placeholder ph-1" id="lb-img" style="width:640px;height:420px;border-radius:14px"></div></div>
+  <div class="lightbox-caption"><h4 id="lb-title"></h4><p id="lb-desc"></p></div>
+</div>
+
+<script>
+// Page switching
+const pageBtns = document.querySelectorAll('.page-switcher button');
+const pages = document.querySelectorAll('.page');
+const bcCurrent = document.getElementById('bc-current');
+const sidebarItems = document.querySelectorAll('.ni[data-page]');
+
+function switchPage(target) {
+  pageBtns.forEach(b => b.classList.toggle('active', b.dataset.target === target));
+  pages.forEach(p => p.classList.toggle('active', p.id === 'page-' + target));
+  sidebarItems.forEach(ni => ni.classList.toggle('active', ni.dataset.page === target));
+  const names = {progress:'Progress & Updates',photos:'Photos',documents:'Documents',payments:'Payment History'};
+  bcCurrent.textContent = names[target] || target;
+}
+
+pageBtns.forEach(btn => btn.addEventListener('click', () => switchPage(btn.dataset.target)));
+sidebarItems.forEach(ni => {
+  ni.addEventListener('click', () => {
+    const pg = ni.dataset.page;
+    if (pg && document.getElementById('page-' + pg)) switchPage(pg);
+  });
+});
+
+// Section collapse
+document.querySelectorAll('.ns-h').forEach(h => h.addEventListener('click', () => h.closest('.ns').classList.toggle('closed')));
+
+// Filter pills
+document.querySelectorAll('.filter-bar').forEach(bar => {
+  bar.querySelectorAll('.filter-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      bar.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+    });
+  });
+});
+
+// Document categories
+document.querySelectorAll('.doc-cat').forEach(cat => {
+  cat.addEventListener('click', () => {
+    document.querySelectorAll('.doc-cat').forEach(c => c.classList.remove('active'));
+    cat.classList.add('active');
+  });
+});
+
+// Lightbox
+function openLightbox(title, desc, phClass) {
+  const lb = document.getElementById('lightbox');
+  document.getElementById('lb-title').textContent = title;
+  document.getElementById('lb-desc').textContent = desc;
+  const img = document.getElementById('lb-img');
+  img.className = 'photo-placeholder ' + phClass;
+  lb.classList.add('open');
+}
+function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+document.getElementById('lightbox').addEventListener('click', e => { if (e.target === e.currentTarget) closeLightbox(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+// Init
+switchPage('progress');
+</script>
+</body>
+</html>

@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BuiltCRM — Contractor Project Home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ================================================================
+   DESIGN TOKENS
+   ================================================================ */
+:root {
+  --surface-0:#eef0f3;--surface-1:#ffffff;--surface-2:#f3f4f6;--surface-3:#e2e5e9;--surface-4:#d1d5db;
+  --surface-hover:#f5f6f8;--surface-active:#e5e7eb;
+  --sidebar-bg:#ffffff;--sidebar-hover:#f5f6f8;--sidebar-active:#eef0f3;
+  --sidebar-active-text:#1a1714;--sidebar-section-text:#8b919a;--sidebar-item-text:#5a6170;--sidebar-border:#e8eaee;
+  --text-primary:#1a1714;--text-secondary:#6b655b;--text-tertiary:#9c958a;--text-inverse:#faf9f7;
+  --accent:#5b4fc7;--accent-hover:#4f44b3;--accent-soft:#eeedfb;--accent-text:#4a3fb0;--accent-muted:#c7c2ea;
+  --success:#2d8a5e;--success-soft:#edf7f1;--success-text:#1e6b46;
+  --warning:#c17a1a;--warning-soft:#fdf4e6;--warning-text:#96600f;
+  --danger:#c93b3b;--danger-soft:#fdeaea;--danger-text:#a52e2e;
+  --info:#3178b9;--info-soft:#e8f1fa;--info-text:#276299;
+  --font-display:'DM Sans',system-ui,sans-serif;--font-body:'Instrument Sans',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;
+  --shadow-sm:0 1px 3px rgba(26,23,20,.05);--shadow-md:0 4px 16px rgba(26,23,20,.06);
+  --shadow-lg:0 10px 32px rgba(26,23,20,.08);--shadow-ring:0 0 0 3px rgba(91,79,199,.15);
+  --sidebar-width:272px;--topbar-height:56px;
+  --ease-out:cubic-bezier(.16,1,.3,1);--duration-normal:200ms;--duration-fast:120ms;
+}
+
+/* ================================================================
+   RESET & BASE
+   ================================================================ */
+*,*::before,*::after{box-sizing:border-box;margin:0}
+body{font-family:var(--font-body);background:var(--surface-0);color:var(--text-primary);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;line-height:1.5;font-size:14px}
+button{cursor:pointer;font-family:inherit;border:none;background:none}
+input,select,textarea{font-family:inherit}
+
+/* ================================================================
+   APP SHELL
+   ================================================================ */
+.app{display:grid;grid-template-columns:var(--sidebar-width) 1fr;min-height:100vh}
+
+/* SIDEBAR */
+.sidebar{background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:hidden}
+.brand{height:var(--topbar-height);display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--sidebar-border);flex-shrink:0}
+.brand-mark{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#2c2541,#5b4fc7);color:#faf9f7;display:grid;place-items:center;font-family:var(--font-display);font-size:12px;font-weight:700;flex-shrink:0}
+.brand-info h1{font-family:var(--font-display);font-size:14px;font-weight:700;letter-spacing:-.02em;color:var(--text-primary)}
+.brand-info p{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+.sidebar-search{padding:12px 16px;border-bottom:1px solid var(--sidebar-border);flex-shrink:0}
+.search-input{width:100%;height:34px;border:1px solid var(--surface-3);border-radius:var(--radius-md);padding:0 12px 0 34px;background:var(--surface-1);font-family:var(--font-body);font-size:13px;color:var(--text-primary);outline:none;transition:all var(--duration-fast) var(--ease-out);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%239c958a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:10px center}
+.search-input::placeholder{color:var(--text-tertiary)}
+.search-input:focus{border-color:var(--accent);box-shadow:var(--shadow-ring)}
+.sidebar-nav{flex:1;overflow-y:auto;padding:8px 10px 20px}
+.sidebar-nav::-webkit-scrollbar{width:4px}.sidebar-nav::-webkit-scrollbar-track{background:transparent}.sidebar-nav::-webkit-scrollbar-thumb{background:var(--surface-4);border-radius:2px}
+.nav-section{margin-bottom:4px}
+.nav-section-label{font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--sidebar-section-text);text-transform:uppercase;letter-spacing:.06em;padding:10px 10px 6px}
+.nav-item{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:var(--radius-md);font-size:13px;color:var(--sidebar-item-text);font-weight:500;transition:all var(--duration-fast) var(--ease-out);margin-bottom:2px;cursor:default;position:relative}
+.nav-item:hover{background:var(--sidebar-hover);color:var(--sidebar-active-text)}
+.nav-item.active{background:var(--accent-soft);color:var(--accent-text);font-weight:650}
+.nav-item.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:16px;border-radius:0 3px 3px 0;background:var(--accent)}
+.nav-item-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.nav-badge{min-width:20px;height:20px;padding:0 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-display);flex-shrink:0}
+.nav-badge.warn{background:var(--warning-soft);color:var(--warning-text)}
+.nav-badge.danger{background:var(--danger-soft);color:var(--danger-text)}
+.nav-tag{font-size:10px;font-weight:650;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;flex-shrink:0}
+.nav-project{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:var(--radius-md);font-size:13px;font-weight:460;color:var(--text-secondary);cursor:default;margin-bottom:2px;transition:all var(--duration-fast) var(--ease-out)}
+.nav-project:hover{background:var(--sidebar-hover);color:var(--text-primary)}
+.nav-project.active{background:var(--surface-1);color:var(--text-primary);font-weight:580;border:1px solid var(--surface-3)}
+.nav-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.sidebar-footer{border-top:1px solid var(--sidebar-border);padding:12px 16px;flex-shrink:0}
+.sidebar-user{display:flex;align-items:center;gap:10px;padding:6px}
+.user-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-muted));color:white;display:grid;place-items:center;font-family:var(--font-display);font-size:11px;font-weight:700;flex-shrink:0}
+.user-name{font-size:13px;font-weight:580;color:var(--text-primary)}
+.user-role{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+
+/* TOPBAR */
+.main{display:flex;flex-direction:column;min-width:0}
+.topbar{height:var(--topbar-height);display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid var(--surface-3);background:rgba(255,255,255,.88);backdrop-filter:blur(12px);flex-shrink:0;position:sticky;top:0;z-index:50}
+.breadcrumbs{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-tertiary)}
+.breadcrumbs .sep{color:var(--surface-4)}.breadcrumbs .current{color:var(--text-primary);font-weight:650}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+.icon-btn{width:32px;height:32px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-tertiary);display:grid;place-items:center;transition:all var(--duration-fast) var(--ease-out)}
+.icon-btn:hover{border-color:var(--surface-4);color:var(--text-secondary);background:var(--surface-hover)}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;display:grid;place-items:center;font-family:var(--font-display);font-size:12px;font-weight:700}
+.notif-dot{position:relative}
+.notif-dot::after{content:'';position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--danger);border:2px solid var(--surface-1)}
+
+/* ================================================================
+   CONTENT
+   ================================================================ */
+.content{padding:24px;flex:1}
+
+/* HERO */
+.hero{display:grid;grid-template-columns:1fr 280px;gap:16px;align-items:start;margin-bottom:20px}
+.hero-main{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);box-shadow:var(--shadow-md);padding:20px 22px}
+.hero-main h2{font-family:var(--font-display);font-size:26px;font-weight:780;letter-spacing:-.035em;color:var(--text-primary)}
+.hero-main .hero-desc{font-size:13px;color:var(--text-secondary);margin-top:4px;line-height:1.5;max-width:680px}
+.hero-topline{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.pill{height:24px;padding:0 10px;border-radius:999px;border:1px solid var(--surface-3);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;background:var(--surface-1);color:var(--text-tertiary);white-space:nowrap;flex-shrink:0;font-family:var(--font-display)}
+.pill.purple{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-muted)}
+.pill.orange{background:var(--warning-soft);color:var(--warning-text);border-color:#f5d6a0}
+.pill.red{background:var(--danger-soft);color:var(--danger-text);border-color:#f5c0c0}
+.pill.green{background:var(--success-soft);color:var(--success-text);border-color:#a7d9be}
+.pill.blue{background:var(--info-soft);color:var(--info-text);border-color:#b3d4ee}
+.meta-strip{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.meta-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--surface-3);border-radius:var(--radius-md);background:var(--surface-1);font-size:12px;color:var(--text-secondary)}
+.meta-chip strong{color:var(--text-primary);font-weight:620}
+.hero-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.btn{height:36px;padding:0 14px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-primary);font-size:13px;font-weight:600;font-family:var(--font-body);display:inline-flex;align-items:center;gap:6px;transition:all var(--duration-fast) var(--ease-out);white-space:nowrap}
+.btn:hover{background:var(--surface-hover);border-color:var(--surface-4)}
+.btn.primary{background:var(--accent);color:var(--text-inverse);border-color:var(--accent)}
+.btn.primary:hover{background:var(--accent-hover)}
+.btn svg{width:15px;height:15px;flex-shrink:0}
+
+/* HERO SIDE — snapshot */
+.hero-side{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);box-shadow:var(--shadow-md);padding:16px}
+.hero-side h4{font-family:var(--font-display);font-size:13px;font-weight:700;margin-bottom:12px;color:var(--text-primary)}
+.snapshot-stack{display:flex;flex-direction:column;gap:10px}
+.snapshot-item{background:var(--surface-2);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:10px 12px}
+.snapshot-item .sk{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-tertiary);font-weight:700;font-family:var(--font-display)}
+.snapshot-item .sv{margin-top:3px;font-size:15px;font-weight:750;font-family:var(--font-display);color:var(--text-primary);letter-spacing:-.02em}
+.snapshot-item .sm{margin-top:3px;font-size:12px;color:var(--text-secondary)}
+.snapshot-item.alert-snapshot{background:var(--warning-soft);border-color:#f0d5a3}
+.snapshot-item.danger-snapshot{background:var(--danger-soft);border-color:#f0b8b8}
+
+/* CONTACTS STRIP */
+.contacts-strip{display:flex;align-items:center;gap:16px;background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:10px 16px;margin-bottom:14px}
+.contacts-strip-label{font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;flex-shrink:0}
+.contacts-strip-list{display:flex;gap:16px;flex-wrap:wrap;flex:1;min-width:0}
+.contact-chip{display:flex;align-items:center;gap:8px}
+.contact-chip .cc-avatar{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-family:var(--font-display);font-size:9px;font-weight:700;color:white;flex-shrink:0}
+.contact-chip .cc-name{font-size:13px;font-weight:580;color:var(--text-primary);white-space:nowrap}
+.contact-chip .cc-role{font-size:11px;color:var(--text-tertiary);white-space:nowrap}
+
+/* SUMMARY STRIP */
+.summary-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px}
+.summary-card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:12px 14px;transition:border-color var(--duration-fast) var(--ease-out)}
+.summary-card:hover{border-color:var(--surface-4)}
+.summary-card .s-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-tertiary);font-weight:700;font-family:var(--font-display)}
+.summary-card .s-value{font-family:var(--font-display);font-size:20px;font-weight:800;letter-spacing:-.03em;margin-top:4px;color:var(--text-primary)}
+.summary-card .s-meta{font-size:12px;color:var(--text-secondary);margin-top:3px}
+.summary-card.accent-card{background:linear-gradient(180deg,#fff 0%,#f5f3ff 100%);border-color:var(--accent-muted)}
+.summary-card.accent-card .s-value{color:var(--accent-text)}
+.summary-card.warn-card{background:linear-gradient(180deg,#fff 0%,#fef8ee 100%);border-color:#f0d5a3}
+.summary-card.warn-card .s-value{color:var(--warning-text)}
+.summary-card.danger-card{background:linear-gradient(180deg,#fff 0%,#fef1f1 100%);border-color:#f0b8b8}
+.summary-card.danger-card .s-value{color:var(--danger-text)}
+.summary-card.success-card{background:linear-gradient(180deg,#fff 0%,#f1faf4 100%);border-color:#a7d9be}
+.summary-card.success-card .s-value{color:var(--success-text)}
+
+/* WORKSPACE SECTION */
+.project-grid{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
+.card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);box-shadow:var(--shadow-sm);min-width:0}
+.panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:18px 20px 0}
+.panel-head h3{font-family:var(--font-display);font-size:15px;font-weight:720;letter-spacing:-.01em}
+.panel-head .sub{font-size:12px;color:var(--text-secondary);margin-top:4px}
+.panel-badge{height:26px;padding:0 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:11px;font-weight:700;font-family:var(--font-display);display:inline-flex;align-items:center;white-space:nowrap;flex-shrink:0}
+
+/* WORKSPACE TABS */
+.workspace-tabs{display:flex;gap:4px;flex-wrap:wrap;padding:0 20px;margin-top:14px;background:var(--surface-2);margin-left:20px;margin-right:20px;border-radius:var(--radius-lg);padding:4px}
+.ws-tab{height:34px;padding:0 12px;border-radius:var(--radius-md);font-size:12px;font-weight:600;color:var(--text-secondary);display:inline-flex;align-items:center;gap:6px;transition:all var(--duration-fast) var(--ease-out);white-space:nowrap;flex-shrink:0;font-family:var(--font-body)}
+.ws-tab:hover{color:var(--text-primary);background:var(--surface-hover)}
+.ws-tab.active{background:var(--surface-1);color:var(--text-primary);font-weight:650;box-shadow:var(--shadow-sm)}
+.ws-tab .tab-badge{min-width:16px;height:16px;padding:0 5px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-display)}
+.ws-tab .tab-badge.warn{background:var(--warning-soft);color:var(--warning-text)}
+.ws-tab .tab-badge.danger{background:var(--danger-soft);color:var(--danger-text)}
+.ws-entry-note{padding:0 20px;margin-top:6px;font-size:12px;color:var(--text-tertiary)}
+
+.panel-body{padding:16px 20px 20px}
+
+/* MAIN 2-COL LAYOUT inside workspace */
+.main-layout{display:grid;grid-template-columns:1.2fr .8fr;gap:14px;align-items:start}
+.stack{display:flex;flex-direction:column;gap:14px}
+
+/* SOFT BLOCKS */
+.soft-block{background:var(--surface-2);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:14px}
+.soft-block h4{font-family:var(--font-display);font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text-primary)}
+.dominant-block{background:linear-gradient(180deg,#fff 0%,#f6f4ff 100%);border-color:var(--accent-muted)}
+.dominant-block h4{font-size:14px;margin-bottom:12px;color:var(--accent-text)}
+.alert-block{background:linear-gradient(180deg,#fff 0%,#fdf6ea 100%);border-color:#f0d5a3}
+.alert-block h4{color:var(--warning-text)}
+
+/* LIST ROWS */
+.list{display:flex;flex-direction:column;gap:8px}
+.list-row{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-md);padding:10px 12px;display:flex;justify-content:space-between;gap:12px;align-items:flex-start;transition:border-color var(--duration-fast) var(--ease-out)}
+.list-row:hover{border-color:var(--surface-4)}
+.list-row.hot{border-color:#f0b8b8;background:#fef8f8}
+.list-row h5{font-family:var(--font-display);font-size:13px;font-weight:650;margin-bottom:3px;color:var(--text-primary);letter-spacing:-.01em}
+.list-row p{font-size:12px;color:var(--text-secondary);line-height:1.45}
+.row-side{display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0}
+.time{font-size:11px;color:var(--text-tertiary);font-family:var(--font-display);font-weight:600}
+
+/* RIGHT RAIL */
+.rail{display:flex;flex-direction:column;gap:12px}
+.rail-card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);box-shadow:var(--shadow-sm);overflow:hidden}
+.rail-card-head{padding:14px 16px 0}
+.rail-card-head h3{font-family:var(--font-display);font-size:14px;font-weight:700}
+.rail-card-head .sub{font-size:11px;color:var(--text-secondary);margin-top:3px}
+.rail-card-body{padding:12px 16px 16px}
+
+/* Alert rail card */
+.rail-alert{background:linear-gradient(180deg,#fffbf5 0%,#fef4e3 100%);border-color:#f0d5a3}
+.rail-danger{background:linear-gradient(180deg,#fffafa 0%,#fef1f1 100%);border-color:#f0b8b8}
+
+/* Module link cards in rail */
+.module-links{display:flex;flex-direction:column;gap:6px}
+.module-link{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border:1px solid var(--surface-3);border-radius:var(--radius-md);background:var(--surface-1);font-size:13px;font-weight:550;color:var(--text-primary);transition:all var(--duration-fast) var(--ease-out);cursor:default}
+.module-link:hover{border-color:var(--accent-muted);background:var(--accent-soft)}
+.module-link .ml-right{display:flex;align-items:center;gap:6px}
+.module-link .ml-count{font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--accent-text)}
+.module-link .ml-arrow{color:var(--text-tertiary);font-size:14px}
+
+/* CONTACT CARDS */
+.contact-row{display:flex;align-items:center;gap:10px;padding:8px 0}
+.contact-row+.contact-row{border-top:1px solid var(--surface-3)}
+.contact-avatar{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-family:var(--font-display);font-size:10px;font-weight:700;color:white;flex-shrink:0}
+.contact-info{flex:1;min-width:0}
+.contact-name{font-size:13px;font-weight:600;color:var(--text-primary)}
+.contact-role{font-size:11px;color:var(--text-tertiary)}
+
+/* MILESTONE ITEMS */
+.milestone-item{display:flex;align-items:center;gap:12px;padding:8px 0}
+.milestone-item+.milestone-item{border-top:1px solid var(--surface-3)}
+.milestone-date{width:44px;text-align:center;flex-shrink:0}
+.milestone-date .md-day{font-family:var(--font-display);font-size:16px;font-weight:750;color:var(--text-primary);letter-spacing:-.02em}
+.milestone-date .md-month{font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.milestone-info{flex:1;min-width:0}
+.milestone-info h5{font-size:13px;font-weight:620;color:var(--text-primary);margin-bottom:2px}
+.milestone-info p{font-size:11px;color:var(--text-secondary)}
+.milestone-countdown{font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--text-tertiary);white-space:nowrap;flex-shrink:0}
+.milestone-countdown.soon{color:var(--warning-text)}
+.milestone-countdown.overdue{color:var(--danger-text)}
+
+/* RESPONSIVE */
+@media(max-width:1280px){
+  .hero{grid-template-columns:1fr}
+  .hero-side{display:none}
+  .summary-strip{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:1100px){
+  .project-grid{grid-template-columns:1fr}
+  .main-layout{grid-template-columns:1fr}
+}
+@media(max-width:900px){
+  .app{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .summary-strip{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============================================================
+       SIDEBAR
+       ============================================================ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">BC</div>
+      <div class="brand-info">
+        <h1>BuiltCRM</h1>
+        <p>Contractor portal</p>
+      </div>
+    </div>
+
+    <div class="sidebar-search">
+      <input class="search-input" placeholder="Search projects, people, files…" />
+    </div>
+
+    <nav class="sidebar-nav">
+      <!-- WORKSPACE -->
+      <div class="nav-section">
+        <div class="nav-section-label">Workspace</div>
+        <div class="nav-item"><span>Dashboard</span></div>
+        <div class="nav-item"><span>Project Directory</span><span class="nav-item-right"><span class="nav-badge">24</span></span></div>
+        <div class="nav-item"><span>Messages</span><span class="nav-item-right"><span class="nav-badge">5</span></span></div>
+        <div class="nav-item"><span>Notifications</span><span class="nav-item-right"><span class="nav-badge warn">3</span></span></div>
+      </div>
+
+      <!-- PROJECTS -->
+      <div class="nav-section">
+        <div class="nav-section-label">Projects</div>
+        <div class="nav-project active">
+          <span class="nav-dot" style="background:var(--accent)"></span>
+          <span>Riverside Tower Fit-Out</span>
+        </div>
+        <div class="nav-project">
+          <span class="nav-dot" style="background:var(--success)"></span>
+          <span>West End Medical</span>
+        </div>
+        <div class="nav-project">
+          <span class="nav-dot" style="background:var(--warning)"></span>
+          <span>Lot 7 Redevelopment</span>
+        </div>
+      </div>
+
+      <!-- OPERATIONS (project-scoped) -->
+      <div class="nav-section">
+        <div class="nav-section-label">Operations</div>
+        <div class="nav-item active"><span>Project Home</span><span class="nav-item-right"><span class="nav-tag">Live</span></span></div>
+        <div class="nav-item"><span>RFIs</span><span class="nav-item-right"><span class="nav-badge">6</span></span></div>
+        <div class="nav-item"><span>Change Orders</span><span class="nav-item-right"><span class="nav-badge warn">3</span></span></div>
+        <div class="nav-item"><span>Approvals</span><span class="nav-item-right"><span class="nav-badge danger">4</span></span></div>
+        <div class="nav-item"><span>Compliance</span><span class="nav-item-right"><span class="nav-badge">2</span></span></div>
+        <div class="nav-item"><span>Selections</span></div>
+        <div class="nav-item"><span>Upload Requests</span><span class="nav-item-right"><span class="nav-badge">1</span></span></div>
+      </div>
+
+      <!-- RESOURCES (project-scoped) -->
+      <div class="nav-section">
+        <div class="nav-section-label">Resources</div>
+        <div class="nav-item"><span>Documents</span><span class="nav-item-right"><span class="nav-badge">12</span></span></div>
+        <div class="nav-item"><span>Schedule</span></div>
+        <div class="nav-item"><span>Financials</span></div>
+        <div class="nav-item"><span>Billing / Draws</span></div>
+      </div>
+
+      <!-- ADMIN -->
+      <div class="nav-section">
+        <div class="nav-section-label">Admin</div>
+        <div class="nav-item"><span>Team</span></div>
+        <div class="nav-item"><span>Settings</span></div>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar">DC</div>
+        <div>
+          <div class="user-name">David Cardona</div>
+          <div class="user-role">Project Manager</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN
+       ============================================================ -->
+  <main class="main">
+    <div class="topbar">
+      <div class="breadcrumbs">
+        <span>Contractor</span>
+        <span class="sep">›</span>
+        <span>Riverside Tower Fit-Out</span>
+        <span class="sep">›</span>
+        <span class="current">Project Home</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn notif-dot" aria-label="Notifications">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m1 0v1a2 2 0 004 0v-1m-4 0h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="icon-btn" aria-label="Settings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/></svg>
+        </button>
+        <div class="avatar">DC</div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ========== HERO ========== -->
+      <section class="hero">
+        <div class="hero-main">
+          <h2>Riverside Tower Fit-Out</h2>
+          <div class="hero-topline">
+            <span class="pill purple">Active project</span>
+            <span class="pill orange">4 items need action</span>
+            <span class="pill red">1 blocker affecting release</span>
+            <span class="pill green">Compliance current</span>
+          </div>
+          <p class="hero-desc">Live operating surface for this project — current priorities, blockers, approvals, movement, and quick-access to every workspace module.</p>
+          <div class="meta-strip">
+            <div class="meta-chip"><strong>Client:</strong> Riverside Commercial Group</div>
+            <div class="meta-chip"><strong>PM:</strong> David Cardona</div>
+            <div class="meta-chip"><strong>Target:</strong> Aug 30, 2026</div>
+            <div class="meta-chip"><strong>Portals:</strong> Client + subcontractor live</div>
+          </div>
+          <div class="hero-actions">
+            <button class="btn primary">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+              New RFI
+            </button>
+            <button class="btn">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6M12 18v-6M9 15h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Upload Document
+            </button>
+            <button class="btn">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Create Draw
+            </button>
+            <button class="btn">Send Message</button>
+          </div>
+        </div>
+
+        <div class="hero-side">
+          <h4>Project snapshot</h4>
+          <div class="snapshot-stack">
+            <div class="snapshot-item danger-snapshot">
+              <div class="sk">Current blocker</div>
+              <div class="sv">CO-14 approval</div>
+              <div class="sm">Holding mechanical reroute release</div>
+            </div>
+            <div class="snapshot-item alert-snapshot">
+              <div class="sk">Next milestone</div>
+              <div class="sv">Apr 16</div>
+              <div class="sm">Electrical signoff</div>
+            </div>
+            <div class="snapshot-item">
+              <div class="sk">Decision queue</div>
+              <div class="sv">2 open</div>
+              <div class="sm">Lighting package + CO-14</div>
+            </div>
+            <div class="snapshot-item">
+              <div class="sk">Unread messages</div>
+              <div class="sv">3 threads</div>
+              <div class="sm">1 linked to RFI-22</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== CONTACTS STRIP ========== -->
+      <section class="contacts-strip">
+        <div class="contacts-strip-label">Key contacts</div>
+        <div class="contacts-strip-list">
+          <div class="contact-chip">
+            <div class="cc-avatar" style="background:var(--accent)">DC</div>
+            <span class="cc-name">David Cardona</span>
+            <span class="cc-role">PM</span>
+          </div>
+          <div class="contact-chip">
+            <div class="cc-avatar" style="background:#3d6b8e">MS</div>
+            <span class="cc-name">Marco Silva</span>
+            <span class="cc-role">Superintendent</span>
+          </div>
+          <div class="contact-chip">
+            <div class="cc-avatar" style="background:var(--info)">RG</div>
+            <span class="cc-name">Rachel Gupta</span>
+            <span class="cc-role">Client Approver</span>
+          </div>
+          <div class="contact-chip">
+            <div class="cc-avatar" style="background:var(--warning)">JT</div>
+            <span class="cc-name">James Torres</span>
+            <span class="cc-role">Apex Electrical</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== SUMMARY STRIP ========== -->
+      <section class="summary-strip">
+        <div class="summary-card">
+          <div class="s-label">Current phase</div>
+          <div class="s-value">Phase 3</div>
+          <div class="s-meta">Interior rough-in</div>
+        </div>
+        <div class="summary-card accent-card">
+          <div class="s-label">Approvals waiting</div>
+          <div class="s-value">4</div>
+          <div class="s-meta">1 overdue · 1 blocked</div>
+        </div>
+        <div class="summary-card warn-card">
+          <div class="s-label">Open RFIs</div>
+          <div class="s-value">6</div>
+          <div class="s-meta">2 need subcontractor response</div>
+        </div>
+        <div class="summary-card success-card">
+          <div class="s-label">Compliance</div>
+          <div class="s-value">92%</div>
+          <div class="s-meta">2 items expiring this month</div>
+        </div>
+        <div class="summary-card">
+          <div class="s-label">Billing progress</div>
+          <div class="s-value">$1.24M</div>
+          <div class="s-meta">of $3.8M contract · Draw #4 pending</div>
+        </div>
+      </section>
+
+      <!-- ========== MAIN GRID ========== -->
+      <section class="project-grid">
+
+        <!-- LEFT: Workspace card -->
+        <div class="card">
+          <div class="panel-head">
+            <div>
+              <h3>Project workspace</h3>
+              <div class="sub">Primary entry points into this project's live operating surface.</div>
+            </div>
+            <div class="panel-badge">Live workspace</div>
+          </div>
+
+          <div class="workspace-tabs">
+            <button class="ws-tab active">Today</button>
+            <button class="ws-tab">RFIs <span class="tab-badge">6</span></button>
+            <button class="ws-tab">Change Orders <span class="tab-badge warn">3</span></button>
+            <button class="ws-tab">Approvals <span class="tab-badge danger">4</span></button>
+            <button class="ws-tab">Compliance</button>
+            <button class="ws-tab">Selections</button>
+            <button class="ws-tab">Documents</button>
+            <button class="ws-tab">Billing</button>
+            <button class="ws-tab">Schedule</button>
+          </div>
+          <div class="ws-entry-note">Switch between current action, workflows, and project records without leaving this surface.</div>
+
+          <div class="panel-body">
+            <div class="main-layout">
+              <!-- LEFT COL -->
+              <div class="stack">
+                <div class="soft-block dominant-block">
+                  <h4>Today's priorities</h4>
+                  <div class="list">
+                    <div class="list-row hot">
+                      <div>
+                        <h5>Resolve CO-14 owner approval block</h5>
+                        <p>Mechanical reroute still waiting on client signoff — affecting procurement timing.</p>
+                      </div>
+                      <div class="row-side"><span class="pill red">Urgent</span><span class="time">3 days</span></div>
+                    </div>
+                    <div class="list-row">
+                      <div>
+                        <h5>Review Northline electrical submittal</h5>
+                        <p>Revised package needs PM review before internal release.</p>
+                      </div>
+                      <div class="row-side"><span class="pill blue">Review</span><span class="time">Today</span></div>
+                    </div>
+                    <div class="list-row">
+                      <div>
+                        <h5>Respond to RFI-22 (HVAC routing)</h5>
+                        <p>Mechanical sub waiting on contractor clarification for zone 3 ductwork.</p>
+                      </div>
+                      <div class="row-side"><span class="pill purple">RFI</span><span class="time">1 day</span></div>
+                    </div>
+                    <div class="list-row">
+                      <div>
+                        <h5>Review compliance submission from Apex Elec.</h5>
+                        <p>Updated COI and W-9 uploaded — needs verification before next draw.</p>
+                      </div>
+                      <div class="row-side"><span class="pill green">Compliance</span><span class="time">New</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="soft-block">
+                  <h4>Recent project movement</h4>
+                  <div class="list">
+                    <div class="list-row">
+                      <div>
+                        <h5>Selection packet sent to client</h5>
+                        <p>Lighting and flooring options now live in the client portal.</p>
+                      </div>
+                      <div class="row-side"><span class="time">44 min ago</span></div>
+                    </div>
+                    <div class="list-row">
+                      <div>
+                        <h5>Draw #3 approved by client</h5>
+                        <p>$312K released — retainage $28K held. Payment processing started.</p>
+                      </div>
+                      <div class="row-side"><span class="time">2 hrs ago</span></div>
+                    </div>
+                    <div class="list-row">
+                      <div>
+                        <h5>Electrical rough-in zone closed</h5>
+                        <p>Trade lead confirmed completion for east corridor package.</p>
+                      </div>
+                      <div class="row-side"><span class="time">3 hrs ago</span></div>
+                    </div>
+                    <div class="list-row">
+                      <div>
+                        <h5>Upload request completed by M&amp;R Plumbing</h5>
+                        <p>Closeout photos for zones 1–3 accepted and filed.</p>
+                      </div>
+                      <div class="row-side"><span class="time">Yesterday</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- RIGHT COL -->
+              <div class="stack">
+                <div class="soft-block alert-block">
+                  <h4>Approvals waiting</h4>
+                  <div class="list">
+                    <div class="list-row hot">
+                      <div>
+                        <h5>CO-14 owner signoff</h5>
+                        <p>Mechanical reroute package · +$18,400</p>
+                      </div>
+                      <div class="row-side"><span class="pill red">Blocked</span></div>
+                    </div>
+                    <div class="list-row">
+                      <div>
+                        <h5>Lighting package review</h5>
+                        <p>Commercial client decision pending for meeting rooms.</p>
+                      </div>
+                      <div class="row-side"><span class="pill orange">Open</span></div>
+                    </div>
+                    <div class="list-row">
+                      <div>
+                        <h5>Electrical PO revision</h5>
+                        <p>Internal PM release needed before updated order.</p>
+                      </div>
+                      <div class="row-side"><span class="pill blue">Internal</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="soft-block">
+                  <h4>Open risks &amp; dependencies</h4>
+                  <div class="list">
+                    <div class="list-row hot">
+                      <div>
+                        <h5>Client decision dependency</h5>
+                        <p>CO-14 signoff is the primary blocker affecting procurement timing.</p>
+                      </div>
+                      <div class="row-side"><span class="pill red">Critical</span></div>
+                    </div>
+                    <div class="list-row">
+                      <div>
+                        <h5>Upcoming milestone pressure</h5>
+                        <p>Electrical signoff depends on closing two open field items.</p>
+                      </div>
+                      <div class="row-side"><span class="pill orange">Watch</span></div>
+                    </div>
+                    <div class="list-row">
+                      <div>
+                        <h5>Compliance gap risk</h5>
+                        <p>Apex Electrical COI expires in 12 days — renewal uploaded, needs review.</p>
+                      </div>
+                      <div class="row-side"><span class="pill orange">Expiring</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT RAIL -->
+        <div class="rail">
+
+          <!-- Blockers -->
+          <div class="rail-card rail-danger">
+            <div class="rail-card-head">
+              <h3>Current blockers</h3>
+              <div class="sub">Issues actively delaying project progress</div>
+            </div>
+            <div class="rail-card-body">
+              <div class="list">
+                <div class="list-row hot">
+                  <div>
+                    <h5>CO-14 owner approval</h5>
+                    <p>Mechanical reroute — 3 days outstanding</p>
+                  </div>
+                </div>
+                <div class="list-row">
+                  <div>
+                    <h5>Field coordination gap</h5>
+                    <p>Mech + elec routing needs final reviewed decision</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Milestones -->
+          <div class="rail-card">
+            <div class="rail-card-head">
+              <h3>Upcoming milestones</h3>
+              <div class="sub">What's next for this project</div>
+            </div>
+            <div class="rail-card-body">
+              <div class="milestone-item">
+                <div class="milestone-date">
+                  <div class="md-day">16</div>
+                  <div class="md-month">Apr</div>
+                </div>
+                <div class="milestone-info">
+                  <h5>Electrical signoff</h5>
+                  <p>Depends on field coordination closeout</p>
+                </div>
+                <div class="milestone-countdown soon">4 days</div>
+              </div>
+              <div class="milestone-item">
+                <div class="milestone-date">
+                  <div class="md-day">18</div>
+                  <div class="md-month">Apr</div>
+                </div>
+                <div class="milestone-info">
+                  <h5>Selections lock-in</h5>
+                  <p>Client decision window closes</p>
+                </div>
+                <div class="milestone-countdown soon">6 days</div>
+              </div>
+              <div class="milestone-item">
+                <div class="milestone-date">
+                  <div class="md-day">28</div>
+                  <div class="md-month">Apr</div>
+                </div>
+                <div class="milestone-info">
+                  <h5>Draw #4 submission</h5>
+                  <p>Billing package assembly begins Apr 22</p>
+                </div>
+                <div class="milestone-countdown">16 days</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Module quick links -->
+          <div class="rail-card">
+            <div class="rail-card-head">
+              <h3>Quick access</h3>
+              <div class="sub">Jump into project modules</div>
+            </div>
+            <div class="rail-card-body">
+              <div class="module-links">
+                <div class="module-link">
+                  <span>Messages</span>
+                  <div class="ml-right"><span class="ml-count">3 unread</span><span class="ml-arrow">→</span></div>
+                </div>
+                <div class="module-link">
+                  <span>Documents</span>
+                  <div class="ml-right"><span class="ml-count">12 new</span><span class="ml-arrow">→</span></div>
+                </div>
+                <div class="module-link">
+                  <span>Schedule</span>
+                  <div class="ml-right"><span class="ml-arrow">→</span></div>
+                </div>
+                <div class="module-link">
+                  <span>Financials</span>
+                  <div class="ml-right"><span class="ml-count">$1.24M billed</span><span class="ml-arrow">→</span></div>
+                </div>
+                <div class="module-link">
+                  <span>Upload Requests</span>
+                  <div class="ml-right"><span class="ml-count">1 open</span><span class="ml-arrow">→</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+</body>
+</html>
