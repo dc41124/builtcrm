@@ -11,9 +11,14 @@
 import { and, eq, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 
+import { hashPassword } from "better-auth/crypto";
+import { randomBytes } from "node:crypto";
+
 import { db } from "./client";
 import {
   users,
+  authUser,
+  authAccount,
   organizations,
   organizationUsers,
   roleAssignments,
@@ -388,6 +393,49 @@ async function seed() {
     subOrgId: pacificOrg.id,
     residential: true,
   });
+
+  // ---- Auth credentials (dev only, password123) ------------------------
+  // Inserts directly into Better Auth's tables rather than calling the auth
+  // API — avoids pulling the Next/auth config into a Node seed script.
+  // Password is hashed with the same scrypt helper Better Auth uses at
+  // runtime so logins via the real /api/auth/sign-in/email endpoint work.
+  const passwordHash = await hashPassword("password123");
+  const authSeeds: Array<{ id: string; email: string; displayName: string | null }> = [
+    summitAdmin,
+    summitPm,
+    northlineUser,
+    pacificUser,
+    meridianUser,
+    residentialUser,
+  ];
+  for (const u of authSeeds) {
+    const existing = await db
+      .select()
+      .from(authUser)
+      .where(eq(authUser.email, u.email))
+      .limit(1);
+    if (existing[0]) {
+      if (existing[0].appUserId !== u.id) {
+        await db.update(authUser).set({ appUserId: u.id }).where(eq(authUser.id, existing[0].id));
+      }
+      continue;
+    }
+    const authUserId = randomBytes(16).toString("hex");
+    await db.insert(authUser).values({
+      id: authUserId,
+      email: u.email,
+      name: u.displayName ?? u.email,
+      emailVerified: true,
+      appUserId: u.id,
+    });
+    await db.insert(authAccount).values({
+      id: randomBytes(16).toString("hex"),
+      userId: authUserId,
+      accountId: authUserId,
+      providerId: "credential",
+      password: passwordHash,
+    });
+  }
 
   console.log("✓ Seed complete.");
 }
