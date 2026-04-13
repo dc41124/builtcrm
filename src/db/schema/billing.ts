@@ -1,0 +1,367 @@
+import { sql } from "drizzle-orm";
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core";
+import { timestamps } from "./_shared";
+import { organizations, users } from "./identity";
+import { projects } from "./projects";
+import { documents } from "./documents";
+import { changeOrders } from "./workflows";
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+export const billingPackageStatusEnum = pgEnum("billing_package_status", [
+  "draft",
+  "ready_for_review",
+  "under_review",
+  "approved",
+  "rejected",
+  "closed",
+]);
+
+export const paymentStatusEnum = pgEnum("payment_status", [
+  "not_started",
+  "pending",
+  "in_review",
+  "approved",
+  "paid",
+  "overdue",
+  "cancelled",
+]);
+
+export const purchaseOrderStatusEnum = pgEnum("purchase_order_status", [
+  "draft",
+  "pending_issue",
+  "issued",
+  "revised",
+  "closed",
+  "cancelled",
+]);
+
+export const sovStatusEnum = pgEnum("sov_status", [
+  "draft",
+  "active",
+  "locked",
+  "archived",
+]);
+
+export const sovLineItemTypeEnum = pgEnum("sov_line_item_type", [
+  "original",
+  "change_order",
+]);
+
+export const drawRequestStatusEnum = pgEnum("draw_request_status", [
+  "draft",
+  "ready_for_review",
+  "submitted",
+  "under_review",
+  "approved",
+  "approved_with_note",
+  "returned",
+  "revised",
+  "paid",
+  "closed",
+]);
+
+export const lienWaiverTypeEnum = pgEnum("lien_waiver_type", [
+  "conditional_progress",
+  "unconditional_progress",
+  "conditional_final",
+  "unconditional_final",
+]);
+
+export const lienWaiverStatusEnum = pgEnum("lien_waiver_status", [
+  "requested",
+  "submitted",
+  "accepted",
+  "rejected",
+  "waived",
+]);
+
+export const retainageReleaseStatusEnum = pgEnum("retainage_release_status", [
+  "held",
+  "release_requested",
+  "released",
+  "forfeited",
+]);
+
+// -----------------------------------------------------------------------------
+// Billing packages
+// -----------------------------------------------------------------------------
+
+export const billingPackages = pgTable(
+  "billing_packages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    billingPackageNumber: varchar("billing_package_number", { length: 80 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    billingPackageStatus: billingPackageStatusEnum("billing_package_status")
+      .default("draft")
+      .notNull(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    reviewDueAt: timestamp("review_due_at", { withTimezone: true }),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    ...timestamps,
+  },
+  (table) => ({
+    projectNumberUnique: unique("billing_packages_project_number_unique").on(
+      table.projectId,
+      table.billingPackageNumber,
+    ),
+    projectIdx: index("billing_packages_project_idx").on(table.projectId),
+    statusIdx: index("billing_packages_status_idx").on(table.billingPackageStatus),
+  }),
+);
+
+// -----------------------------------------------------------------------------
+// Schedule of Values
+// -----------------------------------------------------------------------------
+
+export const scheduleOfValues = pgTable(
+  "schedule_of_values",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    version: integer("version").default(1).notNull(),
+    sovStatus: sovStatusEnum("sov_status").default("draft").notNull(),
+    totalScheduledValueCents: integer("total_scheduled_value_cents").default(0).notNull(),
+    totalOriginalContractCents: integer("total_original_contract_cents").default(0).notNull(),
+    totalChangeOrdersCents: integer("total_change_orders_cents").default(0).notNull(),
+    defaultRetainagePercent: integer("default_retainage_percent").default(10).notNull(),
+    approvedByUserId: uuid("approved_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => ({
+    projectIdx: index("sov_project_idx").on(table.projectId),
+  }),
+);
+
+export const sovLineItems = pgTable(
+  "sov_line_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sovId: uuid("sov_id")
+      .notNull()
+      .references(() => scheduleOfValues.id, { onDelete: "cascade" }),
+    itemNumber: varchar("item_number", { length: 40 }).notNull(),
+    costCode: varchar("cost_code", { length: 40 }),
+    description: varchar("description", { length: 500 }).notNull(),
+    lineItemType: sovLineItemTypeEnum("line_item_type").default("original").notNull(),
+    scheduledValueCents: integer("scheduled_value_cents").notNull(),
+    changeOrderId: uuid("change_order_id").references(() => changeOrders.id, {
+      onDelete: "set null",
+    }),
+    retainagePercentOverride: integer("retainage_percent_override"),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    ...timestamps,
+  },
+  (table) => ({
+    sovIdx: index("sov_line_items_sov_idx").on(table.sovId),
+    sovNumberUnique: unique("sov_line_items_sov_number_unique").on(
+      table.sovId,
+      table.itemNumber,
+    ),
+    costCodeIdx: index("sov_line_items_cost_code_idx").on(table.costCode),
+    changeOrderIdx: index("sov_line_items_co_idx").on(table.changeOrderId),
+    activeIdx: index("sov_line_items_active_idx").on(table.isActive),
+  }),
+);
+
+// -----------------------------------------------------------------------------
+// Draw requests
+// -----------------------------------------------------------------------------
+
+export const drawRequests = pgTable(
+  "draw_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    sovId: uuid("sov_id")
+      .notNull()
+      .references(() => scheduleOfValues.id, { onDelete: "restrict" }),
+    drawNumber: integer("draw_number").notNull(),
+    periodFrom: timestamp("period_from", { withTimezone: true }).notNull(),
+    periodTo: timestamp("period_to", { withTimezone: true }).notNull(),
+    drawRequestStatus: drawRequestStatusEnum("draw_request_status").default("draft").notNull(),
+
+    // G702 summary fields
+    originalContractSumCents: integer("original_contract_sum_cents").default(0).notNull(),
+    netChangeOrdersCents: integer("net_change_orders_cents").default(0).notNull(),
+    contractSumToDateCents: integer("contract_sum_to_date_cents").default(0).notNull(),
+    totalCompletedToDateCents: integer("total_completed_to_date_cents").default(0).notNull(),
+    retainageOnCompletedCents: integer("retainage_on_completed_cents").default(0).notNull(),
+    retainageOnStoredCents: integer("retainage_on_stored_cents").default(0).notNull(),
+    totalRetainageCents: integer("total_retainage_cents").default(0).notNull(),
+    totalEarnedLessRetainageCents: integer("total_earned_less_retainage_cents").default(0).notNull(),
+    previousCertificatesCents: integer("previous_certificates_cents").default(0).notNull(),
+    currentPaymentDueCents: integer("current_payment_due_cents").default(0).notNull(),
+    balanceToFinishCents: integer("balance_to_finish_cents").default(0).notNull(),
+
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    reviewedByUserId: uuid("reviewed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewNote: text("review_note"),
+    returnedAt: timestamp("returned_at", { withTimezone: true }),
+    returnReason: text("return_reason"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    paymentReferenceName: varchar("payment_reference_name", { length: 255 }),
+
+    ...timestamps,
+  },
+  (table) => ({
+    projectDrawUnique: unique("draw_requests_project_draw_unique").on(
+      table.projectId,
+      table.drawNumber,
+    ),
+    projectIdx: index("draw_requests_project_idx").on(table.projectId),
+    statusIdx: index("draw_requests_status_idx").on(table.drawRequestStatus),
+    sovIdx: index("draw_requests_sov_idx").on(table.sovId),
+    contractSumCheck: check(
+      "draw_requests_contract_sum_check",
+      sql`contract_sum_to_date_cents = original_contract_sum_cents + net_change_orders_cents`,
+    ),
+  }),
+);
+
+export const drawLineItems = pgTable(
+  "draw_line_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    drawRequestId: uuid("draw_request_id")
+      .notNull()
+      .references(() => drawRequests.id, { onDelete: "cascade" }),
+    sovLineItemId: uuid("sov_line_item_id")
+      .notNull()
+      .references(() => sovLineItems.id, { onDelete: "restrict" }),
+    workCompletedPreviousCents: integer("work_completed_previous_cents").default(0).notNull(),
+    workCompletedThisPeriodCents: integer("work_completed_this_period_cents").default(0).notNull(),
+    materialsPresentlyStoredCents: integer("materials_presently_stored_cents").default(0).notNull(),
+    totalCompletedStoredToDateCents: integer("total_completed_stored_to_date_cents").default(0).notNull(),
+    percentCompleteBasisPoints: integer("percent_complete_basis_points").default(0).notNull(),
+    balanceToFinishCents: integer("balance_to_finish_cents").default(0).notNull(),
+    retainageCents: integer("retainage_cents").default(0).notNull(),
+    retainagePercentApplied: integer("retainage_percent_applied").default(10).notNull(),
+    ...timestamps,
+  },
+  (table) => ({
+    drawSovUnique: unique("draw_line_items_draw_sov_unique").on(
+      table.drawRequestId,
+      table.sovLineItemId,
+    ),
+    drawIdx: index("draw_line_items_draw_idx").on(table.drawRequestId),
+    sovLineIdx: index("draw_line_items_sov_line_idx").on(table.sovLineItemId),
+    totalCheck: check(
+      "draw_line_items_total_check",
+      sql`total_completed_stored_to_date_cents = work_completed_previous_cents + work_completed_this_period_cents + materials_presently_stored_cents`,
+    ),
+  }),
+);
+
+// -----------------------------------------------------------------------------
+// Lien waivers
+// -----------------------------------------------------------------------------
+
+export const lienWaivers = pgTable(
+  "lien_waivers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    drawRequestId: uuid("draw_request_id")
+      .notNull()
+      .references(() => drawRequests.id, { onDelete: "cascade" }),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    lienWaiverType: lienWaiverTypeEnum("lien_waiver_type").notNull(),
+    lienWaiverStatus: lienWaiverStatusEnum("lien_waiver_status").default("requested").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    throughDate: timestamp("through_date", { withTimezone: true }),
+    documentId: uuid("document_id").references(() => documents.id, { onDelete: "set null" }),
+    templateId: varchar("template_id", { length: 60 }),
+    requestedAt: timestamp("requested_at", { withTimezone: true }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    acceptedByUserId: uuid("accepted_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    ...timestamps,
+  },
+  (table) => ({
+    drawOrgTypeUnique: unique("lien_waivers_draw_org_type_unique").on(
+      table.drawRequestId,
+      table.organizationId,
+      table.lienWaiverType,
+    ),
+    projectIdx: index("lien_waivers_project_idx").on(table.projectId),
+    drawIdx: index("lien_waivers_draw_idx").on(table.drawRequestId),
+    orgIdx: index("lien_waivers_org_idx").on(table.organizationId),
+    statusIdx: index("lien_waivers_status_idx").on(table.lienWaiverStatus),
+  }),
+);
+
+// -----------------------------------------------------------------------------
+// Retainage releases
+// -----------------------------------------------------------------------------
+
+export const retainageReleases = pgTable(
+  "retainage_releases",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    sovLineItemId: uuid("sov_line_item_id").references(() => sovLineItems.id, {
+      onDelete: "set null",
+    }),
+    releaseStatus: retainageReleaseStatusEnum("retainage_release_status").default("held").notNull(),
+    releaseAmountCents: integer("release_amount_cents").notNull(),
+    totalRetainageHeldCents: integer("total_retainage_held_cents").notNull(),
+    requestedByUserId: uuid("requested_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    requestedAt: timestamp("requested_at", { withTimezone: true }),
+    approvedByUserId: uuid("approved_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    approvalNote: text("approval_note"),
+    ...timestamps,
+  },
+  (table) => ({
+    projectIdx: index("retainage_releases_project_idx").on(table.projectId),
+    statusIdx: index("retainage_releases_status_idx").on(table.releaseStatus),
+    sovLineIdx: index("retainage_releases_sov_line_idx").on(table.sovLineItemId),
+  }),
+);
