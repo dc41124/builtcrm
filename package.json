@@ -13,30 +13,35 @@
     "db:seed": "npx tsx --env-file=.env.local src/db/seed.ts",
     "trigger:dev": "npx trigger.dev@3 dev",
     "trigger:deploy": "npx trigger.dev@3 deploy",
-    "test": "echo \"No tests yet\" && exit 0"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
-    "next": "^14.2.15",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "drizzle-orm": "^0.41.0",
-    "postgres": "^3.4.5",
-    "better-auth": "^1.0.0",
-    "@trigger.dev/sdk": "^3.3.0",
     "@aws-sdk/client-s3": "^3.670.0",
     "@aws-sdk/s3-request-presigner": "^3.670.0",
+    "@trigger.dev/sdk": "^3.3.0",
     "@upstash/redis": "^1.34.3",
-    "zod": "^3.23.8",
-    "nanoid": "^5.0.7"
+    "better-auth": "^1.0.0",
+    "drizzle-orm": "^0.41.0",
+    "nanoid": "^5.0.7",
+    "next": "^14.2.15",
+    "postgres": "^3.4.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "typescript": "^5.6.3",
+    "@types/node": "^22.7.5",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@types/node": "^22.7.5",
+    "@vitest/ui": "^4.1.4",
+    "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.4",
     "eslint": "^8.57.1",
     "eslint-config-next": "^14.2.15",
-    "tsx": "^4.19.1"
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^4.1.4"
   }
 }

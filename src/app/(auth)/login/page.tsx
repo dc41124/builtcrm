@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { signIn } from "@/auth/client";
 
 export default function LoginPage() {
@@ -10,6 +11,7 @@ export default function LoginPage() {
   const next = searchParams.get("next") ?? "/app";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -17,7 +19,12 @@ export default function LoginPage() {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
-    const res = await signIn.email({ email, password, callbackURL: next });
+    const res = await signIn.email({
+      email,
+      password,
+      rememberMe: remember,
+      callbackURL: next,
+    });
     setSubmitting(false);
     if (res.error) {
       setError(res.error.message ?? "Sign-in failed");
@@ -28,39 +35,66 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ padding: "2rem", fontFamily: "system-ui", maxWidth: 360 }}>
-      <h1>Log in</h1>
-      <form onSubmit={onSubmit}>
-        <div>
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoComplete="email"
-          />
-        </div>
-        <div>
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-          />
-        </div>
-        {error ? <p style={{ color: "crimson" }}>{error}</p> : null}
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
-      <p>
-        No account? <a href="/signup">Sign up</a>
-      </p>
-    </main>
+    <>
+      <div className="auth-card">
+        <h1>Welcome back</h1>
+        <p className="auth-sub">
+          Sign in to your account to access your projects.
+        </p>
+
+        <form onSubmit={onSubmit}>
+          {error ? <div className="error-msg">{error}</div> : null}
+
+          <div className="field">
+            <label htmlFor="email">Email address</label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@company.com"
+              required
+              autoComplete="email"
+            />
+          </div>
+
+          <div className="field">
+            <div className="field-header">
+              <label htmlFor="password">Password</label>
+              <Link href="/forgot-password" className="field-link">
+                Forgot password?
+              </Link>
+            </div>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              required
+              autoComplete="current-password"
+            />
+          </div>
+
+          <div className="checkbox-row">
+            <input
+              id="remember"
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+            />
+            <label htmlFor="remember">Keep me signed in</label>
+          </div>
+
+          <button type="submit" className="btn-auth" disabled={submitting}>
+            {submitting ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+      </div>
+
+      <div className="auth-footer">
+        Have an invitation? <Link href="/signup">Accept invite instead</Link>
+      </div>
+    </>
   );
 }

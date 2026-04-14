@@ -1,70 +1,70 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { signUp } from "@/auth/client";
+import {
+  isInvitationAcceptable,
+  loadInvitationByToken,
+} from "@/domain/loaders/invitations";
+import { AuthorizationError } from "@/domain/permissions";
 
-export default function SignupPage() {
-  const router = useRouter();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+import { SignupForm } from "./signup-form";
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    const res = await signUp.email({ email, password, name, callbackURL: "/app" });
-    setSubmitting(false);
-    if (res.error) {
-      setError(res.error.message ?? "Sign-up failed");
-      return;
-    }
-    router.push("/app");
-    router.refresh();
+type Search = Promise<{ token?: string }>;
+
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Search;
+}) {
+  const { token } = await searchParams;
+
+  if (!token) {
+    // Self-serve signup is intentionally disabled — this is an
+    // invitation-only product. Redirect curious visitors to login.
+    redirect("/login");
   }
 
+  let invitation;
+  try {
+    invitation = await loadInvitationByToken(token);
+  } catch (err) {
+    if (err instanceof AuthorizationError) {
+      redirect("/login");
+    }
+    throw err;
+  }
+
+  const status = isInvitationAcceptable(invitation);
+  if (!status.ok) {
+    redirect(`/invite/${token}`);
+  }
+
+  const isResidential =
+    invitation.portalType === "client" &&
+    invitation.clientSubtype === "residential";
+  const orgName = invitation.organization.name;
+  const projectName = invitation.project?.name ?? null;
+
   return (
-    <main style={{ padding: "2rem", fontFamily: "system-ui", maxWidth: 360 }}>
-      <h1>Sign up</h1>
-      <form onSubmit={onSubmit}>
-        <div>
-          <label htmlFor="name">Name</label>
-          <input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
-        </div>
-        <div>
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoComplete="email"
-          />
-        </div>
-        <div>
-          <label htmlFor="password">Password (min 8)</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
-            autoComplete="new-password"
-          />
-        </div>
-        {error ? <p style={{ color: "crimson" }}>{error}</p> : null}
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Creating account…" : "Create account"}
-        </button>
-      </form>
-      <p>
-        Already have an account? <a href="/login">Log in</a>
-      </p>
-    </main>
+    <div className="auth-card wide">
+      <div className="step-indicator">
+        <div className="step-dot done"></div>
+        <div className={isResidential ? "step-dot active res" : "step-dot active"}></div>
+        <div className="step-dot"></div>
+      </div>
+      <div className="auth-card-body">
+        <h2>{isResidential ? "Set up your account" : "Create your account"}</h2>
+        <p className="auth-sub">
+          {isResidential
+            ? "This will be your personal login to see updates, make selections, and stay connected with your builder."
+            : `Set up your account to access ${projectName ?? orgName}.`}
+        </p>
+        <SignupForm
+          token={invitation.token}
+          email={invitation.invitedEmail}
+          isResidential={isResidential}
+          showCompanyField={!isResidential}
+        />
+      </div>
+    </div>
   );
 }

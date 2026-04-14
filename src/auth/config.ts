@@ -28,6 +28,13 @@ export const auth = betterAuth({
     requireEmailVerification: false,
     autoSignIn: true,
     minPasswordLength: 8,
+    sendResetPassword: async ({ user, url }) => {
+      // Dev stub: no email infrastructure is wired up yet (see Phase 1 build
+      // notes — Postmark/SendGrid integration is catalog-only). Log the link
+      // so a developer running locally can click through the reset flow.
+      // Replace with a Trigger.dev email job once an SMTP provider is live.
+      console.log(`[auth] Password reset link for ${user.email}: ${url}`);
+    },
   },
   session: {
     expiresIn: 60 * 60 * 24 * 7,
