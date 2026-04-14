@@ -72,7 +72,7 @@ const POLICY: Record<Resource, Policy> = {
   schedule: { read: EVERYONE, write: ALL_CONTRACTOR },
   sov: { read: ALL_CONTRACTOR, write: ALL_CONTRACTOR },
   draw_request: {
-    read: new Set([...ALL_CONTRACTOR, ...CLIENTS]),
+    read: new Set([...ALL_CONTRACTOR, ...CLIENTS, "subcontractor_user"]),
     write: ALL_CONTRACTOR,
     approve: CLIENTS,
   },
