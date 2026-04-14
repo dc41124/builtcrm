@@ -11,6 +11,8 @@
     "db:migrate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate",
     "db:push": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs push",
     "db:seed": "npx tsx --env-file=.env.local src/db/seed.ts",
+    "trigger:dev": "npx trigger.dev@3 dev",
+    "trigger:deploy": "npx trigger.dev@3 deploy",
     "test": "echo \"No tests yet\" && exit 0"
   },
   "dependencies": {
