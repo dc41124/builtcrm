@@ -5,6 +5,7 @@ import { auth } from "@/auth/config";
 import { getSubcontractorProjectView } from "@/domain/loaders/project-home";
 import { AuthorizationError } from "@/domain/permissions";
 
+import { SubRfisList } from "./rfis-ui";
 import { PendingUploadRequestsList } from "./upload-requests-ui";
 
 export default async function SubcontractorProjectHomePage({
@@ -49,11 +50,7 @@ export default async function SubcontractorProjectHomePage({
       </ul>
 
       <h2>RFIs Assigned to Me</h2>
-      <ul>
-        {view.assignedRfis.map((r) => (
-          <li key={r.id}>{r.subject} [{r.rfiStatus}]</li>
-        ))}
-      </ul>
+      <SubRfisList rfis={view.assignedRfis} />
 
       <h2>Pending Upload Requests</h2>
       <PendingUploadRequestsList

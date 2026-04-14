@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -6,8 +6,10 @@ import {
   drawRequests,
   milestones,
   projectUserMemberships,
+  rfiResponses,
   rfis,
   uploadRequests,
+  users,
 } from "@/db/schema";
 
 import {
@@ -19,6 +21,102 @@ import { AuthorizationError } from "../permissions";
 
 type LoaderInput = { session: SessionLike | null | undefined; projectId: string };
 
+// Fetches RFIs for a project (optionally scoped by assigned org) with their
+// responses + responder display names folded in. Two queries, grouped in JS.
+async function loadRfisWithResponses(
+  projectId: string,
+  opts: { assignedToOrganizationId?: string } = {},
+): Promise<RfiRow[]> {
+  const whereClause = opts.assignedToOrganizationId
+    ? and(
+        eq(rfis.projectId, projectId),
+        eq(rfis.assignedToOrganizationId, opts.assignedToOrganizationId),
+      )
+    : eq(rfis.projectId, projectId);
+
+  const rfiRows = await db
+    .select({
+      id: rfis.id,
+      sequentialNumber: rfis.sequentialNumber,
+      subject: rfis.subject,
+      body: rfis.body,
+      rfiStatus: rfis.rfiStatus,
+      assignedToOrganizationId: rfis.assignedToOrganizationId,
+      assignedToUserId: rfis.assignedToUserId,
+      dueAt: rfis.dueAt,
+      respondedAt: rfis.respondedAt,
+      closedAt: rfis.closedAt,
+      drawingReference: rfis.drawingReference,
+      specificationReference: rfis.specificationReference,
+      locationDescription: rfis.locationDescription,
+      createdAt: rfis.createdAt,
+    })
+    .from(rfis)
+    .where(whereClause)
+    .orderBy(desc(rfis.createdAt));
+
+  if (rfiRows.length === 0) return [];
+
+  const ids = rfiRows.map((r) => r.id);
+  const responseRows = await db
+    .select({
+      id: rfiResponses.id,
+      rfiId: rfiResponses.rfiId,
+      body: rfiResponses.body,
+      respondedByUserId: rfiResponses.respondedByUserId,
+      respondedByName: users.displayName,
+      isOfficialResponse: rfiResponses.isOfficialResponse,
+      createdAt: rfiResponses.createdAt,
+    })
+    .from(rfiResponses)
+    .leftJoin(users, eq(users.id, rfiResponses.respondedByUserId))
+    .where(inArray(rfiResponses.rfiId, ids))
+    .orderBy(asc(rfiResponses.createdAt));
+
+  const grouped = new Map<string, RfiResponseRow[]>();
+  for (const r of responseRows) {
+    const arr = grouped.get(r.rfiId) ?? [];
+    arr.push({
+      id: r.id,
+      body: r.body,
+      respondedByUserId: r.respondedByUserId,
+      respondedByName: r.respondedByName,
+      isOfficialResponse: r.isOfficialResponse,
+      createdAt: r.createdAt,
+    });
+    grouped.set(r.rfiId, arr);
+  }
+
+  return rfiRows.map((r) => ({ ...r, responses: grouped.get(r.id) ?? [] }));
+}
+
+export type RfiResponseRow = {
+  id: string;
+  body: string;
+  respondedByUserId: string;
+  respondedByName: string | null;
+  isOfficialResponse: boolean;
+  createdAt: Date;
+};
+
+export type RfiRow = {
+  id: string;
+  sequentialNumber: number;
+  subject: string;
+  body: string | null;
+  rfiStatus: string;
+  assignedToOrganizationId: string | null;
+  assignedToUserId: string | null;
+  dueAt: Date | null;
+  respondedAt: Date | null;
+  closedAt: Date | null;
+  drawingReference: string | null;
+  specificationReference: string | null;
+  locationDescription: string | null;
+  createdAt: Date;
+  responses: RfiResponseRow[];
+};
+
 export type ContractorProjectView = {
   context: EffectiveContext;
   project: EffectiveContext["project"];
@@ -29,7 +127,7 @@ export type ContractorProjectView = {
     milestoneStatus: string;
     scheduledDate: Date;
   }>;
-  rfis: Array<{ id: string; subject: string; rfiStatus: string }>;
+  rfis: RfiRow[];
   changeOrders: Array<{ id: string; title: string; changeOrderStatus: string }>;
   drawRequests: Array<{
     id: string;
@@ -74,15 +172,7 @@ export async function getContractorProjectView(
       .from(milestones)
       .where(eq(milestones.projectId, projectId))
       .orderBy(milestones.scheduledDate),
-    db
-      .select({
-        id: rfis.id,
-        subject: rfis.subject,
-        rfiStatus: rfis.rfiStatus,
-      })
-      .from(rfis)
-      .where(eq(rfis.projectId, projectId))
-      .orderBy(desc(rfis.createdAt)),
+    loadRfisWithResponses(projectId),
     db
       .select({
         id: changeOrders.id,
@@ -137,7 +227,7 @@ export type SubcontractorProjectView = {
   context: EffectiveContext;
   project: EffectiveContext["project"];
   scope: { workScope: string | null; phaseScope: string | null };
-  assignedRfis: Array<{ id: string; subject: string; rfiStatus: string }>;
+  assignedRfis: RfiRow[];
   assignedChangeOrders: Array<{
     id: string;
     title: string;
@@ -174,20 +264,7 @@ export async function getSubcontractorProjectView(
   const subOrgId = context.organization.id;
 
   const [rfiRows, coRows, milestoneRows, pendingRows] = await Promise.all([
-    db
-      .select({
-        id: rfis.id,
-        subject: rfis.subject,
-        rfiStatus: rfis.rfiStatus,
-      })
-      .from(rfis)
-      .where(
-        and(
-          eq(rfis.projectId, projectId),
-          eq(rfis.assignedToOrganizationId, subOrgId),
-        ),
-      )
-      .orderBy(desc(rfis.createdAt)),
+    loadRfisWithResponses(projectId, { assignedToOrganizationId: subOrgId }),
     db
       .select({
         id: changeOrders.id,

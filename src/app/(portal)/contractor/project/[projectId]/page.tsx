@@ -5,6 +5,7 @@ import { auth } from "@/auth/config";
 import { getContractorProjectView } from "@/domain/loaders/project-home";
 import { AuthorizationError } from "@/domain/permissions";
 
+import { ContractorRfisList, CreateRfiForm } from "./rfis-ui";
 import {
   ContractorUploadRequestsList,
   CreateUploadRequestForm,
@@ -49,11 +50,8 @@ export default async function ContractorProjectHomePage({
       </ul>
 
       <h2>RFIs</h2>
-      <ul>
-        {view.rfis.map((r) => (
-          <li key={r.id}>{r.subject} [{r.rfiStatus}]</li>
-        ))}
-      </ul>
+      <ContractorRfisList rfis={view.rfis} />
+      <CreateRfiForm projectId={view.project.id} />
 
       <h2>Change Orders</h2>
       <ul>
