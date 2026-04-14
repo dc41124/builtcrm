@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
@@ -12,29 +13,124 @@ import { AuthorizationError } from "@/domain/permissions";
 
 import { recomputeDrawHeaderTotals } from "../_totals";
 
-type Transition = "submit" | "start-review";
+type DrawRow = typeof drawRequests.$inferSelect;
+type UpdateValues = Partial<typeof drawRequests.$inferInsert>;
 
-const RULES = {
+const CONTRACTOR_ROLES = ["contractor_admin", "contractor_pm"] as const;
+const CLIENT_ROLES = ["commercial_client", "residential_client"] as const;
+
+type Role = string;
+
+type TransitionRule<TBody> = {
+  allowedRoles: readonly Role[];
+  fromStates: ReadonlyArray<DrawRow["drawRequestStatus"]>;
+  toState: DrawRow["drawRequestStatus"];
+  label: string;
+  forbiddenMessage: string;
+  bodySchema?: z.ZodType<TBody>;
+  recomputeTotals?: boolean;
+  buildUpdate?: (body: TBody, draw: DrawRow) => UpdateValues;
+};
+
+export type DrawTransitionKind =
+  | "submit"
+  | "start-review"
+  | "approve"
+  | "approve-with-note"
+  | "return"
+  | "mark-paid";
+
+const approveNoteBody = z.object({ note: z.string().min(1).max(2000) });
+const returnBody = z.object({ reason: z.string().min(1).max(2000) });
+const markPaidBody = z.object({ paymentReferenceName: z.string().min(1).max(255) });
+
+const RULES: {
+  submit: TransitionRule<Record<string, never>>;
+  "start-review": TransitionRule<Record<string, never>>;
+  approve: TransitionRule<Record<string, never>>;
+  "approve-with-note": TransitionRule<z.infer<typeof approveNoteBody>>;
+  return: TransitionRule<z.infer<typeof returnBody>>;
+  "mark-paid": TransitionRule<z.infer<typeof markPaidBody>>;
+} = {
   submit: {
-    from: "draft" as const,
-    to: "submitted" as const,
+    allowedRoles: CONTRACTOR_ROLES,
+    fromStates: ["draft"],
+    toState: "submitted",
     label: "submitted",
+    forbiddenMessage: "Only contractors can submit a draw request",
+    recomputeTotals: true,
+    buildUpdate: () => ({ submittedAt: new Date() }),
   },
   "start-review": {
-    from: "submitted" as const,
-    to: "under_review" as const,
+    allowedRoles: CONTRACTOR_ROLES,
+    fromStates: ["submitted"],
+    toState: "under_review",
     label: "under review",
+    forbiddenMessage: "Only contractors can move a draw into review",
+  },
+  approve: {
+    allowedRoles: CLIENT_ROLES,
+    fromStates: ["under_review"],
+    toState: "approved",
+    label: "approved",
+    forbiddenMessage: "Only the client can approve a draw request",
+    buildUpdate: () => ({ reviewedAt: new Date(), reviewNote: null }),
+  },
+  "approve-with-note": {
+    allowedRoles: CLIENT_ROLES,
+    fromStates: ["under_review"],
+    toState: "approved_with_note",
+    label: "approved with note",
+    forbiddenMessage: "Only the client can approve a draw request",
+    bodySchema: approveNoteBody,
+    buildUpdate: (body) => ({ reviewedAt: new Date(), reviewNote: body.note }),
+  },
+  return: {
+    allowedRoles: CLIENT_ROLES,
+    fromStates: ["under_review"],
+    toState: "returned",
+    label: "returned",
+    forbiddenMessage: "Only the client can return a draw request",
+    bodySchema: returnBody,
+    buildUpdate: (body) => ({ returnedAt: new Date(), returnReason: body.reason }),
+  },
+  "mark-paid": {
+    allowedRoles: CONTRACTOR_ROLES,
+    fromStates: ["approved", "approved_with_note"],
+    toState: "paid",
+    label: "marked paid",
+    forbiddenMessage: "Only contractors can mark a draw as paid",
+    bodySchema: markPaidBody,
+    buildUpdate: (body) => ({
+      paidAt: new Date(),
+      paymentReferenceName: body.paymentReferenceName,
+    }),
   },
 };
 
 export async function handleDrawTransition(
-  _req: Request,
+  req: Request,
   id: string,
-  kind: Transition,
+  kind: DrawTransitionKind,
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  }
+
+  const rule = RULES[kind] as TransitionRule<unknown>;
+
+  let body: unknown = {};
+  if (rule.bodySchema) {
+    const raw = await req.json().catch(() => null);
+    const parsed = rule.bodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "invalid_body", issues: parsed.error.issues },
+        { status: 400 },
+      );
+    }
+    body = parsed.data;
   }
 
   try {
@@ -51,15 +147,11 @@ export async function handleDrawTransition(
       session.session as unknown as { appUserId?: string | null },
       draw.projectId,
     );
-    if (ctx.role !== "contractor_admin" && ctx.role !== "contractor_pm") {
-      throw new AuthorizationError(
-        "Only contractors can transition a draw request in this phase",
-        "forbidden",
-      );
+    if (!rule.allowedRoles.includes(ctx.role)) {
+      throw new AuthorizationError(rule.forbiddenMessage, "forbidden");
     }
 
-    const rule = RULES[kind];
-    if (draw.drawRequestStatus !== rule.from) {
+    if (!rule.fromStates.includes(draw.drawRequestStatus)) {
       return NextResponse.json(
         { error: "invalid_state", state: draw.drawRequestStatus },
         { status: 409 },
@@ -67,16 +159,20 @@ export async function handleDrawTransition(
     }
 
     const previousState = { status: draw.drawRequestStatus };
+    const extraFields = rule.buildUpdate ? rule.buildUpdate(body, draw) : {};
+    const isClientDecision =
+      kind === "approve" || kind === "approve-with-note" || kind === "return";
 
     await db.transaction(async (tx) => {
-      if (kind === "submit") {
+      if (rule.recomputeTotals) {
         await recomputeDrawHeaderTotals(tx, draw.id);
       }
       await tx
         .update(drawRequests)
         .set({
-          drawRequestStatus: rule.to,
-          ...(kind === "submit" ? { submittedAt: new Date() } : {}),
+          drawRequestStatus: rule.toState,
+          ...(isClientDecision ? { reviewedByUserId: ctx.user.id } : {}),
+          ...extraFields,
         })
         .where(eq(drawRequests.id, draw.id));
 
@@ -88,7 +184,7 @@ export async function handleDrawTransition(
           resourceId: draw.id,
           details: {
             previousState,
-            nextState: { status: rule.to },
+            nextState: { status: rule.toState },
           },
         },
         tx,
@@ -107,7 +203,7 @@ export async function handleDrawTransition(
       );
     });
 
-    return NextResponse.json({ id: draw.id, status: rule.to });
+    return NextResponse.json({ id: draw.id, status: rule.toState });
   } catch (err) {
     if (err instanceof AuthorizationError) {
       const status =

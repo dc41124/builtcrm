@@ -152,6 +152,12 @@ export type ContractorProjectView = {
     currentPaymentDueCents: number;
     balanceToFinishCents: number;
     submittedAt: Date | null;
+    reviewedAt: Date | null;
+    reviewNote: string | null;
+    returnedAt: Date | null;
+    returnReason: string | null;
+    paidAt: Date | null;
+    paymentReferenceName: string | null;
     lineItems: Array<{
       id: string;
       sovLineItemId: string;
@@ -391,6 +397,12 @@ export async function getContractorProjectView(
     currentPaymentDueCents: d.currentPaymentDueCents,
     balanceToFinishCents: d.balanceToFinishCents,
     submittedAt: d.submittedAt,
+    reviewedAt: d.reviewedAt,
+    reviewNote: d.reviewNote,
+    returnedAt: d.returnedAt,
+    returnReason: d.returnReason,
+    paidAt: d.paidAt,
+    paymentReferenceName: d.paymentReferenceName,
     lineItems: (drawLinesByDraw.get(d.id) ?? []).map((l) => ({
       id: l.id,
       sovLineItemId: l.sovLineItemId,
@@ -607,10 +619,36 @@ export type ClientProjectView = {
     drawRequestStatus: string;
     periodFrom: Date;
     periodTo: Date;
+    originalContractSumCents: number;
+    netChangeOrdersCents: number;
+    contractSumToDateCents: number;
     totalCompletedToDateCents: number;
     totalRetainageCents: number;
+    totalEarnedLessRetainageCents: number;
+    previousCertificatesCents: number;
     currentPaymentDueCents: number;
+    balanceToFinishCents: number;
     submittedAt: Date | null;
+    reviewedAt: Date | null;
+    reviewNote: string | null;
+    returnedAt: Date | null;
+    returnReason: string | null;
+    paidAt: Date | null;
+    paymentReferenceName: string | null;
+    lineItems: Array<{
+      id: string;
+      itemNumber: string;
+      description: string;
+      scheduledValueCents: number;
+      workCompletedPreviousCents: number;
+      workCompletedThisPeriodCents: number;
+      materialsPresentlyStoredCents: number;
+      totalCompletedStoredToDateCents: number;
+      percentCompleteBasisPoints: number;
+      balanceToFinishCents: number;
+      retainageCents: number;
+      retainagePercentApplied: number;
+    }>;
   }>;
 };
 
@@ -704,17 +742,7 @@ export async function getClientProjectView(
       )
       .orderBy(desc(approvals.createdAt)),
     db
-      .select({
-        id: drawRequests.id,
-        drawNumber: drawRequests.drawNumber,
-        drawRequestStatus: drawRequests.drawRequestStatus,
-        periodFrom: drawRequests.periodFrom,
-        periodTo: drawRequests.periodTo,
-        totalCompletedToDateCents: drawRequests.totalCompletedToDateCents,
-        totalRetainageCents: drawRequests.totalRetainageCents,
-        currentPaymentDueCents: drawRequests.currentPaymentDueCents,
-        submittedAt: drawRequests.submittedAt,
-      })
+      .select()
       .from(drawRequests)
       .where(
         and(
@@ -724,12 +752,51 @@ export async function getClientProjectView(
             "under_review",
             "approved",
             "approved_with_note",
+            "returned",
+            "revised",
             "paid",
           ]),
         ),
       )
       .orderBy(desc(drawRequests.drawNumber)),
   ]);
+
+  const clientDrawLineRows = drawRows.length
+    ? await db
+        .select({
+          id: drawLineItems.id,
+          drawRequestId: drawLineItems.drawRequestId,
+          itemNumber: sovLineItems.itemNumber,
+          description: sovLineItems.description,
+          scheduledValueCents: sovLineItems.scheduledValueCents,
+          workCompletedPreviousCents: drawLineItems.workCompletedPreviousCents,
+          workCompletedThisPeriodCents: drawLineItems.workCompletedThisPeriodCents,
+          materialsPresentlyStoredCents: drawLineItems.materialsPresentlyStoredCents,
+          totalCompletedStoredToDateCents:
+            drawLineItems.totalCompletedStoredToDateCents,
+          percentCompleteBasisPoints: drawLineItems.percentCompleteBasisPoints,
+          balanceToFinishCents: drawLineItems.balanceToFinishCents,
+          retainageCents: drawLineItems.retainageCents,
+          retainagePercentApplied: drawLineItems.retainagePercentApplied,
+          sortOrder: sovLineItems.sortOrder,
+        })
+        .from(drawLineItems)
+        .innerJoin(sovLineItems, eq(sovLineItems.id, drawLineItems.sovLineItemId))
+        .where(
+          inArray(
+            drawLineItems.drawRequestId,
+            drawRows.map((d) => d.id),
+          ),
+        )
+        .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber))
+    : [];
+
+  const clientDrawLinesByDraw = new Map<string, typeof clientDrawLineRows>();
+  for (const l of clientDrawLineRows) {
+    const arr = clientDrawLinesByDraw.get(l.drawRequestId) ?? [];
+    arr.push(l);
+    clientDrawLinesByDraw.set(l.drawRequestId, arr);
+  }
 
   return {
     context,
@@ -739,6 +806,42 @@ export async function getClientProjectView(
     decisions: coRows,
     openRequests: rfiRows,
     approvals: approvalRows,
-    drawRequests: drawRows,
+    drawRequests: drawRows.map((d) => ({
+      id: d.id,
+      drawNumber: d.drawNumber,
+      drawRequestStatus: d.drawRequestStatus,
+      periodFrom: d.periodFrom,
+      periodTo: d.periodTo,
+      originalContractSumCents: d.originalContractSumCents,
+      netChangeOrdersCents: d.netChangeOrdersCents,
+      contractSumToDateCents: d.contractSumToDateCents,
+      totalCompletedToDateCents: d.totalCompletedToDateCents,
+      totalRetainageCents: d.totalRetainageCents,
+      totalEarnedLessRetainageCents: d.totalEarnedLessRetainageCents,
+      previousCertificatesCents: d.previousCertificatesCents,
+      currentPaymentDueCents: d.currentPaymentDueCents,
+      balanceToFinishCents: d.balanceToFinishCents,
+      submittedAt: d.submittedAt,
+      reviewedAt: d.reviewedAt,
+      reviewNote: d.reviewNote,
+      returnedAt: d.returnedAt,
+      returnReason: d.returnReason,
+      paidAt: d.paidAt,
+      paymentReferenceName: d.paymentReferenceName,
+      lineItems: (clientDrawLinesByDraw.get(d.id) ?? []).map((l) => ({
+        id: l.id,
+        itemNumber: l.itemNumber,
+        description: l.description,
+        scheduledValueCents: l.scheduledValueCents,
+        workCompletedPreviousCents: l.workCompletedPreviousCents,
+        workCompletedThisPeriodCents: l.workCompletedThisPeriodCents,
+        materialsPresentlyStoredCents: l.materialsPresentlyStoredCents,
+        totalCompletedStoredToDateCents: l.totalCompletedStoredToDateCents,
+        percentCompleteBasisPoints: l.percentCompleteBasisPoints,
+        balanceToFinishCents: l.balanceToFinishCents,
+        retainageCents: l.retainageCents,
+        retainagePercentApplied: l.retainagePercentApplied,
+      })),
+    })),
   };
 }

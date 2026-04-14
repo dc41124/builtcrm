@@ -36,6 +36,12 @@ type DrawRequest = {
   currentPaymentDueCents: number;
   balanceToFinishCents: number;
   submittedAt: Date | null;
+  reviewedAt?: Date | null;
+  reviewNote?: string | null;
+  returnedAt?: Date | null;
+  returnReason?: string | null;
+  paidAt?: Date | null;
+  paymentReferenceName?: string | null;
   lineItems: DrawLineItem[];
 };
 
@@ -148,6 +154,10 @@ function DrawCard({ draw }: { draw: DrawRequest }) {
   const [error, setError] = useState<string | null>(null);
   const isDraft = draw.drawRequestStatus === "draft";
   const isSubmitted = draw.drawRequestStatus === "submitted";
+  const isPayable =
+    draw.drawRequestStatus === "approved" ||
+    draw.drawRequestStatus === "approved_with_note";
+  const [paymentRef, setPaymentRef] = useState("");
 
   async function transition(kind: "submit" | "start-review") {
     setPending(true);
@@ -161,6 +171,27 @@ function DrawCard({ draw }: { draw: DrawRequest }) {
     if (!res.ok) {
       const b = await res.json().catch(() => ({}));
       setError(b.error ?? `${kind}_failed`);
+      return;
+    }
+    router.refresh();
+  }
+
+  async function markPaid() {
+    if (paymentRef.trim().length === 0) {
+      setError("payment_reference_required");
+      return;
+    }
+    setPending(true);
+    setError(null);
+    const res = await fetch(`/api/draw-requests/${draw.id}/mark-paid`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentReferenceName: paymentRef.trim() }),
+    });
+    setPending(false);
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      setError(b.error ?? "mark_paid_failed");
       return;
     }
     router.refresh();
@@ -238,6 +269,34 @@ function DrawCard({ draw }: { draw: DrawRequest }) {
         >
           Start review
         </button>
+      )}
+      {isPayable && (
+        <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
+          <input
+            type="text"
+            placeholder="Payment reference (e.g., ACH #4821)"
+            value={paymentRef}
+            onChange={(e) => setPaymentRef(e.target.value)}
+          />
+          <button type="button" disabled={pending} onClick={markPaid}>
+            {pending ? "Saving…" : "Mark paid"}
+          </button>
+        </div>
+      )}
+      {draw.reviewNote && (
+        <p>
+          Client note: "{draw.reviewNote}"
+        </p>
+      )}
+      {draw.returnReason && (
+        <p>
+          Returned: "{draw.returnReason}"
+        </p>
+      )}
+      {draw.paidAt && draw.paymentReferenceName && (
+        <p>
+          Paid — ref {draw.paymentReferenceName}
+        </p>
       )}
       {error && <p style={{ color: "crimson" }}>Error: {error}</p>}
     </section>

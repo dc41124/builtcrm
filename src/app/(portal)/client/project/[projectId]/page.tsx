@@ -6,6 +6,7 @@ import { getClientProjectView } from "@/domain/loaders/project-home";
 import { AuthorizationError } from "@/domain/permissions";
 
 import { ClientApprovalsList } from "./approvals-ui";
+import { ClientDrawReviewPanel } from "./draw-review-ui";
 
 export default async function ClientProjectHomePage({
   params,
@@ -72,19 +73,10 @@ export default async function ClientProjectHomePage({
       </ul>
 
       <h2>{view.isResidential ? "Progress Billings" : "Draw Requests"}</h2>
-      {view.drawRequests.length === 0 ? (
-        <p>No draw requests submitted yet.</p>
-      ) : (
-        <ul>
-          {view.drawRequests.map((d) => (
-            <li key={d.id}>
-              Draw #{d.drawNumber} — {d.periodFrom.toISOString().slice(0, 10)} →{" "}
-              {d.periodTo.toISOString().slice(0, 10)} — Current payment due $
-              {(d.currentPaymentDueCents / 100).toFixed(2)} [{d.drawRequestStatus}]
-            </li>
-          ))}
-        </ul>
-      )}
+      <ClientDrawReviewPanel
+        draws={view.drawRequests}
+        isResidential={view.isResidential}
+      />
     </main>
   );
 }
