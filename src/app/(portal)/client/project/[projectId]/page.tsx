@@ -6,6 +6,7 @@ import { getClientProjectView } from "@/domain/loaders/project-home";
 import { AuthorizationError } from "@/domain/permissions";
 
 import { ClientApprovalsList } from "./approvals-ui";
+import { DocumentsPanel } from "@/components/documents-ui";
 import { MessagesPanel } from "@/components/messages-ui";
 import { ClientDrawReviewPanel } from "./draw-review-ui";
 import { ClientRetainagePanel } from "./retainage-releases-ui";
@@ -83,6 +84,14 @@ export default async function ClientProjectHomePage({
 
       <h2>Retainage Releases</h2>
       <ClientRetainagePanel releases={view.retainageReleases} />
+
+      <h2>Documents</h2>
+      <DocumentsPanel
+        projectId={view.project.id}
+        documents={view.documents}
+        currentUserId={view.context.user.id}
+        canWrite={false}
+      />
 
       <h2>Messages</h2>
       <MessagesPanel

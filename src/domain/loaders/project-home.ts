@@ -7,6 +7,8 @@ import {
   complianceRecords,
   conversationParticipants,
   conversations,
+  documentLinks,
+  documents,
   drawLineItems,
   drawRequests,
   lienWaivers,
@@ -528,6 +530,161 @@ async function loadConversationsForUser(
   });
 }
 
+export type DocumentLinkRow = {
+  linkedObjectType: string;
+  linkedObjectId: string;
+  linkRole: string;
+};
+
+export type DocumentRow = {
+  id: string;
+  projectId: string;
+  documentType: string;
+  title: string;
+  storageKey: string;
+  uploadedByUserId: string;
+  uploadedByName: string | null;
+  visibilityScope: string;
+  audienceScope: string;
+  documentStatus: "active" | "pending_review" | "superseded" | "archived";
+  isSuperseded: boolean;
+  supersededByDocumentId: string | null;
+  links: DocumentLinkRow[];
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type DocumentAudience = "contractor" | "subcontractor" | "client";
+
+// Role-scoped read of every document on a project. Contractor sees all
+// non-archived rows; subs are blocked from client-only / internal-only
+// content; clients get only project-wide or explicitly client-visible
+// material. Supersession is resolved via document_links rows carrying
+// link_role='supersedes' (schema rule: don't add a column for this).
+async function loadDocumentsForProject(
+  projectId: string,
+  audience: DocumentAudience,
+): Promise<DocumentRow[]> {
+  const rows = await db
+    .select({
+      id: documents.id,
+      projectId: documents.projectId,
+      documentType: documents.documentType,
+      title: documents.title,
+      storageKey: documents.storageKey,
+      uploadedByUserId: documents.uploadedByUserId,
+      uploadedByName: users.displayName,
+      visibilityScope: documents.visibilityScope,
+      audienceScope: documents.audienceScope,
+      documentStatus: documents.documentStatus,
+      isSuperseded: documents.isSuperseded,
+      createdAt: documents.createdAt,
+      updatedAt: documents.updatedAt,
+    })
+    .from(documents)
+    .leftJoin(users, eq(users.id, documents.uploadedByUserId))
+    .where(eq(documents.projectId, projectId))
+    .orderBy(desc(documents.createdAt));
+
+  // Audience filter applied in JS so the loader stays readable. This list
+  // is short per project and drizzle's enum-on-array predicates are noisier
+  // than the explicit conditional below.
+  const filtered = rows.filter((r) => {
+    if (r.documentStatus === "archived") return false;
+    if (audience === "contractor") return true;
+    if (audience === "subcontractor") {
+      if (r.visibilityScope === "internal_only") return false;
+      if (
+        r.audienceScope === "client" ||
+        r.audienceScope === "commercial_client" ||
+        r.audienceScope === "residential_client" ||
+        r.audienceScope === "internal"
+      ) {
+        return false;
+      }
+      return true;
+    }
+    // client audience
+    if (
+      r.visibilityScope !== "project_wide" &&
+      r.visibilityScope !== "client_visible"
+    ) {
+      return false;
+    }
+    if (
+      r.audienceScope !== "client" &&
+      r.audienceScope !== "commercial_client" &&
+      r.audienceScope !== "residential_client" &&
+      r.audienceScope !== "mixed"
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) return [];
+
+  const ids = filtered.map((r) => r.id);
+  const linkRows = await db
+    .select({
+      documentId: documentLinks.documentId,
+      linkedObjectType: documentLinks.linkedObjectType,
+      linkedObjectId: documentLinks.linkedObjectId,
+      linkRole: documentLinks.linkRole,
+    })
+    .from(documentLinks)
+    .where(inArray(documentLinks.documentId, ids));
+
+  const linksByDoc = new Map<string, DocumentLinkRow[]>();
+  for (const l of linkRows) {
+    const arr = linksByDoc.get(l.documentId) ?? [];
+    arr.push({
+      linkedObjectType: l.linkedObjectType,
+      linkedObjectId: l.linkedObjectId,
+      linkRole: l.linkRole,
+    });
+    linksByDoc.set(l.documentId, arr);
+  }
+
+  // Superseded-by lookup: a newer document carries a document_links row
+  // with (linkedObjectType='document', linkedObjectId=<oldId>, linkRole='supersedes').
+  const supersedesRows = await db
+    .select({
+      newDocumentId: documentLinks.documentId,
+      oldDocumentId: documentLinks.linkedObjectId,
+    })
+    .from(documentLinks)
+    .where(
+      and(
+        eq(documentLinks.linkedObjectType, "document"),
+        eq(documentLinks.linkRole, "supersedes"),
+        inArray(documentLinks.linkedObjectId, ids),
+      ),
+    );
+  const supersededByMap = new Map<string, string>();
+  for (const s of supersedesRows) {
+    supersededByMap.set(s.oldDocumentId, s.newDocumentId);
+  }
+
+  return filtered.map((r) => ({
+    id: r.id,
+    projectId: r.projectId,
+    documentType: r.documentType,
+    title: r.title,
+    storageKey: r.storageKey,
+    uploadedByUserId: r.uploadedByUserId,
+    uploadedByName: r.uploadedByName,
+    visibilityScope: r.visibilityScope,
+    audienceScope: r.audienceScope,
+    documentStatus: r.documentStatus,
+    isSuperseded: r.isSuperseded,
+    supersededByDocumentId: supersededByMap.get(r.id) ?? null,
+    links: linksByDoc.get(r.id) ?? [],
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }));
+}
+
 export type ContractorProjectView = {
   context: EffectiveContext;
   project: EffectiveContext["project"];
@@ -632,6 +789,7 @@ export type ContractorProjectView = {
   } | null;
   selections: SelectionCategoryRow[];
   conversations: ConversationRow[];
+  documents: DocumentRow[];
 };
 
 export async function getContractorProjectView(
@@ -879,6 +1037,7 @@ export async function getContractorProjectView(
 
   const selections = await loadSelectionsForProject(projectId);
   const conversationList = await loadConversationsForUser(projectId, context.user.id);
+  const documentList = await loadDocumentsForProject(projectId, "contractor");
 
   const sovRow = sovRows[0] ?? null;
   const sovLineItemRows = sovRow
@@ -925,6 +1084,7 @@ export async function getContractorProjectView(
       : null,
     selections,
     conversations: conversationList,
+    documents: documentList,
   };
 }
 
@@ -961,6 +1121,7 @@ export type SubcontractorProjectView = {
     documentId: string | null;
   }>;
   conversations: ConversationRow[];
+  documents: DocumentRow[];
 };
 
 export async function getSubcontractorProjectView(
@@ -1052,6 +1213,7 @@ export async function getSubcontractorProjectView(
     pendingUploadRequests: pendingRows,
     complianceRecords: complianceRows,
     conversations: await loadConversationsForUser(projectId, context.user.id),
+    documents: await loadDocumentsForProject(projectId, "subcontractor"),
   };
 }
 
@@ -1120,6 +1282,7 @@ export type ClientProjectView = {
   retainageReleases: RetainageReleaseRow[];
   selections: SelectionCategoryRow[];
   conversations: ConversationRow[];
+  documents: DocumentRow[];
 };
 
 export async function getClientProjectView(
@@ -1331,6 +1494,7 @@ export async function getClientProjectView(
     projectId,
     context.user.id,
   );
+  const clientDocuments = await loadDocumentsForProject(projectId, "client");
 
   return {
     context,
@@ -1338,6 +1502,7 @@ export async function getClientProjectView(
     isResidential: context.role === "residential_client",
     selections,
     conversations: clientConversations,
+    documents: clientDocuments,
     milestones: milestoneRows.map(({ visibilityScope: _v, ...rest }) => rest),
     decisions: coRows,
     openRequests: rfiRows,

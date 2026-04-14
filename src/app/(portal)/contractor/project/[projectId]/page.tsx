@@ -22,6 +22,7 @@ import {
   ContractorUploadRequestsList,
   CreateUploadRequestForm,
 } from "./upload-requests-ui";
+import { DocumentsPanel } from "@/components/documents-ui";
 import { MessagesPanel } from "@/components/messages-ui";
 
 export default async function ContractorProjectHomePage({
@@ -100,6 +101,14 @@ export default async function ContractorProjectHomePage({
       <ContractorSelectionsPanel
         projectId={view.project.id}
         categories={view.selections}
+      />
+
+      <h2>Documents</h2>
+      <DocumentsPanel
+        projectId={view.project.id}
+        documents={view.documents}
+        currentUserId={view.context.user.id}
+        canWrite={true}
       />
 
       <h2>Messages</h2>
