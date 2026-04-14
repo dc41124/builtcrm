@@ -1,6 +1,6 @@
-import { and, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 
-import { drawLineItems, drawRequests } from "@/db/schema";
+import { drawLineItems, drawRequests, retainageReleases } from "@/db/schema";
 import type { DB } from "@/db/client";
 
 type Tx = Parameters<Parameters<DB["transaction"]>[0]>[0];
@@ -139,7 +139,29 @@ export async function recomputeDrawHeaderTotals(
       ),
     );
   const previousCertificates = Number(prev?.sum ?? 0);
-  const currentPaymentDue = totalEarnedLessRetainage - previousCertificates;
+
+  // Pull in approved retainage releases that haven't been consumed by a
+  // prior draw. They either sit unclaimed or were already assigned to
+  // this draw (e.g., via a re-recompute after a revision).
+  const [rel] = await tx
+    .select({
+      sum: sql<number>`coalesce(sum(${retainageReleases.releaseAmountCents}), 0)`,
+    })
+    .from(retainageReleases)
+    .where(
+      and(
+        eq(retainageReleases.projectId, draw.projectId),
+        eq(retainageReleases.releaseStatus, "released"),
+        or(
+          isNull(retainageReleases.consumedByDrawRequestId),
+          eq(retainageReleases.consumedByDrawRequestId, drawId),
+        ),
+      ),
+    );
+  const retainageReleasedCents = Number(rel?.sum ?? 0);
+
+  const currentPaymentDue =
+    totalEarnedLessRetainage - previousCertificates + retainageReleasedCents;
   const balanceToFinish = draw.contractSumToDateCents - totalCompleted;
 
   await tx
@@ -151,8 +173,29 @@ export async function recomputeDrawHeaderTotals(
       totalRetainageCents: totalRetainage,
       totalEarnedLessRetainageCents: totalEarnedLessRetainage,
       previousCertificatesCents: previousCertificates,
+      retainageReleasedCents,
       currentPaymentDueCents: currentPaymentDue,
       balanceToFinishCents: balanceToFinish,
     })
     .where(eq(drawRequests.id, drawId));
+}
+
+// Assign any unconsumed approved retainage releases to a specific draw.
+// Called from the draw state machine when a draw transitions to approved
+// (i.e., the release is now locked to this draw's G702 math).
+export async function consumeUnassignedReleases(
+  tx: Tx,
+  projectId: string,
+  drawId: string,
+): Promise<void> {
+  await tx
+    .update(retainageReleases)
+    .set({ consumedByDrawRequestId: drawId, consumedAt: new Date() })
+    .where(
+      and(
+        eq(retainageReleases.projectId, projectId),
+        eq(retainageReleases.releaseStatus, "released"),
+        isNull(retainageReleases.consumedByDrawRequestId),
+      ),
+    );
 }

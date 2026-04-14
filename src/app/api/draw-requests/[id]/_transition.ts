@@ -12,7 +12,10 @@ import type { EffectiveContext } from "@/domain/context";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
 
-import { recomputeDrawHeaderTotals } from "../_totals";
+import {
+  consumeUnassignedReleases,
+  recomputeDrawHeaderTotals,
+} from "../_totals";
 
 type DrawRow = typeof drawRequests.$inferSelect;
 type UpdateValues = Partial<typeof drawRequests.$inferInsert>;
@@ -72,6 +75,11 @@ async function ensureWaiversAcceptedForMarkPaid({
       { waiverIds: blocking.map((w) => w.id) },
     );
   }
+}
+
+async function lockInRetainageReleases({ tx, draw }: HookArgs): Promise<void> {
+  await consumeUnassignedReleases(tx, draw.projectId, draw.id);
+  await recomputeDrawHeaderTotals(tx, draw.id);
 }
 
 async function createWaiverForDraw(
@@ -159,6 +167,7 @@ const RULES: {
     label: "approved",
     forbiddenMessage: "Only the client can approve a draw request",
     buildUpdate: () => ({ reviewedAt: new Date(), reviewNote: null }),
+    afterUpdate: lockInRetainageReleases,
   },
   "approve-with-note": {
     allowedRoles: CLIENT_ROLES,
@@ -168,6 +177,7 @@ const RULES: {
     forbiddenMessage: "Only the client can approve a draw request",
     bodySchema: approveNoteBody,
     buildUpdate: (body) => ({ reviewedAt: new Date(), reviewNote: body.note }),
+    afterUpdate: lockInRetainageReleases,
   },
   return: {
     allowedRoles: CLIENT_ROLES,

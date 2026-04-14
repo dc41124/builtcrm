@@ -219,6 +219,7 @@ export const drawRequests = pgTable(
     totalRetainageCents: integer("total_retainage_cents").default(0).notNull(),
     totalEarnedLessRetainageCents: integer("total_earned_less_retainage_cents").default(0).notNull(),
     previousCertificatesCents: integer("previous_certificates_cents").default(0).notNull(),
+    retainageReleasedCents: integer("retainage_released_cents").default(0).notNull(),
     currentPaymentDueCents: integer("current_payment_due_cents").default(0).notNull(),
     balanceToFinishCents: integer("balance_to_finish_cents").default(0).notNull(),
 
@@ -357,11 +358,19 @@ export const retainageReleases = pgTable(
     }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     approvalNote: text("approval_note"),
+    consumedByDrawRequestId: uuid("consumed_by_draw_request_id").references(
+      () => drawRequests.id,
+      { onDelete: "set null" },
+    ),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
     ...timestamps,
   },
   (table) => ({
     projectIdx: index("retainage_releases_project_idx").on(table.projectId),
     statusIdx: index("retainage_releases_status_idx").on(table.releaseStatus),
     sovLineIdx: index("retainage_releases_sov_line_idx").on(table.sovLineItemId),
+    consumedByIdx: index("retainage_releases_consumed_by_idx").on(
+      table.consumedByDrawRequestId,
+    ),
   }),
 );
