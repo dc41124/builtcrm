@@ -11,6 +11,8 @@ import {
   projectUserMemberships,
   rfiResponses,
   rfis,
+  scheduleOfValues,
+  sovLineItems,
   uploadRequests,
   users,
 } from "@/db/schema";
@@ -166,6 +168,26 @@ export type ContractorProjectView = {
     expiresAt: Date | null;
     documentId: string | null;
   }>;
+  scheduleOfValues: {
+    id: string;
+    version: number;
+    sovStatus: string;
+    totalScheduledValueCents: number;
+    totalOriginalContractCents: number;
+    totalChangeOrdersCents: number;
+    defaultRetainagePercent: number;
+    lineItems: Array<{
+      id: string;
+      itemNumber: string;
+      costCode: string | null;
+      description: string;
+      lineItemType: string;
+      scheduledValueCents: number;
+      retainagePercentOverride: number | null;
+      sortOrder: number;
+      isActive: boolean;
+    }>;
+  } | null;
 };
 
 export async function getContractorProjectView(
@@ -192,6 +214,7 @@ export async function getContractorProjectView(
     uploadRequestRows,
     approvalRows,
     complianceRows,
+    sovRows,
   ] = await Promise.all([
     db
       .select({
@@ -268,7 +291,46 @@ export async function getContractorProjectView(
       .leftJoin(organizations, eq(organizations.id, complianceRecords.organizationId))
       .where(eq(complianceRecords.projectId, projectId))
       .orderBy(desc(complianceRecords.createdAt)),
+    db
+      .select({
+        id: scheduleOfValues.id,
+        version: scheduleOfValues.version,
+        sovStatus: scheduleOfValues.sovStatus,
+        totalScheduledValueCents: scheduleOfValues.totalScheduledValueCents,
+        totalOriginalContractCents: scheduleOfValues.totalOriginalContractCents,
+        totalChangeOrdersCents: scheduleOfValues.totalChangeOrdersCents,
+        defaultRetainagePercent: scheduleOfValues.defaultRetainagePercent,
+        createdAt: scheduleOfValues.createdAt,
+      })
+      .from(scheduleOfValues)
+      .where(
+        and(
+          eq(scheduleOfValues.projectId, projectId),
+          inArray(scheduleOfValues.sovStatus, ["draft", "active", "locked"]),
+        ),
+      )
+      .orderBy(desc(scheduleOfValues.createdAt))
+      .limit(1),
   ]);
+
+  const sovRow = sovRows[0] ?? null;
+  const sovLineItemRows = sovRow
+    ? await db
+        .select({
+          id: sovLineItems.id,
+          itemNumber: sovLineItems.itemNumber,
+          costCode: sovLineItems.costCode,
+          description: sovLineItems.description,
+          lineItemType: sovLineItems.lineItemType,
+          scheduledValueCents: sovLineItems.scheduledValueCents,
+          retainagePercentOverride: sovLineItems.retainagePercentOverride,
+          sortOrder: sovLineItems.sortOrder,
+          isActive: sovLineItems.isActive,
+        })
+        .from(sovLineItems)
+        .where(eq(sovLineItems.sovId, sovRow.id))
+        .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber))
+    : [];
 
   return {
     context,
@@ -281,6 +343,18 @@ export async function getContractorProjectView(
     uploadRequests: uploadRequestRows,
     approvals: approvalRows,
     complianceRecords: complianceRows,
+    scheduleOfValues: sovRow
+      ? {
+          id: sovRow.id,
+          version: sovRow.version,
+          sovStatus: sovRow.sovStatus,
+          totalScheduledValueCents: sovRow.totalScheduledValueCents,
+          totalOriginalContractCents: sovRow.totalOriginalContractCents,
+          totalChangeOrdersCents: sovRow.totalChangeOrdersCents,
+          defaultRetainagePercent: sovRow.defaultRetainagePercent,
+          lineItems: sovLineItemRows,
+        }
+      : null,
   };
 }
 

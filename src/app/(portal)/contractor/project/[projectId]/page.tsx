@@ -14,6 +14,7 @@ import {
   CreateComplianceForm,
 } from "./compliance-ui";
 import { ContractorRfisList, CreateRfiForm } from "./rfis-ui";
+import { ContractorSovPanel } from "./sov-ui";
 import {
   ContractorUploadRequestsList,
   CreateUploadRequestForm,
@@ -79,6 +80,9 @@ export default async function ContractorProjectHomePage({
       <h2>Compliance</h2>
       <ContractorComplianceList records={view.complianceRecords} />
       <CreateComplianceForm projectId={view.project.id} />
+
+      <h2>Schedule of Values</h2>
+      <ContractorSovPanel projectId={view.project.id} sov={view.scheduleOfValues} />
 
       <h2>Draw Requests</h2>
       <ul>
