@@ -6,6 +6,7 @@ import { getSubcontractorProjectView } from "@/domain/loaders/project-home";
 import { AuthorizationError } from "@/domain/permissions";
 
 import { SubComplianceList } from "./compliance-ui";
+import { MessagesPanel } from "@/components/messages-ui";
 import { SubRfisList } from "./rfis-ui";
 import { PendingUploadRequestsList } from "./upload-requests-ui";
 
@@ -70,6 +71,14 @@ export default async function SubcontractorProjectHomePage({
       <SubComplianceList
         projectId={view.project.id}
         records={view.complianceRecords}
+      />
+
+      <h2>Messages</h2>
+      <MessagesPanel
+        projectId={view.project.id}
+        conversations={view.conversations}
+        currentUserId={view.context.user.id}
+        canCreate={false}
       />
     </main>
   );

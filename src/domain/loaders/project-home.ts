@@ -5,9 +5,12 @@ import {
   approvals,
   changeOrders,
   complianceRecords,
+  conversationParticipants,
+  conversations,
   drawLineItems,
   drawRequests,
   lienWaivers,
+  messages,
   milestones,
   organizations,
   projectUserMemberships,
@@ -15,6 +18,10 @@ import {
   rfiResponses,
   rfis,
   scheduleOfValues,
+  selectionCategories,
+  selectionDecisions,
+  selectionItems,
+  selectionOptions,
   sovLineItems,
   uploadRequests,
   users,
@@ -153,6 +160,374 @@ export type RetainageReleaseRow = {
   createdAt: Date;
 };
 
+export type SelectionOptionRow = {
+  id: string;
+  selectionItemId: string;
+  name: string;
+  description: string | null;
+  optionTier: "included" | "upgrade" | "premium_upgrade";
+  priceCents: number;
+  leadTimeDays: number | null;
+  additionalScheduleDays: number | null;
+  swatchColor: string | null;
+  supplierName: string | null;
+  productSku: string | null;
+  isAvailable: boolean;
+  unavailableReason: string | null;
+  sortOrder: number;
+};
+
+export type SelectionDecisionRow = {
+  id: string;
+  selectionItemId: string;
+  selectedOptionId: string;
+  decidedByUserId: string;
+  isProvisional: boolean;
+  isConfirmed: boolean;
+  isLocked: boolean;
+  confirmedAt: Date | null;
+  lockedAt: Date | null;
+  revisionExpiresAt: Date | null;
+  previousOptionId: string | null;
+  revisionNote: string | null;
+  priceDeltaCents: number;
+  scheduleDeltaDays: number;
+  createdAt: Date;
+};
+
+export type SelectionItemRow = {
+  id: string;
+  categoryId: string;
+  title: string;
+  description: string | null;
+  selectionItemStatus:
+    | "not_started"
+    | "exploring"
+    | "provisional"
+    | "confirmed"
+    | "revision_open"
+    | "locked";
+  allowanceCents: number;
+  decisionDeadline: Date | null;
+  urgencyNote: string | null;
+  affectsSchedule: boolean;
+  scheduleImpactNote: string | null;
+  recommendedOptionId: string | null;
+  revisionWindowHours: number;
+  isPublished: boolean;
+  publishedAt: Date | null;
+  sortOrder: number;
+  options: SelectionOptionRow[];
+  currentDecision: SelectionDecisionRow | null;
+};
+
+export type SelectionCategoryRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  sortOrder: number;
+  items: SelectionItemRow[];
+};
+
+async function loadSelectionsForProject(
+  projectId: string,
+  opts: { publishedOnly?: boolean } = {},
+): Promise<SelectionCategoryRow[]> {
+  const categoryRows = await db
+    .select({
+      id: selectionCategories.id,
+      name: selectionCategories.name,
+      description: selectionCategories.description,
+      sortOrder: selectionCategories.sortOrder,
+      isActive: selectionCategories.isActive,
+    })
+    .from(selectionCategories)
+    .where(eq(selectionCategories.projectId, projectId))
+    .orderBy(asc(selectionCategories.sortOrder), asc(selectionCategories.name));
+
+  const activeCategories = categoryRows.filter((c) => c.isActive);
+  if (activeCategories.length === 0) return [];
+
+  const itemWhere = opts.publishedOnly
+    ? and(
+        eq(selectionItems.projectId, projectId),
+        eq(selectionItems.isPublished, true),
+      )
+    : eq(selectionItems.projectId, projectId);
+
+  const itemRows = await db
+    .select()
+    .from(selectionItems)
+    .where(itemWhere)
+    .orderBy(asc(selectionItems.sortOrder), asc(selectionItems.createdAt));
+
+  if (itemRows.length === 0) {
+    return activeCategories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      sortOrder: c.sortOrder,
+      items: [],
+    }));
+  }
+
+  const itemIds = itemRows.map((i) => i.id);
+  const [optionRows, decisionRows] = await Promise.all([
+    db
+      .select()
+      .from(selectionOptions)
+      .where(inArray(selectionOptions.selectionItemId, itemIds))
+      .orderBy(asc(selectionOptions.sortOrder), asc(selectionOptions.createdAt)),
+    db
+      .select()
+      .from(selectionDecisions)
+      .where(inArray(selectionDecisions.selectionItemId, itemIds))
+      .orderBy(desc(selectionDecisions.createdAt)),
+  ]);
+
+  const optionsByItem = new Map<string, SelectionOptionRow[]>();
+  for (const o of optionRows) {
+    const row: SelectionOptionRow = {
+      id: o.id,
+      selectionItemId: o.selectionItemId,
+      name: o.name,
+      description: o.description,
+      optionTier: o.optionTier,
+      priceCents: o.priceCents,
+      leadTimeDays: o.leadTimeDays,
+      additionalScheduleDays: o.additionalScheduleDays,
+      swatchColor: o.swatchColor,
+      supplierName: o.supplierName,
+      productSku: o.productSku,
+      isAvailable: o.isAvailable,
+      unavailableReason: o.unavailableReason,
+      sortOrder: o.sortOrder,
+    };
+    const arr = optionsByItem.get(o.selectionItemId) ?? [];
+    arr.push(row);
+    optionsByItem.set(o.selectionItemId, arr);
+  }
+
+  const currentDecisionByItem = new Map<string, SelectionDecisionRow>();
+  for (const d of decisionRows) {
+    if (currentDecisionByItem.has(d.selectionItemId)) continue;
+    currentDecisionByItem.set(d.selectionItemId, {
+      id: d.id,
+      selectionItemId: d.selectionItemId,
+      selectedOptionId: d.selectedOptionId,
+      decidedByUserId: d.decidedByUserId,
+      isProvisional: d.isProvisional,
+      isConfirmed: d.isConfirmed,
+      isLocked: d.isLocked,
+      confirmedAt: d.confirmedAt,
+      lockedAt: d.lockedAt,
+      revisionExpiresAt: d.revisionExpiresAt,
+      previousOptionId: d.previousOptionId,
+      revisionNote: d.revisionNote,
+      priceDeltaCents: d.priceDeltaCents,
+      scheduleDeltaDays: d.scheduleDeltaDays,
+      createdAt: d.createdAt,
+    });
+  }
+
+  const itemsByCategory = new Map<string, SelectionItemRow[]>();
+  for (const i of itemRows) {
+    const row: SelectionItemRow = {
+      id: i.id,
+      categoryId: i.categoryId,
+      title: i.title,
+      description: i.description,
+      selectionItemStatus: i.selectionItemStatus,
+      allowanceCents: i.allowanceCents,
+      decisionDeadline: i.decisionDeadline,
+      urgencyNote: i.urgencyNote,
+      affectsSchedule: i.affectsSchedule,
+      scheduleImpactNote: i.scheduleImpactNote,
+      recommendedOptionId: i.recommendedOptionId,
+      revisionWindowHours: i.revisionWindowHours,
+      isPublished: i.isPublished,
+      publishedAt: i.publishedAt,
+      sortOrder: i.sortOrder,
+      options: optionsByItem.get(i.id) ?? [],
+      currentDecision: currentDecisionByItem.get(i.id) ?? null,
+    };
+    const arr = itemsByCategory.get(i.categoryId) ?? [];
+    arr.push(row);
+    itemsByCategory.set(i.categoryId, arr);
+  }
+
+  return activeCategories.map((c) => ({
+    id: c.id,
+    name: c.name,
+    description: c.description,
+    sortOrder: c.sortOrder,
+    items: itemsByCategory.get(c.id) ?? [],
+  }));
+}
+
+export type MessageRow = {
+  id: string;
+  conversationId: string;
+  senderUserId: string;
+  senderName: string | null;
+  body: string;
+  attachedDocumentId: string | null;
+  isSystemMessage: boolean;
+  createdAt: Date;
+};
+
+export type ConversationParticipantRow = {
+  userId: string;
+  displayName: string | null;
+  lastReadAt: Date | null;
+};
+
+export type ConversationRow = {
+  id: string;
+  title: string | null;
+  conversationType:
+    | "project_general"
+    | "rfi_thread"
+    | "change_order_thread"
+    | "approval_thread"
+    | "direct";
+  linkedObjectType: string | null;
+  linkedObjectId: string | null;
+  lastMessageAt: Date | null;
+  lastMessagePreview: string | null;
+  messageCount: number;
+  createdAt: Date;
+  unreadCount: number;
+  participants: ConversationParticipantRow[];
+  messages: MessageRow[];
+};
+
+// Loads every conversation the user participates in for this project,
+// along with recent messages and participant display names. Unread count
+// is derived from the user's own last_read_at marker.
+async function loadConversationsForUser(
+  projectId: string,
+  userId: string,
+): Promise<ConversationRow[]> {
+  const myParticipantRows = await db
+    .select({
+      conversationId: conversationParticipants.conversationId,
+      lastReadAt: conversationParticipants.lastReadAt,
+    })
+    .from(conversationParticipants)
+    .innerJoin(
+      conversations,
+      eq(conversations.id, conversationParticipants.conversationId),
+    )
+    .where(
+      and(
+        eq(conversationParticipants.userId, userId),
+        eq(conversations.projectId, projectId),
+      ),
+    );
+
+  if (myParticipantRows.length === 0) return [];
+
+  const conversationIds = myParticipantRows.map((r) => r.conversationId);
+  const lastReadByConversation = new Map<string, Date | null>();
+  for (const r of myParticipantRows) {
+    lastReadByConversation.set(r.conversationId, r.lastReadAt);
+  }
+
+  const [conversationRows, participantRows, messageRows] = await Promise.all([
+    db
+      .select({
+        id: conversations.id,
+        title: conversations.title,
+        conversationType: conversations.conversationType,
+        linkedObjectType: conversations.linkedObjectType,
+        linkedObjectId: conversations.linkedObjectId,
+        lastMessageAt: conversations.lastMessageAt,
+        lastMessagePreview: conversations.lastMessagePreview,
+        messageCount: conversations.messageCount,
+        createdAt: conversations.createdAt,
+      })
+      .from(conversations)
+      .where(inArray(conversations.id, conversationIds))
+      .orderBy(desc(conversations.lastMessageAt), desc(conversations.createdAt)),
+    db
+      .select({
+        conversationId: conversationParticipants.conversationId,
+        userId: conversationParticipants.userId,
+        displayName: users.displayName,
+        lastReadAt: conversationParticipants.lastReadAt,
+      })
+      .from(conversationParticipants)
+      .leftJoin(users, eq(users.id, conversationParticipants.userId))
+      .where(inArray(conversationParticipants.conversationId, conversationIds)),
+    db
+      .select({
+        id: messages.id,
+        conversationId: messages.conversationId,
+        senderUserId: messages.senderUserId,
+        senderName: users.displayName,
+        body: messages.body,
+        attachedDocumentId: messages.attachedDocumentId,
+        isSystemMessage: messages.isSystemMessage,
+        createdAt: messages.createdAt,
+      })
+      .from(messages)
+      .leftJoin(users, eq(users.id, messages.senderUserId))
+      .where(inArray(messages.conversationId, conversationIds))
+      .orderBy(asc(messages.createdAt)),
+  ]);
+
+  const participantsByConversation = new Map<string, ConversationParticipantRow[]>();
+  for (const p of participantRows) {
+    const arr = participantsByConversation.get(p.conversationId) ?? [];
+    arr.push({
+      userId: p.userId,
+      displayName: p.displayName,
+      lastReadAt: p.lastReadAt,
+    });
+    participantsByConversation.set(p.conversationId, arr);
+  }
+
+  const messagesByConversation = new Map<string, MessageRow[]>();
+  for (const m of messageRows) {
+    const arr = messagesByConversation.get(m.conversationId) ?? [];
+    arr.push({
+      id: m.id,
+      conversationId: m.conversationId,
+      senderUserId: m.senderUserId,
+      senderName: m.senderName,
+      body: m.body,
+      attachedDocumentId: m.attachedDocumentId,
+      isSystemMessage: m.isSystemMessage,
+      createdAt: m.createdAt,
+    });
+    messagesByConversation.set(m.conversationId, arr);
+  }
+
+  return conversationRows.map((c) => {
+    const msgs = messagesByConversation.get(c.id) ?? [];
+    const lastRead = lastReadByConversation.get(c.id) ?? null;
+    const unreadCount = lastRead
+      ? msgs.filter((m) => m.createdAt > lastRead && m.senderUserId !== userId)
+          .length
+      : msgs.filter((m) => m.senderUserId !== userId).length;
+    return {
+      id: c.id,
+      title: c.title,
+      conversationType: c.conversationType,
+      linkedObjectType: c.linkedObjectType,
+      linkedObjectId: c.linkedObjectId,
+      lastMessageAt: c.lastMessageAt,
+      lastMessagePreview: c.lastMessagePreview,
+      messageCount: c.messageCount,
+      createdAt: c.createdAt,
+      unreadCount,
+      participants: participantsByConversation.get(c.id) ?? [],
+      messages: msgs,
+    };
+  });
+}
+
 export type ContractorProjectView = {
   context: EffectiveContext;
   project: EffectiveContext["project"];
@@ -255,6 +630,8 @@ export type ContractorProjectView = {
       isActive: boolean;
     }>;
   } | null;
+  selections: SelectionCategoryRow[];
+  conversations: ConversationRow[];
 };
 
 export async function getContractorProjectView(
@@ -500,6 +877,9 @@ export async function getContractorProjectView(
     lienWaivers: waiversByDraw.get(d.id) ?? [],
   }));
 
+  const selections = await loadSelectionsForProject(projectId);
+  const conversationList = await loadConversationsForUser(projectId, context.user.id);
+
   const sovRow = sovRows[0] ?? null;
   const sovLineItemRows = sovRow
     ? await db
@@ -543,6 +923,8 @@ export async function getContractorProjectView(
           lineItems: sovLineItemRows,
         }
       : null,
+    selections,
+    conversations: conversationList,
   };
 }
 
@@ -578,6 +960,7 @@ export type SubcontractorProjectView = {
     expiresAt: Date | null;
     documentId: string | null;
   }>;
+  conversations: ConversationRow[];
 };
 
 export async function getSubcontractorProjectView(
@@ -668,6 +1051,7 @@ export async function getSubcontractorProjectView(
     myMilestones: milestoneRows,
     pendingUploadRequests: pendingRows,
     complianceRecords: complianceRows,
+    conversations: await loadConversationsForUser(projectId, context.user.id),
   };
 }
 
@@ -734,6 +1118,8 @@ export type ClientProjectView = {
     }>;
   }>;
   retainageReleases: RetainageReleaseRow[];
+  selections: SelectionCategoryRow[];
+  conversations: ConversationRow[];
 };
 
 export async function getClientProjectView(
@@ -937,10 +1323,21 @@ export async function getClientProjectView(
     }),
   );
 
+  const selections =
+    context.role === "residential_client"
+      ? await loadSelectionsForProject(projectId, { publishedOnly: true })
+      : [];
+  const clientConversations = await loadConversationsForUser(
+    projectId,
+    context.user.id,
+  );
+
   return {
     context,
     project: context.project,
     isResidential: context.role === "residential_client",
+    selections,
+    conversations: clientConversations,
     milestones: milestoneRows.map(({ visibilityScope: _v, ...rest }) => rest),
     decisions: coRows,
     openRequests: rfiRows,

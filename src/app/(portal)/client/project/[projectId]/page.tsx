@@ -6,8 +6,10 @@ import { getClientProjectView } from "@/domain/loaders/project-home";
 import { AuthorizationError } from "@/domain/permissions";
 
 import { ClientApprovalsList } from "./approvals-ui";
+import { MessagesPanel } from "@/components/messages-ui";
 import { ClientDrawReviewPanel } from "./draw-review-ui";
 import { ClientRetainagePanel } from "./retainage-releases-ui";
+import { ClientSelectionsPanel } from "./selections-ui";
 
 export default async function ClientProjectHomePage({
   params,
@@ -81,6 +83,21 @@ export default async function ClientProjectHomePage({
 
       <h2>Retainage Releases</h2>
       <ClientRetainagePanel releases={view.retainageReleases} />
+
+      <h2>Messages</h2>
+      <MessagesPanel
+        projectId={view.project.id}
+        conversations={view.conversations}
+        currentUserId={view.context.user.id}
+        canCreate={false}
+      />
+
+      {view.isResidential && (
+        <>
+          <h2>Selections</h2>
+          <ClientSelectionsPanel categories={view.selections} />
+        </>
+      )}
     </main>
   );
 }

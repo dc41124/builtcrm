@@ -16,11 +16,13 @@ import {
 import { ContractorRfisList, CreateRfiForm } from "./rfis-ui";
 import { ContractorDrawRequestsPanel } from "./draw-requests-ui";
 import { ContractorRetainagePanel } from "./retainage-releases-ui";
+import { ContractorSelectionsPanel } from "./selections-ui";
 import { ContractorSovPanel } from "./sov-ui";
 import {
   ContractorUploadRequestsList,
   CreateUploadRequestForm,
 } from "./upload-requests-ui";
+import { MessagesPanel } from "@/components/messages-ui";
 
 export default async function ContractorProjectHomePage({
   params,
@@ -92,6 +94,20 @@ export default async function ContractorProjectHomePage({
         sovId={view.scheduleOfValues?.id ?? null}
         sovStatus={view.scheduleOfValues?.sovStatus ?? null}
         draws={view.drawRequests}
+      />
+
+      <h2>Selections</h2>
+      <ContractorSelectionsPanel
+        projectId={view.project.id}
+        categories={view.selections}
+      />
+
+      <h2>Messages</h2>
+      <MessagesPanel
+        projectId={view.project.id}
+        conversations={view.conversations}
+        currentUserId={view.context.user.id}
+        canCreate={true}
       />
 
       <h2>Retainage Releases</h2>
