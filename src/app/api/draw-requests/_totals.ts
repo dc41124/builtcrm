@@ -6,15 +6,18 @@ import type { DB } from "@/db/client";
 type Tx = Parameters<Parameters<DB["transaction"]>[0]>[0];
 
 const PRIOR_COUNTED_STATUSES = [
-  "submitted",
-  "under_review",
   "approved",
   "approved_with_note",
   "paid",
   "closed",
 ] as const;
 
-const PAID_STATUSES = ["paid", "closed"] as const;
+const PREVIOUS_CERTIFICATES_STATUSES = [
+  "approved",
+  "approved_with_note",
+  "paid",
+  "closed",
+] as const;
 
 export function computeLineFields(input: {
   workCompletedPreviousCents: number;
@@ -132,7 +135,7 @@ export async function recomputeDrawHeaderTotals(
       and(
         eq(drawRequests.projectId, draw.projectId),
         lt(drawRequests.drawNumber, draw.drawNumber),
-        inArray(drawRequests.drawRequestStatus, [...PAID_STATUSES]),
+        inArray(drawRequests.drawRequestStatus, [...PREVIOUS_CERTIFICATES_STATUSES]),
       ),
     );
   const previousCertificates = Number(prev?.sum ?? 0);
