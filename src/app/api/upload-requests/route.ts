@@ -4,7 +4,9 @@ import { z } from "zod";
 
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
-import { activityFeedItems, auditEvents, uploadRequests } from "@/db/schema";
+import { uploadRequests } from "@/db/schema";
+import { writeActivityFeedItem } from "@/domain/activity";
+import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -59,31 +61,35 @@ export async function POST(req: Request) {
         })
         .returning();
 
-      await tx.insert(auditEvents).values({
-        actorUserId: ctx.user.id,
-        projectId: ctx.project.id,
-        organizationId: ctx.organization.id,
-        objectType: "upload_request",
-        objectId: row.id,
-        actionName: "created",
-        nextState: {
-          status: row.requestStatus,
-          targetOrganizationId: row.requestedFromOrganizationId,
-          title: row.title,
+      await writeAuditEvent(
+        ctx,
+        {
+          action: "created",
+          resourceType: "upload_request",
+          resourceId: row.id,
+          details: {
+            nextState: {
+              status: row.requestStatus,
+              targetOrganizationId: row.requestedFromOrganizationId,
+              title: row.title,
+            },
+          },
         },
-      });
+        tx,
+      );
 
-      await tx.insert(activityFeedItems).values({
-        projectId: ctx.project.id,
-        actorUserId: ctx.user.id,
-        activityType: "approval_requested",
-        surfaceType: "feed_item",
-        title: `Upload request: ${row.title}`,
-        body: parsed.data.description ?? null,
-        relatedObjectType: "upload_request",
-        relatedObjectId: row.id,
-        visibilityScope: "subcontractor_scoped",
-      });
+      await writeActivityFeedItem(
+        ctx,
+        {
+          activityType: "approval_requested",
+          summary: `Upload request: ${row.title}`,
+          body: parsed.data.description ?? null,
+          relatedObjectType: "upload_request",
+          relatedObjectId: row.id,
+          visibilityScope: "subcontractor_scoped",
+        },
+        tx,
+      );
 
       return row;
     });

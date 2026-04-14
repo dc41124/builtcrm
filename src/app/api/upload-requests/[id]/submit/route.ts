@@ -5,12 +5,9 @@ import { z } from "zod";
 
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
-import {
-  activityFeedItems,
-  auditEvents,
-  documents,
-  uploadRequests,
-} from "@/db/schema";
+import { documents, uploadRequests } from "@/db/schema";
+import { writeActivityFeedItem } from "@/domain/activity";
+import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -95,28 +92,32 @@ export async function POST(
         })
         .where(eq(uploadRequests.id, request.id));
 
-      await tx.insert(auditEvents).values({
-        actorUserId: ctx.user.id,
-        projectId: ctx.project.id,
-        organizationId: ctx.organization.id,
-        objectType: "upload_request",
-        objectId: request.id,
-        actionName: "submitted",
-        previousState: { status: previousState },
-        nextState: { status: "submitted", documentId: doc.id },
-      });
+      await writeAuditEvent(
+        ctx,
+        {
+          action: "submitted",
+          resourceType: "upload_request",
+          resourceId: request.id,
+          details: {
+            previousState: { status: previousState },
+            nextState: { status: "submitted", documentId: doc.id },
+          },
+        },
+        tx,
+      );
 
-      await tx.insert(activityFeedItems).values({
-        projectId: ctx.project.id,
-        actorUserId: ctx.user.id,
-        activityType: "file_uploaded",
-        surfaceType: "feed_item",
-        title: `Upload submitted: ${request.title}`,
-        body: doc.title,
-        relatedObjectType: "upload_request",
-        relatedObjectId: request.id,
-        visibilityScope: "subcontractor_scoped",
-      });
+      await writeActivityFeedItem(
+        ctx,
+        {
+          activityType: "file_uploaded",
+          summary: `Upload submitted: ${request.title}`,
+          body: doc.title,
+          relatedObjectType: "upload_request",
+          relatedObjectId: request.id,
+          visibilityScope: "subcontractor_scoped",
+        },
+        tx,
+      );
     });
 
     return NextResponse.json({ id: request.id, status: "submitted" });

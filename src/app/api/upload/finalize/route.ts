@@ -4,7 +4,8 @@ import { z } from "zod";
 
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
-import { auditEvents, documentLinks, documents } from "@/db/schema";
+import { documentLinks, documents } from "@/db/schema";
+import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError, assertCan } from "@/domain/permissions";
 import { objectExists } from "@/lib/storage";
@@ -112,19 +113,22 @@ export async function POST(req: Request) {
         });
       }
 
-      await tx.insert(auditEvents).values({
-        actorUserId: ctx.user.id,
-        projectId: ctx.project.id,
-        organizationId: ctx.organization.id,
-        objectType: "document",
-        objectId: doc.id,
-        actionName: "uploaded",
-        nextState: {
-          storageKey: doc.storageKey,
-          documentType: doc.documentType,
-          title: doc.title,
+      await writeAuditEvent(
+        ctx,
+        {
+          action: "uploaded",
+          resourceType: "document",
+          resourceId: doc.id,
+          details: {
+            nextState: {
+              storageKey: doc.storageKey,
+              documentType: doc.documentType,
+              title: doc.title,
+            },
+          },
         },
-      });
+        tx,
+      );
 
       return doc;
     });
