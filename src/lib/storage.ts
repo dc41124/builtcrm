@@ -1,0 +1,73 @@
+import { S3Client } from "@aws-sdk/client-s3";
+import {
+  GetObjectCommand,
+  PutObjectCommand,
+  HeadObjectCommand,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
+import { env } from "./env";
+
+const endpoint = `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+
+export const r2 = new S3Client({
+  region: "auto",
+  endpoint,
+  credentials: {
+    accessKeyId: env.R2_ACCESS_KEY_ID,
+    secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+  },
+});
+
+export const R2_BUCKET = env.R2_BUCKET_NAME;
+
+// Storage layout: {orgId}/{projectId}/{documentType}/{filename}. Callers
+// are trusted to pass an already-sanitized filename — this helper only
+// strips path separators so a malicious name can't escape its folder.
+export function buildStorageKey(input: {
+  orgId: string;
+  projectId: string;
+  documentType: string;
+  filename: string;
+}): string {
+  const safeName = input.filename.replace(/[\\/]/g, "_").trim();
+  const safeType = input.documentType.replace(/[\\/]/g, "_").trim();
+  return `${input.orgId}/${input.projectId}/${safeType}/${Date.now()}_${safeName}`;
+}
+
+export async function presignUploadUrl(params: {
+  key: string;
+  contentType: string;
+  expiresInSeconds?: number;
+}): Promise<string> {
+  const cmd = new PutObjectCommand({
+    Bucket: R2_BUCKET,
+    Key: params.key,
+    ContentType: params.contentType,
+  });
+  return getSignedUrl(r2, cmd, {
+    expiresIn: params.expiresInSeconds ?? 60 * 5,
+  });
+}
+
+export async function presignDownloadUrl(params: {
+  key: string;
+  expiresInSeconds?: number;
+}): Promise<string> {
+  const cmd = new GetObjectCommand({
+    Bucket: R2_BUCKET,
+    Key: params.key,
+  });
+  return getSignedUrl(r2, cmd, {
+    expiresIn: params.expiresInSeconds ?? 60,
+  });
+}
+
+export async function objectExists(key: string): Promise<boolean> {
+  try {
+    await r2.send(new HeadObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+    return true;
+  } catch {
+    return false;
+  }
+}
