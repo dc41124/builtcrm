@@ -1,13 +1,14 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, not } from "drizzle-orm";
 import { z } from "zod";
 
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
-import { drawRequests } from "@/db/schema";
+import { drawRequests, lienWaivers } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
+import type { EffectiveContext } from "@/domain/context";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -15,11 +16,26 @@ import { recomputeDrawHeaderTotals } from "../_totals";
 
 type DrawRow = typeof drawRequests.$inferSelect;
 type UpdateValues = Partial<typeof drawRequests.$inferInsert>;
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+type HookArgs = { tx: Tx; draw: DrawRow; ctx: EffectiveContext };
 
 const CONTRACTOR_ROLES = ["contractor_admin", "contractor_pm"] as const;
 const CLIENT_ROLES = ["commercial_client", "residential_client"] as const;
 
 type Role = string;
+
+class TransitionBlockedError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly status: number = 409,
+    public readonly details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = "TransitionBlockedError";
+  }
+}
 
 type TransitionRule<TBody> = {
   allowedRoles: readonly Role[];
@@ -30,7 +46,65 @@ type TransitionRule<TBody> = {
   bodySchema?: z.ZodType<TBody>;
   recomputeTotals?: boolean;
   buildUpdate?: (body: TBody, draw: DrawRow) => UpdateValues;
+  precheck?: (args: HookArgs) => Promise<void>;
+  afterUpdate?: (args: HookArgs) => Promise<void>;
 };
+
+async function ensureWaiversAcceptedForMarkPaid({
+  tx,
+  draw,
+}: HookArgs): Promise<void> {
+  const blocking = await tx
+    .select({ id: lienWaivers.id, status: lienWaivers.lienWaiverStatus })
+    .from(lienWaivers)
+    .where(
+      and(
+        eq(lienWaivers.drawRequestId, draw.id),
+        eq(lienWaivers.lienWaiverType, "conditional_progress"),
+        not(inArray(lienWaivers.lienWaiverStatus, ["accepted", "waived"])),
+      ),
+    );
+  if (blocking.length > 0) {
+    throw new TransitionBlockedError(
+      "lien_waiver_required",
+      "Conditional lien waiver must be accepted or waived before marking paid",
+      409,
+      { waiverIds: blocking.map((w) => w.id) },
+    );
+  }
+}
+
+async function createWaiverForDraw(
+  args: HookArgs,
+  waiverType: "conditional_progress" | "unconditional_progress",
+): Promise<void> {
+  const { tx, draw, ctx } = args;
+  const [fresh] = await tx
+    .select({ currentPaymentDueCents: drawRequests.currentPaymentDueCents })
+    .from(drawRequests)
+    .where(eq(drawRequests.id, draw.id))
+    .limit(1);
+  const amount = fresh?.currentPaymentDueCents ?? draw.currentPaymentDueCents;
+  await tx
+    .insert(lienWaivers)
+    .values({
+      projectId: draw.projectId,
+      drawRequestId: draw.id,
+      organizationId: ctx.project.contractorOrganizationId,
+      lienWaiverType: waiverType,
+      lienWaiverStatus: "requested",
+      amountCents: amount,
+      throughDate: draw.periodTo,
+      requestedAt: new Date(),
+    })
+    .onConflictDoNothing({
+      target: [
+        lienWaivers.drawRequestId,
+        lienWaivers.organizationId,
+        lienWaivers.lienWaiverType,
+      ],
+    });
+}
 
 export type DrawTransitionKind =
   | "submit"
@@ -62,6 +136,7 @@ const RULES: {
     forbiddenMessage: "Only contractors can submit a draw request",
     recomputeTotals: true,
     buildUpdate: () => ({ submittedAt: new Date() }),
+    afterUpdate: (args) => createWaiverForDraw(args, "conditional_progress"),
   },
   revise: {
     allowedRoles: CONTRACTOR_ROLES,
@@ -114,6 +189,8 @@ const RULES: {
       paidAt: new Date(),
       paymentReferenceName: body.paymentReferenceName,
     }),
+    precheck: ensureWaiversAcceptedForMarkPaid,
+    afterUpdate: (args) => createWaiverForDraw(args, "unconditional_progress"),
   },
 };
 
@@ -173,6 +250,9 @@ export async function handleDrawTransition(
       kind === "approve" || kind === "approve-with-note" || kind === "return";
 
     await db.transaction(async (tx) => {
+      if (rule.precheck) {
+        await rule.precheck({ tx, draw, ctx });
+      }
       if (rule.recomputeTotals) {
         await recomputeDrawHeaderTotals(tx, draw.id);
       }
@@ -184,6 +264,10 @@ export async function handleDrawTransition(
           ...extraFields,
         })
         .where(eq(drawRequests.id, draw.id));
+
+      if (rule.afterUpdate) {
+        await rule.afterUpdate({ tx, draw, ctx });
+      }
 
       await writeAuditEvent(
         ctx,
@@ -214,6 +298,12 @@ export async function handleDrawTransition(
 
     return NextResponse.json({ id: draw.id, status: rule.toState });
   } catch (err) {
+    if (err instanceof TransitionBlockedError) {
+      return NextResponse.json(
+        { error: err.code, message: err.message, ...(err.details ?? {}) },
+        { status: err.status },
+      );
+    }
     if (err instanceof AuthorizationError) {
       const status =
         err.code === "unauthenticated"
