@@ -153,13 +153,16 @@ function DrawCard({ draw }: { draw: DrawRequest }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isDraft = draw.drawRequestStatus === "draft";
+  const isRevised = draw.drawRequestStatus === "revised";
+  const isEditable = isDraft || isRevised;
   const isSubmitted = draw.drawRequestStatus === "submitted";
+  const isReturned = draw.drawRequestStatus === "returned";
   const isPayable =
     draw.drawRequestStatus === "approved" ||
     draw.drawRequestStatus === "approved_with_note";
   const [paymentRef, setPaymentRef] = useState("");
 
-  async function transition(kind: "submit" | "start-review") {
+  async function transition(kind: "submit" | "revise" | "start-review") {
     setPending(true);
     setError(null);
     const res = await fetch(`/api/draw-requests/${draw.id}/${kind}`, {
@@ -245,20 +248,29 @@ function DrawCard({ draw }: { draw: DrawRequest }) {
                 key={l.id}
                 drawId={draw.id}
                 line={l}
-                editable={isDraft}
+                editable={isEditable}
               />
             ))}
           </tbody>
         </table>
       )}
 
-      {isDraft && (
+      {isEditable && (
         <button
           type="button"
           disabled={pending}
           onClick={() => transition("submit")}
         >
-          Submit draw
+          {isRevised ? "Resubmit draw" : "Submit draw"}
+        </button>
+      )}
+      {isReturned && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => transition("revise")}
+        >
+          Reopen for revision
         </button>
       )}
       {isSubmitted && (

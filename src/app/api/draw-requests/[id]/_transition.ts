@@ -34,6 +34,7 @@ type TransitionRule<TBody> = {
 
 export type DrawTransitionKind =
   | "submit"
+  | "revise"
   | "start-review"
   | "approve"
   | "approve-with-note"
@@ -46,6 +47,7 @@ const markPaidBody = z.object({ paymentReferenceName: z.string().min(1).max(255)
 
 const RULES: {
   submit: TransitionRule<Record<string, never>>;
+  revise: TransitionRule<Record<string, never>>;
   "start-review": TransitionRule<Record<string, never>>;
   approve: TransitionRule<Record<string, never>>;
   "approve-with-note": TransitionRule<z.infer<typeof approveNoteBody>>;
@@ -54,12 +56,19 @@ const RULES: {
 } = {
   submit: {
     allowedRoles: CONTRACTOR_ROLES,
-    fromStates: ["draft"],
+    fromStates: ["draft", "revised"],
     toState: "submitted",
     label: "submitted",
     forbiddenMessage: "Only contractors can submit a draw request",
     recomputeTotals: true,
     buildUpdate: () => ({ submittedAt: new Date() }),
+  },
+  revise: {
+    allowedRoles: CONTRACTOR_ROLES,
+    fromStates: ["returned"],
+    toState: "revised",
+    label: "reopened for revision",
+    forbiddenMessage: "Only contractors can reopen a returned draw",
   },
   "start-review": {
     allowedRoles: CONTRACTOR_ROLES,
@@ -197,7 +206,7 @@ export async function handleDrawTransition(
           summary: `Draw #${draw.drawNumber} ${rule.label}`,
           relatedObjectType: "draw_request",
           relatedObjectId: draw.id,
-          visibilityScope: "project_wide",
+          visibilityScope: kind === "mark-paid" ? "internal_only" : "project_wide",
         },
         tx,
       );

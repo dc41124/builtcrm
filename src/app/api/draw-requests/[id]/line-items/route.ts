@@ -62,7 +62,10 @@ export async function POST(
         "forbidden",
       );
     }
-    if (draw.drawRequestStatus !== "draft") {
+    if (
+      draw.drawRequestStatus !== "draft" &&
+      draw.drawRequestStatus !== "revised"
+    ) {
       return NextResponse.json(
         { error: "invalid_state", state: draw.drawRequestStatus },
         { status: 409 },
