@@ -189,6 +189,23 @@ export async function handleLienWaiverTransition(
         },
         tx,
       );
+
+      if (kind === "reject") {
+        const note = (body as z.infer<typeof noteBody>).note;
+        await writeActivityFeedItem(
+          ctx,
+          {
+            activityType: "payment_update",
+            summary: "Lien waiver rejected — please re-upload",
+            body: note ?? null,
+            relatedObjectType: "lien_waiver",
+            relatedObjectId: waiver.id,
+            visibilityScope: "internal_only",
+            surfaceType: "notification_source",
+          },
+          tx,
+        );
+      }
     });
 
     return NextResponse.json({ id: waiver.id, status: rule.toState });

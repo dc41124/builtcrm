@@ -19,6 +19,29 @@ type DrawLineItem = {
   retainagePercentApplied: number;
 };
 
+type LienWaiver = {
+  id: string;
+  drawRequestId: string;
+  organizationId: string;
+  lienWaiverType:
+    | "conditional_progress"
+    | "unconditional_progress"
+    | "conditional_final"
+    | "unconditional_final";
+  lienWaiverStatus:
+    | "requested"
+    | "submitted"
+    | "accepted"
+    | "rejected"
+    | "waived";
+  amountCents: number;
+  throughDate: Date | null;
+  documentId: string | null;
+  requestedAt: Date | null;
+  submittedAt: Date | null;
+  acceptedAt: Date | null;
+};
+
 type DrawRequest = {
   id: string;
   sovId: string;
@@ -33,6 +56,7 @@ type DrawRequest = {
   totalRetainageCents: number;
   totalEarnedLessRetainageCents: number;
   previousCertificatesCents: number;
+  retainageReleasedCents: number;
   currentPaymentDueCents: number;
   balanceToFinishCents: number;
   submittedAt: Date | null;
@@ -43,7 +67,21 @@ type DrawRequest = {
   paidAt?: Date | null;
   paymentReferenceName?: string | null;
   lineItems: DrawLineItem[];
+  lienWaivers: LienWaiver[];
 };
+
+function waiverTypeLabel(t: LienWaiver["lienWaiverType"]): string {
+  switch (t) {
+    case "conditional_progress":
+      return "Conditional progress";
+    case "unconditional_progress":
+      return "Unconditional progress";
+    case "conditional_final":
+      return "Conditional final";
+    case "unconditional_final":
+      return "Unconditional final";
+  }
+}
 
 function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
@@ -77,7 +115,7 @@ export function ContractorDrawRequestsPanel({
       {draws.length === 0 ? (
         <p>No draw requests yet.</p>
       ) : (
-        draws.map((d) => <DrawCard key={d.id} draw={d} />)
+        draws.map((d) => <DrawCard key={d.id} draw={d} projectId={projectId} />)
       )}
     </>
   );
@@ -148,7 +186,7 @@ function CreateDrawForm({
   );
 }
 
-function DrawCard({ draw }: { draw: DrawRequest }) {
+function DrawCard({ draw, projectId }: { draw: DrawRequest; projectId: string }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -219,6 +257,12 @@ function DrawCard({ draw }: { draw: DrawRequest }) {
           Retainage: {formatCents(draw.totalRetainageCents)} · Earned less
           retainage: {formatCents(draw.totalEarnedLessRetainageCents)} · Previous
           certificates: {formatCents(draw.previousCertificatesCents)} ·{" "}
+          {draw.retainageReleasedCents > 0 && (
+            <>
+              Retainage release credit:{" "}
+              {formatCents(draw.retainageReleasedCents)} ·{" "}
+            </>
+          )}
           <strong>Current payment due: {formatCents(draw.currentPaymentDueCents)}</strong>{" "}
           · Balance to finish: {formatCents(draw.balanceToFinishCents)}
         </p>
@@ -310,8 +354,140 @@ function DrawCard({ draw }: { draw: DrawRequest }) {
           Paid — ref {draw.paymentReferenceName}
         </p>
       )}
+      {draw.lienWaivers.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <h4 style={{ margin: "8px 0 4px" }}>Lien waivers</h4>
+          {draw.lienWaivers.map((w) => (
+            <ContractorLienWaiverRow
+              key={w.id}
+              waiver={w}
+              projectId={projectId}
+            />
+          ))}
+        </div>
+      )}
+
       {error && <p style={{ color: "crimson" }}>Error: {error}</p>}
     </section>
+  );
+}
+
+function ContractorLienWaiverRow({
+  waiver,
+  projectId,
+}: {
+  waiver: LienWaiver;
+  projectId: string;
+}) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+
+  const status = waiver.lienWaiverStatus;
+  const canSubmit = status === "requested" || status === "rejected";
+
+  async function uploadAndSubmit() {
+    if (!file) {
+      setError("file_required");
+      return;
+    }
+    setPending(true);
+    setError(null);
+    try {
+      const presignRes = await fetch("/api/upload/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          filename: file.name,
+          contentType: file.type || "application/pdf",
+          documentType: "lien_waiver",
+        }),
+      });
+      if (!presignRes.ok) throw new Error("presign_failed");
+      const presign = await presignRes.json();
+
+      const putRes = await fetch(presign.uploadUrl, {
+        method: "PUT",
+        headers: presign.headers,
+        body: file,
+      });
+      if (!putRes.ok) throw new Error("put_failed");
+
+      const finalizeRes = await fetch("/api/upload/finalize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          storageKey: presign.storageKey,
+          title: file.name,
+          documentType: "lien_waiver",
+          visibilityScope: "project_wide",
+          audienceScope: "client",
+          sourceObject: {
+            type: "lien_waiver",
+            id: waiver.id,
+            linkRole: "submission",
+          },
+        }),
+      });
+      if (!finalizeRes.ok) throw new Error("finalize_failed");
+      const { documentId } = await finalizeRes.json();
+
+      const submitRes = await fetch(`/api/lien-waivers/${waiver.id}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId }),
+      });
+      if (!submitRes.ok) {
+        const b = await submitRes.json().catch(() => ({}));
+        throw new Error(b.error ?? "submit_failed");
+      }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "unknown_error");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        border: "1px dashed #999",
+        padding: 8,
+        marginTop: 6,
+        display: "grid",
+        gap: 4,
+      }}
+    >
+      <div>
+        <strong>{waiverTypeLabel(waiver.lienWaiverType)}</strong> — {status} ·
+        {" "}
+        {formatCents(waiver.amountCents)}
+        {waiver.throughDate
+          ? ` · through ${toIsoDate(waiver.throughDate)}`
+          : ""}
+      </div>
+      {canSubmit && (
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input
+            type="file"
+            accept="application/pdf,image/*"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            disabled={pending}
+          />
+          <button type="button" disabled={pending || !file} onClick={uploadAndSubmit}>
+            {pending ? "Uploading…" : "Upload & submit"}
+          </button>
+        </div>
+      )}
+      {status === "submitted" && <p>Awaiting client review.</p>}
+      {status === "accepted" && <p>Accepted by client.</p>}
+      {status === "waived" && <p>Waived by client.</p>}
+      {error && <p style={{ color: "crimson" }}>Error: {error}</p>}
+    </div>
   );
 }
 

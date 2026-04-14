@@ -199,3 +199,27 @@ export async function consumeUnassignedReleases(
       ),
     );
 }
+
+// Refresh totals on every draft/revised draw in a project. Called when
+// the unconsumed-release pool changes (a release is approved, or a sibling
+// draw consumes the pool on approval) so a draft's preview credit stays
+// in sync with what would actually flow through if it were approved next.
+export async function recomputeProjectDraftDraws(
+  tx: Tx,
+  projectId: string,
+  exceptDrawId?: string,
+): Promise<void> {
+  const rows = await tx
+    .select({ id: drawRequests.id })
+    .from(drawRequests)
+    .where(
+      and(
+        eq(drawRequests.projectId, projectId),
+        inArray(drawRequests.drawRequestStatus, ["draft", "revised"]),
+      ),
+    );
+  for (const r of rows) {
+    if (exceptDrawId && r.id === exceptDrawId) continue;
+    await recomputeDrawHeaderTotals(tx, r.id);
+  }
+}

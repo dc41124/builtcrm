@@ -15,6 +15,7 @@ import {
 } from "./compliance-ui";
 import { ContractorRfisList, CreateRfiForm } from "./rfis-ui";
 import { ContractorDrawRequestsPanel } from "./draw-requests-ui";
+import { ContractorRetainagePanel } from "./retainage-releases-ui";
 import { ContractorSovPanel } from "./sov-ui";
 import {
   ContractorUploadRequestsList,
@@ -91,6 +92,19 @@ export default async function ContractorProjectHomePage({
         sovId={view.scheduleOfValues?.id ?? null}
         sovStatus={view.scheduleOfValues?.sovStatus ?? null}
         draws={view.drawRequests}
+      />
+
+      <h2>Retainage Releases</h2>
+      <ContractorRetainagePanel
+        projectId={view.project.id}
+        releases={view.retainageReleases}
+        sovLines={
+          view.scheduleOfValues?.lineItems.map((l) => ({
+            id: l.id,
+            itemNumber: l.itemNumber,
+            description: l.description,
+          })) ?? []
+        }
       />
     </main>
   );

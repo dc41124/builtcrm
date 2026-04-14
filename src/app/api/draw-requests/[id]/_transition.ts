@@ -15,6 +15,7 @@ import { AuthorizationError } from "@/domain/permissions";
 import {
   consumeUnassignedReleases,
   recomputeDrawHeaderTotals,
+  recomputeProjectDraftDraws,
 } from "../_totals";
 
 type DrawRow = typeof drawRequests.$inferSelect;
@@ -80,6 +81,7 @@ async function ensureWaiversAcceptedForMarkPaid({
 async function lockInRetainageReleases({ tx, draw }: HookArgs): Promise<void> {
   await consumeUnassignedReleases(tx, draw.projectId, draw.id);
   await recomputeDrawHeaderTotals(tx, draw.id);
+  await recomputeProjectDraftDraws(tx, draw.projectId, draw.id);
 }
 
 async function createWaiverForDraw(

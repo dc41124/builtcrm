@@ -7,9 +7,11 @@ import {
   complianceRecords,
   drawLineItems,
   drawRequests,
+  lienWaivers,
   milestones,
   organizations,
   projectUserMemberships,
+  retainageReleases,
   rfiResponses,
   rfis,
   scheduleOfValues,
@@ -123,6 +125,34 @@ export type RfiRow = {
   responses: RfiResponseRow[];
 };
 
+export type LienWaiverRow = {
+  id: string;
+  drawRequestId: string;
+  organizationId: string;
+  lienWaiverType: "conditional_progress" | "unconditional_progress" | "conditional_final" | "unconditional_final";
+  lienWaiverStatus: "requested" | "submitted" | "accepted" | "rejected" | "waived";
+  amountCents: number;
+  throughDate: Date | null;
+  documentId: string | null;
+  requestedAt: Date | null;
+  submittedAt: Date | null;
+  acceptedAt: Date | null;
+};
+
+export type RetainageReleaseRow = {
+  id: string;
+  sovLineItemId: string | null;
+  releaseStatus: "held" | "release_requested" | "released" | "forfeited";
+  releaseAmountCents: number;
+  totalRetainageHeldCents: number;
+  approvalNote: string | null;
+  requestedAt: Date | null;
+  approvedAt: Date | null;
+  consumedByDrawRequestId: string | null;
+  consumedAt: Date | null;
+  createdAt: Date;
+};
+
 export type ContractorProjectView = {
   context: EffectiveContext;
   project: EffectiveContext["project"];
@@ -158,6 +188,7 @@ export type ContractorProjectView = {
     returnReason: string | null;
     paidAt: Date | null;
     paymentReferenceName: string | null;
+    retainageReleasedCents: number;
     lineItems: Array<{
       id: string;
       sovLineItemId: string;
@@ -173,7 +204,9 @@ export type ContractorProjectView = {
       retainageCents: number;
       retainagePercentApplied: number;
     }>;
+    lienWaivers: LienWaiverRow[];
   }>;
+  retainageReleases: RetainageReleaseRow[];
   uploadRequests: Array<{
     id: string;
     title: string;
@@ -342,36 +375,47 @@ export async function getContractorProjectView(
       .limit(1),
   ]);
 
-  const drawLineItemRows = drawRows.length
-    ? await db
-        .select({
-          id: drawLineItems.id,
-          drawRequestId: drawLineItems.drawRequestId,
-          sovLineItemId: drawLineItems.sovLineItemId,
-          itemNumber: sovLineItems.itemNumber,
-          description: sovLineItems.description,
-          scheduledValueCents: sovLineItems.scheduledValueCents,
-          workCompletedPreviousCents: drawLineItems.workCompletedPreviousCents,
-          workCompletedThisPeriodCents: drawLineItems.workCompletedThisPeriodCents,
-          materialsPresentlyStoredCents: drawLineItems.materialsPresentlyStoredCents,
-          totalCompletedStoredToDateCents:
-            drawLineItems.totalCompletedStoredToDateCents,
-          percentCompleteBasisPoints: drawLineItems.percentCompleteBasisPoints,
-          balanceToFinishCents: drawLineItems.balanceToFinishCents,
-          retainageCents: drawLineItems.retainageCents,
-          retainagePercentApplied: drawLineItems.retainagePercentApplied,
-          sortOrder: sovLineItems.sortOrder,
-        })
-        .from(drawLineItems)
-        .innerJoin(sovLineItems, eq(sovLineItems.id, drawLineItems.sovLineItemId))
-        .where(
-          inArray(
-            drawLineItems.drawRequestId,
-            drawRows.map((d) => d.id),
-          ),
-        )
-        .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber))
-    : [];
+  const drawIds = drawRows.map((d) => d.id);
+  const [drawLineItemRows, waiverRows, releaseRows] = await Promise.all([
+    drawIds.length
+      ? db
+          .select({
+            id: drawLineItems.id,
+            drawRequestId: drawLineItems.drawRequestId,
+            sovLineItemId: drawLineItems.sovLineItemId,
+            itemNumber: sovLineItems.itemNumber,
+            description: sovLineItems.description,
+            scheduledValueCents: sovLineItems.scheduledValueCents,
+            workCompletedPreviousCents: drawLineItems.workCompletedPreviousCents,
+            workCompletedThisPeriodCents: drawLineItems.workCompletedThisPeriodCents,
+            materialsPresentlyStoredCents:
+              drawLineItems.materialsPresentlyStoredCents,
+            totalCompletedStoredToDateCents:
+              drawLineItems.totalCompletedStoredToDateCents,
+            percentCompleteBasisPoints: drawLineItems.percentCompleteBasisPoints,
+            balanceToFinishCents: drawLineItems.balanceToFinishCents,
+            retainageCents: drawLineItems.retainageCents,
+            retainagePercentApplied: drawLineItems.retainagePercentApplied,
+            sortOrder: sovLineItems.sortOrder,
+          })
+          .from(drawLineItems)
+          .innerJoin(sovLineItems, eq(sovLineItems.id, drawLineItems.sovLineItemId))
+          .where(inArray(drawLineItems.drawRequestId, drawIds))
+          .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber))
+      : Promise.resolve([] as never[]),
+    drawIds.length
+      ? db
+          .select()
+          .from(lienWaivers)
+          .where(inArray(lienWaivers.drawRequestId, drawIds))
+          .orderBy(asc(lienWaivers.lienWaiverType), desc(lienWaivers.createdAt))
+      : Promise.resolve([] as never[]),
+    db
+      .select()
+      .from(retainageReleases)
+      .where(eq(retainageReleases.projectId, projectId))
+      .orderBy(desc(retainageReleases.createdAt)),
+  ]);
 
   const drawLinesByDraw = new Map<string, typeof drawLineItemRows>();
   for (const l of drawLineItemRows) {
@@ -379,6 +423,40 @@ export async function getContractorProjectView(
     arr.push(l);
     drawLinesByDraw.set(l.drawRequestId, arr);
   }
+
+  const waiversByDraw = new Map<string, LienWaiverRow[]>();
+  for (const w of waiverRows) {
+    const row: LienWaiverRow = {
+      id: w.id,
+      drawRequestId: w.drawRequestId,
+      organizationId: w.organizationId,
+      lienWaiverType: w.lienWaiverType,
+      lienWaiverStatus: w.lienWaiverStatus,
+      amountCents: w.amountCents,
+      throughDate: w.throughDate,
+      documentId: w.documentId,
+      requestedAt: w.requestedAt,
+      submittedAt: w.submittedAt,
+      acceptedAt: w.acceptedAt,
+    };
+    const arr = waiversByDraw.get(w.drawRequestId) ?? [];
+    arr.push(row);
+    waiversByDraw.set(w.drawRequestId, arr);
+  }
+
+  const retainageReleasesView: RetainageReleaseRow[] = releaseRows.map((r) => ({
+    id: r.id,
+    sovLineItemId: r.sovLineItemId,
+    releaseStatus: r.releaseStatus,
+    releaseAmountCents: r.releaseAmountCents,
+    totalRetainageHeldCents: r.totalRetainageHeldCents,
+    approvalNote: r.approvalNote,
+    requestedAt: r.requestedAt,
+    approvedAt: r.approvedAt,
+    consumedByDrawRequestId: r.consumedByDrawRequestId,
+    consumedAt: r.consumedAt,
+    createdAt: r.createdAt,
+  }));
 
   const drawRequestsView = drawRows.map((d) => ({
     id: d.id,
@@ -403,6 +481,7 @@ export async function getContractorProjectView(
     returnReason: d.returnReason,
     paidAt: d.paidAt,
     paymentReferenceName: d.paymentReferenceName,
+    retainageReleasedCents: d.retainageReleasedCents,
     lineItems: (drawLinesByDraw.get(d.id) ?? []).map((l) => ({
       id: l.id,
       sovLineItemId: l.sovLineItemId,
@@ -418,6 +497,7 @@ export async function getContractorProjectView(
       retainageCents: l.retainageCents,
       retainagePercentApplied: l.retainagePercentApplied,
     })),
+    lienWaivers: waiversByDraw.get(d.id) ?? [],
   }));
 
   const sovRow = sovRows[0] ?? null;
@@ -447,6 +527,7 @@ export async function getContractorProjectView(
     rfis: rfiRows,
     changeOrders: coRows,
     drawRequests: drawRequestsView,
+    retainageReleases: retainageReleasesView,
     uploadRequests: uploadRequestRows,
     approvals: approvalRows,
     complianceRecords: complianceRows,
@@ -635,6 +716,8 @@ export type ClientProjectView = {
     returnReason: string | null;
     paidAt: Date | null;
     paymentReferenceName: string | null;
+    retainageReleasedCents: number;
+    lienWaivers: LienWaiverRow[];
     lineItems: Array<{
       id: string;
       itemNumber: string;
@@ -650,6 +733,7 @@ export type ClientProjectView = {
       retainagePercentApplied: number;
     }>;
   }>;
+  retainageReleases: RetainageReleaseRow[];
 };
 
 export async function getClientProjectView(
@@ -761,35 +845,54 @@ export async function getClientProjectView(
       .orderBy(desc(drawRequests.drawNumber)),
   ]);
 
-  const clientDrawLineRows = drawRows.length
-    ? await db
-        .select({
-          id: drawLineItems.id,
-          drawRequestId: drawLineItems.drawRequestId,
-          itemNumber: sovLineItems.itemNumber,
-          description: sovLineItems.description,
-          scheduledValueCents: sovLineItems.scheduledValueCents,
-          workCompletedPreviousCents: drawLineItems.workCompletedPreviousCents,
-          workCompletedThisPeriodCents: drawLineItems.workCompletedThisPeriodCents,
-          materialsPresentlyStoredCents: drawLineItems.materialsPresentlyStoredCents,
-          totalCompletedStoredToDateCents:
-            drawLineItems.totalCompletedStoredToDateCents,
-          percentCompleteBasisPoints: drawLineItems.percentCompleteBasisPoints,
-          balanceToFinishCents: drawLineItems.balanceToFinishCents,
-          retainageCents: drawLineItems.retainageCents,
-          retainagePercentApplied: drawLineItems.retainagePercentApplied,
-          sortOrder: sovLineItems.sortOrder,
-        })
-        .from(drawLineItems)
-        .innerJoin(sovLineItems, eq(sovLineItems.id, drawLineItems.sovLineItemId))
-        .where(
-          inArray(
-            drawLineItems.drawRequestId,
-            drawRows.map((d) => d.id),
-          ),
-        )
-        .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber))
-    : [];
+  const clientDrawIds = drawRows.map((d) => d.id);
+  const [clientDrawLineRows, clientWaiverRows, clientReleaseRows] =
+    await Promise.all([
+      clientDrawIds.length
+        ? db
+            .select({
+              id: drawLineItems.id,
+              drawRequestId: drawLineItems.drawRequestId,
+              itemNumber: sovLineItems.itemNumber,
+              description: sovLineItems.description,
+              scheduledValueCents: sovLineItems.scheduledValueCents,
+              workCompletedPreviousCents: drawLineItems.workCompletedPreviousCents,
+              workCompletedThisPeriodCents:
+                drawLineItems.workCompletedThisPeriodCents,
+              materialsPresentlyStoredCents:
+                drawLineItems.materialsPresentlyStoredCents,
+              totalCompletedStoredToDateCents:
+                drawLineItems.totalCompletedStoredToDateCents,
+              percentCompleteBasisPoints: drawLineItems.percentCompleteBasisPoints,
+              balanceToFinishCents: drawLineItems.balanceToFinishCents,
+              retainageCents: drawLineItems.retainageCents,
+              retainagePercentApplied: drawLineItems.retainagePercentApplied,
+              sortOrder: sovLineItems.sortOrder,
+            })
+            .from(drawLineItems)
+            .innerJoin(
+              sovLineItems,
+              eq(sovLineItems.id, drawLineItems.sovLineItemId),
+            )
+            .where(inArray(drawLineItems.drawRequestId, clientDrawIds))
+            .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber))
+        : Promise.resolve([] as never[]),
+      clientDrawIds.length
+        ? db
+            .select()
+            .from(lienWaivers)
+            .where(inArray(lienWaivers.drawRequestId, clientDrawIds))
+            .orderBy(
+              asc(lienWaivers.lienWaiverType),
+              desc(lienWaivers.createdAt),
+            )
+        : Promise.resolve([] as never[]),
+      db
+        .select()
+        .from(retainageReleases)
+        .where(eq(retainageReleases.projectId, projectId))
+        .orderBy(desc(retainageReleases.createdAt)),
+    ]);
 
   const clientDrawLinesByDraw = new Map<string, typeof clientDrawLineRows>();
   for (const l of clientDrawLineRows) {
@@ -797,6 +900,42 @@ export async function getClientProjectView(
     arr.push(l);
     clientDrawLinesByDraw.set(l.drawRequestId, arr);
   }
+
+  const clientWaiversByDraw = new Map<string, LienWaiverRow[]>();
+  for (const w of clientWaiverRows) {
+    const row: LienWaiverRow = {
+      id: w.id,
+      drawRequestId: w.drawRequestId,
+      organizationId: w.organizationId,
+      lienWaiverType: w.lienWaiverType,
+      lienWaiverStatus: w.lienWaiverStatus,
+      amountCents: w.amountCents,
+      throughDate: w.throughDate,
+      documentId: w.documentId,
+      requestedAt: w.requestedAt,
+      submittedAt: w.submittedAt,
+      acceptedAt: w.acceptedAt,
+    };
+    const arr = clientWaiversByDraw.get(w.drawRequestId) ?? [];
+    arr.push(row);
+    clientWaiversByDraw.set(w.drawRequestId, arr);
+  }
+
+  const clientRetainageReleasesView: RetainageReleaseRow[] = clientReleaseRows.map(
+    (r) => ({
+      id: r.id,
+      sovLineItemId: r.sovLineItemId,
+      releaseStatus: r.releaseStatus,
+      releaseAmountCents: r.releaseAmountCents,
+      totalRetainageHeldCents: r.totalRetainageHeldCents,
+      approvalNote: r.approvalNote,
+      requestedAt: r.requestedAt,
+      approvedAt: r.approvedAt,
+      consumedByDrawRequestId: r.consumedByDrawRequestId,
+      consumedAt: r.consumedAt,
+      createdAt: r.createdAt,
+    }),
+  );
 
   return {
     context,
@@ -806,6 +945,7 @@ export async function getClientProjectView(
     decisions: coRows,
     openRequests: rfiRows,
     approvals: approvalRows,
+    retainageReleases: clientRetainageReleasesView,
     drawRequests: drawRows.map((d) => ({
       id: d.id,
       drawNumber: d.drawNumber,
@@ -828,6 +968,8 @@ export async function getClientProjectView(
       returnReason: d.returnReason,
       paidAt: d.paidAt,
       paymentReferenceName: d.paymentReferenceName,
+      retainageReleasedCents: d.retainageReleasedCents,
+      lienWaivers: clientWaiversByDraw.get(d.id) ?? [],
       lineItems: (clientDrawLinesByDraw.get(d.id) ?? []).map((l) => ({
         id: l.id,
         itemNumber: l.itemNumber,

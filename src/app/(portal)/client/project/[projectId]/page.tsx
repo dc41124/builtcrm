@@ -7,6 +7,7 @@ import { AuthorizationError } from "@/domain/permissions";
 
 import { ClientApprovalsList } from "./approvals-ui";
 import { ClientDrawReviewPanel } from "./draw-review-ui";
+import { ClientRetainagePanel } from "./retainage-releases-ui";
 
 export default async function ClientProjectHomePage({
   params,
@@ -77,6 +78,9 @@ export default async function ClientProjectHomePage({
         draws={view.drawRequests}
         isResidential={view.isResidential}
       />
+
+      <h2>Retainage Releases</h2>
+      <ClientRetainagePanel releases={view.retainageReleases} />
     </main>
   );
 }

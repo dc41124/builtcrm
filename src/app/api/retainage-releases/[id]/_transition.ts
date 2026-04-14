@@ -10,6 +10,7 @@ import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
+import { recomputeProjectDraftDraws } from "../../draw-requests/_totals";
 
 type ReleaseRow = typeof retainageReleases.$inferSelect;
 type UpdateValues = Partial<typeof retainageReleases.$inferInsert>;
@@ -136,6 +137,10 @@ export async function handleRetainageReleaseTransition(
           ...extraFields,
         })
         .where(eq(retainageReleases.id, release.id));
+
+      if (kind === "approve") {
+        await recomputeProjectDraftDraws(tx, release.projectId);
+      }
 
       await writeAuditEvent(
         ctx,
