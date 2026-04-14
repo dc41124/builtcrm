@@ -43,9 +43,14 @@ export default async function SubcontractorProjectHomePage({
         {view.scope.workScope ?? "—"} · Phase scope: {view.scope.phaseScope ?? "—"}
       </p>
 
-      <h2>My Milestones</h2>
+      <h2>
+        My Schedule ·{" "}
+        <a href={`/subcontractor/project/${view.project.id}/schedule`}>
+          View full schedule →
+        </a>
+      </h2>
       <ul>
-        {view.myMilestones.map((m) => (
+        {view.myMilestones.slice(0, 5).map((m) => (
           <li key={m.id}>
             {m.scheduledDate.toISOString().slice(0, 10)} — {m.title} [{m.milestoneStatus}]
           </li>

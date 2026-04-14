@@ -54,9 +54,14 @@ export default async function ContractorProjectHomePage({
       <h1>Contractor · {view.project.name}</h1>
       <p>Role: {view.context.role} · Team members: {view.teamCount}</p>
 
-      <h2>Milestones</h2>
+      <h2>
+        Schedule ·{" "}
+        <a href={`/contractor/project/${view.project.id}/schedule`}>
+          View full schedule →
+        </a>
+      </h2>
       <ul>
-        {view.milestones.map((m) => (
+        {view.milestones.slice(0, 5).map((m) => (
           <li key={m.id}>
             {m.scheduledDate.toISOString().slice(0, 10)} — {m.title} [{m.milestoneStatus}]
           </li>

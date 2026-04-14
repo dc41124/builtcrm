@@ -47,9 +47,14 @@ export default async function ClientProjectHomePage({
         {view.project.name}
       </h1>
 
-      <h2>Milestones</h2>
+      <h2>
+        {view.isResidential ? "Your Timeline" : "Schedule"} ·{" "}
+        <a href={`/client/project/${view.project.id}/schedule`}>
+          View full schedule →
+        </a>
+      </h2>
       <ul>
-        {view.milestones.map((m) => (
+        {view.milestones.slice(0, 5).map((m) => (
           <li key={m.id}>
             {m.scheduledDate.toISOString().slice(0, 10)} — {m.title} [{m.milestoneStatus}]
           </li>
