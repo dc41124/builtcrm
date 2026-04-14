@@ -370,13 +370,30 @@ function ClientLienWaiverRow({ waiver }: { waiver: LienWaiver }) {
           <>
             {" "}
             ·{" "}
-            <a
-              href={`/api/documents/${waiver.documentId}/download`}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
+              onClick={async () => {
+                const res = await fetch(`/api/files/${waiver.documentId}`);
+                if (!res.ok) {
+                  setError("download_failed");
+                  return;
+                }
+                const body = (await res.json()) as { downloadUrl?: string };
+                if (body.downloadUrl) {
+                  window.open(body.downloadUrl, "_blank", "noreferrer");
+                }
+              }}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                color: "#3178b9",
+                textDecoration: "underline",
+                cursor: "pointer",
+              }}
             >
               View document
-            </a>
+            </button>
           </>
         )}
       </div>
