@@ -5,6 +5,8 @@ import { auth } from "@/auth/config";
 import { getSubcontractorProjectView } from "@/domain/loaders/project-home";
 import { AuthorizationError } from "@/domain/permissions";
 
+import { PendingUploadRequestsList } from "./upload-requests-ui";
+
 export default async function SubcontractorProjectHomePage({
   params,
 }: {
@@ -52,6 +54,12 @@ export default async function SubcontractorProjectHomePage({
           <li key={r.id}>{r.subject} [{r.rfiStatus}]</li>
         ))}
       </ul>
+
+      <h2>Pending Upload Requests</h2>
+      <PendingUploadRequestsList
+        projectId={view.project.id}
+        requests={view.pendingUploadRequests}
+      />
 
       <h2>Change Orders</h2>
       <ul>

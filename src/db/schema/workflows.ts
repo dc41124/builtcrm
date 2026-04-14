@@ -25,6 +25,7 @@ import { documents } from "./documents";
 export const requestStatusEnum = pgEnum("request_status", [
   "open",
   "submitted",
+  "revision_requested",
   "completed",
   "cancelled",
 ]);
@@ -76,6 +77,19 @@ export const uploadRequests = pgTable(
       { onDelete: "set null" },
     ),
     dueAt: timestamp("due_at", { withTimezone: true }),
+    expectedFileType: varchar("expected_file_type", { length: 120 }),
+    submittedDocumentId: uuid("submitted_document_id").references(() => documents.id, {
+      onDelete: "set null",
+    }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    submittedByUserId: uuid("submitted_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    revisionNote: text("revision_note"),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     relatedObjectType: varchar("related_object_type", { length: 120 }),
     relatedObjectId: uuid("related_object_id"),
     visibilityScope: visibilityScopeEnum("visibility_scope").notNull(),

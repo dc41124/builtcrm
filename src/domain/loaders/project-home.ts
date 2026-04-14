@@ -7,6 +7,7 @@ import {
   milestones,
   projectUserMemberships,
   rfis,
+  uploadRequests,
 } from "@/db/schema";
 
 import {
@@ -36,6 +37,15 @@ export type ContractorProjectView = {
     drawRequestStatus: string;
     currentPaymentDueCents: number;
   }>;
+  uploadRequests: Array<{
+    id: string;
+    title: string;
+    requestStatus: string;
+    requestedFromOrganizationId: string | null;
+    expectedFileType: string | null;
+    dueAt: Date | null;
+    submittedDocumentId: string | null;
+  }>;
 };
 
 export async function getContractorProjectView(
@@ -53,7 +63,7 @@ export async function getContractorProjectView(
   }
   const projectId = context.project.id;
 
-  const [milestoneRows, rfiRows, coRows, drawRows, teamRows] = await Promise.all([
+  const [milestoneRows, rfiRows, coRows, drawRows, teamRows, uploadRequestRows] = await Promise.all([
     db
       .select({
         id: milestones.id,
@@ -96,6 +106,19 @@ export async function getContractorProjectView(
       .select({ id: projectUserMemberships.id })
       .from(projectUserMemberships)
       .where(eq(projectUserMemberships.projectId, projectId)),
+    db
+      .select({
+        id: uploadRequests.id,
+        title: uploadRequests.title,
+        requestStatus: uploadRequests.requestStatus,
+        requestedFromOrganizationId: uploadRequests.requestedFromOrganizationId,
+        expectedFileType: uploadRequests.expectedFileType,
+        dueAt: uploadRequests.dueAt,
+        submittedDocumentId: uploadRequests.submittedDocumentId,
+      })
+      .from(uploadRequests)
+      .where(eq(uploadRequests.projectId, projectId))
+      .orderBy(desc(uploadRequests.createdAt)),
   ]);
 
   return {
@@ -106,6 +129,7 @@ export async function getContractorProjectView(
     rfis: rfiRows,
     changeOrders: coRows,
     drawRequests: drawRows,
+    uploadRequests: uploadRequestRows,
   };
 }
 
@@ -125,6 +149,15 @@ export type SubcontractorProjectView = {
     milestoneStatus: string;
     scheduledDate: Date;
   }>;
+  pendingUploadRequests: Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    requestStatus: string;
+    expectedFileType: string | null;
+    dueAt: Date | null;
+    revisionNote: string | null;
+  }>;
 };
 
 export async function getSubcontractorProjectView(
@@ -140,7 +173,7 @@ export async function getSubcontractorProjectView(
   const projectId = context.project.id;
   const subOrgId = context.organization.id;
 
-  const [rfiRows, coRows, milestoneRows] = await Promise.all([
+  const [rfiRows, coRows, milestoneRows, pendingRows] = await Promise.all([
     db
       .select({
         id: rfis.id,
@@ -179,6 +212,25 @@ export async function getSubcontractorProjectView(
         ),
       )
       .orderBy(milestones.scheduledDate),
+    db
+      .select({
+        id: uploadRequests.id,
+        title: uploadRequests.title,
+        description: uploadRequests.description,
+        requestStatus: uploadRequests.requestStatus,
+        expectedFileType: uploadRequests.expectedFileType,
+        dueAt: uploadRequests.dueAt,
+        revisionNote: uploadRequests.revisionNote,
+      })
+      .from(uploadRequests)
+      .where(
+        and(
+          eq(uploadRequests.projectId, projectId),
+          eq(uploadRequests.requestedFromOrganizationId, subOrgId),
+          inArray(uploadRequests.requestStatus, ["open", "revision_requested"]),
+        ),
+      )
+      .orderBy(desc(uploadRequests.createdAt)),
   ]);
 
   return {
@@ -191,6 +243,7 @@ export async function getSubcontractorProjectView(
     assignedRfis: rfiRows,
     assignedChangeOrders: coRows,
     myMilestones: milestoneRows,
+    pendingUploadRequests: pendingRows,
   };
 }
 

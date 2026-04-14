@@ -5,6 +5,11 @@ import { auth } from "@/auth/config";
 import { getContractorProjectView } from "@/domain/loaders/project-home";
 import { AuthorizationError } from "@/domain/permissions";
 
+import {
+  ContractorUploadRequestsList,
+  CreateUploadRequestForm,
+} from "./upload-requests-ui";
+
 export default async function ContractorProjectHomePage({
   params,
 }: {
@@ -56,6 +61,10 @@ export default async function ContractorProjectHomePage({
           <li key={c.id}>{c.title} [{c.changeOrderStatus}]</li>
         ))}
       </ul>
+
+      <h2>Upload Requests</h2>
+      <ContractorUploadRequestsList requests={view.uploadRequests} />
+      <CreateUploadRequestForm projectId={view.project.id} />
 
       <h2>Draw Requests</h2>
       <ul>
