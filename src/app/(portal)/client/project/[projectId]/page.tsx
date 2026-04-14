@@ -70,6 +70,21 @@ export default async function ClientProjectHomePage({
           <li key={r.id}>{r.subject} [{r.rfiStatus}]</li>
         ))}
       </ul>
+
+      <h2>{view.isResidential ? "Progress Billings" : "Draw Requests"}</h2>
+      {view.drawRequests.length === 0 ? (
+        <p>No draw requests submitted yet.</p>
+      ) : (
+        <ul>
+          {view.drawRequests.map((d) => (
+            <li key={d.id}>
+              Draw #{d.drawNumber} — {d.periodFrom.toISOString().slice(0, 10)} →{" "}
+              {d.periodTo.toISOString().slice(0, 10)} — Current payment due $
+              {(d.currentPaymentDueCents / 100).toFixed(2)} [{d.drawRequestStatus}]
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   );
 }

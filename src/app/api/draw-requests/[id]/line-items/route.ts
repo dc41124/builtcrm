@@ -1,0 +1,209 @@
+import { headers } from "next/headers";
+import { NextResponse } from "next/server";
+import { and, eq } from "drizzle-orm";
+import { z } from "zod";
+
+import { auth } from "@/auth/config";
+import { db } from "@/db/client";
+import {
+  drawLineItems,
+  drawRequests,
+  scheduleOfValues,
+  sovLineItems,
+} from "@/db/schema";
+import { writeAuditEvent } from "@/domain/audit";
+import { getEffectiveContext } from "@/domain/context";
+import { AuthorizationError } from "@/domain/permissions";
+
+import { computeLineFields } from "../../_totals";
+
+const BodySchema = z.object({
+  sovLineItemId: z.string().uuid(),
+  workCompletedThisPeriodCents: z.number().int().nonnegative(),
+  materialsPresentlyStoredCents: z.number().int().nonnegative(),
+  retainagePercentOverride: z.number().int().min(0).max(100).optional(),
+});
+
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id: drawId } = await params;
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  }
+
+  const parsed = BodySchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "invalid_body", issues: parsed.error.issues },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const [draw] = await db
+      .select()
+      .from(drawRequests)
+      .where(eq(drawRequests.id, drawId))
+      .limit(1);
+    if (!draw) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    const ctx = await getEffectiveContext(
+      session.session as unknown as { appUserId?: string | null },
+      draw.projectId,
+    );
+    if (ctx.role !== "contractor_admin" && ctx.role !== "contractor_pm") {
+      throw new AuthorizationError(
+        "Only contractors can edit draw line items",
+        "forbidden",
+      );
+    }
+    if (draw.drawRequestStatus !== "draft") {
+      return NextResponse.json(
+        { error: "invalid_state", state: draw.drawRequestStatus },
+        { status: 409 },
+      );
+    }
+
+    const [sov] = await db
+      .select()
+      .from(scheduleOfValues)
+      .where(eq(scheduleOfValues.id, draw.sovId))
+      .limit(1);
+    if (!sov) {
+      return NextResponse.json({ error: "sov_missing" }, { status: 404 });
+    }
+
+    const [sovLine] = await db
+      .select()
+      .from(sovLineItems)
+      .where(
+        and(
+          eq(sovLineItems.id, parsed.data.sovLineItemId),
+          eq(sovLineItems.sovId, sov.id),
+          eq(sovLineItems.isActive, true),
+        ),
+      )
+      .limit(1);
+    if (!sovLine) {
+      return NextResponse.json({ error: "sov_line_not_found" }, { status: 404 });
+    }
+
+    const [existing] = await db
+      .select()
+      .from(drawLineItems)
+      .where(
+        and(
+          eq(drawLineItems.drawRequestId, drawId),
+          eq(drawLineItems.sovLineItemId, sovLine.id),
+        ),
+      )
+      .limit(1);
+
+    const retainagePct =
+      parsed.data.retainagePercentOverride ??
+      sovLine.retainagePercentOverride ??
+      sov.defaultRetainagePercent;
+
+    const workCompletedPreviousCents = existing?.workCompletedPreviousCents ?? 0;
+
+    const fields = computeLineFields({
+      workCompletedPreviousCents,
+      workCompletedThisPeriodCents: parsed.data.workCompletedThisPeriodCents,
+      materialsPresentlyStoredCents: parsed.data.materialsPresentlyStoredCents,
+      scheduledValueCents: sovLine.scheduledValueCents,
+      retainagePercentApplied: retainagePct,
+    });
+
+    const result = await db.transaction(async (tx) => {
+      if (existing) {
+        const [row] = await tx
+          .update(drawLineItems)
+          .set({
+            workCompletedThisPeriodCents: parsed.data.workCompletedThisPeriodCents,
+            materialsPresentlyStoredCents:
+              parsed.data.materialsPresentlyStoredCents,
+            retainagePercentApplied: retainagePct,
+            ...fields,
+          })
+          .where(eq(drawLineItems.id, existing.id))
+          .returning();
+
+        await writeAuditEvent(
+          ctx,
+          {
+            action: "updated",
+            resourceType: "draw_line_item",
+            resourceId: row.id,
+            details: {
+              nextState: {
+                workCompletedThisPeriodCents: row.workCompletedThisPeriodCents,
+                materialsPresentlyStoredCents: row.materialsPresentlyStoredCents,
+                totalCompletedStoredToDateCents:
+                  row.totalCompletedStoredToDateCents,
+              },
+            },
+          },
+          tx,
+        );
+        return row;
+      }
+
+      const [row] = await tx
+        .insert(drawLineItems)
+        .values({
+          drawRequestId: drawId,
+          sovLineItemId: sovLine.id,
+          workCompletedPreviousCents,
+          workCompletedThisPeriodCents: parsed.data.workCompletedThisPeriodCents,
+          materialsPresentlyStoredCents: parsed.data.materialsPresentlyStoredCents,
+          retainagePercentApplied: retainagePct,
+          ...fields,
+        })
+        .returning();
+
+      await writeAuditEvent(
+        ctx,
+        {
+          action: "created",
+          resourceType: "draw_line_item",
+          resourceId: row.id,
+          details: {
+            nextState: {
+              sovLineItemId: sovLine.id,
+              totalCompletedStoredToDateCents: row.totalCompletedStoredToDateCents,
+            },
+          },
+        },
+        tx,
+      );
+      return row;
+    });
+
+    return NextResponse.json({
+      id: result.id,
+      totalCompletedStoredToDateCents: result.totalCompletedStoredToDateCents,
+      percentCompleteBasisPoints: result.percentCompleteBasisPoints,
+      balanceToFinishCents: result.balanceToFinishCents,
+      retainageCents: result.retainageCents,
+    });
+  } catch (err) {
+    if (err instanceof AuthorizationError) {
+      const status =
+        err.code === "unauthenticated"
+          ? 401
+          : err.code === "not_found"
+            ? 404
+            : 403;
+      return NextResponse.json(
+        { error: err.code, message: err.message },
+        { status },
+      );
+    }
+    throw err;
+  }
+}

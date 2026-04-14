@@ -14,6 +14,7 @@ import {
   CreateComplianceForm,
 } from "./compliance-ui";
 import { ContractorRfisList, CreateRfiForm } from "./rfis-ui";
+import { ContractorDrawRequestsPanel } from "./draw-requests-ui";
 import { ContractorSovPanel } from "./sov-ui";
 import {
   ContractorUploadRequestsList,
@@ -85,14 +86,12 @@ export default async function ContractorProjectHomePage({
       <ContractorSovPanel projectId={view.project.id} sov={view.scheduleOfValues} />
 
       <h2>Draw Requests</h2>
-      <ul>
-        {view.drawRequests.map((d) => (
-          <li key={d.id}>
-            Draw #{d.drawNumber} — ${(d.currentPaymentDueCents / 100).toFixed(2)} [
-            {d.drawRequestStatus}]
-          </li>
-        ))}
-      </ul>
+      <ContractorDrawRequestsPanel
+        projectId={view.project.id}
+        sovId={view.scheduleOfValues?.id ?? null}
+        sovStatus={view.scheduleOfValues?.sovStatus ?? null}
+        draws={view.drawRequests}
+      />
     </main>
   );
 }
