@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
+  approvals,
   changeOrders,
   drawRequests,
   milestones,
@@ -144,6 +145,16 @@ export type ContractorProjectView = {
     dueAt: Date | null;
     submittedDocumentId: string | null;
   }>;
+  approvals: Array<{
+    id: string;
+    approvalNumber: number;
+    title: string;
+    category: string;
+    approvalStatus: string;
+    impactCostCents: number;
+    impactScheduleDays: number;
+    decisionNote: string | null;
+  }>;
 };
 
 export async function getContractorProjectView(
@@ -161,7 +172,15 @@ export async function getContractorProjectView(
   }
   const projectId = context.project.id;
 
-  const [milestoneRows, rfiRows, coRows, drawRows, teamRows, uploadRequestRows] = await Promise.all([
+  const [
+    milestoneRows,
+    rfiRows,
+    coRows,
+    drawRows,
+    teamRows,
+    uploadRequestRows,
+    approvalRows,
+  ] = await Promise.all([
     db
       .select({
         id: milestones.id,
@@ -209,6 +228,20 @@ export async function getContractorProjectView(
       .from(uploadRequests)
       .where(eq(uploadRequests.projectId, projectId))
       .orderBy(desc(uploadRequests.createdAt)),
+    db
+      .select({
+        id: approvals.id,
+        approvalNumber: approvals.approvalNumber,
+        title: approvals.title,
+        category: approvals.category,
+        approvalStatus: approvals.approvalStatus,
+        impactCostCents: approvals.impactCostCents,
+        impactScheduleDays: approvals.impactScheduleDays,
+        decisionNote: approvals.decisionNote,
+      })
+      .from(approvals)
+      .where(eq(approvals.projectId, projectId))
+      .orderBy(desc(approvals.createdAt)),
   ]);
 
   return {
@@ -220,6 +253,7 @@ export async function getContractorProjectView(
     changeOrders: coRows,
     drawRequests: drawRows,
     uploadRequests: uploadRequestRows,
+    approvals: approvalRows,
   };
 }
 
@@ -336,6 +370,17 @@ export type ClientProjectView = {
   }>;
   decisions: Array<{ id: string; title: string; changeOrderStatus: string }>;
   openRequests: Array<{ id: string; subject: string; rfiStatus: string }>;
+  approvals: Array<{
+    id: string;
+    approvalNumber: number;
+    title: string;
+    category: string;
+    approvalStatus: string;
+    impactCostCents: number;
+    impactScheduleDays: number;
+    description: string | null;
+    decisionNote: string | null;
+  }>;
 };
 
 export async function getClientProjectView(
@@ -353,7 +398,7 @@ export async function getClientProjectView(
   }
   const projectId = context.project.id;
 
-  const [milestoneRows, coRows, rfiRows] = await Promise.all([
+  const [milestoneRows, coRows, rfiRows, approvalRows] = await Promise.all([
     db
       .select({
         id: milestones.id,
@@ -402,6 +447,31 @@ export async function getClientProjectView(
         ),
       )
       .orderBy(desc(rfis.createdAt)),
+    db
+      .select({
+        id: approvals.id,
+        approvalNumber: approvals.approvalNumber,
+        title: approvals.title,
+        category: approvals.category,
+        approvalStatus: approvals.approvalStatus,
+        impactCostCents: approvals.impactCostCents,
+        impactScheduleDays: approvals.impactScheduleDays,
+        description: approvals.description,
+        decisionNote: approvals.decisionNote,
+      })
+      .from(approvals)
+      .where(
+        and(
+          eq(approvals.projectId, projectId),
+          inArray(approvals.approvalStatus, [
+            "pending_review",
+            "approved",
+            "rejected",
+            "needs_revision",
+          ]),
+        ),
+      )
+      .orderBy(desc(approvals.createdAt)),
   ]);
 
   return {
@@ -411,5 +481,6 @@ export async function getClientProjectView(
     milestones: milestoneRows.map(({ visibilityScope: _v, ...rest }) => rest),
     decisions: coRows,
     openRequests: rfiRows,
+    approvals: approvalRows,
   };
 }

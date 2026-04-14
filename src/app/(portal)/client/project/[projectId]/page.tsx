@@ -5,6 +5,8 @@ import { auth } from "@/auth/config";
 import { getClientProjectView } from "@/domain/loaders/project-home";
 import { AuthorizationError } from "@/domain/permissions";
 
+import { ClientApprovalsList } from "./approvals-ui";
+
 export default async function ClientProjectHomePage({
   params,
 }: {
@@ -31,6 +33,7 @@ export default async function ClientProjectHomePage({
 
   const decisionsLabel = view.isResidential ? "Scope Changes" : "Change Orders";
   const requestsLabel = view.isResidential ? "Questions" : "Open RFIs";
+  const approvalsLabel = view.isResidential ? "Decisions" : "Approval Center";
 
   return (
     <main>
@@ -54,6 +57,12 @@ export default async function ClientProjectHomePage({
           <li key={d.id}>{d.title} [{d.changeOrderStatus}]</li>
         ))}
       </ul>
+
+      <h2>{approvalsLabel}</h2>
+      <ClientApprovalsList
+        approvals={view.approvals}
+        isResidential={view.isResidential}
+      />
 
       <h2>{requestsLabel}</h2>
       <ul>

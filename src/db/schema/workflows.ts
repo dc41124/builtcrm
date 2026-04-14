@@ -55,6 +55,22 @@ export const changeOrderStatusEnum = pgEnum("change_order_status", [
   "voided",
 ]);
 
+export const approvalStatusEnum = pgEnum("approval_status", [
+  "draft",
+  "pending_review",
+  "approved",
+  "rejected",
+  "needs_revision",
+]);
+
+export const approvalCategoryEnum = pgEnum("approval_category", [
+  "general",
+  "design",
+  "procurement",
+  "change_order",
+  "other",
+]);
+
 // -----------------------------------------------------------------------------
 // Upload requests
 // -----------------------------------------------------------------------------
@@ -256,5 +272,59 @@ export const changeOrders = pgTable(
     ),
     projectIdx: index("change_orders_project_idx").on(table.projectId),
     statusIdx: index("change_orders_status_idx").on(table.changeOrderStatus),
+  }),
+);
+
+// -----------------------------------------------------------------------------
+// Approvals (cross-type approval queue)
+// -----------------------------------------------------------------------------
+
+export const approvals = pgTable(
+  "approvals",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    approvalNumber: integer("approval_number").notNull(),
+    category: approvalCategoryEnum("category").default("general").notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description"),
+    approvalStatus: approvalStatusEnum("approval_status").default("draft").notNull(),
+
+    impactCostCents: integer("impact_cost_cents").notNull().default(0),
+    impactScheduleDays: integer("impact_schedule_days").notNull().default(0),
+
+    requestedByUserId: uuid("requested_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    assignedToOrganizationId: uuid("assigned_to_organization_id").references(
+      () => organizations.id,
+      { onDelete: "set null" },
+    ),
+
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    decidedByUserId: uuid("decided_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: text("decision_note"),
+
+    relatedObjectType: varchar("related_object_type", { length: 120 }),
+    relatedObjectId: uuid("related_object_id"),
+
+    visibilityScope: varchar("visibility_scope", { length: 60 })
+      .default("client_visible")
+      .notNull(),
+
+    ...timestamps,
+  },
+  (table) => ({
+    projectNumberUnique: unique("approvals_project_number_unique").on(
+      table.projectId,
+      table.approvalNumber,
+    ),
+    projectIdx: index("approvals_project_idx").on(table.projectId),
+    statusIdx: index("approvals_status_idx").on(table.approvalStatus),
   }),
 );
