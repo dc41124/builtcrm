@@ -5,6 +5,7 @@ import { auth } from "@/auth/config";
 import { getSubcontractorProjectView } from "@/domain/loaders/project-home";
 import { AuthorizationError } from "@/domain/permissions";
 
+import { SubComplianceList } from "./compliance-ui";
 import { SubRfisList } from "./rfis-ui";
 import { PendingUploadRequestsList } from "./upload-requests-ui";
 
@@ -64,6 +65,12 @@ export default async function SubcontractorProjectHomePage({
           <li key={c.id}>{c.title} [{c.changeOrderStatus}]</li>
         ))}
       </ul>
+
+      <h2>Compliance</h2>
+      <SubComplianceList
+        projectId={view.project.id}
+        records={view.complianceRecords}
+      />
     </main>
   );
 }

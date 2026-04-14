@@ -9,6 +9,10 @@ import {
   ContractorApprovalsList,
   CreateApprovalForm,
 } from "./approvals-ui";
+import {
+  ContractorComplianceList,
+  CreateComplianceForm,
+} from "./compliance-ui";
 import { ContractorRfisList, CreateRfiForm } from "./rfis-ui";
 import {
   ContractorUploadRequestsList,
@@ -71,6 +75,10 @@ export default async function ContractorProjectHomePage({
       <h2>Approvals</h2>
       <ContractorApprovalsList approvals={view.approvals} />
       <CreateApprovalForm projectId={view.project.id} />
+
+      <h2>Compliance</h2>
+      <ContractorComplianceList records={view.complianceRecords} />
+      <CreateComplianceForm projectId={view.project.id} />
 
       <h2>Draw Requests</h2>
       <ul>

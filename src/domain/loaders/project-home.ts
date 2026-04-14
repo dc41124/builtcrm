@@ -4,8 +4,10 @@ import { db } from "@/db/client";
 import {
   approvals,
   changeOrders,
+  complianceRecords,
   drawRequests,
   milestones,
+  organizations,
   projectUserMemberships,
   rfiResponses,
   rfis,
@@ -155,6 +157,15 @@ export type ContractorProjectView = {
     impactScheduleDays: number;
     decisionNote: string | null;
   }>;
+  complianceRecords: Array<{
+    id: string;
+    organizationId: string;
+    organizationName: string | null;
+    complianceType: string;
+    complianceStatus: string;
+    expiresAt: Date | null;
+    documentId: string | null;
+  }>;
 };
 
 export async function getContractorProjectView(
@@ -180,6 +191,7 @@ export async function getContractorProjectView(
     teamRows,
     uploadRequestRows,
     approvalRows,
+    complianceRows,
   ] = await Promise.all([
     db
       .select({
@@ -242,6 +254,20 @@ export async function getContractorProjectView(
       .from(approvals)
       .where(eq(approvals.projectId, projectId))
       .orderBy(desc(approvals.createdAt)),
+    db
+      .select({
+        id: complianceRecords.id,
+        organizationId: complianceRecords.organizationId,
+        organizationName: organizations.name,
+        complianceType: complianceRecords.complianceType,
+        complianceStatus: complianceRecords.complianceStatus,
+        expiresAt: complianceRecords.expiresAt,
+        documentId: complianceRecords.documentId,
+      })
+      .from(complianceRecords)
+      .leftJoin(organizations, eq(organizations.id, complianceRecords.organizationId))
+      .where(eq(complianceRecords.projectId, projectId))
+      .orderBy(desc(complianceRecords.createdAt)),
   ]);
 
   return {
@@ -254,6 +280,7 @@ export async function getContractorProjectView(
     drawRequests: drawRows,
     uploadRequests: uploadRequestRows,
     approvals: approvalRows,
+    complianceRecords: complianceRows,
   };
 }
 
@@ -282,6 +309,13 @@ export type SubcontractorProjectView = {
     dueAt: Date | null;
     revisionNote: string | null;
   }>;
+  complianceRecords: Array<{
+    id: string;
+    complianceType: string;
+    complianceStatus: string;
+    expiresAt: Date | null;
+    documentId: string | null;
+  }>;
 };
 
 export async function getSubcontractorProjectView(
@@ -297,7 +331,7 @@ export async function getSubcontractorProjectView(
   const projectId = context.project.id;
   const subOrgId = context.organization.id;
 
-  const [rfiRows, coRows, milestoneRows, pendingRows] = await Promise.all([
+  const [rfiRows, coRows, milestoneRows, pendingRows, complianceRows] = await Promise.all([
     loadRfisWithResponses(projectId, { assignedToOrganizationId: subOrgId }),
     db
       .select({
@@ -342,6 +376,22 @@ export async function getSubcontractorProjectView(
         ),
       )
       .orderBy(desc(uploadRequests.createdAt)),
+    db
+      .select({
+        id: complianceRecords.id,
+        complianceType: complianceRecords.complianceType,
+        complianceStatus: complianceRecords.complianceStatus,
+        expiresAt: complianceRecords.expiresAt,
+        documentId: complianceRecords.documentId,
+      })
+      .from(complianceRecords)
+      .where(
+        and(
+          eq(complianceRecords.projectId, projectId),
+          eq(complianceRecords.organizationId, subOrgId),
+        ),
+      )
+      .orderBy(desc(complianceRecords.createdAt)),
   ]);
 
   return {
@@ -355,6 +405,7 @@ export async function getSubcontractorProjectView(
     assignedChangeOrders: coRows,
     myMilestones: milestoneRows,
     pendingUploadRequests: pendingRows,
+    complianceRecords: complianceRows,
   };
 }
 
