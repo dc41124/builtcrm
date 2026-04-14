@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 
 import type { ConversationRow } from "@/domain/loaders/project-home";
 
+function formatTimestamp(value: string | Date): string {
+  const iso = typeof value === "string" ? value : value.toISOString();
+  // Deterministic UTC format (YYYY-MM-DD HH:MM) — avoids SSR/client locale mismatch.
+  return iso.slice(0, 16).replace("T", " ");
+}
+
 type Props = {
   projectId: string;
   conversations: ConversationRow[];
@@ -235,8 +241,7 @@ function MessageThread({
               }}
             >
               <div style={{ fontSize: 11, color: "#666" }}>
-                {m.senderName ?? "Unknown"} ·{" "}
-                {new Date(m.createdAt).toLocaleString()}
+                {m.senderName ?? "Unknown"} · {formatTimestamp(m.createdAt)}
               </div>
               <div style={{ whiteSpace: "pre-wrap" }}>{m.body}</div>
             </div>
