@@ -44,7 +44,7 @@ export function MessagesPanel({
         padding: 12,
       }}
     >
-      <aside style={{ borderRight: "1px solid #eee", paddingRight: 12 }}>
+      <aside style={{ borderRight: "1px solid #eee", paddingRight: 12, minWidth: 0 }}>
         <ConversationList
           conversations={conversations}
           selectedId={selectedId}
@@ -52,7 +52,7 @@ export function MessagesPanel({
         />
         {canCreate && <CreateConversationForm projectId={projectId} />}
       </aside>
-      <section>
+      <section style={{ minWidth: 0 }}>
         {selected ? (
           <MessageThread
             key={selected.id}
@@ -214,7 +214,8 @@ function MessageThread({
 
       <div
         style={{
-          display: "grid",
+          display: "flex",
+          flexDirection: "column",
           gap: 8,
           maxHeight: 360,
           overflowY: "auto",
