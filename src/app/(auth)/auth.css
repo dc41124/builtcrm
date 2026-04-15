@@ -617,11 +617,29 @@ a.btn-auth.residential:hover,
   font-weight: 600;
 }
 
-@media (max-width: 500px) {
+@media (max-width: 767px) {
+  .auth-page {
+    padding: 28px 14px;
+  }
   .auth-card {
-    padding: 28px 20px;
+    padding: 26px 20px;
+  }
+  .auth-card.wide .auth-card-body {
+    padding: 22px 20px 26px;
+  }
+  .auth-card h1 {
+    font-size: 20px;
+  }
+  .auth-card h2 {
+    font-size: 18px;
   }
   .field-row {
     grid-template-columns: 1fr;
+  }
+  .auth-brand {
+    margin-bottom: 24px;
+  }
+  .auth-brand-name {
+    font-size: 20px;
   }
 }

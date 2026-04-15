@@ -349,6 +349,14 @@ export function ResidentialProjectHome({
 
         .rph-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
         @media(max-width:900px){.rph-kpis{grid-template-columns:1fr}}
+        @media(max-width:767px){
+          .rph-title{font-size:20px}
+          .rph-desc{font-size:13px}
+          .rph-hero-value{font-size:26px}
+          .rph-hero-count-v{font-size:22px}
+          .rph-hero-top{flex-direction:column;gap:8px}
+          .rph-hero-count{text-align:left}
+        }
         .rph-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
         @media(max-width:1200px){.rph-grid{grid-template-columns:1fr}}
         .rph-main{display:flex;flex-direction:column;gap:16px;min-width:0}

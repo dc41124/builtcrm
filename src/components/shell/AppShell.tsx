@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import "./app-shell.css";
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -88,6 +88,16 @@ const ExpandIcon = (
     <path d="M9 6l6 6-6 6" />
   </svg>
 );
+const MenuIcon = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+  </svg>
+);
+const CloseIcon = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
 const LogoMark = (
   <svg viewBox="0 0 80 80">
     <rect x="14" y="14" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".5" />
@@ -119,9 +129,30 @@ export default function AppShell({
     } catch {}
   };
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(navSections.map((s) => [s.label, s.defaultOpen ?? true]))
   );
+
+  // Lock body scroll while mobile drawer is open
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = mobileOpen ? "hidden" : prev;
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mobileOpen]);
+
+  // Close drawer when resizing up from mobile
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onResize = () => {
+      if (window.innerWidth >= 768) setMobileOpen(false);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const accent = ACCENTS[portalType];
   const toggle = (label: string) => setExpanded((p) => ({ ...p, [label]: !p[label] }));
@@ -129,7 +160,7 @@ export default function AppShell({
 
   return (
     <div
-      className={`bcrm ${collapsed ? "collapsed" : ""}`}
+      className={`bcrm ${collapsed ? "collapsed" : ""} ${mobileOpen ? "mobile-open" : ""}`}
       style={
         {
           ["--accent" as string]: accent.base,
@@ -141,7 +172,16 @@ export default function AppShell({
       }
     >
       <div className="b-app">
-        <aside className="b-sb">
+        <div
+          className="b-backdrop"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+        <aside className="b-sb" onClick={(e) => {
+          // close drawer when a nav link inside is tapped
+          const target = e.target as HTMLElement;
+          if (target.closest("a")) setMobileOpen(false);
+        }}>
           <div className="b-hdr">
             <div className="b-hdr-row">
               <div className="b-logo">{LogoMark}</div>
@@ -227,6 +267,13 @@ export default function AppShell({
 
         <main className="b-main">
           <div className="b-top">
+            <button
+              className="b-hamburger"
+              onClick={() => setMobileOpen((o) => !o)}
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            >
+              {mobileOpen ? CloseIcon : MenuIcon}
+            </button>
             <div className="b-bc">
               {breadcrumbs.map((bc, i) => {
                 const isLast = i === breadcrumbs.length - 1;

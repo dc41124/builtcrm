@@ -180,7 +180,14 @@ export default async function SubcontractorTodayPage() {
         .stb-gc-link{font-family:var(--fd);font-size:12px;font-weight:680;color:var(--ac-t);text-decoration:none}
         .stb-gc-link:hover{text-decoration:underline}
         @media(max-width:1280px){.stb-kpis{grid-template-columns:repeat(3,1fr)}.stb-dash{grid-template-columns:1fr}}
-        @media(max-width:720px){.stb-kpis{grid-template-columns:repeat(2,1fr)}}
+        @media(max-width:767px){
+          .stb-pt{font-size:22px}
+          .stb-pst{font-size:13px}
+          .stb-kpis{grid-template-columns:repeat(2,1fr);gap:10px}
+          .stb-proj-row{flex-direction:column;align-items:flex-start;gap:8px}
+          .stb-proj-meta{flex-wrap:wrap}
+        }
+        @media(max-width:420px){.stb-kpis{grid-template-columns:1fr}}
       `}</style>
     </div>
   );

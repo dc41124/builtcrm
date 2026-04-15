@@ -127,3 +127,50 @@ html.dark .b-theme-moon{display:none}
 
 /* content */
 .b-cnt{padding:24px;flex:1;overflow-x:hidden}
+
+/* hamburger + backdrop (hidden at desktop) */
+.b-hamburger{display:none;width:34px;height:34px;border-radius:var(--r-m);border:1px solid var(--s3);background:var(--s1);color:var(--t2);place-items:center;cursor:pointer;margin-right:10px;flex-shrink:0}
+.b-hamburger:hover{background:var(--sh);color:var(--t1)}
+.b-backdrop{display:none;position:fixed;inset:0;background:rgba(15,17,24,.42);backdrop-filter:blur(2px);z-index:99;opacity:0;transition:opacity var(--dn) var(--e)}
+
+/* ── TABLET: 768px–1279px ── sidebar auto-collapses to icons */
+@media (max-width:1279px){
+  .b-app{grid-template-columns:var(--sw-c) 1fr !important}
+  .b-appn,.b-org,.b-mod-h,.b-tree,.b-un,.b-ur{display:none}
+  .b-hdr-row{justify-content:center}
+  .b-collapse{display:none}
+  .b-foot{display:flex;justify-content:center}
+  .b-mod{background:transparent;border-color:transparent;box-shadow:none}
+  .b-cnt{padding:20px}
+  .b-top{padding:0 16px}
+}
+
+/* ── MOBILE: below 768px ── sidebar becomes hamburger drawer */
+@media (max-width:767px){
+  .b-app{grid-template-columns:1fr !important}
+  .b-sb{
+    position:fixed;top:0;left:0;height:100vh;height:100dvh;width:280px;
+    transform:translateX(-100%);transition:transform var(--ds) var(--e);
+    z-index:200;box-shadow:var(--shlg);
+  }
+  /* restore full labels inside the drawer */
+  .b-sb .b-appn,.b-sb .b-org,.b-sb .b-mod-h,.b-sb .b-tree,.b-sb .b-un,.b-sb .b-ur{display:revert}
+  .b-sb .b-hdr-row{justify-content:flex-start}
+  .b-sb .b-collapse{display:none}
+  .b-sb .b-foot{display:block}
+  .b-sb .b-mod{background:var(--sb-mbg);border:1px solid var(--sb-mbdr)}
+  .b-sb .b-mod.exp{box-shadow:var(--shsm)}
+
+  .bcrm.mobile-open .b-sb{transform:translateX(0)}
+  .bcrm.mobile-open .b-backdrop{display:block;opacity:1}
+
+  .b-hamburger{display:grid}
+  .b-top{padding:0 12px;gap:4px}
+  .b-bc{font-size:12px;flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .b-bc > span{flex-shrink:0}
+  .b-bc > span:not(:last-child){display:none}
+  .b-tr{gap:4px}
+  .b-tr .b-tbb{width:30px;height:30px}
+  .b-tav{width:28px;height:28px}
+  .b-cnt{padding:14px}
+}

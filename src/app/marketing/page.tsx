@@ -268,7 +268,50 @@ export default function MarketingPage() {
   };
 
   return (
-    <div style={{ fontFamily: F.body, background: "#faf9f7", color: "#1a1714", WebkitFontSmoothing: "antialiased", lineHeight: 1.6, fontSize: 15, minHeight: "100vh" }}>
+    <div className="mkt" style={{ fontFamily: F.body, background: "#faf9f7", color: "#1a1714", WebkitFontSmoothing: "antialiased", lineHeight: 1.6, fontSize: 15, minHeight: "100vh" }}>
+      <style>{`
+        /* ── Marketing responsive ── overrides inline styles via !important */
+        @media (max-width:1023px){
+          .mkt [style*="grid-template-columns: repeat(4"],
+          .mkt [style*="gridTemplateColumns: repeat(4"]{grid-template-columns:repeat(2,1fr)!important}
+          .mkt [style*="grid-template-columns: repeat(3"],
+          .mkt [style*="gridTemplateColumns: repeat(3"]{grid-template-columns:repeat(2,1fr)!important}
+        }
+        @media (max-width:767px){
+          .mkt nav{padding:0 14px!important}
+          .mkt nav > div{height:58px!important;gap:8px!important}
+          /* hide the center nav links on mobile — keep logo + Get started */
+          .mkt nav > div > div:nth-child(2){display:none!important}
+          /* simplify right-side CTAs: hide "Log in" link, keep primary */
+          .mkt nav > div > div:last-child{gap:6px!important}
+          .mkt nav > div > div:last-child a:first-child{display:none!important}
+
+          /* collapse every grid to single column */
+          .mkt [style*="grid-template-columns"],
+          .mkt [style*="gridTemplateColumns"]{grid-template-columns:1fr!important;gap:16px!important}
+
+          /* section padding */
+          .mkt section{padding:56px 18px!important}
+          .mkt [style*="padding: \\"100px 32px"],
+          .mkt [style*="padding: \\"72px 32px"],
+          .mkt [style*="padding: \\"80px 32px"],
+          .mkt [style*="padding: \\"40px 32px"]{padding-left:18px!important;padding-right:18px!important}
+          .mkt footer{padding:56px 18px 32px!important}
+
+          /* tighten hero */
+          .mkt h1{font-size:38px!important;line-height:1.1!important}
+          .mkt h2{font-size:28px!important;line-height:1.15!important}
+
+          /* feature / pricing cards */
+          .mkt [style*="padding: \\"32px 28px"]{padding:26px 22px!important}
+          /* article reader */
+          .mkt article{padding:32px 18px 60px!important}
+          .mkt article h2{font-size:24px!important}
+
+          /* trust bar */
+          .mkt [style*="gap: 48"]{gap:24px!important;row-gap:12px!important}
+        }
+      `}</style>
 
       {/* ── STICKY NAV ── */}
       <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(250,249,247,.85)", backdropFilter: "blur(16px)", borderBottom: "1px solid #eeece8", padding: "0 32px" }}>

@@ -318,6 +318,13 @@ export function CommercialProjectHome({
         .cph-desc{font-family:var(--fb);font-size:13.5px;font-weight:540;color:var(--t2);line-height:1.5;max-width:720px;margin:0}
         .cph-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
         @media(max-width:1000px){.cph-kpis{grid-template-columns:repeat(2,1fr)}}
+        @media(max-width:767px){
+          .cph-title{font-size:20px}
+          .cph-desc{font-size:13px}
+          .cph-kpis{gap:10px}
+          .cph-act{flex-wrap:wrap;row-gap:4px}
+        }
+        @media(max-width:420px){.cph-kpis{grid-template-columns:1fr}}
         .cph-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
         @media(max-width:1200px){.cph-grid{grid-template-columns:1fr}}
         .cph-main{display:flex;flex-direction:column;gap:16px;min-width:0}

@@ -106,6 +106,7 @@ export function DataTable<T>({
                   <td
                     key={col.id}
                     className={`bc-td bc-al-${col.align ?? "left"} bc-ct-${col.cellType ?? "text"}`}
+                    data-label={typeof col.header === "string" ? col.header : undefined}
                   >
                     {col.accessor(row)}
                   </td>
@@ -136,6 +137,31 @@ export function DataTable<T>({
         .bc-al-left{text-align:left}
         .bc-al-right{text-align:right}
         .bc-al-center{text-align:center}
+
+        /* ── Mobile: card-based list view ── */
+        @media (max-width:767px){
+          .bc-tbl-wrap{overflow-x:visible}
+          .bc-tbl,.bc-tbl tbody,.bc-tbl tr,.bc-tbl td{display:block;width:100%}
+          .bc-tbl thead{display:none}
+          .bc-tbl tbody tr{
+            border:1px solid var(--s3);border-radius:var(--r-m);
+            background:var(--s1);padding:10px 12px;margin-bottom:10px;
+          }
+          .bc-tbl tbody tr:hover{background:var(--s1)}
+          .bc-tbl tbody tr:last-child{border-bottom:1px solid var(--s3)}
+          .bc-td{
+            padding:6px 0!important;border:none;
+            display:flex;justify-content:space-between;align-items:center;gap:12px;
+            text-align:right!important;
+          }
+          .bc-td::before{
+            content:attr(data-label);
+            font-family:var(--fd);font-size:10.5px;font-weight:700;
+            color:var(--t3);text-transform:uppercase;letter-spacing:.05em;
+            text-align:left;flex-shrink:0;
+          }
+          .bc-td[data-label=""]::before,.bc-td:not([data-label])::before{content:""}
+        }
       `}</style>
     </>
   );
