@@ -1568,6 +1568,32 @@ export type SubcontractorProjectView = {
   }>;
   conversations: ConversationRow[];
   documents: DocumentRow[];
+  activityTrail: SubProjectActivityEvent[];
+  gcContacts: SubProjectGcContact[];
+  quickAccessCounts: SubProjectQuickAccessCounts;
+};
+
+export type SubProjectActivityEvent = {
+  id: string;
+  title: string;
+  body: string | null;
+  activityType: string;
+  relatedObjectType: string | null;
+  actorName: string | null;
+  createdAt: Date;
+};
+
+export type SubProjectGcContact = {
+  id: string;
+  name: string;
+  roleLabel: string;
+  initials: string;
+};
+
+export type SubProjectQuickAccessCounts = {
+  unreadMessages: number;
+  documentCount: number;
+  pendingFinancialsCents: number;
 };
 
 export async function getSubcontractorProjectView(
@@ -1702,6 +1728,122 @@ export async function getSubcontractorProjectView(
     activityTrail: subUrEnrich.activityById.get(r.id) ?? [],
   }));
 
+  const subProjectConversations = await loadConversationsForUser(
+    projectId,
+    context.user.id,
+  );
+  const subProjectDocuments = await loadDocumentsForProject(projectId, "subcontractor");
+
+  const [activityRows, gcContactRows] = await Promise.all([
+    db
+      .select({
+        id: activityFeedItems.id,
+        title: activityFeedItems.title,
+        body: activityFeedItems.body,
+        activityType: activityFeedItems.activityType,
+        relatedObjectType: activityFeedItems.relatedObjectType,
+        createdAt: activityFeedItems.createdAt,
+        actorName: users.displayName,
+      })
+      .from(activityFeedItems)
+      .leftJoin(users, eq(users.id, activityFeedItems.actorUserId))
+      .where(eq(activityFeedItems.projectId, projectId))
+      .orderBy(desc(activityFeedItems.createdAt))
+      .limit(12),
+    context.project.contractorOrganizationId
+      ? db
+          .select({
+            id: users.id,
+            displayName: users.displayName,
+            roleKey: roleAssignments.roleKey,
+          })
+          .from(projectUserMemberships)
+          .innerJoin(users, eq(users.id, projectUserMemberships.userId))
+          .innerJoin(
+            roleAssignments,
+            and(
+              eq(roleAssignments.userId, projectUserMemberships.userId),
+              eq(
+                roleAssignments.organizationId,
+                projectUserMemberships.organizationId,
+              ),
+            ),
+          )
+          .where(
+            and(
+              eq(projectUserMemberships.projectId, projectId),
+              eq(
+                projectUserMemberships.organizationId,
+                context.project.contractorOrganizationId,
+              ),
+              eq(projectUserMemberships.membershipStatus, "active"),
+            ),
+          )
+      : Promise.resolve(
+          [] as Array<{
+            id: string;
+            displayName: string | null;
+            roleKey: string;
+          }>,
+        ),
+  ]);
+
+  const activityTrail: SubProjectActivityEvent[] = activityRows.map((a) => ({
+    id: a.id,
+    title: a.title,
+    body: a.body,
+    activityType: a.activityType,
+    relatedObjectType: a.relatedObjectType,
+    actorName: a.actorName,
+    createdAt: a.createdAt,
+  }));
+
+  const roleLabelMap: Record<string, string> = {
+    project_manager: "Project Manager",
+    superintendent: "Superintendent",
+    owner: "Owner",
+    admin: "Admin",
+    estimator: "Estimator",
+    foreman: "Foreman",
+  };
+  const gcSeen = new Set<string>();
+  const gcContacts: SubProjectGcContact[] = [];
+  for (const g of gcContactRows) {
+    if (gcSeen.has(g.id)) continue;
+    gcSeen.add(g.id);
+    const name = g.displayName ?? "Team member";
+    const initials = name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("") || "GC";
+    gcContacts.push({
+      id: g.id,
+      name,
+      roleLabel:
+        roleLabelMap[g.roleKey] ??
+        g.roleKey
+          .split("_")
+          .map((w) => w[0]?.toUpperCase() + w.slice(1))
+          .join(" "),
+      initials,
+    });
+    if (gcContacts.length >= 4) break;
+  }
+
+  const unreadMessages = subProjectConversations.reduce(
+    (sum, c) => sum + (c.unreadCount ?? 0),
+    0,
+  );
+  const quickAccessCounts: SubProjectQuickAccessCounts = {
+    unreadMessages,
+    documentCount: subProjectDocuments.length,
+    // Draws are GC→client scoped, not sub-scoped; leave 0 until sub-payment
+    // tracking lands in a follow-up.
+    pendingFinancialsCents: 0,
+  };
+
   return {
     context,
     project: context.project,
@@ -1715,8 +1857,11 @@ export async function getSubcontractorProjectView(
     pendingUploadRequests: pendingRows,
     allUploadRequests: allUploadRequestsView,
     complianceRecords: complianceRows,
-    conversations: await loadConversationsForUser(projectId, context.user.id),
-    documents: await loadDocumentsForProject(projectId, "subcontractor"),
+    conversations: subProjectConversations,
+    documents: subProjectDocuments,
+    activityTrail,
+    gcContacts,
+    quickAccessCounts,
   };
 }
 

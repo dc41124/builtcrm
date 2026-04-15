@@ -1,8 +1,12 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
   complianceRecords,
+  conversationParticipants,
+  conversations,
+  documents,
+  messages,
   projectOrganizationMemberships,
   projects,
   rfis,
@@ -49,11 +53,25 @@ export type SubTodayCompliance = {
   statusColor: "red" | "amber" | "green" | "gray";
 };
 
+export type SubTodayQuickAccessCounts = {
+  unreadMessages: number;
+  documentCount: number;
+  pendingFinancialsCents: number;
+};
+
+export type SubTodayCurrentFocus = {
+  projectId: string;
+  name: string;
+  description: string;
+} | null;
+
 export type SubTodayData = {
   kpis: SubTodayKpis;
   projectList: SubTodayProject[];
   attention: SubTodayAttention[];
   compliance: SubTodayCompliance[];
+  quickAccessCounts: SubTodayQuickAccessCounts;
+  currentFocus: SubTodayCurrentFocus;
 };
 
 const OPEN_RFI_STATUSES = ["open", "pending_response"] as const;
@@ -86,8 +104,10 @@ function isSameDay(a: Date, b: Date): boolean {
 
 export async function getSubcontractorTodayData(input: {
   subOrganizationId: string;
+  userId?: string | null;
 }): Promise<SubTodayData> {
   const subOrgId = input.subOrganizationId;
+  const userId = input.userId ?? null;
   const now = new Date();
 
   const memberProjects = await db
@@ -124,6 +144,12 @@ export async function getSubcontractorTodayData(input: {
       projectList: [],
       attention: [],
       compliance: [],
+      quickAccessCounts: {
+        unreadMessages: 0,
+        documentCount: 0,
+        pendingFinancialsCents: 0,
+      },
+      currentFocus: null,
     };
   }
 
@@ -346,5 +372,72 @@ export async function getSubcontractorTodayData(input: {
     };
   });
 
-  return { kpis, projectList, attention, compliance };
+  // Quick access counts (cross-project)
+  const [docCountRow, unreadRows] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(documents)
+      .where(inArray(documents.projectId, projectIds)),
+    userId
+      ? db
+          .select({
+            count: sql<number>`count(*)::int`,
+          })
+          .from(messages)
+          .innerJoin(conversations, eq(conversations.id, messages.conversationId))
+          .innerJoin(
+            conversationParticipants,
+            and(
+              eq(conversationParticipants.conversationId, conversations.id),
+              eq(conversationParticipants.userId, userId),
+            ),
+          )
+          .where(
+            and(
+              inArray(conversations.projectId, projectIds),
+              sql`${messages.createdAt} > COALESCE(${conversationParticipants.lastReadAt}, '1970-01-01'::timestamptz)`,
+              sql`${messages.senderUserId} <> ${userId}`,
+            ),
+          )
+      : Promise.resolve([{ count: 0 }]),
+  ]);
+
+  const quickAccessCounts: SubTodayQuickAccessCounts = {
+    unreadMessages: unreadRows[0]?.count ?? 0,
+    documentCount: docCountRow[0]?.count ?? 0,
+    // Sub-scoped draws don't exist yet — leave at 0 until sub payment
+    // tracking lands in a follow-up.
+    pendingFinancialsCents: 0,
+  };
+
+  // Current focus: project with the most urgent attention items
+  const urgentByProject = new Map<string, number>();
+  for (const a of attention) {
+    if (!a.urgent) continue;
+    urgentByProject.set(a.projectId, (urgentByProject.get(a.projectId) ?? 0) + 1);
+  }
+  const focusEntry =
+    [...urgentByProject.entries()].sort((a, b) => b[1] - a[1])[0] ??
+    (projectList[0] ? ([projectList[0].id, 0] as const) : null);
+  const currentFocus: SubTodayCurrentFocus = focusEntry
+    ? (() => {
+        const proj = projectList.find((p) => p.id === focusEntry[0]);
+        if (!proj) return null;
+        const urgentCount = focusEntry[1];
+        const description =
+          urgentCount > 0
+            ? `${urgentCount} of today's urgent item${urgentCount === 1 ? " is" : "s are"} on this project.`
+            : proj.description;
+        return { projectId: proj.id, name: proj.name, description };
+      })()
+    : null;
+
+  return {
+    kpis,
+    projectList,
+    attention,
+    compliance,
+    quickAccessCounts,
+    currentFocus,
+  };
 }
