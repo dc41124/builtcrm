@@ -29,6 +29,7 @@ import {
   documents,
   rfis,
   changeOrders,
+  approvals,
   uploadRequests,
   complianceRecords,
   scheduleOfValues,
@@ -641,6 +642,153 @@ async function seedProjectContent(ctx: ProjectContext) {
         approvedByUserId: i === 0 ? clientUserId : null,
         approvedAt: i === 0 ? new Date(Date.now() - 7 * 86400000) : null,
         submittedAt: new Date(Date.now() - 10 * 86400000),
+      });
+    }
+  }
+
+  // ---- Approvals (cross-type queue) ------------------------------------
+  const day = 86400000;
+  type ApprovalSeed = {
+    category: "general" | "design" | "procurement" | "change_order" | "other";
+    title: string;
+    description: string;
+    approvalStatus: "pending_review" | "approved" | "rejected" | "needs_revision";
+    impactCostCents: number;
+    impactScheduleDays: number;
+    submittedDaysAgo: number;
+    decidedDaysAgo: number | null;
+  };
+
+  const approvalRows: ApprovalSeed[] = residential
+    ? [
+        {
+          category: "general",
+          title: "Weekend work for concrete pour",
+          description:
+            "Builder is asking if Saturday work is OK to keep the foundation pour on schedule before Monday's inspection.",
+          approvalStatus: "pending_review",
+          impactCostCents: 0,
+          impactScheduleDays: -3,
+          submittedDaysAgo: 1,
+          decidedDaysAgo: null,
+        },
+        {
+          category: "procurement",
+          title: "Foundation material substitution",
+          description:
+            "Swapped to a locally-available concrete mix that performs the same but ships faster.",
+          approvalStatus: "approved",
+          impactCostCents: 0,
+          impactScheduleDays: 0,
+          submittedDaysAgo: 15,
+          decidedDaysAgo: 13,
+        },
+        {
+          category: "design",
+          title: "Extra insulation in attic space",
+          description:
+            "Added R-30 insulation in the attic for better energy performance.",
+          approvalStatus: "approved",
+          impactCostCents: 80_000,
+          impactScheduleDays: 0,
+          submittedDaysAgo: 22,
+          decidedDaysAgo: 21,
+        },
+        {
+          category: "change_order",
+          title: "Electrical panel upgrade",
+          description:
+            "Upgraded to a 200A panel to support the planned EV charger installation.",
+          approvalStatus: "approved",
+          impactCostCents: 120_000,
+          impactScheduleDays: 0,
+          submittedDaysAgo: 30,
+          decidedDaysAgo: 28,
+        },
+      ]
+    : [
+        {
+          category: "change_order",
+          title: "CO-014 mechanical reroute",
+          description:
+            "HVAC duct reroute caused by structural conflict at level 3. Blocks procurement release.",
+          approvalStatus: "pending_review",
+          impactCostCents: 1_840_000,
+          impactScheduleDays: 3,
+          submittedDaysAgo: 5,
+          decidedDaysAgo: null,
+        },
+        {
+          category: "procurement",
+          title: "Lobby signage fabrication release",
+          description:
+            "Final confirmation before fabrication begins. Affects lobby handover milestone.",
+          approvalStatus: "pending_review",
+          impactCostCents: 1_260_000,
+          impactScheduleDays: 0,
+          submittedDaysAgo: 2,
+          decidedDaysAgo: null,
+        },
+        {
+          category: "design",
+          title: "Reception area finish package",
+          description:
+            "Material and finish selections for main reception — wall covering, flooring, millwork accents.",
+          approvalStatus: "pending_review",
+          impactCostCents: 0,
+          impactScheduleDays: 0,
+          submittedDaysAgo: 3,
+          decidedDaysAgo: null,
+        },
+        {
+          category: "general",
+          title: "After-hours work authorization",
+          description:
+            "Weekend work for concrete pour — needs owner OK to proceed outside standard site hours.",
+          approvalStatus: "pending_review",
+          impactCostCents: 0,
+          impactScheduleDays: -2,
+          submittedDaysAgo: 1,
+          decidedDaysAgo: null,
+        },
+        {
+          category: "change_order",
+          title: "CO-013 electrical panel relocation",
+          description:
+            "Panel relocation for code compliance. Previously approved by client.",
+          approvalStatus: "approved",
+          impactCostCents: 720_000,
+          impactScheduleDays: 0,
+          submittedDaysAgo: 12,
+          decidedDaysAgo: 8,
+        },
+      ];
+
+  for (let i = 0; i < approvalRows.length; i++) {
+    const a = approvalRows[i];
+    const num = i + 1;
+    const existing = await db
+      .select()
+      .from(approvals)
+      .where(and(eq(approvals.projectId, project.id), eq(approvals.approvalNumber, num))!)
+      .limit(1);
+    if (!existing[0]) {
+      await db.insert(approvals).values({
+        projectId: project.id,
+        approvalNumber: num,
+        category: a.category,
+        title: a.title,
+        description: a.description,
+        approvalStatus: a.approvalStatus,
+        impactCostCents: a.impactCostCents,
+        impactScheduleDays: a.impactScheduleDays,
+        requestedByUserId: pmUserId,
+        assignedToOrganizationId: null,
+        submittedAt: new Date(Date.now() - a.submittedDaysAgo * day),
+        decidedByUserId: a.decidedDaysAgo != null ? clientUserId : null,
+        decidedAt: a.decidedDaysAgo != null ? new Date(Date.now() - a.decidedDaysAgo * day) : null,
+        decisionNote: a.approvalStatus === "approved" ? "Approved as submitted." : null,
+        visibilityScope: "client_visible",
       });
     }
   }
