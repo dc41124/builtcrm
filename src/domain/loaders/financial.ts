@@ -100,6 +100,7 @@ export type SubcontractorFinancialView = {
   project: EffectiveContext["project"];
   role: EffectiveContext["role"];
   organizationName: string;
+  scopeLabel: string | null;
   contract: {
     earnedCents: number;
     paidCents: number;
@@ -202,6 +203,7 @@ export async function getContractorFinancialView(
       totalCompletedToDateCents: drawRequests.totalCompletedToDateCents,
       totalEarnedLessRetainageCents: drawRequests.totalEarnedLessRetainageCents,
       totalRetainageCents: drawRequests.totalRetainageCents,
+      reviewedAt: drawRequests.reviewedAt,
       paidAt: drawRequests.paidAt,
       paymentReferenceName: drawRequests.paymentReferenceName,
     })
@@ -214,6 +216,7 @@ export async function getContractorFinancialView(
   let underReviewCents = 0;
   let billedToDateCents = 0;
   let latestApprovedDrawNumber: number | null = null;
+  let latestApprovedDrawAt: Date | null = null;
   let completedDrawCount = 0;
   let draftCount = 0;
 
@@ -226,6 +229,10 @@ export async function getContractorFinancialView(
     // so the latest non-draft draw is the billed-to-date amount.
     billedToDateCents = Math.max(billedToDateCents, r.totalCompletedToDateCents);
 
+    const isApproved =
+      (APPROVED_UNPAID_STATUSES as readonly string[]).includes(r.status) ||
+      (PAID_DRAW_STATUSES as readonly string[]).includes(r.status);
+
     if ((PAID_DRAW_STATUSES as readonly string[]).includes(r.status)) {
       paidCents += r.currentPaymentDueCents;
       completedDrawCount++;
@@ -234,14 +241,17 @@ export async function getContractorFinancialView(
     ) {
       approvedUnpaidCents += r.currentPaymentDueCents;
       completedDrawCount++;
-      if (
-        latestApprovedDrawNumber === null ||
-        r.drawNumber > latestApprovedDrawNumber
-      ) {
-        latestApprovedDrawNumber = r.drawNumber;
-      }
     } else if ((UNDER_REVIEW_STATUSES as readonly string[]).includes(r.status)) {
       underReviewCents += r.currentPaymentDueCents;
+    }
+
+    if (
+      isApproved &&
+      (latestApprovedDrawNumber === null ||
+        r.drawNumber > latestApprovedDrawNumber)
+    ) {
+      latestApprovedDrawNumber = r.drawNumber;
+      latestApprovedDrawAt = r.reviewedAt ?? r.paidAt ?? null;
     }
   }
 
@@ -362,7 +372,9 @@ export async function getContractorFinancialView(
 
   const asOfLabel =
     latestApprovedDrawNumber !== null
-      ? `As of Draw #${latestApprovedDrawNumber}`
+      ? latestApprovedDrawAt != null
+        ? `As of Draw #${latestApprovedDrawNumber} · Approved ${formatAsOfDate(latestApprovedDrawAt)}`
+        : `As of Draw #${latestApprovedDrawNumber}`
       : billedToDateCents > 0
         ? "As of latest draw"
         : "No draws submitted";
@@ -436,6 +448,22 @@ export async function getSubcontractorFinancialView(
     .orderBy(desc(scheduleOfValues.version))
     .limit(1);
   const defaultRetainagePercent = sov?.defaultRetainagePercent ?? 10;
+
+  // Work scope for this sub on this project — surfaces as
+  // "{orgName} — {scope} scope" on the contract summary card.
+  const [membership] = await db
+    .select({
+      workScope: projectOrganizationMemberships.workScope,
+    })
+    .from(projectOrganizationMemberships)
+    .where(
+      and(
+        eq(projectOrganizationMemberships.projectId, projectId),
+        eq(projectOrganizationMemberships.organizationId, orgId),
+      ),
+    )
+    .limit(1);
+  const scopeLabel = membership?.workScope?.trim() || null;
 
   // Lien waivers for this sub on this project, with their parent draw status.
   const waivers = await db
@@ -522,6 +550,7 @@ export async function getSubcontractorFinancialView(
     project: context.project,
     role: context.role,
     organizationName: context.organization.name,
+    scopeLabel,
     contract: {
       earnedCents,
       paidCents,
@@ -561,4 +590,12 @@ export function formatPeriodRange(from: Date, to: Date): string {
   const fmt = (d: Date) =>
     d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return `${fmt(from)}–${fmt(to)}`;
+}
+
+function formatAsOfDate(d: Date): string {
+  return new Date(d).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }

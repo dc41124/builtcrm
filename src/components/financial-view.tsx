@@ -40,6 +40,39 @@ function statusLabel(s: string): string {
   return STATUS_LABELS[s] ?? s;
 }
 
+const DownloadIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    width="14"
+    height="14"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.4"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
+const FileIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    width="14"
+    height="14"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.4"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+    <polyline points="14 2 14 8 20 8" />
+  </svg>
+);
+
 // =============================================================================
 // CONTRACTOR VIEW
 // =============================================================================
@@ -61,11 +94,21 @@ export function ContractorFinancialPanel({
   return (
     <div className="fv">
       <header className="fv-head">
-        <div>
+        <div className="fv-head-main">
           <h1 className="fv-title">Financials</h1>
           <p className="fv-sub">
             {view.project.name} · Contract financial overview
           </p>
+        </div>
+        <div className="fv-head-actions">
+          <button type="button" className="fv-btn">
+            <DownloadIcon />
+            Export Report
+          </button>
+          <button type="button" className="fv-btn primary">
+            <FileIcon />
+            New Draw Request
+          </button>
         </div>
       </header>
 
@@ -151,6 +194,11 @@ export function ContractorFinancialPanel({
           <SectionHead
             title="Draw History"
             subtitle={`${view.completedDrawCount} completed · ${view.draftCount} in preparation`}
+            action={
+              <button type="button" className="fv-btn mini">
+                View all
+              </button>
+            }
           />
           {draws.length === 0 ? (
             <Empty message="No draw requests yet." />
@@ -255,6 +303,11 @@ export function ContractorFinancialPanel({
         <SectionHead
           title="Retainage Summary"
           subtitle={`${retainage.defaultPercent}% retainage on all work completed`}
+          action={
+            <button type="button" className="fv-btn mini">
+              Request Release
+            </button>
+          }
         />
         <div className="fv-retainage">
           <RetainageDial
@@ -331,21 +384,31 @@ export function SubcontractorFinancialPanel({
       {/* Your Contract Summary */}
       <Card className="fv-card-pad">
         <div className="fv-card-top">
-          <div className="fv-card-title">Your Summary</div>
+          <div className="fv-card-title">Your Contract Summary</div>
+          <div className="fv-card-meta">
+            {view.organizationName}
+            {view.scopeLabel ? ` — ${view.scopeLabel} scope` : ""}
+          </div>
         </div>
         <div className="fv-stat-grid fv-stat-grid-4">
-          <Stat label="Total Earned" value={formatMoneyCents(earned)} tone="accent" />
+          <Stat
+            label="Contract Value"
+            value={formatMoneyCents(
+              earned + contract.remainingCents,
+            )}
+          />
+          <Stat
+            label="Total Earned"
+            value={formatMoneyCents(earned)}
+            tone="accent"
+          />
           <Stat
             label="Total Paid"
             value={formatMoneyCents(contract.paidCents)}
           />
           <Stat
-            label="Approved / Awaiting"
-            value={formatMoneyCents(contract.approvedUnpaidCents)}
-          />
-          <Stat
-            label="Retainage Held"
-            value={formatMoneyCents(contract.retainageHeldCents)}
+            label="Remaining"
+            value={formatMoneyCents(contract.remainingCents)}
             tone="warn"
           />
         </div>
@@ -503,14 +566,19 @@ function Card({
 function SectionHead({
   title,
   subtitle,
+  action,
 }: {
   title: string;
   subtitle?: string;
+  action?: ReactNode;
 }) {
   return (
     <div className="fv-section-head">
-      <div className="fv-card-title">{title}</div>
-      {subtitle && <div className="fv-card-meta">{subtitle}</div>}
+      <div className="fv-section-head-main">
+        <div className="fv-card-title">{title}</div>
+        {subtitle && <div className="fv-card-meta">{subtitle}</div>}
+      </div>
+      {action && <div className="fv-section-head-act">{action}</div>}
     </div>
   );
 }
@@ -726,9 +794,17 @@ function FinancialStyles() {
   return (
     <style>{`
       .fv{font-family:var(--fb);color:var(--t1)}
-      .fv-head{margin-bottom:16px}
+      .fv-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:16px;flex-wrap:wrap}
+      .fv-head-main{min-width:0;flex:1}
+      .fv-head-actions{display:flex;gap:8px;flex-shrink:0;padding-top:4px;flex-wrap:wrap}
       .fv-title{font-family:var(--fd);font-size:26px;font-weight:820;letter-spacing:-.035em;margin:0;color:var(--t1)}
-      .fv-sub{font-size:13px;color:var(--t2);margin:4px 0 0;font-weight:520}
+      .fv-sub{font-family:var(--fb);font-size:13px;color:var(--t2);margin:4px 0 0;font-weight:520}
+
+      .fv-btn{height:34px;padding:0 14px;border-radius:var(--r-m);border:1px solid var(--s3);background:var(--s1);color:var(--t2);font-family:var(--fb);font-size:13px;font-weight:600;cursor:pointer;transition:all var(--df) var(--e);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+      .fv-btn:hover{border-color:var(--s4);background:var(--sh);color:var(--t1)}
+      .fv-btn.primary{height:38px;padding:0 18px;background:var(--ac);border-color:var(--ac);color:#fff;font-weight:650}
+      .fv-btn.primary:hover{background:var(--ac-h);border-color:var(--ac-h)}
+      .fv-btn.mini{height:28px;padding:0 10px;font-size:11.5px}
 
       .fv-card{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-xl);overflow:hidden;margin-bottom:20px}
       .fv-card-pad{padding:20px 24px}
@@ -737,7 +813,9 @@ function FinancialStyles() {
       .fv-card-meta{font-size:11.5px;color:var(--t3);font-weight:560}
       .fv-pct{font-family:var(--fd);font-size:18px;font-weight:820;color:var(--ac-t);letter-spacing:-.02em}
 
-      .fv-section-head{padding:18px 20px 14px;border-bottom:1px solid var(--s3)}
+      .fv-section-head{padding:18px 20px 14px;border-bottom:1px solid var(--s3);display:flex;justify-content:space-between;align-items:center;gap:16px}
+      .fv-section-head-main{min-width:0;flex:1}
+      .fv-section-head-act{flex-shrink:0}
 
       .fv-stat-grid{display:grid;gap:16px}
       .fv-stat-grid-5{grid-template-columns:repeat(5,1fr)}
