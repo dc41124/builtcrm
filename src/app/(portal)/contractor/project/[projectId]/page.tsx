@@ -2,10 +2,6 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { Card } from "@/components/card";
-import { EmptyState } from "@/components/empty-state";
-import { KpiCard } from "@/components/kpi-card";
-import { Pill, type PillColor } from "@/components/pill";
 import { auth } from "@/auth/config";
 import {
   getContractorProjectView,
@@ -13,14 +9,34 @@ import {
 } from "@/domain/loaders/project-home";
 import { AuthorizationError } from "@/domain/permissions";
 
-import {
-  ProjectHomeActivity,
-  type ActivityRow,
-} from "./project-home-activity";
+import "./project-home.css";
+import { WorkspaceCard, type WorkspaceTab } from "./workspace-card";
 
 const OPEN_RFI_STATUSES = new Set(["draft", "open", "answered"]);
 const OPEN_CO_STATUSES = new Set(["draft", "submitted", "under_review"]);
-const PENDING_APPROVAL_STATUSES = new Set(["pending", "open", "submitted"]);
+const PENDING_APPROVAL_STATUSES = new Set([
+  "draft",
+  "pending_review",
+  "needs_revision",
+]);
+
+// Inline SVG icons (from prototype)
+const PlusIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
+const UploadIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+    <path d="M14 2v6h6M12 18v-6M9 15h6" />
+  </svg>
+);
+const DownloadIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+  </svg>
+);
 
 export default async function ContractorProjectHomePage({
   params,
@@ -49,424 +65,689 @@ export default async function ContractorProjectHomePage({
   const { project, details, teamMembers } = view;
   const basePath = `/contractor/project/${project.id}`;
 
-  const activeRfis = view.rfis.filter((r) => OPEN_RFI_STATUSES.has(r.rfiStatus));
+  // ── Derive state ──────────────────────────────────────────────
+  const openRfis = view.rfis.filter((r) => OPEN_RFI_STATUSES.has(r.rfiStatus));
+  const overdueRfis = openRfis.filter(
+    (r) => r.dueAt && r.dueAt.getTime() < Date.now(),
+  );
   const openCos = view.changeOrders.filter((c) =>
     OPEN_CO_STATUSES.has(c.changeOrderStatus),
   );
   const pendingApprovals = view.approvals.filter((a) =>
     PENDING_APPROVAL_STATUSES.has(a.approvalStatus),
   );
-  const nextDraw = [...view.drawRequests]
-    .filter((d) =>
-      ["draft", "submitted", "under_review"].includes(d.drawRequestStatus),
-    )
-    .sort((a, b) => b.drawNumber - a.drawNumber)[0];
-  const complianceExpiring = view.complianceRecords.filter(
+  const blockedApprovals = pendingApprovals.filter(
+    (a) => a.approvalStatus === "needs_revision",
+  );
+  const complianceExpiringSoon = view.complianceRecords.filter(
     (c) =>
       c.expiresAt &&
       c.expiresAt.getTime() - Date.now() < 1000 * 60 * 60 * 24 * 30,
-  ).length;
+  );
+  const complianceActive = view.complianceRecords.filter(
+    (c) => c.complianceStatus === "active",
+  );
+  const activeDraw = [...view.drawRequests]
+    .filter((d) =>
+      ["draft", "submitted", "under_review", "returned"].includes(
+        d.drawRequestStatus,
+      ),
+    )
+    .sort((a, b) => b.drawNumber - a.drawNumber)[0];
+  const upcomingMilestones = view.milestones
+    .filter((m) => m.scheduledDate.getTime() >= Date.now() - 1000 * 60 * 60 * 24)
+    .slice(0, 4);
 
   const contractCents = details.contractValueCents ?? 0;
   const billedCents = view.drawRequests.reduce(
     (sum, d) => sum + (d.totalCompletedToDateCents ?? 0),
     0,
   );
-  const budgetPct =
-    contractCents > 0 ? Math.min(100, Math.round((billedCents / contractCents) * 100)) : 0;
 
-  const actionItems = buildActionItems(view);
-  const activityItems = buildActivityItems(view);
-  const upcomingMilestones = view.milestones
-    .filter((m) => m.scheduledDate.getTime() >= Date.now() - 1000 * 60 * 60 * 24)
-    .slice(0, 4);
+  const actionItemCount =
+    openRfis.length + openCos.length + pendingApprovals.length;
+  const complianceAllCurrent =
+    view.complianceRecords.length > 0 &&
+    complianceExpiringSoon.length === 0 &&
+    complianceActive.length === view.complianceRecords.length;
 
-  const addressLine = [
-    details.addressLine1,
-    [details.city, details.stateProvince].filter(Boolean).join(", "),
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  // ── Hero context pills ────────────────────────────────────────
+  const contextPills: Array<{ label: string; kind: string }> = [];
+  if (details.projectStatus === "active") {
+    contextPills.push({ label: "Active project", kind: "purple" });
+  } else {
+    contextPills.push({
+      label: `${formatStatus(details.projectStatus)} project`,
+      kind: "purple",
+    });
+  }
+  if (actionItemCount > 0) {
+    contextPills.push({
+      label: `${actionItemCount} ${actionItemCount === 1 ? "item" : "items"} need action`,
+      kind: "orange",
+    });
+  }
+  if (blockedApprovals.length > 0) {
+    contextPills.push({
+      label: `${blockedApprovals.length} blocker${blockedApprovals.length === 1 ? "" : "s"} affecting release`,
+      kind: "red",
+    });
+  }
+  if (complianceAllCurrent) {
+    contextPills.push({ label: "Compliance current", kind: "green" });
+  } else if (complianceExpiringSoon.length > 0) {
+    contextPills.push({
+      label: `${complianceExpiringSoon.length} compliance expiring`,
+      kind: "orange",
+    });
+  }
+
+  // ── Snapshots (hero side) ─────────────────────────────────────
+  const nextMilestone = upcomingMilestones[0];
+  const snapshots: Array<{
+    label: string;
+    value: string;
+    meta: string;
+    kind?: "warn" | "danger";
+  }> = [
+    blockedApprovals.length > 0
+      ? {
+          label: "Current blocker",
+          value: blockedApprovals[0].title,
+          meta: "Holding release steps",
+          kind: "danger",
+        }
+      : openRfis.length > 0
+        ? {
+            label: "Current focus",
+            value: `${openRfis.length} open RFI${openRfis.length === 1 ? "" : "s"}`,
+            meta:
+              overdueRfis.length > 0
+                ? `${overdueRfis.length} overdue`
+                : "All on track",
+          }
+        : {
+            label: "Current focus",
+            value: "Nothing urgent",
+            meta: "No open blockers",
+          },
+    nextMilestone
+      ? {
+          label: "Next milestone",
+          value: nextMilestone.scheduledDate.toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+          }),
+          meta: nextMilestone.title,
+          kind: "warn",
+        }
+      : {
+          label: "Next milestone",
+          value: "—",
+          meta: "None scheduled",
+        },
+    {
+      label: "Decision queue",
+      value: `${pendingApprovals.length} open`,
+      meta:
+        pendingApprovals.length === 0
+          ? "No approvals pending"
+          : `${pendingApprovals.length} approval${pendingApprovals.length === 1 ? "" : "s"} waiting`,
+    },
+    {
+      label: "Unread messages",
+      value: `${view.conversations.length} threads`,
+      meta: "All project channels",
+    },
+  ];
+
+  // ── Summary strip ─────────────────────────────────────────────
+  const phaseLabel = formatStatus(details.currentPhase);
+  const summaryCards: Array<{
+    label: string;
+    value: string;
+    meta: string;
+    kind?: "accent" | "warn" | "danger" | "success";
+  }> = [
+    {
+      label: "Current phase",
+      value: phaseLabel,
+      meta: details.projectType ? formatStatus(details.projectType) : "—",
+    },
+    {
+      label: "Approvals waiting",
+      value: pendingApprovals.length.toString(),
+      meta:
+        blockedApprovals.length > 0
+          ? `${blockedApprovals.length} blocked`
+          : pendingApprovals.length === 0
+            ? "Nothing pending"
+            : "Awaiting decision",
+      kind: blockedApprovals.length > 0 ? "danger" : "accent",
+    },
+    {
+      label: "Open RFIs",
+      value: openRfis.length.toString(),
+      meta:
+        overdueRfis.length > 0
+          ? `${overdueRfis.length} overdue`
+          : openRfis.length === 0
+            ? "All clear"
+            : "On pace",
+      kind: overdueRfis.length > 0 ? "warn" : undefined,
+    },
+    {
+      label: "Compliance",
+      value: complianceAllCurrent
+        ? "Current"
+        : `${complianceExpiringSoon.length}`,
+      meta: complianceAllCurrent
+        ? `${view.complianceRecords.length} records tracked`
+        : `${complianceExpiringSoon.length} expiring soon`,
+      kind: complianceAllCurrent ? "success" : "warn",
+    },
+    {
+      label: "Billing progress",
+      value:
+        contractCents > 0 ? formatCurrency(billedCents) : formatCurrency(billedCents),
+      meta:
+        contractCents > 0
+          ? `of ${formatCurrency(contractCents)} contract${activeDraw ? ` · Draw #${activeDraw.drawNumber} ${formatStatus(activeDraw.drawRequestStatus)}` : ""}`
+          : activeDraw
+            ? `Draw #${activeDraw.drawNumber} ${formatStatus(activeDraw.drawRequestStatus)}`
+            : "No draws in flight",
+    },
+  ];
+
+  // ── Today tab data ────────────────────────────────────────────
+  const priorityItems = [
+    ...overdueRfis.slice(0, 2).map((r) => ({
+      id: `rfi-${r.id}`,
+      title: `RFI-${r.sequentialNumber} · ${r.subject}`,
+      desc: r.body ?? "Awaiting response",
+      pill: "Overdue",
+      pillKind: "red" as const,
+      time: "Overdue",
+      hot: true,
+      href: `${basePath}/rfis`,
+    })),
+    ...blockedApprovals.slice(0, 2).map((a) => ({
+      id: `appr-${a.id}`,
+      title: `Approval #${a.approvalNumber} · ${a.title}`,
+      desc: a.decisionNote ?? `${formatStatus(a.category)} decision needs revision`,
+      pill: "Blocked",
+      pillKind: "red" as const,
+      time: "Needs revision",
+      hot: true,
+      href: `${basePath}/approvals`,
+    })),
+    ...openRfis
+      .filter((r) => !overdueRfis.includes(r))
+      .slice(0, 2)
+      .map((r) => ({
+        id: `rfi-open-${r.id}`,
+        title: `RFI-${r.sequentialNumber} · ${r.subject}`,
+        desc: r.body ?? "Awaiting response",
+        pill: "RFI",
+        pillKind: "purple" as const,
+        time: "Open",
+        hot: false,
+        href: `${basePath}/rfis`,
+      })),
+  ].slice(0, 4);
+
+  const approvalsWaitingRows = pendingApprovals.slice(0, 3).map((a) => {
+    const kind: "red" | "orange" | "blue" =
+      a.approvalStatus === "needs_revision" ? "red" : "orange";
+    return {
+      id: a.id,
+      title: `#${a.approvalNumber} · ${a.title}`,
+      desc:
+        a.decisionNote ??
+        `${formatStatus(a.category)}${a.impactCostCents > 0 ? ` · ${formatCurrency(a.impactCostCents)}` : ""}`,
+      pill:
+        a.approvalStatus === "needs_revision" ? "Blocked" : formatStatus(a.approvalStatus),
+      pillKind: kind,
+      hot: a.approvalStatus === "needs_revision",
+      href: `${basePath}/approvals`,
+    };
+  });
+
+  const riskRows: Array<{
+    id: string;
+    title: string;
+    desc: string;
+    pill: string;
+    pillKind: "red" | "orange";
+    hot: boolean;
+  }> = [];
+  if (blockedApprovals.length > 0) {
+    riskRows.push({
+      id: "risk-blocked",
+      title: "Client decision dependency",
+      desc: `${blockedApprovals[0].title} is the primary blocker affecting release.`,
+      pill: "Critical",
+      pillKind: "red",
+      hot: true,
+    });
+  }
+  if (nextMilestone && upcomingMilestones.length > 1) {
+    riskRows.push({
+      id: "risk-milestone",
+      title: "Upcoming milestone pressure",
+      desc: `${nextMilestone.title} depends on closing ${pendingApprovals.length} open item${pendingApprovals.length === 1 ? "" : "s"}.`,
+      pill: "Watch",
+      pillKind: "orange",
+      hot: false,
+    });
+  }
+  if (complianceExpiringSoon.length > 0) {
+    const c = complianceExpiringSoon[0];
+    const days = c.expiresAt
+      ? Math.max(
+          0,
+          Math.round((c.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+        )
+      : 0;
+    riskRows.push({
+      id: "risk-compliance",
+      title: "Compliance gap risk",
+      desc: `${c.organizationName ?? "Vendor"} ${formatStatus(c.complianceType)} expires in ${days}d.`,
+      pill: "Expiring",
+      pillKind: "orange",
+      hot: false,
+    });
+  }
+
+  // ── Workspace tabs config ─────────────────────────────────────
+  const workspaceTabs: WorkspaceTab[] = [
+    { id: "today", label: "Today", href: `${basePath}` },
+    {
+      id: "rfis",
+      label: "RFIs",
+      href: `${basePath}/rfis`,
+      badge: openRfis.length,
+      badgeType: overdueRfis.length > 0 ? "warn" : "default",
+    },
+    {
+      id: "cos",
+      label: "Change Orders",
+      href: `${basePath}/change-orders`,
+      badge: openCos.length,
+      badgeType: "warn",
+    },
+    {
+      id: "approvals",
+      label: "Approvals",
+      href: `${basePath}/approvals`,
+      badge: pendingApprovals.length,
+      badgeType: blockedApprovals.length > 0 ? "danger" : "default",
+    },
+    {
+      id: "compliance",
+      label: "Compliance",
+      href: `${basePath}/compliance`,
+      badge: complianceExpiringSoon.length,
+      badgeType: "warn",
+    },
+    { id: "selections", label: "Selections", href: `${basePath}/selections` },
+    { id: "documents", label: "Documents", href: `${basePath}/documents` },
+    { id: "billing", label: "Billing", href: `${basePath}/billing` },
+    { id: "schedule", label: "Schedule", href: `${basePath}/schedule` },
+  ];
+
+  // ── Right rail: blockers ──────────────────────────────────────
+  const blockers = blockedApprovals.slice(0, 3).map((a) => ({
+    id: a.id,
+    title: `Approval #${a.approvalNumber}`,
+    desc: `${a.title} — needs revision`,
+    hot: true,
+  }));
+
+  // ── Quick access modules with counts ──────────────────────────
+  const quickLinks: Array<{ label: string; href: string; count?: string }> = [
+    {
+      label: "Messages",
+      href: `${basePath}/messages`,
+      count: view.conversations.length > 0 ? `${view.conversations.length} threads` : undefined,
+    },
+    {
+      label: "Documents",
+      href: `${basePath}/documents`,
+      count: view.documents.length > 0 ? `${view.documents.length} files` : undefined,
+    },
+    { label: "Schedule", href: `${basePath}/schedule` },
+    {
+      label: "Financials",
+      href: `${basePath}/billing`,
+      count: billedCents > 0 ? `${formatCurrency(billedCents)} billed` : undefined,
+    },
+    {
+      label: "Upload Requests",
+      href: `${basePath}/upload-requests`,
+      count:
+        view.uploadRequests.length > 0
+          ? `${view.uploadRequests.length} open`
+          : undefined,
+    },
+  ];
+
+  // ── Key contacts (top 6 from team) ────────────────────────────
+  const keyContacts = teamMembers.slice(0, 6);
 
   return (
     <div className="cph">
-      <header className="cph-head">
-        <div className="cph-head-main">
+      {/* HERO */}
+      <section className="cph-hero">
+        <div className="cph-hero-main">
           <h1 className="cph-title">{project.name}</h1>
-          <div className="cph-meta">
-            {addressLine && <span className="cph-meta-item">{addressLine}</span>}
-            {details.clientOrganizationName && (
-              <span className="cph-meta-item">
-                <strong>Client:</strong> {details.clientOrganizationName}
+          <div className="cph-pills">
+            {contextPills.map((p) => (
+              <span key={p.label} className={`cph-pl ${p.kind}`}>
+                {p.label}
               </span>
+            ))}
+          </div>
+          <p className="cph-desc">
+            Live operating surface for this project — current priorities, blockers,
+            approvals, movement, and quick access to every workspace module.
+          </p>
+          <div className="cph-meta-strip">
+            {details.clientOrganizationName && (
+              <div className="cph-meta-chip">
+                <strong>Client:</strong> {details.clientOrganizationName}
+              </div>
             )}
             {details.projectType && (
-              <span className="cph-meta-item">
-                <strong>Type:</strong> {details.projectType}
-              </span>
-            )}
-            {details.startDate && (
-              <span className="cph-meta-item">
-                <strong>Start:</strong> {formatDate(details.startDate)}
-              </span>
+              <div className="cph-meta-chip">
+                <strong>Type:</strong> {formatStatus(details.projectType)}
+              </div>
             )}
             {details.targetCompletionDate && (
-              <span className="cph-meta-item">
+              <div className="cph-meta-chip">
                 <strong>Target:</strong> {formatDate(details.targetCompletionDate)}
-              </span>
+              </div>
+            )}
+            {details.startDate && (
+              <div className="cph-meta-chip">
+                <strong>Start:</strong> {formatDate(details.startDate)}
+              </div>
             )}
           </div>
-          <div className="cph-pills">
-            <Pill color={projectStatusColor(details.projectStatus)}>
-              {formatStatus(details.projectStatus)}
-            </Pill>
-            <Pill color="purple">{formatStatus(details.currentPhase)}</Pill>
+          <div className="cph-hero-btns">
+            <Link className="cph-btn pri" href={`${basePath}/rfis?action=create`}>
+              {PlusIcon} New RFI
+            </Link>
+            <Link className="cph-btn" href={`${basePath}/documents?action=upload`}>
+              {UploadIcon} Upload Document
+            </Link>
+            <Link className="cph-btn" href={`${basePath}/billing?action=submit-draw`}>
+              {DownloadIcon} Create Draw
+            </Link>
+            <Link className="cph-btn" href={`${basePath}/messages?action=new`}>
+              Send Message
+            </Link>
           </div>
         </div>
-      </header>
 
-      <div className="cph-kpis">
-        <KpiCard
-          label="Active RFIs"
-          value={activeRfis.length.toString()}
-          meta={
-            activeRfis.length === 0 ? "All clear" : `${view.rfis.length} total`
-          }
-          iconColor="amber"
-        />
-        <KpiCard
-          label="Open change orders"
-          value={openCos.length.toString()}
-          meta={
-            openCos.length === 0 ? "Nothing pending" : `${view.changeOrders.length} total`
-          }
-          iconColor="purple"
-        />
-        <KpiCard
-          label="Pending approvals"
-          value={pendingApprovals.length.toString()}
-          meta={pendingApprovals.length === 0 ? "Nothing waiting" : "Need decision"}
-          iconColor="red"
-          alert={pendingApprovals.length > 0}
-        />
-        <KpiCard
-          label="Next draw"
-          value={nextDraw ? `#${nextDraw.drawNumber}` : "—"}
-          meta={
-            nextDraw
-              ? `${formatStatus(nextDraw.drawRequestStatus)} · ${formatCurrency(nextDraw.currentPaymentDueCents ?? 0)}`
-              : "No draw in flight"
-          }
-          iconColor="green"
-        />
-        <KpiCard
-          label="Budget status"
-          value={
-            contractCents > 0 ? `${budgetPct}%` : formatCurrency(billedCents)
-          }
-          meta={
-            contractCents > 0
-              ? `${formatCurrency(billedCents)} of ${formatCurrency(contractCents)}`
-              : "Contract value not set"
-          }
-          trend={
-            complianceExpiring > 0
-              ? `${complianceExpiring} compliance expiring`
-              : undefined
-          }
-          trendType="warn"
-          iconColor="blue"
-        />
-      </div>
+        <aside className="cph-hero-side">
+          <h4>Project snapshot</h4>
+          <div className="cph-snap-stack">
+            {snapshots.map((s) => (
+              <div
+                key={s.label}
+                className={`cph-snap ${s.kind ?? ""}`}
+              >
+                <div className="cph-snap-l">{s.label}</div>
+                <div className="cph-snap-v">{s.value}</div>
+                <div className="cph-snap-m">{s.meta}</div>
+              </div>
+            ))}
+          </div>
+        </aside>
+      </section>
 
-      <div className="cph-grid">
-        <div className="cph-main">
-          <Card
-            title="Action items"
-            subtitle="What needs your attention on this project"
-          >
-            {actionItems.length === 0 ? (
-              <EmptyState
-                title="Nothing pressing"
-                description="No open RFIs, CO decisions, or approvals waiting on you."
-              />
-            ) : (
-              <ul className="cph-actions">
-                {actionItems.map((a) => (
-                  <li
-                    key={a.id}
-                    className={`cph-action ${a.urgent ? "cph-action-urgent" : ""}`}
-                  >
-                    <div className="cph-action-body">
-                      <h5>{a.title}</h5>
-                      <p>{a.description}</p>
-                    </div>
-                    <div className="cph-action-meta">
-                      <Pill color={a.pillColor}>{a.pillLabel}</Pill>
-                      <Link href={a.href} className="cph-action-link">
-                        Open →
-                      </Link>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
+      {/* KEY CONTACTS */}
+      {keyContacts.length > 0 && (
+        <section className="cph-contacts">
+          <div className="cph-contacts-label">Key contacts</div>
+          <div className="cph-contacts-list">
+            {keyContacts.map((m) => (
+              <div key={m.id} className="cph-cc">
+                <div
+                  className="cph-cc-av"
+                  style={{ background: orgAccent(m.organizationType) }}
+                >
+                  {initials(m.displayName ?? m.email)}
+                </div>
+                <div className="cph-cc-text">
+                  <span className="cph-cc-name">{m.displayName ?? m.email}</span>
+                  <span className="cph-cc-role">{formatStatus(m.roleKey)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
-          <ProjectHomeActivity items={activityItems} />
-        </div>
+      {/* SUMMARY STRIP */}
+      <section className="cph-sum-strip">
+        {summaryCards.map((c) => (
+          <div key={c.label} className={`cph-sum ${c.kind ?? ""}`}>
+            <div className="cph-sum-l">{c.label}</div>
+            <div className="cph-sum-v">{c.value}</div>
+            <div className="cph-sum-m">{c.meta}</div>
+          </div>
+        ))}
+      </section>
+
+      {/* PROJECT GRID */}
+      <section className="cph-pg">
+        <WorkspaceCard
+          tabs={workspaceTabs}
+          todayContent={
+            <div className="cph-ml">
+              <div className="cph-stk">
+                <div className="cph-blk dom">
+                  <h4>Today&rsquo;s priorities</h4>
+                  <div className="cph-lst">
+                    {priorityItems.length === 0 ? (
+                      <EmptyInlineMessage message="Nothing pressing right now." />
+                    ) : (
+                      priorityItems.map((p) => (
+                        <Link
+                          key={p.id}
+                          href={p.href}
+                          className={`cph-lr ${p.hot ? "hot" : ""}`}
+                        >
+                          <div className="cph-lr-main">
+                            <h5>{p.title}</h5>
+                            <p>{p.desc}</p>
+                          </div>
+                          <div className="cph-lr-side">
+                            <span className={`cph-pl ${p.pillKind}`}>
+                              {p.pill}
+                            </span>
+                            <span className="cph-tm">{p.time}</span>
+                          </div>
+                        </Link>
+                      ))
+                    )}
+                  </div>
+                </div>
+                <div className="cph-blk">
+                  <h4>Recent project movement</h4>
+                  <div className="cph-lst">
+                    <EmptyInlineMessage message="Activity feed will populate as events land." />
+                  </div>
+                </div>
+              </div>
+              <div className="cph-stk">
+                <div className="cph-blk alert">
+                  <h4>Approvals waiting</h4>
+                  <div className="cph-lst">
+                    {approvalsWaitingRows.length === 0 ? (
+                      <EmptyInlineMessage message="No approvals pending." />
+                    ) : (
+                      approvalsWaitingRows.map((a) => (
+                        <Link
+                          key={a.id}
+                          href={a.href}
+                          className={`cph-lr ${a.hot ? "hot" : ""}`}
+                        >
+                          <div className="cph-lr-main">
+                            <h5>{a.title}</h5>
+                            <p>{a.desc}</p>
+                          </div>
+                          <div className="cph-lr-side">
+                            <span className={`cph-pl ${a.pillKind}`}>
+                              {a.pill}
+                            </span>
+                          </div>
+                        </Link>
+                      ))
+                    )}
+                  </div>
+                </div>
+                <div className="cph-blk">
+                  <h4>Open risks &amp; dependencies</h4>
+                  <div className="cph-lst">
+                    {riskRows.length === 0 ? (
+                      <EmptyInlineMessage message="No open risks flagged." />
+                    ) : (
+                      riskRows.map((r) => (
+                        <div
+                          key={r.id}
+                          className={`cph-lr ${r.hot ? "hot" : ""}`}
+                        >
+                          <div className="cph-lr-main">
+                            <h5>{r.title}</h5>
+                            <p>{r.desc}</p>
+                          </div>
+                          <div className="cph-lr-side">
+                            <span className={`cph-pl ${r.pillKind}`}>
+                              {r.pill}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          }
+        />
 
         <aside className="cph-rail">
-          <Card title="Project team" subtitle={`${teamMembers.length} members`}>
-            {teamMembers.length === 0 ? (
-              <EmptyState title="No team yet" description="Invite members to this project." />
-            ) : (
-              <ul className="cph-team">
-                {teamMembers.slice(0, 8).map((m) => (
-                  <li key={m.id} className="cph-team-row">
-                    <div
-                      className="cph-avatar"
-                      style={{ background: orgAccent(m.organizationType) }}
-                    >
-                      {initials(m.displayName ?? m.email)}
-                    </div>
-                    <div className="cph-team-info">
-                      <div className="cph-team-name">{m.displayName ?? m.email}</div>
-                      <div className="cph-team-role">
-                        {formatStatus(m.roleKey)} · {m.organizationName ?? "—"}
+          <div className="cph-rc danger">
+            <div className="cph-rc-head">
+              <h3>Current blockers</h3>
+              <div className="sub">Issues actively delaying project progress</div>
+            </div>
+            <div className="cph-rc-body">
+              <div className="cph-lst">
+                {blockers.length === 0 ? (
+                  <EmptyInlineMessage message="No active blockers." />
+                ) : (
+                  blockers.map((b) => (
+                    <div key={b.id} className={`cph-lr ${b.hot ? "hot" : ""}`}>
+                      <div className="cph-lr-main">
+                        <h5>{b.title}</h5>
+                        <p>{b.desc}</p>
                       </div>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
 
-          <Card title="Upcoming milestones" subtitle="Next scheduled events">
-            {upcomingMilestones.length === 0 ? (
-              <EmptyState title="Nothing scheduled" description="No upcoming milestones." />
-            ) : (
-              <ul className="cph-ms">
-                {upcomingMilestones.map((m) => {
-                  const d = m.scheduledDate;
+          <div className="cph-rc">
+            <div className="cph-rc-head">
+              <h3>Upcoming milestones</h3>
+              <div className="sub">What&rsquo;s next for this project</div>
+            </div>
+            <div className="cph-rc-body">
+              {upcomingMilestones.length === 0 ? (
+                <EmptyInlineMessage message="Nothing scheduled." />
+              ) : (
+                upcomingMilestones.map((m) => {
+                  const daysOut = Math.round(
+                    (m.scheduledDate.getTime() - Date.now()) /
+                      (1000 * 60 * 60 * 24),
+                  );
+                  const soon = daysOut <= 7;
                   return (
-                    <li key={m.id} className="cph-ms-row">
+                    <div key={m.id} className="cph-ms-item">
                       <div className="cph-ms-date">
-                        <div className="cph-ms-day">{d.getDate()}</div>
+                        <div className="cph-ms-day">
+                          {m.scheduledDate.getDate()}
+                        </div>
                         <div className="cph-ms-month">
-                          {d.toLocaleString("en-US", { month: "short" })}
+                          {m.scheduledDate.toLocaleString("en-US", {
+                            month: "short",
+                          })}
                         </div>
                       </div>
                       <div className="cph-ms-info">
                         <h5>{m.title}</h5>
                         <p>{formatStatus(m.milestoneStatus)}</p>
                       </div>
-                    </li>
+                      <div className={`cph-ms-cd ${soon ? "soon" : ""}`}>
+                        {daysOut <= 0
+                          ? "Today"
+                          : daysOut === 1
+                            ? "1 day"
+                            : `${daysOut} days`}
+                      </div>
+                    </div>
                   );
-                })}
-              </ul>
-            )}
-          </Card>
-
-          <Card title="Quick actions" subtitle="Jump into a workflow">
-            <div className="cph-qa">
-              <Link className="cph-qa-row" href={`${basePath}/rfis?action=create`}>
-                <span>Create RFI</span>
-                <span className="cph-qa-arrow">→</span>
-              </Link>
-              <Link className="cph-qa-row" href={`${basePath}/change-orders?action=create`}>
-                <span>Create change order</span>
-                <span className="cph-qa-arrow">→</span>
-              </Link>
-              <Link className="cph-qa-row" href={`${basePath}/billing?action=submit-draw`}>
-                <span>Submit draw request</span>
-                <span className="cph-qa-arrow">→</span>
-              </Link>
-              <Link className="cph-qa-row" href={`${basePath}/upload-requests?action=create`}>
-                <span>Request an upload</span>
-                <span className="cph-qa-arrow">→</span>
-              </Link>
-              <Link className="cph-qa-row" href={`${basePath}/messages?action=new`}>
-                <span>Start a message thread</span>
-                <span className="cph-qa-arrow">→</span>
-              </Link>
-              <Link className="cph-qa-row" href={`${basePath}/documents?action=upload`}>
-                <span>Upload a document</span>
-                <span className="cph-qa-arrow">→</span>
-              </Link>
+                })
+              )}
             </div>
-          </Card>
-        </aside>
-      </div>
+          </div>
 
-      <style>{`
-        .cph{display:flex;flex-direction:column;gap:24px}
-        .cph-head-main{display:flex;flex-direction:column;gap:10px}
-        .cph-title{font-family:var(--fd);font-size:26px;font-weight:820;letter-spacing:-.03em;color:var(--t1);line-height:1.15;margin:0}
-        .cph-meta{display:flex;flex-wrap:wrap;gap:8px 18px;font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t2)}
-        .cph-meta-item strong{font-weight:680;color:var(--t1)}
-        .cph-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
-        .cph-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
-        @media(max-width:1200px){.cph-kpis{grid-template-columns:repeat(3,1fr)}}
-        @media(max-width:700px){.cph-kpis{grid-template-columns:repeat(2,1fr)}}
-        .cph-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:flex-start}
-        @media(max-width:1100px){.cph-grid{grid-template-columns:1fr}}
-        .cph-main{display:flex;flex-direction:column;gap:20px;min-width:0}
-        .cph-rail{display:flex;flex-direction:column;gap:20px;min-width:0}
-        .cph-actions{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
-        .cph-action{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:12px;border-radius:var(--r-m);border:1px solid transparent;transition:all var(--df) var(--e)}
-        .cph-action:hover{background:var(--sh);border-color:var(--s3)}
-        .cph-action-urgent{background:var(--dg-s);border-color:rgba(201,59,59,.25)}
-        .cph-action-urgent:hover{background:var(--dg-s)}
-        .cph-action-body{min-width:0;flex:1}
-        .cph-action-body h5{font-family:var(--fd);font-size:13.5px;font-weight:700;color:var(--t1);letter-spacing:-.01em;margin:0 0 3px}
-        .cph-action-body p{font-family:var(--fb);font-size:12.5px;font-weight:540;color:var(--t2);margin:0;line-height:1.45}
-        .cph-action-meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}
-        .cph-action-link{font-family:var(--fd);font-size:12px;font-weight:650;color:var(--ac-t);text-decoration:none}
-        .cph-action-link:hover{text-decoration:underline}
-        .cph-team{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
-        .cph-team-row{display:flex;align-items:center;gap:10px}
-        .cph-avatar{width:32px;height:32px;border-radius:999px;display:grid;place-items:center;font-family:var(--fd);font-size:11px;font-weight:720;color:#fff;flex-shrink:0;letter-spacing:.02em}
-        .cph-team-info{min-width:0;flex:1}
-        .cph-team-name{font-family:var(--fd);font-size:13px;font-weight:680;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .cph-team-role{font-family:var(--fb);font-size:11.5px;font-weight:540;color:var(--t3);margin-top:1px}
-        .cph-ms{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
-        .cph-ms-row{display:flex;align-items:center;gap:12px}
-        .cph-ms-date{width:44px;flex-shrink:0;text-align:center;background:var(--s2);border-radius:var(--r-m);padding:6px 0}
-        .cph-ms-day{font-family:var(--fd);font-size:16px;font-weight:820;color:var(--t1);line-height:1}
-        .cph-ms-month{font-family:var(--fd);font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;margin-top:2px}
-        .cph-ms-info{min-width:0;flex:1}
-        .cph-ms-info h5{font-family:var(--fd);font-size:13px;font-weight:680;color:var(--t1);margin:0}
-        .cph-ms-info p{font-family:var(--fb);font-size:11.5px;font-weight:540;color:var(--t3);margin:2px 0 0}
-        .cph-qa{display:flex;flex-direction:column;gap:2px}
-        .cph-qa-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:var(--r-m);font-family:var(--fd);font-size:13px;font-weight:620;color:var(--t1);text-decoration:none;transition:all var(--df) var(--e)}
-        .cph-qa-row:hover{background:var(--ac-s);color:var(--ac-t)}
-        .cph-qa-arrow{font-weight:700;color:var(--t3)}
-        .cph-qa-row:hover .cph-qa-arrow{color:var(--ac-t)}
-      `}</style>
+          <div className="cph-rc">
+            <div className="cph-rc-head">
+              <h3>Quick access</h3>
+              <div className="sub">Jump into project modules</div>
+            </div>
+            <div className="cph-rc-body">
+              <div className="cph-mod-links">
+                {quickLinks.map((q) => (
+                  <Link key={q.label} href={q.href} className="cph-mod-link">
+                    <span>{q.label}</span>
+                    <div className="r">
+                      {q.count && <span className="c">{q.count}</span>}
+                      <span className="a">→</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        </aside>
+      </section>
     </div>
   );
 }
 
-function buildActionItems(view: ContractorProjectView): Array<{
-  id: string;
-  title: string;
-  description: string;
-  pillLabel: string;
-  pillColor: PillColor;
-  urgent: boolean;
-  href: string;
-}> {
-  const now = Date.now();
-  const basePath = `/contractor/project/${view.project.id}`;
-  const items: Array<{
-    id: string;
-    title: string;
-    description: string;
-    pillLabel: string;
-    pillColor: PillColor;
-    urgent: boolean;
-    href: string;
-  }> = [];
-
-  for (const r of view.rfis.filter((r) => OPEN_RFI_STATUSES.has(r.rfiStatus))) {
-    const overdue = r.dueAt && r.dueAt.getTime() < now;
-    items.push({
-      id: `rfi-${r.id}`,
-      title: `RFI-${r.sequentialNumber} · ${r.subject}`,
-      description: r.body ?? "Awaiting response",
-      pillLabel: overdue ? "Overdue" : formatStatus(r.rfiStatus),
-      pillColor: overdue ? "red" : "amber",
-      urgent: Boolean(overdue),
-      href: `${basePath}/rfis`,
-    });
-  }
-  for (const a of view.approvals.filter((a) =>
-    PENDING_APPROVAL_STATUSES.has(a.approvalStatus),
-  )) {
-    items.push({
-      id: `appr-${a.id}`,
-      title: `Approval #${a.approvalNumber} · ${a.title}`,
-      description: a.decisionNote ?? `${formatStatus(a.category)} decision pending`,
-      pillLabel: "Pending",
-      pillColor: "red",
-      urgent: true,
-      href: `${basePath}/approvals`,
-    });
-  }
-  for (const c of view.changeOrders.filter((c) =>
-    OPEN_CO_STATUSES.has(c.changeOrderStatus),
-  )) {
-    items.push({
-      id: `co-${c.id}`,
-      title: c.title,
-      description: `Change order · ${formatStatus(c.changeOrderStatus)}`,
-      pillLabel: formatStatus(c.changeOrderStatus),
-      pillColor: "purple",
-      urgent: false,
-      href: `${basePath}/change-orders`,
-    });
-  }
-
-  return items.slice(0, 6);
-}
-
-function buildActivityItems(view: ContractorProjectView): ActivityRow[] {
-  const rows: Array<ActivityRow & { ts: number }> = [];
-
-  for (const r of view.rfis.slice(0, 6)) {
-    rows.push({
-      id: `rfi-${r.id}`,
-      type: "rfi",
-      title: `RFI-${r.sequentialNumber} · ${r.subject}`,
-      description: r.body ?? "—",
-      pillLabel: formatStatus(r.rfiStatus),
-      pillColor: "amber",
-      time: relativeTime(r.createdAt),
-      ts: r.createdAt.getTime(),
-    });
-  }
-  for (const c of view.changeOrders.slice(0, 6)) {
-    rows.push({
-      id: `co-${c.id}`,
-      type: "co",
-      title: c.title,
-      description: `Change order · ${formatStatus(c.changeOrderStatus)}`,
-      pillLabel: formatStatus(c.changeOrderStatus),
-      pillColor: "purple",
-      time: "Recent",
-      ts: 0,
-    });
-  }
-  for (const d of view.drawRequests.slice(0, 4)) {
-    rows.push({
-      id: `draw-${d.id}`,
-      type: "billing",
-      title: `Draw #${d.drawNumber}`,
-      description: `${formatStatus(d.drawRequestStatus)} · ${formatCurrency(d.currentPaymentDueCents ?? 0)}`,
-      pillLabel: "Billing",
-      pillColor: "green",
-      time: d.submittedAt ? relativeTime(d.submittedAt) : "Draft",
-      ts: d.submittedAt?.getTime() ?? 0,
-    });
-  }
-  for (const c of view.complianceRecords.slice(0, 4)) {
-    rows.push({
-      id: `cmp-${c.id}`,
-      type: "compliance",
-      title: `${formatStatus(c.complianceType)} · ${c.organizationName ?? "—"}`,
-      description: c.expiresAt
-        ? `Expires ${formatDate(c.expiresAt)}`
-        : formatStatus(c.complianceStatus),
-      pillLabel: formatStatus(c.complianceStatus),
-      pillColor: c.complianceStatus === "active" ? "green" : "amber",
-      time: "—",
-      ts: 0,
-    });
-  }
-
-  rows.sort((a, b) => b.ts - a.ts);
-  return rows.slice(0, 10).map(({ ts: _ts, ...r }) => r);
+function EmptyInlineMessage({ message }: { message: string }) {
+  return (
+    <div
+      style={{
+        fontFamily: "var(--fb)",
+        fontSize: 12.5,
+        fontWeight: 520,
+        color: "var(--t3)",
+        fontStyle: "italic",
+        padding: "8px 2px",
+      }}
+    >
+      {message}
+    </div>
+  );
 }
 
 function formatStatus(s: string): string {
@@ -486,23 +767,6 @@ function formatCurrency(cents: number): string {
   if (dollars >= 1_000_000) return `C$${(dollars / 1_000_000).toFixed(2)}M`;
   if (dollars >= 1_000) return `C$${Math.round(dollars / 1_000)}K`;
   return `C$${Math.round(dollars)}`;
-}
-
-function relativeTime(d: Date): string {
-  const diff = Date.now() - d.getTime();
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 7) return `${days}d ago`;
-  if (days < 30) return `${Math.floor(days / 7)}w ago`;
-  return formatDate(d);
-}
-
-function projectStatusColor(s: string): PillColor {
-  if (s === "active" || s === "in_progress" || s === "construction") return "green";
-  if (s === "on_hold" || s === "draft") return "amber";
-  if (s === "cancelled") return "red";
-  return "gray";
 }
 
 function orgAccent(t: string): string {
