@@ -13,6 +13,7 @@ import { AuthorizationError } from "@/domain/permissions";
 
 const BodySchema = z.object({
   documentId: z.string().uuid(),
+  responseNote: z.string().max(2000).optional(),
 });
 
 export async function POST(
@@ -89,6 +90,7 @@ export async function POST(
           submittedDocumentId: doc.id,
           submittedAt: new Date(),
           submittedByUserId: ctx.user.id,
+          responseNote: parsed.data.responseNote?.trim() || null,
         })
         .where(eq(uploadRequests.id, request.id));
 

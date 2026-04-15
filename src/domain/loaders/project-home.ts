@@ -158,6 +158,135 @@ export type LienWaiverRow = {
   acceptedAt: Date | null;
 };
 
+export type UploadRequestFile = {
+  id: string;
+  title: string;
+  documentType: string;
+  uploaderName: string | null;
+  uploadedAt: Date;
+};
+
+export type UploadRequestActivityEvent = {
+  id: string;
+  title: string;
+  body: string | null;
+  activityType: string;
+  actorName: string | null;
+  createdAt: Date;
+};
+
+export type UploadRequestRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  requestStatus: string;
+  requestedFromOrganizationId: string | null;
+  requestedFromOrganizationName: string | null;
+  expectedFileType: string | null;
+  dueAt: Date | null;
+  submittedAt: Date | null;
+  completedAt: Date | null;
+  revisionNote: string | null;
+  responseNote: string | null;
+  createdAt: Date;
+  submittedDocumentId: string | null;
+  submittedDocumentTitle: string | null;
+  submittedFile: UploadRequestFile | null;
+  activityTrail: UploadRequestActivityEvent[];
+};
+
+async function loadUploadRequestEnrichment(
+  rawRows: Array<{
+    id: string;
+    submittedDocumentId: string | null;
+    submittedDocumentTitle: string | null;
+    submittedDocumentType: string | null;
+    submittedByUserId: string | null;
+    submittedAt: Date | null;
+  }>,
+): Promise<{
+  filesById: Map<string, UploadRequestFile>;
+  activityById: Map<string, UploadRequestActivityEvent[]>;
+}> {
+  const filesById = new Map<string, UploadRequestFile>();
+  const activityById = new Map<string, UploadRequestActivityEvent[]>();
+  if (rawRows.length === 0) return { filesById, activityById };
+
+  const requestIds = rawRows.map((r) => r.id);
+  const uploaderIds = Array.from(
+    new Set(
+      rawRows
+        .map((r) => r.submittedByUserId)
+        .filter((v): v is string => v != null),
+    ),
+  );
+
+  const [uploaderRows, activityRows] = await Promise.all([
+    uploaderIds.length > 0
+      ? db
+          .select({ id: users.id, displayName: users.displayName })
+          .from(users)
+          .where(inArray(users.id, uploaderIds))
+      : Promise.resolve([] as Array<{ id: string; displayName: string | null }>),
+    db
+      .select({
+        id: activityFeedItems.id,
+        relatedObjectId: activityFeedItems.relatedObjectId,
+        title: activityFeedItems.title,
+        body: activityFeedItems.body,
+        activityType: activityFeedItems.activityType,
+        createdAt: activityFeedItems.createdAt,
+        actorName: users.displayName,
+      })
+      .from(activityFeedItems)
+      .leftJoin(users, eq(users.id, activityFeedItems.actorUserId))
+      .where(
+        and(
+          eq(activityFeedItems.relatedObjectType, "upload_request"),
+          inArray(activityFeedItems.relatedObjectId, requestIds),
+        ),
+      )
+      .orderBy(desc(activityFeedItems.createdAt)),
+  ]);
+
+  const uploaderNameById = new Map<string, string | null>();
+  for (const u of uploaderRows) uploaderNameById.set(u.id, u.displayName);
+
+  for (const r of rawRows) {
+    if (
+      r.submittedDocumentId &&
+      r.submittedDocumentTitle != null &&
+      r.submittedDocumentType != null
+    ) {
+      filesById.set(r.id, {
+        id: r.submittedDocumentId,
+        title: r.submittedDocumentTitle,
+        documentType: r.submittedDocumentType,
+        uploaderName: r.submittedByUserId
+          ? (uploaderNameById.get(r.submittedByUserId) ?? null)
+          : null,
+        uploadedAt: r.submittedAt ?? new Date(),
+      });
+    }
+  }
+
+  for (const a of activityRows) {
+    if (!a.relatedObjectId) continue;
+    const arr = activityById.get(a.relatedObjectId) ?? [];
+    arr.push({
+      id: a.id,
+      title: a.title,
+      body: a.body,
+      activityType: a.activityType,
+      actorName: a.actorName,
+      createdAt: a.createdAt,
+    });
+    activityById.set(a.relatedObjectId, arr);
+  }
+
+  return { filesById, activityById };
+}
+
 export type RetainageReleaseRow = {
   id: string;
   sovLineItemId: string | null;
@@ -749,22 +878,7 @@ export type ContractorProjectView = {
     lienWaivers: LienWaiverRow[];
   }>;
   retainageReleases: RetainageReleaseRow[];
-  uploadRequests: Array<{
-    id: string;
-    title: string;
-    description: string | null;
-    requestStatus: string;
-    requestedFromOrganizationId: string | null;
-    requestedFromOrganizationName: string | null;
-    expectedFileType: string | null;
-    dueAt: Date | null;
-    submittedAt: Date | null;
-    completedAt: Date | null;
-    revisionNote: string | null;
-    createdAt: Date;
-    submittedDocumentId: string | null;
-    submittedDocumentTitle: string | null;
-  }>;
+  uploadRequests: UploadRequestRow[];
   approvals: Array<{
     id: string;
     approvalNumber: number;
@@ -932,11 +1046,14 @@ export async function getContractorProjectView(
         expectedFileType: uploadRequests.expectedFileType,
         dueAt: uploadRequests.dueAt,
         submittedAt: uploadRequests.submittedAt,
+        submittedByUserId: uploadRequests.submittedByUserId,
         completedAt: uploadRequests.completedAt,
         revisionNote: uploadRequests.revisionNote,
+        responseNote: uploadRequests.responseNote,
         createdAt: uploadRequests.createdAt,
         submittedDocumentId: uploadRequests.submittedDocumentId,
         submittedDocumentTitle: documents.title,
+        submittedDocumentType: documents.documentType,
       })
       .from(uploadRequests)
       .leftJoin(
@@ -1217,6 +1334,29 @@ export async function getContractorProjectView(
         .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber))
     : [];
 
+  const contractorUrEnrich = await loadUploadRequestEnrichment(uploadRequestRows);
+  const contractorUploadRequestRows: UploadRequestRow[] = uploadRequestRows.map(
+    (r) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description,
+      requestStatus: r.requestStatus,
+      requestedFromOrganizationId: r.requestedFromOrganizationId,
+      requestedFromOrganizationName: r.requestedFromOrganizationName,
+      expectedFileType: r.expectedFileType,
+      dueAt: r.dueAt,
+      submittedAt: r.submittedAt,
+      completedAt: r.completedAt,
+      revisionNote: r.revisionNote,
+      responseNote: r.responseNote,
+      createdAt: r.createdAt,
+      submittedDocumentId: r.submittedDocumentId,
+      submittedDocumentTitle: r.submittedDocumentTitle,
+      submittedFile: contractorUrEnrich.filesById.get(r.id) ?? null,
+      activityTrail: contractorUrEnrich.activityById.get(r.id) ?? [],
+    }),
+  );
+
   return {
     context,
     project: context.project,
@@ -1226,7 +1366,7 @@ export async function getContractorProjectView(
     changeOrders: coRows,
     drawRequests: drawRequestsView,
     retainageReleases: retainageReleasesView,
-    uploadRequests: uploadRequestRows,
+    uploadRequests: contractorUploadRequestRows,
     approvals: approvalRows,
     complianceRecords: complianceRows,
     scheduleOfValues: sovRow
@@ -1305,20 +1445,7 @@ export type SubcontractorProjectView = {
     dueAt: Date | null;
     revisionNote: string | null;
   }>;
-  allUploadRequests: Array<{
-    id: string;
-    title: string;
-    description: string | null;
-    requestStatus: string;
-    expectedFileType: string | null;
-    dueAt: Date | null;
-    submittedAt: Date | null;
-    completedAt: Date | null;
-    revisionNote: string | null;
-    createdAt: Date;
-    submittedDocumentId: string | null;
-    submittedDocumentTitle: string | null;
-  }>;
+  allUploadRequests: UploadRequestRow[];
   complianceRecords: Array<{
     id: string;
     complianceType: string;
@@ -1401,14 +1528,18 @@ export async function getSubcontractorProjectView(
         title: uploadRequests.title,
         description: uploadRequests.description,
         requestStatus: uploadRequests.requestStatus,
+        requestedFromOrganizationId: uploadRequests.requestedFromOrganizationId,
         expectedFileType: uploadRequests.expectedFileType,
         dueAt: uploadRequests.dueAt,
         submittedAt: uploadRequests.submittedAt,
+        submittedByUserId: uploadRequests.submittedByUserId,
         completedAt: uploadRequests.completedAt,
         revisionNote: uploadRequests.revisionNote,
+        responseNote: uploadRequests.responseNote,
         createdAt: uploadRequests.createdAt,
         submittedDocumentId: uploadRequests.submittedDocumentId,
         submittedDocumentTitle: documents.title,
+        submittedDocumentType: documents.documentType,
       })
       .from(uploadRequests)
       .leftJoin(documents, eq(documents.id, uploadRequests.submittedDocumentId))
@@ -1437,6 +1568,27 @@ export async function getSubcontractorProjectView(
       .orderBy(desc(complianceRecords.createdAt)),
   ]);
 
+  const subUrEnrich = await loadUploadRequestEnrichment(allUploadRows);
+  const allUploadRequestsView: UploadRequestRow[] = allUploadRows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    description: r.description,
+    requestStatus: r.requestStatus,
+    requestedFromOrganizationId: r.requestedFromOrganizationId,
+    requestedFromOrganizationName: null,
+    expectedFileType: r.expectedFileType,
+    dueAt: r.dueAt,
+    submittedAt: r.submittedAt,
+    completedAt: r.completedAt,
+    revisionNote: r.revisionNote,
+    responseNote: r.responseNote,
+    createdAt: r.createdAt,
+    submittedDocumentId: r.submittedDocumentId,
+    submittedDocumentTitle: r.submittedDocumentTitle,
+    submittedFile: subUrEnrich.filesById.get(r.id) ?? null,
+    activityTrail: subUrEnrich.activityById.get(r.id) ?? [],
+  }));
+
   return {
     context,
     project: context.project,
@@ -1448,7 +1600,7 @@ export async function getSubcontractorProjectView(
     assignedChangeOrders: coRows,
     myMilestones: milestoneRows,
     pendingUploadRequests: pendingRows,
-    allUploadRequests: allUploadRows,
+    allUploadRequests: allUploadRequestsView,
     complianceRecords: complianceRows,
     conversations: await loadConversationsForUser(projectId, context.user.id),
     documents: await loadDocumentsForProject(projectId, "subcontractor"),

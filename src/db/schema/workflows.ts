@@ -103,6 +103,7 @@ export const uploadRequests = pgTable(
     }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     revisionNote: text("revision_note"),
+    responseNote: text("response_note"),
     createdByUserId: uuid("created_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),

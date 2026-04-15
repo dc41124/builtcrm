@@ -61,6 +61,30 @@ function overdueDays(r: UploadRequestRow, now: number): number {
   return Math.max(1, Math.floor((now - r.dueAt.getTime()) / 86400000));
 }
 
+function relativeTime(d: Date, now: number): string {
+  const diff = Math.max(0, now - d.getTime());
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d`;
+  return formatDate(d);
+}
+
+function dotClassFor(activityType: string): string {
+  if (activityType.includes("upload") || activityType.includes("submit"))
+    return "steel";
+  if (activityType.includes("accept") || activityType.includes("complete"))
+    return "green";
+  if (activityType.includes("revis") || activityType.includes("overdue"))
+    return "orange";
+  if (activityType.includes("cancel") || activityType.includes("reject"))
+    return "red";
+  return "purple";
+}
+
 export function ContractorUploadRequestsWorkspace({
   projectId,
   requests,
@@ -507,30 +531,38 @@ function ContractorDetail({
                   ? "Submitted File"
                   : "Submission Status"}
             </h3>
-            {request.submittedDocumentId ? (
+            {request.submittedFile ? (
               <Pill color={isSubmitted ? "blue" : "green"}>1 file</Pill>
             ) : (
               <Pill color="purple">Awaiting</Pill>
             )}
           </div>
           <div className="urd-rbody">
-            {request.submittedDocumentId ? (
-              <div className="urd-fr">
-                <div className="urd-fr-info">
-                  <div className="urd-fr-name">
-                    {request.submittedDocumentTitle ?? "File"}
+            {request.submittedFile ? (
+              <>
+                <div className="urd-fr">
+                  <div className="urd-fr-info">
+                    <div className="urd-fr-name">
+                      {request.submittedFile.title}
+                    </div>
+                    <div className="urd-fr-time">
+                      {request.submittedFile.uploaderName
+                        ? `Uploaded by ${request.submittedFile.uploaderName} · `
+                        : "Received "}
+                      {formatDate(request.submittedFile.uploadedAt)}
+                    </div>
                   </div>
-                  <div className="urd-fr-time">
-                    Received{" "}
-                    {request.submittedAt
-                      ? formatDate(request.submittedAt)
-                      : formatDate(request.createdAt)}
-                  </div>
+                  <span className="urd-fr-chip">
+                    {request.submittedFile.documentType.toUpperCase()}
+                  </span>
                 </div>
-                <span className="urd-fr-chip">
-                  {request.expectedFileType ?? "FILE"}
-                </span>
-              </div>
+                {request.responseNote && (
+                  <div className="urd-rnote">
+                    <div className="urd-rnote-lbl">Response Note</div>
+                    <p>{request.responseNote}</p>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="urd-awaiting">
                 <p>
@@ -551,30 +583,68 @@ function ContractorDetail({
             <h3>Activity</h3>
           </div>
           <div className="urd-rbody">
-            <p className="urd-rp">
-              Activity feed will populate as the request moves through
-              assignment, submission, and review.
-            </p>
+            {request.activityTrail.length === 0 ? (
+              <p className="urd-rp">
+                Activity feed will populate as the request moves through
+                assignment, submission, and review.
+              </p>
+            ) : (
+              <div className="urd-al">
+                {request.activityTrail.map((a) => (
+                  <div key={a.id} className="urd-ai">
+                    <div
+                      className={`urd-adot ${dotClassFor(a.activityType)}`}
+                    />
+                    <div className="urd-atxt">
+                      {a.actorName && <strong>{a.actorName} </strong>}
+                      {a.title}
+                    </div>
+                    <div className="urd-atime">
+                      {relativeTime(a.createdAt, now)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {isOpen && (
-          <div className="urd-cd">
-            <div className="urd-rhdr">
-              <h3>Request Details</h3>
-            </div>
-            <div className="urd-rbody">
-              <p className="urd-rp">
-                This request was sent to{" "}
-                <strong>
-                  {request.requestedFromOrganizationName ?? "the subcontractor"}
-                </strong>
-                . If no response is received by the due date, consider sending
-                a reminder or reassigning.
-              </p>
-            </div>
+        <div className="urd-cd">
+          <div className="urd-rhdr">
+            <h3>Request Details</h3>
           </div>
-        )}
+          <div className="urd-rbody">
+            <p className="urd-rp">
+              {isOpen ? (
+                <>
+                  This request was sent to{" "}
+                  <strong>
+                    {request.requestedFromOrganizationName ??
+                      "the subcontractor"}
+                  </strong>
+                  . If no response is received by the due date, consider
+                  sending a reminder or reassigning.
+                </>
+              ) : isSubmitted ? (
+                <>
+                  <strong>
+                    {request.requestedFromOrganizationName ?? "The assignee"}
+                  </strong>{" "}
+                  submitted a file for review. Accept & close to finalize, or
+                  request a revision with a note.
+                </>
+              ) : (
+                <>
+                  This request is closed.{" "}
+                  <strong>
+                    {request.requestedFromOrganizationName ?? "The assignee"}
+                  </strong>{" "}
+                  delivered the file and the GC accepted it.
+                </>
+              )}
+            </p>
+          </div>
+        </div>
       </div>
 
       <style>{`
@@ -633,6 +703,23 @@ function ContractorDetail({
         .urd-btn.dng-o:hover:not(:disabled){background:var(--dg-s)}
 
         .urd-err{font-family:var(--fb);font-size:12px;color:var(--dg-t);margin:8px 0 0}
+
+        .urd-rnote{margin-top:12px;padding:12px 14px;background:var(--s2);border:1px solid var(--s3);border-radius:var(--r-m)}
+        .urd-rnote-lbl{font-family:var(--fd);font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+        .urd-rnote p{font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t2);margin:0;line-height:1.55}
+
+        .urd-al{display:flex;flex-direction:column}
+        .urd-ai{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--s2)}
+        .urd-ai:last-child{border-bottom:none}
+        .urd-adot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;background:var(--s4)}
+        .urd-adot.steel{background:#3d6b8e}
+        .urd-adot.green{background:var(--ok)}
+        .urd-adot.orange{background:var(--wr)}
+        .urd-adot.red{background:var(--dg)}
+        .urd-adot.purple{background:var(--ac)}
+        .urd-atxt{flex:1;font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);line-height:1.45}
+        .urd-atxt strong{color:var(--t1);font-weight:650}
+        .urd-atime{font-family:var(--fb);font-size:11px;font-weight:540;color:var(--t3);white-space:nowrap;flex-shrink:0;padding-top:1px}
       `}</style>
     </>
   );

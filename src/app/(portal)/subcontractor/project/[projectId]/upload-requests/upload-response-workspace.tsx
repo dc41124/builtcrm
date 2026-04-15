@@ -58,6 +58,30 @@ function overdueDays(r: UploadRequestRow, now: number): number {
   return Math.max(1, Math.floor((now - r.dueAt.getTime()) / 86400000));
 }
 
+function relativeTime(d: Date, now: number): string {
+  const diff = Math.max(0, now - d.getTime());
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d`;
+  return formatDate(d);
+}
+
+function dotClassFor(activityType: string): string {
+  if (activityType.includes("upload") || activityType.includes("submit"))
+    return "steel";
+  if (activityType.includes("accept") || activityType.includes("complete"))
+    return "green";
+  if (activityType.includes("revis") || activityType.includes("overdue"))
+    return "orange";
+  if (activityType.includes("cancel") || activityType.includes("reject"))
+    return "red";
+  return "purple";
+}
+
 export function SubUploadResponseWorkspace({
   projectId,
   requests,
@@ -392,7 +416,10 @@ function SubDetail({
       const submitRes = await fetch(`/api/upload-requests/${request.id}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ documentId }),
+        body: JSON.stringify({
+          documentId,
+          responseNote: responseNote.trim() || undefined,
+        }),
       });
       if (!submitRes.ok) throw new Error("submit_failed");
       router.refresh();
@@ -437,6 +464,16 @@ function SubDetail({
               </div>
             </div>
             <div className="usd-hdr-acts">
+              {canUpload && (
+                <button
+                  type="button"
+                  className="usd-btn pri"
+                  disabled={pending}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {pending ? "Uploading…" : "Upload Files"}
+                </button>
+              )}
               {isSubmitted && (
                 <span className="usd-wait">Waiting on GC review</span>
               )}
@@ -561,27 +598,33 @@ function SubDetail({
             <div className="usd-rhdr">
               <h3>Submitted Files</h3>
               <Pill color={isSubmitted ? "blue" : "green"}>
-                {request.submittedDocumentId ? "1 file" : "No file"}
+                {request.submittedFile ? "1 file" : "No file"}
               </Pill>
             </div>
             <div className="usd-rbody">
-              {request.submittedDocumentId ? (
-                <div className="usd-fr">
-                  <div className="usd-fr-info">
-                    <div className="usd-fr-name">
-                      {request.submittedDocumentTitle ?? "File"}
+              {request.submittedFile ? (
+                <>
+                  <div className="usd-fr">
+                    <div className="usd-fr-info">
+                      <div className="usd-fr-name">
+                        {request.submittedFile.title}
+                      </div>
+                      <div className="usd-fr-time">
+                        Uploaded{" "}
+                        {formatDate(request.submittedFile.uploadedAt)}
+                      </div>
                     </div>
-                    <div className="usd-fr-time">
-                      Uploaded{" "}
-                      {request.submittedAt
-                        ? formatDate(request.submittedAt)
-                        : formatDate(request.createdAt)}
-                    </div>
+                    <span className="usd-fr-chip">
+                      {request.submittedFile.documentType.toUpperCase()}
+                    </span>
                   </div>
-                  <span className="usd-fr-chip">
-                    {request.expectedFileType ?? "FILE"}
-                  </span>
-                </div>
+                  {request.responseNote && (
+                    <div className="usd-rnote">
+                      <div className="usd-rnote-lbl">Response Note</div>
+                      <p>{request.responseNote}</p>
+                    </div>
+                  )}
+                </>
               ) : (
                 <p className="usd-rp">No file on record.</p>
               )}
@@ -596,40 +639,57 @@ function SubDetail({
             <h3>Activity</h3>
           </div>
           <div className="usd-rbody">
-            <p className="usd-rp">
-              Activity feed will populate as you upload, submit, and receive GC
-              responses.
-            </p>
+            {request.activityTrail.length === 0 ? (
+              <p className="usd-rp">
+                Activity feed will populate as you upload, submit, and receive
+                GC responses.
+              </p>
+            ) : (
+              <div className="usd-al">
+                {request.activityTrail.map((a) => (
+                  <div key={a.id} className="usd-ai">
+                    <div
+                      className={`usd-adot ${dotClassFor(a.activityType)}`}
+                    />
+                    <div className="usd-atxt">
+                      {a.actorName && <strong>{a.actorName} </strong>}
+                      {a.title}
+                    </div>
+                    <div className="usd-atime">
+                      {relativeTime(a.createdAt, now)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {canUpload && (
-          <div className="usd-cd">
-            <div className="usd-rhdr">
-              <h3>What the GC Needs</h3>
-            </div>
-            <div className="usd-rbody">
-              <p className="usd-rp">
-                {request.description ??
-                  "No additional context provided by the GC."}
-              </p>
-              <div className="usd-ctx">
-                {request.expectedFileType && (
-                  <div className="usd-ctx-row">
-                    <span className="usd-mpl">{request.expectedFileType}</span>
-                    <span>Accepted format</span>
-                  </div>
-                )}
-                {request.dueAt && (
-                  <div className="usd-ctx-row">
-                    <span className="usd-mpl">{formatDate(request.dueAt)}</span>
-                    <span>Due date</span>
-                  </div>
-                )}
-              </div>
+        <div className="usd-cd">
+          <div className="usd-rhdr">
+            <h3>What the GC Needs</h3>
+          </div>
+          <div className="usd-rbody">
+            <p className="usd-rp">
+              {request.description ??
+                "No additional context provided by the GC."}
+            </p>
+            <div className="usd-ctx">
+              {request.expectedFileType && (
+                <div className="usd-ctx-row">
+                  <span className="usd-mpl">{request.expectedFileType}</span>
+                  <span>Accepted format</span>
+                </div>
+              )}
+              {request.dueAt && (
+                <div className="usd-ctx-row">
+                  <span className="usd-mpl">{formatDate(request.dueAt)}</span>
+                  <span>Due date</span>
+                </div>
+              )}
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       <style>{`
@@ -694,6 +754,23 @@ function SubDetail({
         .usd-mpl{height:20px;padding:0 8px;border-radius:999px;border:1px solid var(--s3);background:var(--s1);color:var(--t3);font-family:var(--fd);font-size:10px;font-weight:700;display:inline-flex;align-items:center;white-space:nowrap}
 
         .usd-err{font-family:var(--fb);font-size:12px;color:var(--dg-t);margin:8px 0 0}
+
+        .usd-rnote{margin-top:12px;padding:12px 14px;background:var(--s2);border:1px solid var(--s3);border-radius:var(--r-m)}
+        .usd-rnote-lbl{font-family:var(--fd);font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+        .usd-rnote p{font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t2);margin:0;line-height:1.55}
+
+        .usd-al{display:flex;flex-direction:column}
+        .usd-ai{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--s2)}
+        .usd-ai:last-child{border-bottom:none}
+        .usd-adot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;background:var(--s4)}
+        .usd-adot.steel{background:#3d6b8e}
+        .usd-adot.green{background:var(--ok)}
+        .usd-adot.orange{background:var(--wr)}
+        .usd-adot.red{background:var(--dg)}
+        .usd-adot.purple{background:var(--ac)}
+        .usd-atxt{flex:1;font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);line-height:1.45}
+        .usd-atxt strong{color:var(--t1);font-weight:650}
+        .usd-atime{font-family:var(--fb);font-size:11px;font-weight:540;color:var(--t3);white-space:nowrap;flex-shrink:0;padding-top:1px}
       `}</style>
     </>
   );
