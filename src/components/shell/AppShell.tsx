@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { signOut } from "@/auth/client";
 import "./app-shell.css";
 
@@ -40,9 +41,94 @@ export type AppShellProps = {
   userRole: string;
   navSections: NavSection[];
   projects: ShellProject[];
-  breadcrumbs: Breadcrumb[];
+  /** Optional override. When omitted, breadcrumbs derive from the pathname. */
+  breadcrumbs?: Breadcrumb[];
   children: ReactNode;
 };
+
+// Known route slug → breadcrumb label. Anything not listed falls back to
+// title-casing the slug.
+const SEGMENT_LABELS: Record<string, string> = {
+  dashboard: "Dashboard",
+  approvals: "Approvals",
+  messages: "Messages",
+  rfis: "RFIs",
+  "change-orders": "Change Orders",
+  billing: "Billing & Draws",
+  compliance: "Compliance",
+  "upload-requests": "Upload Requests",
+  documents: "Documents",
+  budget: "Budget",
+  "payment-tracking": "Payment Tracking",
+  retainage: "Retainage",
+  schedule: "Schedule",
+  selections: "Selections",
+  payments: "Payments",
+  today: "Today Board",
+  organization: "Organization",
+  team: "Team & Roles",
+  integrations: "Integrations",
+  progress: "Progress & Updates",
+  photos: "Photos",
+  contracts: "Contracts",
+  "scope-changes": "Scope Changes",
+  "confirmed-choices": "Confirmed Choices",
+  settings: "Settings",
+};
+
+function titleCase(slug: string): string {
+  return slug
+    .split("-")
+    .map((p) => p[0]?.toUpperCase() + p.slice(1))
+    .join(" ");
+}
+
+function portalRoot(portalType: PortalType, projects: ShellProject[]): { label: string; href: string } {
+  switch (portalType) {
+    case "contractor":
+      return { label: "Contractor", href: "/contractor/dashboard" };
+    case "subcontractor":
+      return { label: "Subcontractor", href: "/subcontractor/today" };
+    case "commercial":
+      return { label: "Commercial", href: projects[0]?.href ?? "/commercial" };
+    case "residential":
+      return { label: "My project", href: projects[0]?.href ?? "/residential" };
+  }
+}
+
+function deriveBreadcrumbs(
+  pathname: string | null,
+  portalType: PortalType,
+  projects: ShellProject[],
+): Breadcrumb[] {
+  const root = portalRoot(portalType, projects);
+  if (!pathname) return [root];
+  const segs = pathname.split("/").filter(Boolean);
+  const crumbs: Breadcrumb[] = [root];
+  // segs[0] is the portal (contractor / subcontractor / commercial / residential)
+  if (segs.length < 2) return crumbs;
+
+  // Project-scoped: /{portal}/project/{id}[/{subsection}]
+  if (segs[1] === "project" && segs[2]) {
+    const projectHref = `/${segs[0]}/project/${segs[2]}`;
+    const project = projects.find((p) => p.href === projectHref);
+    crumbs.push({
+      label: project?.name ?? "Project",
+      href: segs.length > 3 ? projectHref : undefined,
+    });
+    if (segs.length === 3) {
+      crumbs.push({ label: "Project Home" });
+    } else if (segs[3]) {
+      crumbs.push({ label: SEGMENT_LABELS[segs[3]] ?? titleCase(segs[3]) });
+    }
+    return crumbs;
+  }
+
+  // Non-project page: /{portal}/{slug}[/{sub}]
+  const last = segs[segs.length - 1];
+  crumbs.push({ label: SEGMENT_LABELS[last] ?? titleCase(last) });
+  return crumbs;
+}
 
 // Portal accent palette — exact hex from CLAUDE.md
 const ACCENTS: Record<PortalType, { base: string; light: string; hover: string; tint: string; tintText: string }> = {
@@ -172,6 +258,11 @@ export default function AppShell({
   const toggle = (key: string) => setExpanded((p) => ({ ...p, [key]: !p[key] }));
   const initials = userName.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
   const projectsOpen = !!expanded[PROJECTS_KEY];
+  const pathname = usePathname();
+  const resolvedCrumbs =
+    breadcrumbs && breadcrumbs.length > 0
+      ? breadcrumbs
+      : deriveBreadcrumbs(pathname, portalType, projects);
 
   const renderSections = (placement: "before-projects" | "after-projects") =>
     navSections
@@ -329,11 +420,11 @@ export default function AppShell({
               {mobileOpen ? CloseIcon : MenuIcon}
             </button>
             <div className="b-bc">
-              {breadcrumbs.map((bc, i) => {
-                const isLast = i === breadcrumbs.length - 1;
+              {resolvedCrumbs.map((bc, i) => {
+                const isLast = i === resolvedCrumbs.length - 1;
                 return (
                   <span key={`${bc.label}-${i}`} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {i > 0 && <span className="b-bc-sep">/</span>}
+                    {i > 0 && <span className="b-bc-sep">›</span>}
                     {isLast || !bc.href ? (
                       <span className={isLast ? "b-bc-cur" : undefined}>{bc.label}</span>
                     ) : (

@@ -16,7 +16,6 @@ export default async function SubcontractorLayout({ children }: { children: Reac
       userRole={shell.userRole}
       navSections={navSections}
       projects={shell.projects}
-      breadcrumbs={[{ label: "Subcontractor", href: "/subcontractor/today" }]}
     >
       {children}
     </AppShell>

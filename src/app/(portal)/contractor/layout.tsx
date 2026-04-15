@@ -16,7 +16,6 @@ export default async function ContractorLayout({ children }: { children: ReactNo
       userRole={shell.userRole}
       navSections={navSections}
       projects={shell.projects}
-      breadcrumbs={[{ label: "Contractor", href: "/contractor/dashboard" }]}
     >
       {children}
     </AppShell>

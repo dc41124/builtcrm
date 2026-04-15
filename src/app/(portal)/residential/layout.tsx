@@ -16,7 +16,6 @@ export default async function ResidentialLayout({ children }: { children: ReactN
       userRole={shell.userRole}
       navSections={navSections}
       projects={shell.projects}
-      breadcrumbs={[{ label: "My Project", href: shell.projects[0]?.href ?? "#" }]}
     >
       {children}
     </AppShell>

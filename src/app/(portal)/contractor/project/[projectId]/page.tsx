@@ -196,8 +196,14 @@ export default async function ContractorProjectHomePage({
     },
     {
       label: "Unread messages",
-      value: `${view.conversations.length} threads`,
-      meta: "All project channels",
+      value:
+        view.unreadConversationCount === 0
+          ? "All caught up"
+          : `${view.unreadConversationCount} unread`,
+      meta:
+        view.unreadConversationCount === 0
+          ? `${view.conversations.length} total threads`
+          : `of ${view.conversations.length} project threads`,
     },
   ];
 
@@ -578,7 +584,24 @@ export default async function ContractorProjectHomePage({
                 <div className="cph-blk">
                   <h4>Recent project movement</h4>
                   <div className="cph-lst">
-                    <EmptyInlineMessage message="Activity feed will populate as events land." />
+                    {view.activity.length === 0 ? (
+                      <EmptyInlineMessage message="Activity feed will populate as events land." />
+                    ) : (
+                      view.activity.slice(0, 4).map((a) => (
+                        <div key={a.id} className="cph-lr">
+                          <div className="cph-lr-main">
+                            <h5>{a.title}</h5>
+                            <p>{a.body ?? formatStatus(a.activityType)}</p>
+                          </div>
+                          <div className="cph-lr-side">
+                            <span className="cph-tm">
+                              {a.actorName ? `${a.actorName} · ` : ""}
+                              {relativeTime(a.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -780,4 +803,17 @@ function orgAccent(t: string): string {
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).slice(0, 2);
   return parts.map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
+}
+
+function relativeTime(d: Date): string {
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }

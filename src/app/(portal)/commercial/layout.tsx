@@ -16,7 +16,6 @@ export default async function CommercialLayout({ children }: { children: ReactNo
       userRole={shell.userRole}
       navSections={navSections}
       projects={shell.projects}
-      breadcrumbs={[{ label: "Commercial", href: shell.projects[0]?.href ?? "#" }]}
     >
       {children}
     </AppShell>

@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
+  activityFeedItems,
   approvals,
   changeOrders,
   complianceRecords,
@@ -824,6 +825,15 @@ export type ContractorProjectView = {
     organizationName: string | null;
     organizationType: string;
   }>;
+  activity: Array<{
+    id: string;
+    title: string;
+    body: string | null;
+    activityType: string;
+    actorName: string | null;
+    createdAt: Date;
+  }>;
+  unreadConversationCount: number;
 };
 
 export async function getContractorProjectView(
@@ -1109,6 +1119,45 @@ export async function getContractorProjectView(
   const conversationList = await loadConversationsForUser(projectId, context.user.id);
   const documentList = await loadDocumentsForProject(projectId, "contractor");
 
+  // Recent project movement — activity feed for this project
+  const activityRows = await db
+    .select({
+      id: activityFeedItems.id,
+      title: activityFeedItems.title,
+      body: activityFeedItems.body,
+      activityType: activityFeedItems.activityType,
+      createdAt: activityFeedItems.createdAt,
+      actorName: users.displayName,
+    })
+    .from(activityFeedItems)
+    .leftJoin(users, eq(users.id, activityFeedItems.actorUserId))
+    .where(eq(activityFeedItems.projectId, projectId))
+    .orderBy(desc(activityFeedItems.createdAt))
+    .limit(6);
+
+  // Unread conversations: threads where lastMessageAt > this user's lastReadAt
+  // (or user has never read). Counted, not returned — Hero snapshot only needs the number.
+  const unreadRows = await db
+    .select({
+      conversationId: conversations.id,
+      lastMessageAt: conversations.lastMessageAt,
+      lastReadAt: conversationParticipants.lastReadAt,
+    })
+    .from(conversations)
+    .leftJoin(
+      conversationParticipants,
+      and(
+        eq(conversationParticipants.conversationId, conversations.id),
+        eq(conversationParticipants.userId, context.user.id),
+      ),
+    )
+    .where(eq(conversations.projectId, projectId));
+  const unreadConversationCount = unreadRows.filter(
+    (r) =>
+      r.lastMessageAt &&
+      (!r.lastReadAt || r.lastReadAt.getTime() < r.lastMessageAt.getTime()),
+  ).length;
+
   const [projectRow] = await db
     .select({
       projectType: projects.projectType,
@@ -1213,6 +1262,15 @@ export async function getContractorProjectView(
       organizationName: t.organizationName,
       organizationType: t.organizationType,
     })),
+    activity: activityRows.map((a) => ({
+      id: a.id,
+      title: a.title,
+      body: a.body,
+      activityType: a.activityType,
+      actorName: a.actorName,
+      createdAt: a.createdAt,
+    })),
+    unreadConversationCount,
   };
 }
 
