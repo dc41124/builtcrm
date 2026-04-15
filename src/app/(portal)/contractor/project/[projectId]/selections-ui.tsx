@@ -87,7 +87,7 @@ function CategoryBlock({
 }) {
   return (
     <section
-      style={{ border: "1px solid #999", padding: 8, marginBottom: 8 }}
+      style={{ border: "1px solid var(--s4)", padding: 8, marginBottom: 8 }}
     >
       <h3 style={{ margin: "0 0 6px 0" }}>{category.name}</h3>
       <CreateItemForm projectId={projectId} categoryId={category.id} />
@@ -172,7 +172,7 @@ function ItemBlock({ item }: { item: SelectionItemRow }) {
   return (
     <div
       style={{
-        border: "1px solid #ccc",
+        border: "1px solid var(--s3)",
         padding: 6,
         marginTop: 6,
         display: "grid",

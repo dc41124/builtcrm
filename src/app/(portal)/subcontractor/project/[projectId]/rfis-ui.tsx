@@ -12,7 +12,7 @@ export function SubRfisList({ rfis }: { rfis: RfiRow[] }) {
       {rfis.map((r) => (
         <li
           key={r.id}
-          style={{ border: "1px solid #ddd", padding: 12, borderRadius: 6 }}
+          style={{ border: "1px solid var(--s3)", padding: 12, borderRadius: 6 }}
         >
           <strong>
             RFI-{String(r.sequentialNumber).padStart(3, "0")} · {r.subject}
@@ -23,7 +23,7 @@ export function SubRfisList({ rfis }: { rfis: RfiRow[] }) {
           )}
           {r.body && <p style={{ margin: "6px 0" }}>{r.body}</p>}
           {(r.drawingReference || r.specificationReference || r.locationDescription) && (
-            <p style={{ margin: "6px 0", color: "#555", fontSize: 13 }}>
+            <p style={{ margin: "6px 0", color: "var(--t2)", fontSize: 13 }}>
               {r.drawingReference && <>Drawing: {r.drawingReference} · </>}
               {r.specificationReference && <>Spec: {r.specificationReference} · </>}
               {r.locationDescription && <>Location: {r.locationDescription}</>}

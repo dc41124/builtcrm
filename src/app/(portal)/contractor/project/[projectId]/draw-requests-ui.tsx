@@ -239,7 +239,7 @@ function DrawCard({ draw, projectId }: { draw: DrawRequest; projectId: string })
   }
 
   return (
-    <section style={{ border: "1px solid #ccc", padding: 12, marginTop: 12 }}>
+    <section style={{ border: "1px solid var(--s3)", padding: 12, marginTop: 12 }}>
       <h3>
         Draw #{draw.drawNumber} [{draw.drawRequestStatus}]
       </h3>
@@ -455,7 +455,7 @@ function ContractorLienWaiverRow({
   return (
     <div
       style={{
-        border: "1px dashed #999",
+        border: "1px dashed var(--s4)",
         padding: 8,
         marginTop: 6,
         display: "grid",

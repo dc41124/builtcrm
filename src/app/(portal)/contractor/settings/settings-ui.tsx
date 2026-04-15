@@ -15,33 +15,36 @@ const F = {
   mono: "'JetBrains Mono',monospace",
 };
 
+// All palette entries resolve to CSS custom properties defined in tokens.css,
+// so dark mode is automatic — flipping the `.dark` class on <html> swaps every
+// reference below without touching component code.
 const C = {
-  surface0: "#eef0f3",
-  surface1: "#ffffff",
-  surface2: "#f3f4f6",
-  surface3: "#e2e5e9",
-  surface4: "#d1d5db",
-  surfaceHover: "#f5f6f8",
-  textPrimary: "#1a1714",
-  textSecondary: "#6b655b",
-  textTertiary: "#9c958a",
-  accent: "#5b4fc7",
-  accentHover: "#4f44b3",
-  accentSoft: "#eeedfb",
-  accentText: "#4a3fb0",
-  accentMuted: "#c7c2ea",
-  success: "#2d8a5e",
-  successSoft: "#edf7f1",
-  successText: "#1e6b46",
-  warning: "#c17a1a",
-  warningSoft: "#fdf4e6",
-  warningText: "#96600f",
-  danger: "#c93b3b",
-  dangerSoft: "#fdeaea",
-  dangerText: "#a52e2e",
-  info: "#3178b9",
-  infoSoft: "#e8f1fa",
-  infoText: "#276299",
+  surface0: "var(--s0)",
+  surface1: "var(--s1)",
+  surface2: "var(--s2)",
+  surface3: "var(--s3)",
+  surface4: "var(--s4)",
+  surfaceHover: "var(--sh)",
+  textPrimary: "var(--t1)",
+  textSecondary: "var(--t2)",
+  textTertiary: "var(--t3)",
+  accent: "var(--ac)",
+  accentHover: "var(--ac-h)",
+  accentSoft: "var(--ac-s)",
+  accentText: "var(--ac-t)",
+  accentMuted: "var(--ac-s)",
+  success: "var(--ok)",
+  successSoft: "var(--ok-s)",
+  successText: "var(--ok-t)",
+  warning: "var(--wr)",
+  warningSoft: "var(--wr-s)",
+  warningText: "var(--wr-t)",
+  danger: "var(--dg)",
+  dangerSoft: "var(--dg-s)",
+  dangerText: "var(--dg-t)",
+  info: "var(--in)",
+  infoSoft: "var(--in-s)",
+  infoText: "var(--in-t)",
 };
 
 export type TeamMember = {
@@ -1253,9 +1256,9 @@ function StatCard({
         : C.surface2;
   const border =
     tone === "success"
-      ? "#a7d9be"
+      ? C.success
       : tone === "danger"
-        ? "#f3b6b6"
+        ? C.danger
         : C.surface3;
   const valueColor =
     tone === "success"
@@ -1363,10 +1366,10 @@ function pillStyle(
   const map: Record<typeof tone, { bg: string; color: string; border: string }> =
     {
       purple: { bg: C.accentSoft, color: C.accentText, border: C.accentMuted },
-      green: { bg: C.successSoft, color: C.successText, border: "#a7d9be" },
-      orange: { bg: C.warningSoft, color: C.warningText, border: "#f5d6a0" },
+      green: { bg: C.successSoft, color: C.successText, border: C.success },
+      orange: { bg: C.warningSoft, color: C.warningText, border: C.warning },
       gray: { bg: C.surface2, color: C.textTertiary, border: C.surface3 },
-      blue: { bg: C.infoSoft, color: C.infoText, border: "#b3d4ee" },
+      blue: { bg: C.infoSoft, color: C.infoText, border: C.info },
     };
   const s = map[tone];
   return {

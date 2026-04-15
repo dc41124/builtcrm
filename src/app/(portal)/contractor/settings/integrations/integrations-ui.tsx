@@ -17,7 +17,7 @@ export function IntegrationsView({
     <div style={{ display: "grid", gap: 24 }}>
       <header>
         <h2 style={{ margin: 0 }}>Settings · Integrations</h2>
-        <p style={{ color: "#6b655b", marginTop: 4 }}>
+        <p style={{ color: "var(--t2)", marginTop: 4 }}>
           Connect external systems to {view.context.organization.name}. Phase 1
           ships email notifications and CSV export; other connectors record a
           stub connection so the workflow can be tested end-to-end.
@@ -45,7 +45,7 @@ export function IntegrationsView({
 
       <section style={{ display: "grid", gap: 8 }}>
         <h3 style={{ margin: 0 }}>CSV Export</h3>
-        <p style={{ color: "#6b655b", margin: 0 }}>
+        <p style={{ color: "var(--t2)", margin: 0 }}>
           Available on every plan tier. Download a snapshot of any module
           scoped to your organization.
         </p>
@@ -56,10 +56,10 @@ export function IntegrationsView({
               href={`/api/integrations/export?entity=${e.key}`}
               style={{
                 padding: "6px 12px",
-                border: "1px solid #d1d5db",
+                border: "1px solid var(--s3)",
                 borderRadius: 6,
                 textDecoration: "none",
-                color: "#1a1714",
+                color: "var(--t1)",
                 fontSize: 13,
               }}
             >
@@ -72,7 +72,7 @@ export function IntegrationsView({
       <section style={{ display: "grid", gap: 8 }}>
         <h3 style={{ margin: 0 }}>Recent Sync Activity</h3>
         {view.recentSyncEvents.length === 0 ? (
-          <p style={{ color: "#9c958a", margin: 0 }}>
+          <p style={{ color: "var(--t3)", margin: 0 }}>
             No sync events recorded yet.
           </p>
         ) : (
@@ -84,7 +84,7 @@ export function IntegrationsView({
             }}
           >
             <thead>
-              <tr style={{ textAlign: "left", borderBottom: "1px solid #e2e5e9" }}>
+              <tr style={{ textAlign: "left", borderBottom: "1px solid var(--s3)" }}>
                 <th style={{ padding: "6px 8px" }}>When</th>
                 <th style={{ padding: "6px 8px" }}>Provider</th>
                 <th style={{ padding: "6px 8px" }}>Direction</th>
@@ -94,7 +94,7 @@ export function IntegrationsView({
             </thead>
             <tbody>
               {view.recentSyncEvents.map((e) => (
-                <tr key={e.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                <tr key={e.id} style={{ borderBottom: "1px solid var(--s2)" }}>
                   <td style={{ padding: "6px 8px" }}>
                     {new Date(e.createdAt).toLocaleString()}
                   </td>
@@ -168,10 +168,10 @@ function IntegrationCard({
   return (
     <div
       style={{
-        border: "1px solid #e2e5e9",
+        border: "1px solid var(--s3)",
         borderRadius: 12,
         padding: 16,
-        background: "#fff",
+        background: "var(--s1)",
         display: "grid",
         gap: 8,
       }}
@@ -179,27 +179,27 @@ function IntegrationCard({
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
         <div>
           <strong style={{ fontSize: 14 }}>{card.name}</strong>
-          <div style={{ fontSize: 11, color: "#9c958a", textTransform: "uppercase" }}>
+          <div style={{ fontSize: 11, color: "var(--t3)", textTransform: "uppercase" }}>
             {card.category} · {card.minTier}
           </div>
         </div>
         <StatusBadge status={connection?.status ?? null} phase1={card.phase1} />
       </div>
-      <p style={{ fontSize: 12, color: "#6b655b", margin: 0 }}>
+      <p style={{ fontSize: 12, color: "var(--t2)", margin: 0 }}>
         {card.description}
       </p>
       {connection?.externalAccountName && (
-        <div style={{ fontSize: 12, color: "#1a1714" }}>
+        <div style={{ fontSize: 12, color: "var(--t1)" }}>
           Account: {connection.externalAccountName}
         </div>
       )}
       {connection?.lastSyncAt && (
-        <div style={{ fontSize: 11, color: "#9c958a" }}>
+        <div style={{ fontSize: 11, color: "var(--t3)" }}>
           Last sync: {new Date(connection.lastSyncAt).toLocaleString()}
         </div>
       )}
       {connection?.lastErrorMessage && (
-        <div style={{ fontSize: 11, color: "#a52e2e" }}>
+        <div style={{ fontSize: 11, color: "var(--dg-t)" }}>
           {connection.lastErrorMessage}
         </div>
       )}
@@ -224,12 +224,12 @@ function IntegrationCard({
         )}
       </div>
       {!card.phase1 && (
-        <div style={{ fontSize: 11, color: "#96600f" }}>
+        <div style={{ fontSize: 11, color: "var(--wr-t)" }}>
           Stub connector — full OAuth lands in a later phase.
         </div>
       )}
       {error && (
-        <div style={{ fontSize: 11, color: "#a52e2e" }}>{error}</div>
+        <div style={{ fontSize: 11, color: "var(--dg-t)" }}>{error}</div>
       )}
     </div>
   );
@@ -245,20 +245,20 @@ function StatusBadge({
   const label = status ?? (phase1 ? "Available" : "Stub");
   const color =
     status === "connected"
-      ? "#1e6b46"
+      ? "var(--ok-t)"
       : status === "needs_reauth"
-        ? "#96600f"
+        ? "var(--wr-t)"
         : status === "error"
-          ? "#a52e2e"
-          : "#6b655b";
+          ? "var(--dg-t)"
+          : "var(--t2)";
   const bg =
     status === "connected"
-      ? "#edf7f1"
+      ? "var(--ok-s)"
       : status === "needs_reauth"
-        ? "#fdf4e6"
+        ? "var(--wr-s)"
         : status === "error"
-          ? "#fdeaea"
-          : "#f3f4f6";
+          ? "var(--dg-s)"
+          : "var(--s2)";
   return (
     <span
       style={{
@@ -283,7 +283,7 @@ function StatusBadge({
 function btnPrimary(enabled: boolean): React.CSSProperties {
   return {
     padding: "6px 12px",
-    background: enabled ? "#5b4fc7" : "#c7c2ea",
+    background: enabled ? "var(--ac)" : "var(--ac-s)",
     color: "#fff",
     border: "none",
     borderRadius: 6,
@@ -296,9 +296,9 @@ function btnPrimary(enabled: boolean): React.CSSProperties {
 function btnSecondary(enabled: boolean): React.CSSProperties {
   return {
     padding: "6px 12px",
-    background: "#fff",
-    color: "#1a1714",
-    border: "1px solid #d1d5db",
+    background: "var(--s1)",
+    color: "var(--t1)",
+    border: "1px solid var(--s3)",
     borderRadius: 6,
     fontSize: 12,
     fontWeight: 600,

@@ -155,7 +155,7 @@ function DrawReviewCard({ draw }: { draw: DrawRequest }) {
   }
 
   return (
-    <section style={{ border: "1px solid #ccc", padding: 12, marginTop: 12 }}>
+    <section style={{ border: "1px solid var(--s3)", padding: 12, marginTop: 12 }}>
       <h3>
         Draw #{draw.drawNumber} [{draw.drawRequestStatus}]
       </h3>
@@ -356,7 +356,7 @@ function ClientLienWaiverRow({ waiver }: { waiver: LienWaiver }) {
   return (
     <div
       style={{
-        border: "1px dashed #999",
+        border: "1px dashed var(--s4)",
         padding: 8,
         marginTop: 6,
         display: "grid",
@@ -387,7 +387,7 @@ function ClientLienWaiverRow({ waiver }: { waiver: LienWaiver }) {
                 background: "none",
                 border: "none",
                 padding: 0,
-                color: "#3178b9",
+                color: "var(--in-t)",
                 textDecoration: "underline",
                 cursor: "pointer",
               }}

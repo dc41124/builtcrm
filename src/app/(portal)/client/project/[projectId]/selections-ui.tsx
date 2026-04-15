@@ -70,7 +70,7 @@ function ClientItemCard({ item }: { item: SelectionItemRow }) {
   return (
     <div
       style={{
-        border: "1px solid #ccc",
+        border: "1px solid var(--s3)",
         padding: 8,
         marginTop: 6,
         display: "grid",
@@ -156,7 +156,7 @@ function ClientOptionRow({
   return (
     <div
       style={{
-        border: isSelected ? "2px solid #2a7f6f" : "1px solid #ddd",
+        border: isSelected ? "2px solid var(--ac)" : "1px solid var(--s3)",
         padding: 6,
         display: "flex",
         gap: 8,
@@ -214,7 +214,7 @@ function ClientDecisionSummary({
   }
 
   return (
-    <div style={{ background: "#f5f9f7", padding: 6 }}>
+    <div style={{ background: "var(--ac-s)", padding: 6 }}>
       <div>
         Your pick · delta {formatCents(decision.priceDeltaCents)}
         {decision.scheduleDeltaDays > 0 &&

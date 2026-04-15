@@ -95,7 +95,7 @@ export function InvitationsView({
     <div style={{ display: "grid", gap: 24 }}>
       <header>
         <h2 style={{ margin: 0 }}>Settings · Invitations</h2>
-        <p style={{ color: "#6b655b", marginTop: 4 }}>
+        <p style={{ color: "var(--t2)", marginTop: 4 }}>
           Invite collaborators to {organizationName}. Each invitation creates
           a unique link that expires in 14 days.
         </p>
@@ -103,8 +103,8 @@ export function InvitationsView({
 
       <section
         style={{
-          background: "#fff",
-          border: "1px solid #e2e5e9",
+          background: "var(--s1)",
+          border: "1px solid var(--s3)",
           borderRadius: 14,
           padding: 20,
         }}
@@ -114,8 +114,8 @@ export function InvitationsView({
           {error ? (
             <div
               style={{
-                background: "#fdeaea",
-                color: "#a52e2e",
+                background: "var(--dg-s)",
+                color: "var(--dg-t)",
                 padding: 10,
                 borderRadius: 8,
                 fontSize: 13,
@@ -127,8 +127,8 @@ export function InvitationsView({
           {lastInviteUrl ? (
             <div
               style={{
-                background: "#edf7f1",
-                color: "#1e6b46",
+                background: "var(--ok-s)",
+                color: "var(--ok-t)",
                 padding: 10,
                 borderRadius: 8,
                 fontSize: 13,
@@ -229,7 +229,7 @@ export function InvitationsView({
             disabled={submitting}
             style={{
               justifySelf: "start",
-              background: "#5b4fc7",
+              background: "var(--ac)",
               color: "#fff",
               border: "none",
               borderRadius: 10,
@@ -247,20 +247,20 @@ export function InvitationsView({
       <section>
         <h3>Sent invitations</h3>
         {invitations.length === 0 ? (
-          <p style={{ color: "#6b655b" }}>No invitations sent yet.</p>
+          <p style={{ color: "var(--t2)" }}>No invitations sent yet.</p>
         ) : (
           <table
             style={{
               width: "100%",
               borderCollapse: "collapse",
-              background: "#fff",
-              border: "1px solid #e2e5e9",
+              background: "var(--s1)",
+              border: "1px solid var(--s3)",
               borderRadius: 10,
               overflow: "hidden",
               fontSize: 13,
             }}
           >
-            <thead style={{ background: "#f3f4f6", textAlign: "left" }}>
+            <thead style={{ background: "var(--s2)", textAlign: "left" }}>
               <tr>
                 <Th>Email</Th>
                 <Th>Portal / role</Th>
@@ -272,7 +272,7 @@ export function InvitationsView({
             </thead>
             <tbody>
               {invitations.map((inv) => (
-                <tr key={inv.id} style={{ borderTop: "1px solid #e2e5e9" }}>
+                <tr key={inv.id} style={{ borderTop: "1px solid var(--s3)" }}>
                   <Td>{inv.invitedEmail}</Td>
                   <Td>
                     {inv.portalType} · {inv.roleKey}
@@ -303,11 +303,11 @@ const inputStyle: React.CSSProperties = {
   width: "100%",
   height: 38,
   padding: "0 12px",
-  border: "1px solid #e2e5e9",
+  border: "1px solid var(--s3)",
   borderRadius: 8,
   fontSize: 14,
   fontFamily: "inherit",
-  background: "#fff",
+  background: "var(--s1)",
 };
 
 function Field({
@@ -327,7 +327,7 @@ function Field({
 
 function Th({ children }: { children: React.ReactNode }) {
   return (
-    <th style={{ padding: "10px 12px", fontWeight: 650, fontSize: 12, color: "#6b655b" }}>
+    <th style={{ padding: "10px 12px", fontWeight: 650, fontSize: 12, color: "var(--t2)" }}>
       {children}
     </th>
   );
@@ -338,10 +338,10 @@ function Td({ children }: { children: React.ReactNode }) {
 
 function StatusPill({ status }: { status: string }) {
   const palette: Record<string, { bg: string; fg: string }> = {
-    pending: { bg: "#fdf4e6", fg: "#96600f" },
-    accepted: { bg: "#edf7f1", fg: "#1e6b46" },
-    expired: { bg: "#f3f4f6", fg: "#6b655b" },
-    revoked: { bg: "#fdeaea", fg: "#a52e2e" },
+    pending: { bg: "var(--wr-s)", fg: "var(--wr-t)" },
+    accepted: { bg: "var(--ok-s)", fg: "var(--ok-t)" },
+    expired: { bg: "var(--s2)", fg: "var(--t2)" },
+    revoked: { bg: "var(--dg-s)", fg: "var(--dg-t)" },
   };
   const p = palette[status] ?? palette.expired;
   return (

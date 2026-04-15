@@ -158,20 +158,20 @@ function DocumentRowItem({
   return (
     <li
       style={{
-        borderTop: "1px solid #eee",
+        borderTop: "1px solid var(--s3)",
         padding: "8px 0",
         opacity: doc.isSuperseded ? 0.55 : 1,
       }}
     >
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <strong>{doc.title}</strong>
-        <span style={{ fontSize: 12, color: "#666" }}>
+        <span style={{ fontSize: 12, color: "var(--t2)" }}>
           [{doc.documentStatus}]
         </span>
-        <span style={{ fontSize: 12, color: "#666" }}>
+        <span style={{ fontSize: 12, color: "var(--t2)" }}>
           · {doc.visibilityScope} / {doc.audienceScope}
         </span>
-        <span style={{ fontSize: 12, color: "#888" }}>
+        <span style={{ fontSize: 12, color: "var(--t3)" }}>
           · {doc.uploadedByName ?? "—"} ·{" "}
           {new Date(doc.createdAt).toISOString().slice(0, 10)}
         </span>
@@ -210,7 +210,7 @@ function DocumentRowItem({
         />
       )}
       {doc.links.length > 0 && (
-        <div style={{ marginTop: 4, fontSize: 12, color: "#555" }}>
+        <div style={{ marginTop: 4, fontSize: 12, color: "var(--t2)" }}>
           Linked:{" "}
           {doc.links
             .filter((l) => l.linkedObjectType !== "project")
@@ -373,7 +373,7 @@ function SupersedeButton({
       />
       <span
         style={{
-          border: "1px solid #ccc",
+          border: "1px solid var(--s3)",
           padding: "2px 8px",
           borderRadius: 4,
         }}
@@ -438,7 +438,7 @@ function UploadDocumentForm({ projectId }: { projectId: string }) {
         display: "grid",
         gap: 6,
         maxWidth: 520,
-        border: "1px dashed #ccc",
+        border: "1px dashed var(--s3)",
         padding: 10,
         marginTop: 8,
       }}

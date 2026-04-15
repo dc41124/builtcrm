@@ -99,9 +99,9 @@ const STATUS_VISUAL: Record<
   MilestoneStatus,
   { icon: string; bg: string; c: string; border: string }
 > = {
-  completed: { icon: "check", bg: "var(--ok-s)", c: "var(--ok-t)", border: "#a8d5b8" },
+  completed: { icon: "check", bg: "var(--ok-s)", c: "var(--ok-t)", border: "var(--ok)" },
   in_progress: { icon: "clock", bg: "var(--sch-acs)", c: "var(--sch-act)", border: "var(--sch-acm)" },
-  missed: { icon: "alert", bg: "var(--dg-s)", c: "var(--dg-t)", border: "#e8a8a8" },
+  missed: { icon: "alert", bg: "var(--dg-s)", c: "var(--dg-t)", border: "var(--dg)" },
   scheduled: { icon: "dot", bg: "var(--s2)", c: "var(--t3)", border: "var(--s4)" },
   cancelled: { icon: "dot", bg: "var(--s2)", c: "var(--t3)", border: "var(--s4)" },
 };

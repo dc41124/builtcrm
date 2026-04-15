@@ -200,7 +200,7 @@ function ContractorReleaseRow({
   return (
     <section
       style={{
-        border: "1px solid #ccc",
+        border: "1px solid var(--s3)",
         padding: 8,
         marginTop: 6,
         display: "grid",

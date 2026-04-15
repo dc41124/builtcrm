@@ -387,9 +387,9 @@ export function ContractorApprovalsWorkspace({
         .apw-row-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:var(--fb);font-size:11px;font-weight:540;color:var(--t3)}
         .apw-detail{padding:22px 24px;min-width:0}
         .apw-type{font-family:var(--fd);font-size:10px;font-weight:700;padding:2px 7px;border-radius:var(--r-s);display:inline-flex;align-items:center;white-space:nowrap}
-        .apw-type-co{background:#f3f0ff;color:#6b5dd3;border:1px solid #d8d0f5}
-        .apw-type-procurement{background:#e8f5ee;color:#2d7a52;border:1px solid #b5dfca}
-        .apw-type-design{background:#eef4fa;color:#3d6b8e;border:1px solid #b3cede}
+        .apw-type-co{background:var(--ac-s);color:var(--ac-t);border:1px solid var(--ac)}
+        .apw-type-procurement{background:var(--ok-s);color:var(--ok-t);border:1px solid var(--ok)}
+        .apw-type-design{background:var(--in-s);color:var(--in-t);border:1px solid var(--in)}
         .apw-type-general{background:var(--s2);color:var(--t3);border:1px solid var(--s3)}
         .apw-rail{display:flex;flex-direction:column;gap:14px}
         .apw-rc{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-xl);box-shadow:var(--shsm);overflow:hidden}
@@ -526,9 +526,9 @@ function ApprovalDetail({ row, now }: { row: ApprovalRow; now: number }) {
         .apd-cat-row{display:flex;gap:8px;align-items:center}
         .apd-num{font-family:var(--fm);font-size:11px;color:var(--t3);letter-spacing:.02em}
         .apd-type{font-family:var(--fd);font-size:10px;font-weight:700;padding:2px 7px;border-radius:var(--r-s);display:inline-flex;align-items:center;white-space:nowrap}
-        .apd-type-co{background:#f3f0ff;color:#6b5dd3;border:1px solid #d8d0f5}
-        .apd-type-procurement{background:#e8f5ee;color:#2d7a52;border:1px solid #b5dfca}
-        .apd-type-design{background:#eef4fa;color:#3d6b8e;border:1px solid #b3cede}
+        .apd-type-co{background:var(--ac-s);color:var(--ac-t);border:1px solid var(--ac)}
+        .apd-type-procurement{background:var(--ok-s);color:var(--ok-t);border:1px solid var(--ok)}
+        .apd-type-design{background:var(--in-s);color:var(--in-t);border:1px solid var(--in)}
         .apd-type-general{background:var(--s2);color:var(--t3);border:1px solid var(--s3)}
         .apd-title{font-family:var(--fd);font-size:18px;font-weight:750;letter-spacing:-.02em;color:var(--t1);margin:0}
         .apd-desc{font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t2);line-height:1.5;margin:0;max-width:520px}

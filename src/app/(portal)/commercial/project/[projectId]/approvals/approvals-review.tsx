@@ -312,9 +312,9 @@ export function CommercialApprovalsReview({
         .apr-row-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:var(--fb);font-size:11px;font-weight:540;color:var(--t3)}
         .apr-detail{padding:22px 24px;min-width:0}
         .apr-type{font-family:var(--fd);font-size:10px;font-weight:700;padding:2px 7px;border-radius:var(--r-s);display:inline-flex;align-items:center;white-space:nowrap}
-        .apr-type-co{background:#f3f0ff;color:#6b5dd3;border:1px solid #d8d0f5}
-        .apr-type-procurement{background:#e8f5ee;color:#2d7a52;border:1px solid #b5dfca}
-        .apr-type-design{background:#eef4fa;color:#3d6b8e;border:1px solid #b3cede}
+        .apr-type-co{background:var(--ac-s);color:var(--ac-t);border:1px solid var(--ac)}
+        .apr-type-procurement{background:var(--ok-s);color:var(--ok-t);border:1px solid var(--ok)}
+        .apr-type-design{background:var(--in-s);color:var(--in-t);border:1px solid var(--in)}
         .apr-type-general{background:var(--s2);color:var(--t3);border:1px solid var(--s3)}
         .apr-rail{display:flex;flex-direction:column;gap:14px}
         .apr-rc{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-xl);box-shadow:var(--shsm);overflow:hidden}

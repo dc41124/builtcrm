@@ -39,12 +39,12 @@ export function MessagesPanel({
         display: "grid",
         gridTemplateColumns: "280px 1fr",
         gap: 16,
-        border: "1px solid #ddd",
+        border: "1px solid var(--s3)",
         borderRadius: 6,
         padding: 12,
       }}
     >
-      <aside style={{ borderRight: "1px solid #eee", paddingRight: 12, minWidth: 0 }}>
+      <aside style={{ borderRight: "1px solid var(--s3)", paddingRight: 12, minWidth: 0 }}>
         <ConversationList
           conversations={conversations}
           selectedId={selectedId}
@@ -77,7 +77,7 @@ function ConversationList({
   onSelect: (id: string) => void;
 }) {
   if (conversations.length === 0) {
-    return <p style={{ color: "#666", fontSize: 13 }}>No conversations yet.</p>;
+    return <p style={{ color: "var(--t2)", fontSize: 13 }}>No conversations yet.</p>;
   }
   return (
     <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6 }}>
@@ -96,8 +96,8 @@ function ConversationList({
                 padding: 8,
                 borderRadius: 6,
                 border: "1px solid",
-                borderColor: active ? "#5b4fc7" : "#e5e5e5",
-                background: active ? "#eeedfb" : "#fff",
+                borderColor: active ? "var(--ac)" : "var(--s3)",
+                background: active ? "var(--ac-s)" : "var(--s1)",
                 cursor: "pointer",
               }}
             >
@@ -106,7 +106,7 @@ function ConversationList({
                 {c.unreadCount > 0 && (
                   <span
                     style={{
-                      background: "#5b4fc7",
+                      background: "var(--ac)",
                       color: "#fff",
                       borderRadius: 999,
                       fontSize: 11,
@@ -119,7 +119,7 @@ function ConversationList({
                   </span>
                 )}
               </div>
-              <div style={{ fontSize: 11, color: "#777" }}>
+              <div style={{ fontSize: 11, color: "var(--t3)" }}>
                 [{c.conversationType}]
                 {c.linkedObjectType && <> · linked: {c.linkedObjectType}</>}
               </div>
@@ -127,7 +127,7 @@ function ConversationList({
                 <div
                   style={{
                     fontSize: 12,
-                    color: "#555",
+                    color: "var(--t2)",
                     marginTop: 2,
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -199,14 +199,14 @@ function MessageThread({
           {conversation.title ??
             describeConversationType(conversation.conversationType)}
         </strong>
-        <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>
+        <div style={{ fontSize: 12, color: "var(--t2)", marginTop: 2 }}>
           Participants:{" "}
           {conversation.participants
             .map((p) => p.displayName ?? p.userId.slice(0, 8))
             .join(", ")}
         </div>
         {conversation.linkedObjectType && conversation.linkedObjectId && (
-          <div style={{ fontSize: 12, color: "#666" }}>
+          <div style={{ fontSize: 12, color: "var(--t2)" }}>
             Linked: {conversation.linkedObjectType}:{conversation.linkedObjectId}
           </div>
         )}
@@ -220,12 +220,12 @@ function MessageThread({
           maxHeight: 360,
           overflowY: "auto",
           padding: 8,
-          background: "#fafafa",
+          background: "var(--s0)",
           borderRadius: 6,
         }}
       >
         {conversation.messages.length === 0 && (
-          <p style={{ color: "#666", fontSize: 13 }}>No messages yet.</p>
+          <p style={{ color: "var(--t2)", fontSize: 13 }}>No messages yet.</p>
         )}
         {conversation.messages.map((m) => {
           const mine = m.senderUserId === currentUserId;
@@ -234,14 +234,14 @@ function MessageThread({
               key={m.id}
               style={{
                 alignSelf: mine ? "flex-end" : "flex-start",
-                background: mine ? "#eeedfb" : "#fff",
-                border: "1px solid #e5e5e5",
+                background: mine ? "var(--ac-s)" : "var(--s1)",
+                border: "1px solid var(--s3)",
                 borderRadius: 6,
                 padding: 8,
                 maxWidth: "80%",
               }}
             >
-              <div style={{ fontSize: 11, color: "#666" }}>
+              <div style={{ fontSize: 11, color: "var(--t2)" }}>
                 {m.senderName ?? "Unknown"} · {formatTimestamp(m.createdAt)}
               </div>
               <div style={{ whiteSpace: "pre-wrap" }}>{m.body}</div>

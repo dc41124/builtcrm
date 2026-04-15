@@ -107,7 +107,17 @@ export default function AppShell({
   breadcrumbs,
   children,
 }: AppShellProps) {
-  const [dark, setDark] = useState(false);
+  // Theme toggle is imperative (no React state) to avoid SSR/client hydration
+  // mismatch — the pre-hydration script in app/layout.tsx may have already
+  // applied `.dark` to <html> before React boots. Icons are rendered via CSS
+  // (`html.dark` selectors in app-shell.css), not React conditionals.
+  const toggleTheme = () => {
+    const root = document.documentElement;
+    const isDark = root.classList.toggle("dark");
+    try {
+      localStorage.setItem("builtcrm-theme", isDark ? "dark" : "light");
+    } catch {}
+  };
   const [collapsed, setCollapsed] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(navSections.map((s) => [s.label, s.defaultOpen ?? true]))
@@ -119,7 +129,7 @@ export default function AppShell({
 
   return (
     <div
-      className={`bcrm ${dark ? "dark" : ""} ${collapsed ? "collapsed" : ""}`}
+      className={`bcrm ${collapsed ? "collapsed" : ""}`}
       style={
         {
           ["--accent" as string]: accent.base,
@@ -233,8 +243,9 @@ export default function AppShell({
               })}
             </div>
             <div className="b-tr">
-              <button className="b-tbb" onClick={() => setDark((d) => !d)} title={dark ? "Light mode" : "Dark mode"}>
-                {dark ? SunIcon : MoonIcon}
+              <button className="b-tbb b-theme-toggle" onClick={toggleTheme} aria-label="Toggle theme">
+                <span className="b-theme-icon b-theme-moon">{MoonIcon}</span>
+                <span className="b-theme-icon b-theme-sun">{SunIcon}</span>
               </button>
               <button className="b-tbb" aria-label="Notifications">
                 {BellIcon}

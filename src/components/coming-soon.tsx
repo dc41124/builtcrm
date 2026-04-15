@@ -7,7 +7,7 @@ export function ComingSoon({ title, description }: { title: string; description?
           fontSize: 26,
           fontWeight: 820,
           letterSpacing: "-0.02em",
-          color: "#111318",
+          color: "var(--t1)",
           margin: 0,
         }}
       >
@@ -18,7 +18,7 @@ export function ComingSoon({ title, description }: { title: string; description?
           fontFamily: "'Instrument Sans', system-ui, sans-serif",
           fontSize: 14,
           fontWeight: 520,
-          color: "#7d8290",
+          color: "var(--t3)",
           marginTop: 10,
           maxWidth: 560,
         }}
