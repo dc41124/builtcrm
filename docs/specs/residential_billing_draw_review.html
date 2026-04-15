@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BuiltCRM — Your Home · Payment Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ================================================================
+   DESIGN SYSTEM TOKENS — Residential client variant (teal accent)
+   ================================================================ */
+:root {
+  --surface-0:#eef0f3;--surface-1:#ffffff;--surface-2:#f3f4f6;--surface-3:#e2e5e9;--surface-4:#d1d5db;
+  --surface-hover:#f5f6f8;--surface-incard:#f8f9fa;
+  --sidebar-bg:#ffffff;--sidebar-hover:#f5f6f8;--sidebar-active:#eef0f3;--sidebar-active-text:#1a1714;
+  --sidebar-section-text:#8b919a;--sidebar-item-text:#5a6170;--sidebar-border:#e8eaee;
+  --text-primary:#1a1714;--text-secondary:#6b655b;--text-tertiary:#9c958a;
+  --accent:#2a7f6f;--accent-hover:#1d6b5d;--accent-soft:#e6f5f2;--accent-text:#1d6b5d;--accent-muted:#a3d5c9;
+  --success:#2d8a5e;--success-soft:#edf7f1;--success-text:#1e6b46;
+  --warning:#c17a1a;--warning-soft:#fdf4e6;--warning-text:#96600f;
+  --danger:#c93b3b;--danger-soft:#fdeaea;--danger-text:#a52e2e;
+  --info:#3178b9;--info-soft:#e8f1fa;--info-text:#276299;
+  --font-display:'DM Sans',system-ui,sans-serif;--font-body:'Instrument Sans',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;
+  --shadow-sm:0 1px 3px rgba(26,23,20,.05);--shadow-md:0 4px 16px rgba(26,23,20,.06);
+  --shadow-ring:0 0 0 3px rgba(42,127,111,.15);
+  --sidebar-width:256px;--topbar-height:56px;
+  --ease-out:cubic-bezier(.16,1,.3,1);--dur-fast:120ms;--dur-normal:200ms;--dur-slow:350ms;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0}
+body{font-family:var(--font-body);background:var(--surface-0);color:var(--text-primary);-webkit-font-smoothing:antialiased;line-height:1.5;font-size:14px;font-weight:520}
+button{cursor:pointer;font-family:inherit;border:none;background:none}
+.app{display:grid;grid-template-columns:var(--sidebar-width) 1fr;min-height:100vh}
+
+/* SIDEBAR */
+.sidebar{background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:hidden}
+.brand{height:var(--topbar-height);display:flex;align-items:center;gap:var(--sp-3);padding:0 var(--sp-4) 0 var(--sp-5);border-bottom:1px solid var(--sidebar-border);flex-shrink:0}
+.brand-mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#1d6b5d,#2a7f6f);display:grid;place-items:center;flex-shrink:0}
+.brand-mark svg{width:16px;height:16px}
+.brand-name{font-family:var(--font-display);font-size:14px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+.brand-ctx{font-size:11.5px;color:var(--text-tertiary);line-height:1.2;margin-top:1px}
+.sb-welcome{margin:var(--sp-3) var(--sp-3) 0;padding:var(--sp-4);border:1px solid var(--surface-3);border-radius:var(--radius-lg);background:linear-gradient(180deg,#fff 0%,var(--accent-soft) 100%)}
+.sb-welcome h4{font-family:var(--font-display);font-size:13px;font-weight:650;margin-bottom:4px}
+.sb-welcome p{font-size:12px;color:var(--text-secondary);line-height:1.4}
+.sb-nav{flex:1;overflow-y:auto;padding:var(--sp-3) var(--sp-3) var(--sp-6)}
+.ns{margin-bottom:var(--sp-1)}.ns-h{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2);font-size:11px;font-weight:650;color:var(--sidebar-section-text);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;border-radius:var(--radius-sm)}
+.ns-chv{width:14px;height:14px;transition:transform var(--dur-normal) var(--ease-out)}.ns.closed .ns-chv{transform:rotate(-90deg)}.ns.closed .ns-items{display:none}
+.ni{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);padding:6px 10px 6px 12px;border-radius:var(--radius-md);font-size:13px;font-weight:500;color:var(--sidebar-item-text);cursor:pointer;transition:all var(--dur-fast) var(--ease-out);margin-bottom:1px;position:relative}
+.ni:hover{background:var(--sidebar-hover);color:var(--text-primary)}
+.ni.active{background:var(--sidebar-active);color:var(--sidebar-active-text);font-weight:620}
+.ni.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:16px;border-radius:0 3px 3px 0;background:var(--accent)}
+.ni-badge{min-width:18px;height:18px;padding:0 6px;border-radius:999px;font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-display);flex-shrink:0;background:var(--accent-soft);color:var(--accent-text)}
+.ni-badge.amber{background:var(--warning-soft);color:var(--warning-text)}
+.sb-foot{border-top:1px solid var(--sidebar-border);padding:var(--sp-3) var(--sp-4);flex-shrink:0}
+.sb-user{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-2);border-radius:var(--radius-md)}
+.u-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#2a7f6f,#4caf7a);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-size:11.5px;font-weight:700;flex-shrink:0}
+
+/* TOPBAR */
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{height:var(--topbar-height);display:flex;align-items:center;justify-content:space-between;padding:0 var(--sp-6);border-bottom:1px solid var(--surface-3);background:rgba(238,240,243,.85);backdrop-filter:blur(12px);position:sticky;top:0;z-index:50}
+.bc{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-tertiary)}.bc .cur{color:var(--text-primary);font-weight:620}.bc .sep{font-size:11px;color:var(--surface-4)}
+.tb-acts{display:flex;align-items:center;gap:var(--sp-2)}
+.tb-btn{width:34px;height:34px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-tertiary);display:grid;place-items:center;cursor:pointer;position:relative}
+.tb-btn .nd{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--accent);border:2px solid var(--surface-1)}
+.tb-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#2a7f6f,#4caf7a);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-size:11.5px;font-weight:700;cursor:pointer;margin-left:var(--sp-1)}
+.content{padding:var(--sp-6);flex:1}
+
+/* SHARED */
+.pill{height:22px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:650;display:inline-flex;align-items:center;white-space:nowrap;flex-shrink:0}
+.pill.teal{background:var(--accent-soft);color:var(--accent-text)}
+.pill.green{background:var(--success-soft);color:var(--success-text)}
+.pill.amber{background:var(--warning-soft);color:var(--warning-text)}
+.pill.gray{background:var(--surface-2);color:var(--text-secondary)}
+.btn{height:34px;padding:0 14px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);font-family:var(--font-body);font-size:13px;font-weight:560;color:var(--text-primary);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all var(--dur-fast) var(--ease-out);white-space:nowrap}
+.btn:hover{background:var(--surface-hover);border-color:var(--surface-4)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.primary:hover{background:var(--accent-hover)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--text-secondary);padding:0 8px}
+.card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);overflow:hidden}
+.c-head{display:flex;align-items:center;justify-content:space-between;padding:var(--sp-4) var(--sp-5);border-bottom:1px solid var(--surface-3)}
+.c-title{font-family:var(--font-display);font-size:15px;font-weight:680;letter-spacing:-.01em}
+.c-sub{font-size:12.5px;color:var(--text-tertiary);margin-top:2px}
+.c-body{padding:var(--sp-4) var(--sp-5)}
+
+/* ================================================================
+   PAGE HEADER
+   ================================================================ */
+.pg-header{margin-bottom:var(--sp-5)}
+.pg-title{font-family:var(--font-display);font-size:24px;font-weight:820;letter-spacing:-.03em}
+.pg-subtitle{font-size:14px;color:var(--text-secondary);margin-top:var(--sp-2);max-width:600px;line-height:1.55}
+.pg-pills{display:flex;gap:var(--sp-2);margin-top:var(--sp-3);flex-wrap:wrap}
+
+/* ================================================================
+   DRAW DETAIL — single-draw focused layout
+   ================================================================ */
+.draw-layout{display:grid;grid-template-columns:1fr 320px;gap:var(--sp-5);align-items:start}
+
+/* Amount hero */
+.amount-hero{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);padding:var(--sp-6);margin-bottom:var(--sp-5);display:flex;justify-content:space-between;align-items:center;gap:var(--sp-5)}
+.amount-main .amount-label{font-size:13px;color:var(--text-secondary);margin-bottom:var(--sp-1)}
+.amount-main .amount-value{font-family:var(--font-display);font-size:36px;font-weight:820;letter-spacing:-.03em;line-height:1.1}
+.amount-main .amount-desc{font-size:13px;color:var(--text-secondary);margin-top:var(--sp-2);max-width:400px;line-height:1.5}
+.amount-status{text-align:right;flex-shrink:0}
+.amount-status .status-label{font-size:12px;color:var(--text-tertiary);margin-bottom:var(--sp-1)}
+.amount-status .status-pill{height:28px;padding:0 12px;border-radius:999px;font-family:var(--font-display);font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px;background:var(--warning-soft);color:var(--warning-text)}
+
+/* Work summary */
+.work-grid{display:grid;gap:var(--sp-2)}
+.work-item{display:flex;justify-content:space-between;align-items:center;padding:var(--sp-3) var(--sp-4);border:1px solid var(--surface-3);border-radius:var(--radius-lg);background:var(--surface-incard)}
+.work-item .wi-desc{font-size:13px;font-weight:580}
+.work-item .wi-detail{font-size:12px;color:var(--text-secondary);margin-top:1px}
+.work-item .wi-amount{font-family:var(--font-display);font-size:14px;font-weight:700;flex-shrink:0}
+
+/* Decision section */
+.decision-card{background:var(--surface-1);border:2px solid var(--accent-muted);border-radius:var(--radius-xl);overflow:hidden}
+.decision-header{padding:var(--sp-5);background:linear-gradient(180deg,var(--accent-soft),#fff);border-bottom:1px solid var(--surface-3)}
+.decision-header h3{font-family:var(--font-display);font-size:16px;font-weight:720;letter-spacing:-.01em}
+.decision-header p{font-size:13px;color:var(--text-secondary);margin-top:var(--sp-2);line-height:1.5}
+.decision-body{padding:var(--sp-5);display:grid;gap:var(--sp-4)}
+.decision-actions{display:flex;gap:var(--sp-2);flex-wrap:wrap}
+.question-area{width:100%;min-height:80px;border:1px solid var(--surface-3);border-radius:var(--radius-md);padding:var(--sp-3);font-family:var(--font-body);font-size:13px;resize:vertical;outline:none;transition:border-color var(--dur-fast) var(--ease-out)}
+.question-area:focus{border-color:var(--accent);box-shadow:var(--shadow-ring)}
+
+/* Files */
+.file-row{display:flex;justify-content:space-between;align-items:center;gap:var(--sp-3);padding:var(--sp-3) 0;border-bottom:1px solid var(--surface-3)}
+.file-row:last-child{border-bottom:none}
+.file-icon{width:32px;height:32px;border-radius:var(--radius-md);display:grid;place-items:center;flex-shrink:0;background:#fdeaea;color:#c93b3b;font-family:var(--font-display);font-size:10px;font-weight:700}
+.file-info h5{font-size:13px;font-weight:600}
+.file-info p{font-size:12px;color:var(--text-tertiary);margin-top:1px}
+
+/* Past payments */
+.past-row{display:flex;justify-content:space-between;align-items:center;padding:var(--sp-3) 0;border-bottom:1px solid var(--surface-3)}
+.past-row:last-child{border-bottom:none}
+.past-info{font-size:13px;font-weight:580}
+.past-detail{font-size:12px;color:var(--text-secondary);margin-top:1px}
+.past-amount{font-family:var(--font-display);font-size:14px;font-weight:700;flex-shrink:0}
+
+/* Explainer callout */
+.explainer{background:var(--accent-soft);border:1px solid var(--accent-muted);border-radius:var(--radius-lg);padding:var(--sp-4);margin-top:var(--sp-3)}
+.explainer h5{font-family:var(--font-display);font-size:13px;font-weight:680;color:var(--accent-text);margin-bottom:var(--sp-1)}
+.explainer p{font-size:12.5px;color:var(--text-secondary);line-height:1.5}
+
+/* ANIMATIONS */
+@keyframes fadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.content > *{animation:fadeInUp .3s var(--ease-out) both}
+.content > *:nth-child(1){animation-delay:0ms}
+.content > *:nth-child(2){animation-delay:50ms}
+.content > *:nth-child(3){animation-delay:100ms}
+
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--surface-4);border-radius:10px}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ============================================================
+       SIDEBAR — Residential client
+       ============================================================ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" fill="white" opacity=".9"/><rect x="5" y="5" width="5" height="5" rx="1" fill="white" opacity=".7"/><rect x="8" y="8" width="5" height="5" rx="1" fill="white" opacity=".5"/></svg>
+      </div>
+      <div><div class="brand-name">BuiltCRM</div><div class="brand-ctx">Your Home</div></div>
+    </div>
+
+    <div class="sb-welcome">
+      <h4>Hi Jennifer</h4>
+      <p>Your builder sent a payment request for this month's work.</p>
+    </div>
+
+    <nav class="sb-nav">
+      <div class="ns">
+        <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Your project</div>
+        <div class="ns-items">
+          <div class="ni"><span>Project Home</span></div>
+          <div class="ni"><span>Progress & Photos</span></div>
+          <div class="ni"><span>Selections</span><span class="ni-badge amber">3</span></div>
+          <div class="ni"><span>Schedule</span></div>
+        </div>
+      </div>
+      <div class="ns">
+        <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Decisions</div>
+        <div class="ns-items">
+          <div class="ni"><span>Scope changes</span></div>
+          <div class="ni"><span>Confirmed choices</span></div>
+        </div>
+      </div>
+      <div class="ns">
+        <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Payments & docs</div>
+        <div class="ns-items">
+          <div class="ni active"><span>Budget</span><span class="ni-badge amber">1</span></div>
+          <div class="ni"><span>Documents</span></div>
+        </div>
+      </div>
+      <div class="ns">
+        <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Messages</div>
+        <div class="ns-items">
+          <div class="ni"><span>Inbox</span><span class="ni-badge">1</span></div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="sb-foot">
+      <div class="sb-user">
+        <div class="u-av">JC</div>
+        <div>
+          <div style="font-size:13px;font-weight:580">Jennifer Chen</div>
+          <div style="font-size:11px;color:var(--text-tertiary)">Homeowner</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN
+       ============================================================ -->
+  <main class="main">
+    <div class="topbar">
+      <div class="bc"><span>Your Home</span><span class="sep">›</span><span>14 Maple Lane</span><span class="sep">›</span><span class="cur">Payment Review</span></div>
+      <div class="tb-acts">
+        <button class="tb-btn" aria-label="Notifications"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="2"/><path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" stroke-width="2"/></svg><span class="nd"></span></button>
+        <div class="tb-av">JC</div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- PAGE HEADER -->
+      <div class="pg-header">
+        <h1 class="pg-title">Payment Review</h1>
+        <p class="pg-subtitle">Your builder has submitted a payment request for recent work. Review what was done and approve when you're ready.</p>
+        <div class="pg-pills">
+          <span class="pill amber">1 payment waiting for you</span>
+          <span class="pill teal">Draw #4 · April</span>
+        </div>
+      </div>
+
+      <!-- AMOUNT HERO -->
+      <div class="amount-hero">
+        <div class="amount-main">
+          <div class="amount-label">Payment requested</div>
+          <div class="amount-value">$16,800</div>
+          <div class="amount-desc">This covers drywall hanging and taping work completed in early April. Your builder submitted this on Apr 12.</div>
+        </div>
+        <div class="amount-status">
+          <div class="status-label">Status</div>
+          <div class="status-pill">
+            <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Waiting for your review
+          </div>
+        </div>
+      </div>
+
+      <!-- MAIN LAYOUT -->
+      <section class="draw-layout">
+        <!-- LEFT COLUMN -->
+        <div style="display:grid;gap:var(--sp-5)">
+
+          <!-- What this payment covers -->
+          <div class="card">
+            <div class="c-head">
+              <div><div class="c-title">What this payment covers</div><div class="c-sub">Work completed during this billing period</div></div>
+            </div>
+            <div class="c-body">
+              <div class="work-grid">
+                <div class="work-item">
+                  <div>
+                    <div class="wi-desc">Drywall — hanging</div>
+                    <div class="wi-detail">Living area, kitchen, master bedroom · Completed Apr 8</div>
+                  </div>
+                  <div class="wi-amount">$9,200</div>
+                </div>
+                <div class="work-item">
+                  <div>
+                    <div class="wi-desc">Drywall — taping and mudding</div>
+                    <div class="wi-detail">First coat complete, second coat in progress</div>
+                  </div>
+                  <div class="wi-amount">$5,100</div>
+                </div>
+                <div class="work-item">
+                  <div>
+                    <div class="wi-desc">Material delivery</div>
+                    <div class="wi-detail">Drywall sheets, joint compound, corner bead</div>
+                  </div>
+                  <div class="wi-amount">$2,500</div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding-top:var(--sp-4);margin-top:var(--sp-3);border-top:1px solid var(--surface-3)">
+                <span style="font-size:14px;font-weight:620">Total this draw</span>
+                <span style="font-family:var(--font-display);font-size:18px;font-weight:820">$16,800</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Your decision -->
+          <div class="decision-card">
+            <div class="decision-header">
+              <h3>Your decision</h3>
+              <p>If everything looks right, approve the payment. If you have questions or something doesn't look right, send a message to Sarah and she'll sort it out.</p>
+            </div>
+            <div class="decision-body">
+              <div class="decision-actions">
+                <button class="btn primary" style="height:40px;padding:0 20px;font-size:14px" onclick="this.innerHTML='✓ Approved';this.style.background='var(--success)';this.style.borderColor='var(--success)'">
+                  <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M22 4 12 14.01l-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  Approve this payment
+                </button>
+                <button class="btn" style="height:40px;padding:0 20px;font-size:14px">
+                  <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  Ask a question first
+                </button>
+              </div>
+              <div>
+                <textarea class="question-area" placeholder="Optional — add a note for your builder (e.g., 'Looks good, thanks!' or 'Can you clarify the material cost?')"></textarea>
+              </div>
+              <div class="explainer">
+                <h5>What happens when you approve?</h5>
+                <p>Your builder receives your approval and the payment moves forward according to your contract terms. You'll see this show up under "Past payments" once it's processed. If you have questions, use the message button — nothing moves forward until you say it's OK.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Supporting documents -->
+          <div class="card">
+            <div class="c-head">
+              <div><div class="c-title">Supporting documents</div><div class="c-sub">Files attached to this payment request</div></div>
+              <span class="pill gray" style="font-size:10px">3 files</span>
+            </div>
+            <div class="c-body">
+              <div class="file-row">
+                <div style="display:flex;align-items:center;gap:var(--sp-3)">
+                  <div class="file-icon">PDF</div>
+                  <div class="file-info"><h5>draw_04_invoice.pdf</h5><p>Payment invoice · 2 pages</p></div>
+                </div>
+                <button class="btn" style="height:28px;font-size:11px;padding:0 10px">Download</button>
+              </div>
+              <div class="file-row">
+                <div style="display:flex;align-items:center;gap:var(--sp-3)">
+                  <div class="file-icon">PDF</div>
+                  <div class="file-info"><h5>draw_04_work_summary.pdf</h5><p>Detailed work breakdown</p></div>
+                </div>
+                <button class="btn" style="height:28px;font-size:11px;padding:0 10px">Download</button>
+              </div>
+              <div class="file-row">
+                <div style="display:flex;align-items:center;gap:var(--sp-3)">
+                  <div class="file-icon" style="background:var(--info-soft);color:var(--info-text)">IMG</div>
+                  <div class="file-info"><h5>progress_photos_apr.zip</h5><p>8 site photos from this period</p></div>
+                </div>
+                <button class="btn" style="height:28px;font-size:11px;padding:0 10px">Download</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- RIGHT RAIL -->
+        <div style="display:grid;gap:var(--sp-5);align-content:start">
+
+          <!-- Budget context -->
+          <div class="card">
+            <div class="c-head"><div><div class="c-title">Budget context</div><div class="c-sub">Where this payment fits</div></div></div>
+            <div class="c-body" style="display:grid;gap:var(--sp-3)">
+              <div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--sp-1)">
+                  <span style="font-size:13px;color:var(--text-secondary)">Total budget</span>
+                  <span style="font-family:var(--font-display);font-size:16px;font-weight:820">$285,000</span>
+                </div>
+                <div style="height:8px;background:var(--surface-3);border-radius:999px;overflow:hidden;display:flex">
+                  <div style="width:52%;height:100%;background:var(--accent)"></div>
+                  <div style="width:6%;height:100%;background:var(--warning);opacity:.7"></div>
+                </div>
+                <div style="display:flex;gap:var(--sp-4);margin-top:var(--sp-2)">
+                  <span style="font-size:11px;color:var(--text-tertiary);display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block"></span>Paid $148,200</span>
+                  <span style="font-size:11px;color:var(--text-tertiary);display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--warning);opacity:.7;display:inline-block"></span>This draw $16,800</span>
+                </div>
+              </div>
+              <div style="border-top:1px solid var(--surface-3);padding-top:var(--sp-3);display:grid;gap:var(--sp-2)">
+                <div style="display:flex;justify-content:space-between"><span style="font-size:13px;color:var(--text-secondary)">Paid so far</span><span style="font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--success-text)">$148,200</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="font-size:13px;color:var(--text-secondary)">This payment</span><span style="font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--warning-text)">$16,800</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="font-size:13px;color:var(--text-secondary)">After this draw</span><span style="font-family:var(--font-display);font-size:14px;font-weight:700">$165,000</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="font-size:13px;color:var(--text-secondary)">Remaining</span><span style="font-family:var(--font-display);font-size:14px;font-weight:700">$120,000</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Past payments -->
+          <div class="card">
+            <div class="c-head"><div><div class="c-title">Past payments</div><div class="c-sub">Your payment history</div></div></div>
+            <div class="c-body">
+              <div class="past-row">
+                <div>
+                  <div class="past-info">Draw #3 — Framing & rough-in</div>
+                  <div class="past-detail">Approved Mar 28 · Paid Apr 2</div>
+                </div>
+                <div class="past-amount" style="color:var(--success-text)">$42,800</div>
+              </div>
+              <div class="past-row">
+                <div>
+                  <div class="past-info">Draw #2 — Foundation & framing start</div>
+                  <div class="past-detail">Approved Feb 20 · Paid Feb 25</div>
+                </div>
+                <div class="past-amount" style="color:var(--success-text)">$56,400</div>
+              </div>
+              <div class="past-row">
+                <div>
+                  <div class="past-info">Draw #1 — Demo & site prep</div>
+                  <div class="past-detail">Approved Jan 15 · Paid Jan 20</div>
+                </div>
+                <div class="past-amount" style="color:var(--success-text)">$49,000</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Your builder -->
+          <div class="card">
+            <div class="c-head"><div class="c-title">Questions?</div></div>
+            <div class="c-body" style="display:flex;align-items:center;gap:var(--sp-3)">
+              <div style="width:36px;height:36px;border-radius:50%;background:#5b4fc7;color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-size:12px;font-weight:700;flex-shrink:0">SM</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-family:var(--font-display);font-size:13px;font-weight:650">Sarah Mitchell</div>
+                <div style="font-size:12px;color:var(--text-secondary)">Your project manager</div>
+              </div>
+              <button class="btn" style="height:30px;font-size:12px;padding:0 10px">Message</button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+document.querySelectorAll('.ns-h').forEach(h => h.addEventListener('click', () => h.closest('.ns').classList.toggle('closed')));
+</script>
+</body>
+</html>

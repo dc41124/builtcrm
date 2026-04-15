@@ -58,9 +58,9 @@ function fmtRange(from: Date, to: Date): string {
   })}`;
 }
 
-function daysSince(d: Date | null): number | null {
+function daysSince(d: Date | null, now: number): number | null {
   if (!d) return null;
-  return Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+  return Math.floor((now - new Date(d).getTime()) / 86400000);
 }
 
 function statusView(status: string): { color: PillColor; label: string } {
@@ -121,12 +121,12 @@ function waiverTypeLabel(t: Waiver["lienWaiverType"]): string {
 }
 
 export function CommercialBillingReview({
-  projectName,
   draws,
 }: {
   projectName: string;
   draws: Draw[];
 }) {
+  const [now] = useState(() => Date.now());
   const counts = useMemo(() => {
     const c = { pending: 0, approved: 0, returned: 0 };
     for (const d of draws) c[tabOf(d.drawRequestStatus)] += 1;
@@ -160,12 +160,29 @@ export function CommercialBillingReview({
     <div className="bcr">
       <header className="bcr-head">
         <div className="bcr-head-main">
-          <div className="bcr-crumbs">{projectName} · Billing</div>
-          <h1 className="bcr-title">Draw Review</h1>
+          <h1 className="bcr-title">Billing / Draws</h1>
           <p className="bcr-desc">
-            Review the contractor&apos;s application for payment line by line.
-            Approve the package, approve with a note, or return it for clarification.
+            Review draw packages released by the contractor, inspect line-item
+            progress, verify lien waivers, and return a formal billing
+            decision.
           </p>
+          <div className="bcr-head-pills">
+            <Pill color="purple">Formal billing review</Pill>
+            {counts.pending > 0 && (
+              <Pill color="amber">
+                {counts.pending} package{counts.pending === 1 ? "" : "s"} need
+                your review
+              </Pill>
+            )}
+          </div>
+        </div>
+        <div className="bcr-head-actions">
+          <button type="button" className="bcr-btn">
+            View all draws
+          </button>
+          <button type="button" className="bcr-btn pri">
+            Review active draw
+          </button>
         </div>
       </header>
 
@@ -206,77 +223,86 @@ export function CommercialBillingReview({
           />
         </Card>
       ) : (
-        <Card
-          title="Draw queue"
-          subtitle="Every draw application in the current billing cycle."
-          tabs={[
-            { id: "pending", label: `Pending (${counts.pending})` },
-            { id: "approved", label: `Approved (${counts.approved})` },
-            { id: "returned", label: `Returned (${counts.returned})` },
-          ]}
-          activeTabId={activeTab}
-          onTabChange={(id) => {
-            setActiveTab(id as TabId);
-            setSelectedId(null);
-          }}
-          padded={false}
-        >
-          {filtered.length === 0 ? (
-            <div style={{ padding: 20 }}>
-              <EmptyState
-                title="Nothing in this view"
-                description="There are no draws matching this filter."
-              />
-            </div>
-          ) : (
-            <div className="bcr-split">
-              <div className="bcr-queue">
-                {filtered.map((d) => {
-                  const sv = statusView(d.drawRequestStatus);
-                  const waited = daysSince(d.submittedAt);
-                  return (
-                    <button
-                      key={d.id}
-                      type="button"
-                      className={`bcr-row ${
-                        selected?.id === d.id ? "bcr-row-sel" : ""
-                      }`}
-                      onClick={() => setSelectedId(d.id)}
-                    >
-                      <div className="bcr-row-top">
-                        <div className="bcr-row-title">Draw #{d.drawNumber}</div>
-                        <Pill color={sv.color}>{sv.label}</Pill>
-                      </div>
-                      <div className="bcr-row-period">
-                        {fmtRange(d.periodFrom, d.periodTo)}
-                      </div>
-                      <div className="bcr-row-foot">
-                        <span className="bcr-row-amt">
-                          {fmtMoney(d.currentPaymentDueCents)}
-                        </span>
-                        {waited != null && d.drawRequestStatus !== "approved" &&
-                          d.drawRequestStatus !== "approved_with_note" &&
-                          d.drawRequestStatus !== "paid" && (
-                            <span>{waited}d waiting</span>
-                          )}
-                      </div>
-                    </button>
-                  );
-                })}
+        <div className="bcr-page-grid">
+          <Card
+            title="Draw queue"
+            subtitle="Every draw application in the current billing cycle."
+            tabs={[
+              { id: "pending", label: `Pending (${counts.pending})` },
+              { id: "approved", label: `Approved (${counts.approved})` },
+              { id: "returned", label: `Returned (${counts.returned})` },
+            ]}
+            activeTabId={activeTab}
+            onTabChange={(id) => {
+              setActiveTab(id as TabId);
+              setSelectedId(null);
+            }}
+            padded={false}
+          >
+            {filtered.length === 0 ? (
+              <div style={{ padding: 20 }}>
+                <EmptyState
+                  title="Nothing in this view"
+                  description="There are no draws matching this filter."
+                />
               </div>
-              <div className="bcr-detail">
-                {selected ? (
-                  <DrawDetail draw={selected} />
-                ) : (
-                  <EmptyState
-                    title="Select a draw"
-                    description="Pick one from the queue to review."
-                  />
-                )}
+            ) : (
+              <div className="bcr-split">
+                <div className="bcr-queue">
+                  {filtered.map((d) => {
+                    const sv = statusView(d.drawRequestStatus);
+                    const waited = daysSince(d.submittedAt, now);
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        className={`bcr-row ${
+                          selected?.id === d.id ? "bcr-row-sel" : ""
+                        }`}
+                        onClick={() => setSelectedId(d.id)}
+                      >
+                        <div className="bcr-row-top">
+                          <div className="bcr-row-title">
+                            Draw #{d.drawNumber}
+                          </div>
+                          <Pill color={sv.color}>{sv.label}</Pill>
+                        </div>
+                        <div className="bcr-row-period">
+                          {fmtRange(d.periodFrom, d.periodTo)}
+                        </div>
+                        <div className="bcr-row-foot">
+                          <span className="bcr-row-amt">
+                            {fmtMoney(d.currentPaymentDueCents)}
+                          </span>
+                          {waited != null &&
+                            d.drawRequestStatus !== "approved" &&
+                            d.drawRequestStatus !== "approved_with_note" &&
+                            d.drawRequestStatus !== "paid" && (
+                              <span>{waited}d waiting</span>
+                            )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="bcr-detail">
+                  {selected ? (
+                    <DrawDetail draw={selected} />
+                  ) : (
+                    <EmptyState
+                      title="Select a draw"
+                      description="Pick one from the queue to review."
+                    />
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-        </Card>
+            )}
+          </Card>
+
+          <aside className="bcr-rail">
+            <RightRail draws={draws} selected={selected} />
+          </aside>
+        </div>
       )}
 
       <WorkspaceStyles />
@@ -302,23 +328,35 @@ function DrawDetail({ draw }: { draw: Draw }) {
       stored: acc.stored + l.materialsPresentlyStoredCents,
       total: acc.total + l.totalCompletedStoredToDateCents,
       balance: acc.balance + l.balanceToFinishCents,
+      retainage: acc.retainage + l.retainageCents,
     }),
-    { sched: 0, prev: 0, period: 0, stored: 0, total: 0, balance: 0 },
+    { sched: 0, prev: 0, period: 0, stored: 0, total: 0, balance: 0, retainage: 0 },
   );
   const totalsPct =
     totals.sched > 0 ? `${((totals.total / totals.sched) * 100).toFixed(1)}%` : "0.0%";
 
   const g702: Array<{ label: string; value: string; highlight?: boolean }> = [
-    { label: "Original contract", value: fmtMoney(draw.originalContractSumCents) },
-    { label: "Net change orders", value: fmtMoneySigned(draw.netChangeOrdersCents) },
-    { label: "Contract sum to date", value: fmtMoney(draw.contractSumToDateCents) },
-    { label: "Completed & stored", value: fmtMoney(draw.totalCompletedToDateCents) },
-    { label: "Retainage held", value: fmtMoney(draw.totalRetainageCents) },
-    { label: "Less previous certificates", value: fmtMoney(draw.previousCertificatesCents) },
+    { label: "1. Original contract", value: fmtMoney(draw.originalContractSumCents) },
+    { label: "2. Net change orders", value: fmtMoneySigned(draw.netChangeOrdersCents) },
+    { label: "3. Contract sum to date", value: fmtMoney(draw.contractSumToDateCents) },
+    { label: "4. Completed & stored", value: fmtMoney(draw.totalCompletedToDateCents) },
+    { label: "5. Retainage held", value: fmtMoney(draw.totalRetainageCents) },
     {
-      label: "Current payment due",
+      label: "6. Total earned less retainage",
+      value: fmtMoney(draw.totalEarnedLessRetainageCents),
+    },
+    {
+      label: "7. Less previous certificates",
+      value: fmtMoney(draw.previousCertificatesCents),
+    },
+    {
+      label: "8. Current payment due",
       value: fmtMoney(draw.currentPaymentDueCents),
       highlight: true,
+    },
+    {
+      label: "9. Balance to finish + retainage",
+      value: fmtMoney(draw.balanceToFinishCents + draw.totalRetainageCents),
     },
   ];
 
@@ -430,9 +468,11 @@ function DrawDetail({ draw }: { draw: Draw }) {
                   <th className="right">Scheduled</th>
                   <th className="right">Previous</th>
                   <th className="right ed">This period</th>
+                  <th className="right">Stored</th>
                   <th className="right">Total</th>
                   <th className="center">%</th>
                   <th className="right">Balance</th>
+                  <th className="right">Retainage</th>
                 </tr>
               </thead>
               <tbody>
@@ -447,9 +487,11 @@ function DrawDetail({ draw }: { draw: Draw }) {
                   <td className="right">{fmtMoney(totals.sched)}</td>
                   <td className="right">{fmtMoney(totals.prev)}</td>
                   <td className="right accent">{fmtMoney(totals.period)}</td>
+                  <td className="right">{fmtMoney(totals.stored)}</td>
                   <td className="right">{fmtMoney(totals.total)}</td>
                   <td className="center">{totalsPct}</td>
                   <td className="right">{fmtMoney(totals.balance)}</td>
+                  <td className="right">{fmtMoney(totals.retainage)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -498,6 +540,17 @@ function DrawDetail({ draw }: { draw: Draw }) {
             })}
           </div>
         )}
+      </section>
+
+      <section className="bcr-section">
+        <div className="bcr-section-head">
+          <h3>Supporting files</h3>
+          <span className="bcr-section-sub">Attachments released with this draw</span>
+        </div>
+        <p className="bcr-empty-copy">
+          Files attached to this draw package (cover sheets, pay apps, backup
+          invoices) will appear here.
+        </p>
       </section>
 
       {canDecide && (
@@ -564,6 +617,117 @@ function DrawDetail({ draw }: { draw: Draw }) {
   );
 }
 
+function RightRail({
+  draws,
+  selected,
+}: {
+  draws: Draw[];
+  selected: Draw | null;
+}) {
+  const snapshot = useMemo(() => {
+    const latest = draws[0] ?? null;
+    const billedToDate =
+      draws
+        .filter((d) =>
+          ["approved", "approved_with_note", "paid"].includes(d.drawRequestStatus),
+        )
+        .reduce((acc, d) => acc + d.currentPaymentDueCents, 0) +
+      (selected?.previousCertificatesCents ?? 0);
+    return {
+      originalContract: latest?.originalContractSumCents ?? 0,
+      changeOrders: latest?.netChangeOrdersCents ?? 0,
+      revisedContract: latest?.contractSumToDateCents ?? 0,
+      billedToDate,
+      retainage: latest?.totalRetainageCents ?? 0,
+    };
+  }, [draws, selected]);
+
+  const pendingDraw = draws.find((d) => d.drawRequestStatus === "under_review");
+  const showDecisionCard = pendingDraw != null;
+
+  return (
+    <>
+      {showDecisionCard && (
+        <div className="bcr-rc alert">
+          <div className="bcr-rc-h">
+            <h3>Decision needed</h3>
+            <span className="sub">A draw package is awaiting your review.</span>
+          </div>
+          <div className="bcr-rc-b">
+            <div className="bcr-mblk">
+              <h4>
+                Draw #{pendingDraw.drawNumber} · {fmtMoney(pendingDraw.currentPaymentDueCents)}
+              </h4>
+              <p>
+                Affects payment timing. Approve the package, approve with a
+                note, or return it for clarification.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="bcr-rc">
+        <div className="bcr-rc-h">
+          <h3>Contract snapshot</h3>
+          <span className="sub">Rolling totals across this cycle.</span>
+        </div>
+        <div className="bcr-rc-b">
+          <div className="bcr-snap">
+            <div className="bcr-snap-row">
+              <span>Original contract</span>
+              <span className="v">{fmtMoney(snapshot.originalContract)}</span>
+            </div>
+            <div className="bcr-snap-row">
+              <span>Change orders</span>
+              <span className="v">{fmtMoneySigned(snapshot.changeOrders)}</span>
+            </div>
+            <div className="bcr-snap-row total">
+              <span>Revised contract</span>
+              <span className="v">{fmtMoney(snapshot.revisedContract)}</span>
+            </div>
+            <div className="bcr-snap-row">
+              <span>Billed to date</span>
+              <span className="v">{fmtMoney(snapshot.billedToDate)}</span>
+            </div>
+            <div className="bcr-snap-row">
+              <span>Retainage held</span>
+              <span className="v">{fmtMoney(snapshot.retainage)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bcr-rc">
+        <div className="bcr-rc-h">
+          <h3>Recent activity</h3>
+          <span className="sub">Billing events on this project.</span>
+        </div>
+        <div className="bcr-rc-b">
+          <p className="bcr-rc-p">
+            Activity feed will populate as draw packages are submitted, reviewed,
+            and approved.
+          </p>
+        </div>
+      </div>
+
+      <div className="bcr-rc info">
+        <div className="bcr-rc-h">
+          <h3>Review principle</h3>
+          <span className="sub">How billing decisions flow.</span>
+        </div>
+        <div className="bcr-rc-b">
+          <p className="bcr-rc-p">
+            Every draw package represents a formal application for payment.
+            Your decision returns directly to the contractor and affects
+            payment timing according to your contract.
+          </p>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function G703Row({ line }: { line: Line }) {
   return (
     <tr>
@@ -572,9 +736,11 @@ function G703Row({ line }: { line: Line }) {
       <td className="right">{fmtMoney(line.scheduledValueCents)}</td>
       <td className="right">{fmtMoney(line.workCompletedPreviousCents)}</td>
       <td className="right ed">{fmtMoney(line.workCompletedThisPeriodCents)}</td>
+      <td className="right">{fmtMoney(line.materialsPresentlyStoredCents)}</td>
       <td className="right">{fmtMoney(line.totalCompletedStoredToDateCents)}</td>
       <td className="center">{fmtPct(line.percentCompleteBasisPoints)}</td>
       <td className="right">{fmtMoney(line.balanceToFinishCents)}</td>
+      <td className="right">{fmtMoney(line.retainageCents)}</td>
     </tr>
   );
 }
@@ -583,19 +749,51 @@ function WorkspaceStyles() {
   return (
     <style>{`
       .bcr{display:flex;flex-direction:column;gap:20px}
+      .bcr-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
       .bcr-head-main{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
-      .bcr-crumbs{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t3);text-transform:uppercase;letter-spacing:.04em}
       .bcr-title{font-family:var(--fd);font-size:24px;font-weight:820;letter-spacing:-.03em;color:var(--t1);line-height:1.15;margin:0}
       .bcr-desc{font-family:var(--fb);font-size:13.5px;font-weight:540;color:var(--t2);line-height:1.5;max-width:720px;margin:0}
+      .bcr-head-pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+      .bcr-head-actions{display:flex;gap:8px;flex-shrink:0;padding-top:4px;flex-wrap:wrap}
+      .bcr-btn{height:34px;padding:0 14px;border-radius:var(--r-m);border:1px solid var(--s3);background:var(--s1);color:var(--t1);font-family:var(--fb);font-size:12.5px;font-weight:640;cursor:pointer;transition:all var(--df) var(--e);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+      .bcr-btn:hover{border-color:var(--s4);background:var(--sh)}
+      .bcr-btn.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+      .bcr-btn.pri:hover{background:var(--ac-h);border-color:var(--ac-h)}
+
       .bcr-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
       @media(max-width:1000px){.bcr-kpis{grid-template-columns:repeat(2,1fr)}}
 
+      .bcr-page-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+      @media(max-width:1280px){.bcr-page-grid{grid-template-columns:1fr}}
+
+      .bcr-rail{display:flex;flex-direction:column;gap:12px;min-width:0}
+      .bcr-rc{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-xl);box-shadow:var(--shsm);overflow:hidden}
+      .bcr-rc.alert{border-color:color-mix(in srgb,var(--wr) 30%,var(--s3))}
+      .bcr-rc.info{border-color:color-mix(in srgb,var(--in) 30%,var(--s3))}
+      .bcr-rc-h{padding:14px 16px 0}
+      .bcr-rc-h h3{font-family:var(--fd);font-size:14px;font-weight:720;color:var(--t1);margin:0;letter-spacing:-.01em}
+      .bcr-rc-h .sub{font-family:var(--fb);font-size:11.5px;font-weight:540;color:var(--t3);margin-top:3px;display:block}
+      .bcr-rc-b{padding:10px 16px 16px}
+      .bcr-rc-p{font-family:var(--fb);font-size:12.5px;font-weight:540;color:var(--t2);margin:0;line-height:1.55}
+      .bcr-mblk{background:var(--s2);border:1px solid var(--s3);border-radius:var(--r-m);padding:12px}
+      .bcr-mblk h4{font-family:var(--fd);font-size:13px;font-weight:700;color:var(--t1);margin:0 0 4px}
+      .bcr-mblk p{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);margin:0;line-height:1.5}
+      .bcr-snap{display:flex;flex-direction:column;gap:8px}
+      .bcr-snap-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:var(--fb);font-size:12.5px;font-weight:540;color:var(--t2)}
+      .bcr-snap-row .v{font-family:var(--fd);font-weight:700;color:var(--t1)}
+      .bcr-snap-row.total{padding-top:6px;margin-top:2px;border-top:1px dashed var(--s3);color:var(--t1);font-weight:640}
+
+      .bcr-empty-copy{font-family:var(--fb);font-size:12.5px;font-weight:540;color:var(--t2);margin:0;line-height:1.55}
+
       .bcr-split{display:grid;grid-template-columns:320px minmax(0,1fr)}
       @media(max-width:980px){.bcr-split{grid-template-columns:1fr}}
-      .bcr-queue{border-right:1px solid var(--s3);max-height:820px;overflow-y:auto;display:flex;flex-direction:column}
-      .bcr-row{text-align:left;background:transparent;border:none;border-bottom:1px solid var(--s3);padding:14px 18px;cursor:pointer;transition:background var(--df) var(--e);display:flex;flex-direction:column;gap:4px}
-      .bcr-row:hover{background:var(--sh)}
-      .bcr-row-sel,.bcr-row-sel:hover{background:var(--ac-s)}
+      .bcr-queue{border-right:1px solid var(--s3);max-height:820px;overflow-y:auto;display:flex;flex-direction:column;padding:12px 12px 14px;gap:6px}
+      .bcr-queue::-webkit-scrollbar{width:4px}
+      .bcr-queue::-webkit-scrollbar-track{background:transparent}
+      .bcr-queue::-webkit-scrollbar-thumb{background:var(--s4);border-radius:2px}
+      .bcr-row{text-align:left;background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:12px 14px;cursor:pointer;transition:all var(--dn) var(--e);display:flex;flex-direction:column;gap:4px}
+      .bcr-row:hover{border-color:var(--s4);background:var(--sh)}
+      .bcr-row-sel,.bcr-row-sel:hover{border-color:color-mix(in srgb,var(--ac) 40%,var(--s3));background:color-mix(in srgb,var(--ac-s) 30%,var(--s1));box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 15%,transparent)}
       .bcr-row-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
       .bcr-row-title{font-family:var(--fd);font-size:13.5px;font-weight:720;color:var(--t1);letter-spacing:-.005em}
       .bcr-row-period{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2)}

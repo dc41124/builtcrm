@@ -110,7 +110,6 @@ function waiverStatusLabel(s: WaiverRow["lienWaiverStatus"]): string {
 }
 
 export function ContractorBillingWorkspace({
-  projectName,
   draws,
   sov,
 }: {
@@ -138,7 +137,10 @@ export function ContractorBillingWorkspace({
   if (!sov) {
     return (
       <div className="bl">
-        <PageHeader name={projectName} />
+        <PageHeader
+          openCount={draws.filter((d) => d.drawRequestStatus !== "paid").length}
+          currentDue={summary.currentDue}
+        />
         <Card>
           <EmptyState
             title="No Schedule of Values yet"
@@ -152,7 +154,10 @@ export function ContractorBillingWorkspace({
 
   return (
     <div className="bl">
-      <PageHeader name={projectName} />
+      <PageHeader
+        openCount={draws.filter((d) => d.drawRequestStatus !== "paid").length}
+        currentDue={summary.currentDue}
+      />
 
       <div className="bl-kpis">
         <KpiCard
@@ -231,15 +236,43 @@ export function ContractorBillingWorkspace({
   );
 }
 
-function PageHeader({ name }: { name: string }) {
+function PageHeader({
+  openCount,
+  currentDue,
+}: {
+  openCount: number;
+  currentDue: number;
+}) {
   return (
     <header className="bl-head">
       <div className="bl-head-main">
-        <div className="bl-crumbs">{name} · Billing</div>
         <h1 className="bl-title">Billing &amp; Draw Requests</h1>
         <p className="bl-desc">
-          AIA G702 / G703 draw requests, Schedule of Values, retainage and lien waivers.
+          AIA G702 / G703 draw requests, Schedule of Values, retainage and lien
+          waivers.
         </p>
+        <div className="bl-head-pills">
+          <Pill color="purple">AIA G702 / G703 workspace</Pill>
+          {openCount > 0 && (
+            <Pill color="amber">
+              {openCount} draw{openCount === 1 ? "" : "s"} in progress
+            </Pill>
+          )}
+          {currentDue > 0 && (
+            <Pill color="blue">{fmtMoney(currentDue)} payment due</Pill>
+          )}
+        </div>
+      </div>
+      <div className="bl-head-actions">
+        <button type="button" className="bl-btn">
+          Export PDF
+        </button>
+        <button type="button" className="bl-btn">
+          Save draft
+        </button>
+        <button type="button" className="bl-btn pri">
+          Submit for review
+        </button>
       </div>
     </header>
   );
@@ -495,10 +528,32 @@ function DrawDetail({ draw, sov }: { draw: DrawRow; sov: Sov }) {
                   </div>
                 ))}
                 <div className="bl-lw-summary">
-                  {receivedCount} of {waiverCount} received · {waiverCount - receivedCount} outstanding
+                  {receivedCount} of {waiverCount} received ·{" "}
+                  {waiverCount - receivedCount} outstanding
                 </div>
               </>
             )}
+          </div>
+        </section>
+
+        <section className="bl-mini">
+          <div className="bl-mini-head">
+            <div className="bl-mini-title">Package Documents</div>
+            <div className="bl-mini-sub">Attachments for this draw</div>
+          </div>
+          <div className="bl-mini-body">
+            <p className="bl-pkg-empty">
+              Attach closeout documents, invoices, and supporting files. These
+              travel with the draw package when it's submitted for review.
+            </p>
+            <div className="bl-pkg-acts">
+              <button type="button" className="bl-btn sm">
+                Attach file
+              </button>
+              <button type="button" className="bl-btn sm pri">
+                Submit for review
+              </button>
+            </div>
           </div>
         </section>
       </div>
@@ -600,19 +655,29 @@ function WorkspaceStyles() {
       .bl{display:flex;flex-direction:column;gap:20px}
       .bl-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
       .bl-head-main{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
-      .bl-crumbs{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t3);text-transform:uppercase;letter-spacing:.04em}
-      .bl-title{font-family:var(--fd);font-size:26px;font-weight:820;letter-spacing:-.03em;color:var(--t1);line-height:1.15;margin:0}
+      .bl-title{font-family:var(--fd);font-size:26px;font-weight:820;letter-spacing:-.035em;color:var(--t1);line-height:1.15;margin:0}
       .bl-desc{font-family:var(--fb);font-size:13.5px;font-weight:540;color:var(--t2);line-height:1.5;max-width:720px;margin:0}
+      .bl-head-pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+      .bl-head-actions{display:flex;gap:8px;flex-shrink:0;padding-top:4px;flex-wrap:wrap}
+      .bl-btn{height:34px;padding:0 14px;border-radius:var(--r-m);border:1px solid var(--s3);background:var(--s1);color:var(--t1);font-family:var(--fb);font-size:12.5px;font-weight:640;cursor:pointer;transition:all var(--df) var(--e);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+      .bl-btn:hover{border-color:var(--s4);background:var(--sh)}
+      .bl-btn.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+      .bl-btn.pri:hover{background:var(--ac-h);border-color:var(--ac-h)}
+      .bl-btn.sm{height:30px;padding:0 12px;font-size:12px}
+
       .bl-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
       @media(max-width:1000px){.bl-kpis{grid-template-columns:repeat(2,1fr)}}
 
-      .bl-split{display:grid;grid-template-columns:300px minmax(0,1fr)}
+      .bl-split{display:grid;grid-template-columns:320px minmax(0,1fr);gap:0}
       @media(max-width:980px){.bl-split{grid-template-columns:1fr}}
-      .bl-queue{border-right:1px solid var(--s3);max-height:820px;overflow-y:auto;display:flex;flex-direction:column}
-      .bl-queue-head{font-family:var(--fb);font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;padding:14px 18px 8px}
-      .bl-queue-row{text-align:left;background:transparent;border:none;border-top:1px solid var(--s3);padding:14px 18px;cursor:pointer;transition:background var(--df) var(--e);display:flex;flex-direction:column;gap:4px}
-      .bl-queue-row:hover{background:var(--sh)}
-      .bl-queue-row-sel,.bl-queue-row-sel:hover{background:var(--ac-s)}
+      .bl-queue{border-right:1px solid var(--s3);max-height:820px;overflow-y:auto;display:flex;flex-direction:column;padding:14px 14px 16px;gap:6px}
+      .bl-queue::-webkit-scrollbar{width:4px}
+      .bl-queue::-webkit-scrollbar-track{background:transparent}
+      .bl-queue::-webkit-scrollbar-thumb{background:var(--s4);border-radius:2px}
+      .bl-queue-head{font-family:var(--fb);font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;padding:4px 4px 4px}
+      .bl-queue-row{text-align:left;background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:12px 14px;cursor:pointer;transition:all var(--dn) var(--e);display:flex;flex-direction:column;gap:4px}
+      .bl-queue-row:hover{border-color:var(--s4);background:var(--sh)}
+      .bl-queue-row-sel,.bl-queue-row-sel:hover{border-color:color-mix(in srgb,var(--ac) 40%,var(--s3));background:color-mix(in srgb,var(--ac-s) 30%,var(--s1));box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 15%,transparent)}
       .bl-queue-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
       .bl-queue-title{font-family:var(--fd);font-size:13.5px;font-weight:720;color:var(--t1);letter-spacing:-.005em}
       .bl-queue-period{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2)}
@@ -659,8 +724,11 @@ function WorkspaceStyles() {
       .bl-g703 tfoot td.accent{color:var(--ac-t)}
       .bl-g703 tr:last-child td,.bl-sov tr:last-child td{border-bottom:none}
 
-      .bl-bottom{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-      @media(max-width:1100px){.bl-bottom{grid-template-columns:1fr}}
+      .bl-bottom{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+      @media(max-width:1280px){.bl-bottom{grid-template-columns:1fr 1fr}}
+      @media(max-width:900px){.bl-bottom{grid-template-columns:1fr}}
+      .bl-pkg-empty{font-family:var(--fb);font-size:12.5px;font-weight:540;color:var(--t2);margin:0;line-height:1.55}
+      .bl-pkg-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
       .bl-mini{border:1px solid var(--s3);border-radius:var(--r-m);background:var(--s1);display:flex;flex-direction:column}
       .bl-mini-head{padding:14px 16px;border-bottom:1px solid var(--s3)}
       .bl-mini-title{font-family:var(--fd);font-size:13.5px;font-weight:740;color:var(--t1);letter-spacing:-.005em}
