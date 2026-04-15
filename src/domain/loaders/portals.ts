@@ -133,11 +133,11 @@ export function portalHref(
   portalType: "contractor" | "subcontractor" | "client",
   clientSubtype: "commercial" | "residential" | null,
 ): string {
-  if (portalType === "contractor") return "/app/contractor";
-  if (portalType === "subcontractor") return "/app/subcontractor";
+  if (portalType === "contractor") return "/contractor";
+  if (portalType === "subcontractor") return "/subcontractor";
   return clientSubtype === "residential"
-    ? "/app/residential"
-    : "/app/commercial";
+    ? "/residential"
+    : "/commercial";
 }
 
 export function portalLabel(option: PortalOption): {

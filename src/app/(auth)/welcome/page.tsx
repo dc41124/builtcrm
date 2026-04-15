@@ -140,7 +140,7 @@ function FallbackWelcome() {
       <h2>Welcome to BuiltCRM</h2>
       <p className="auth-sub">Your account is ready.</p>
       <Link
-        href="/app"
+        href="/"
         className="btn-auth"
         style={{ textDecoration: "none" }}
       >

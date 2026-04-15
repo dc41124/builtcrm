@@ -34,7 +34,6 @@ export type Breadcrumb = { label: string; href?: string };
 export type AppShellProps = {
   portalType: PortalType;
   orgName: string;
-  memberCount?: number;
   userName: string;
   userRole: string;
   navSections: NavSection[];
@@ -55,6 +54,11 @@ const ACCENTS: Record<PortalType, { base: string; light: string; hover: string; 
 const ChevronRight = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="m9 18 6-6-6-6" />
+  </svg>
+);
+const ChevronDown = (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m6 9 6 6 6-6" />
   </svg>
 );
 const SearchIcon = (
@@ -78,16 +82,6 @@ const SunIcon = (
     <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
   </svg>
 );
-const CollapseIcon = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M15 6l-6 6 6 6" />
-  </svg>
-);
-const ExpandIcon = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 6l6 6-6 6" />
-  </svg>
-);
 const MenuIcon = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
@@ -98,6 +92,16 @@ const CloseIcon = (
     <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
   </svg>
 );
+const FolderIcon = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+  </svg>
+);
+const FolderOpenIcon = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2l1-5a2 2 0 00-2-2H7a2 2 0 00-2 2l-1 5z" />
+  </svg>
+);
 const LogoMark = (
   <svg viewBox="0 0 80 80">
     <rect x="14" y="14" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".5" />
@@ -106,10 +110,11 @@ const LogoMark = (
   </svg>
 );
 
+const PROJECTS_KEY = "__projects__";
+
 export default function AppShell({
   portalType,
   orgName,
-  memberCount,
   userName,
   userRole,
   navSections,
@@ -128,11 +133,11 @@ export default function AppShell({
       localStorage.setItem("builtcrm-theme", isDark ? "dark" : "light");
     } catch {}
   };
-  const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(navSections.map((s) => [s.label, s.defaultOpen ?? true]))
-  );
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => ({
+    ...Object.fromEntries(navSections.map((s) => [s.label, s.defaultOpen ?? true])),
+    [PROJECTS_KEY]: true,
+  }));
 
   // Lock body scroll while mobile drawer is open
   useEffect(() => {
@@ -155,12 +160,13 @@ export default function AppShell({
   }, []);
 
   const accent = ACCENTS[portalType];
-  const toggle = (label: string) => setExpanded((p) => ({ ...p, [label]: !p[label] }));
+  const toggle = (key: string) => setExpanded((p) => ({ ...p, [key]: !p[key] }));
   const initials = userName.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
+  const projectsOpen = !!expanded[PROJECTS_KEY];
 
   return (
     <div
-      className={`bcrm ${collapsed ? "collapsed" : ""} ${mobileOpen ? "mobile-open" : ""}`}
+      className={`bcrm ${mobileOpen ? "mobile-open" : ""}`}
       style={
         {
           ["--accent" as string]: accent.base,
@@ -186,19 +192,20 @@ export default function AppShell({
             <div className="b-hdr-row">
               <div className="b-logo">{LogoMark}</div>
               <span className="b-appn">BuiltCRM</span>
-              <button className="b-collapse" onClick={() => setCollapsed((c) => !c)} aria-label="Toggle sidebar">
-                {collapsed ? ExpandIcon : CollapseIcon}
+              <span className="b-slash">/</span>
+              <span className="b-orgn">{orgName}</span>
+              <button className="b-sw" aria-label="Switch workspace">
+                {ChevronDown}
               </button>
             </div>
           </div>
 
-          <div className="b-org">
-            <div className="b-orgn">{orgName}</div>
-            {memberCount != null && (
-              <div className="b-orgm">
-                {memberCount} {memberCount === 1 ? "member" : "members"}
-              </div>
-            )}
+          <div className="b-srch">
+            <div className="b-srch-w">
+              <span className="b-srch-ico">{SearchIcon}</span>
+              <input type="text" placeholder="Search..." />
+              <span className="b-srch-k">/</span>
+            </div>
           </div>
 
           <nav className="b-nav">
@@ -207,6 +214,7 @@ export default function AppShell({
               return (
                 <div className={`b-mod ${isOpen ? "exp" : ""}`} key={section.label}>
                   <button className="b-mod-h" onClick={() => toggle(section.label)}>
+                    <span className="b-mod-ico">{isOpen ? FolderOpenIcon : FolderIcon}</span>
                     {section.label}
                     <span className={`b-mod-chev ${isOpen ? "open" : ""}`}>{ChevronRight}</span>
                   </button>
@@ -221,6 +229,7 @@ export default function AppShell({
                               {item.badge}
                             </span>
                           )}
+                          {item.active && <span className="b-dot-ac" />}
                         </a>
                       ))}
                     </div>
@@ -230,26 +239,32 @@ export default function AppShell({
             })}
 
             {projects.length > 0 && (
-              <div className="b-mod exp" style={{ marginTop: 4 }}>
-                <div className="b-mod-h" style={{ cursor: "default" }}>Projects</div>
-                <div className="b-tree">
-                  {projects.map((p) => {
-                    const inner = (
-                      <>
-                        <span className={`b-pd ${p.dot}`} />
-                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {p.name}
-                        </span>
-                        {p.phase && <span className="b-pp">{p.phase}</span>}
-                      </>
-                    );
-                    return p.href ? (
-                      <a key={p.name} href={p.href} className={`b-tp ${p.active ? "on" : ""}`}>{inner}</a>
-                    ) : (
-                      <div key={p.name} className={`b-tp ${p.active ? "on" : ""}`}>{inner}</div>
-                    );
-                  })}
-                </div>
+              <div className={`b-mod ${projectsOpen ? "exp" : ""}`}>
+                <button className="b-mod-h" onClick={() => toggle(PROJECTS_KEY)}>
+                  <span className="b-mod-ico">{projectsOpen ? FolderOpenIcon : FolderIcon}</span>
+                  Projects
+                  <span className={`b-mod-chev ${projectsOpen ? "open" : ""}`}>{ChevronRight}</span>
+                </button>
+                {projectsOpen && (
+                  <div className="b-tree">
+                    {projects.map((p) => {
+                      const inner = (
+                        <>
+                          <span className={`b-pd ${p.dot}`} />
+                          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {p.name}
+                          </span>
+                          {p.phase && <span className="b-pp">{p.phase}</span>}
+                        </>
+                      );
+                      return p.href ? (
+                        <a key={p.name} href={p.href} className={`b-tp ${p.active ? "on" : ""}`}>{inner}</a>
+                      ) : (
+                        <div key={p.name} className={`b-tp ${p.active ? "on" : ""}`}>{inner}</div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </nav>

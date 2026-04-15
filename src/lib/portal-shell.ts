@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { and, eq, inArray, lte, or } from "drizzle-orm";
 
 import { auth } from "@/auth/config";
 import {
@@ -7,6 +8,8 @@ import {
   type PortalOption,
   type ProjectShortcut,
 } from "@/domain/loaders/portals";
+import { db } from "@/db/client";
+import { projects, complianceRecords, rfis, approvals } from "@/db/schema";
 
 import type { PortalType, ShellProject } from "@/components/shell/AppShell";
 
@@ -50,11 +53,23 @@ export async function loadPortalShell(
   const wantLabel = shortcutLabelFor(portalType);
   const shortcuts = ctx.projectShortcuts.filter((s) => s.portalLabel === wantLabel);
 
-  const projects: ShellProject[] = shortcuts.map((s) => ({
+  const projectIds = shortcuts.map((s) => s.projectId);
+  const [phaseRows, healthMap] = await Promise.all([
+    projectIds.length
+      ? db
+          .select({ id: projects.id, currentPhase: projects.currentPhase })
+          .from(projects)
+          .where(inArray(projects.id, projectIds))
+      : Promise.resolve([] as Array<{ id: string; currentPhase: string }>),
+    computeProjectHealth(projectIds),
+  ]);
+  const phaseById = new Map(phaseRows.map((r) => [r.id, r.currentPhase]));
+
+  const shellProjects: ShellProject[] = shortcuts.map((s) => ({
     name: s.projectName,
     href: `/${portalType}/project/${s.projectId}`,
-    phase: undefined,
-    dot: "gray",
+    phase: phaseLabel(phaseById.get(s.projectId)),
+    dot: healthMap.get(s.projectId) ?? "gray",
     active: activeProjectId ? s.projectId === activeProjectId : false,
   }));
 
@@ -68,10 +83,105 @@ export async function loadPortalShell(
     userRole: roleLabel(portalType),
     orgName: option.organizationName,
     orgId: option.organizationId,
-    projects,
+    projects: shellProjects,
     projectShortcuts: shortcuts,
     option,
   };
+}
+
+function phaseLabel(phase: string | undefined): string | undefined {
+  switch (phase) {
+    case "preconstruction":
+      return "Preconstruction";
+    case "phase_1":
+      return "Phase 1 · Foundations";
+    case "phase_2":
+      return "Phase 2 · Structural";
+    case "phase_3":
+      return "Phase 3 · Finishes";
+    case "closeout":
+      return "Closeout";
+    default:
+      return undefined;
+  }
+}
+
+// Computes a simple health signal per project for the sidebar dot:
+//   red   = any expired compliance or overdue open RFI
+//   amber = any compliance expiring within 14 days, or any pending approval past due
+//   green = otherwise
+// One-query-per-signal, cheap enough to run on every portal load.
+async function computeProjectHealth(
+  projectIds: string[],
+): Promise<Map<string, "green" | "amber" | "red" | "gray">> {
+  const result = new Map<string, "green" | "amber" | "red" | "gray">();
+  if (projectIds.length === 0) return result;
+  for (const id of projectIds) result.set(id, "green");
+
+  const now = new Date();
+  const in14Days = new Date(now.getTime() + 14 * 86400000);
+
+  // Red signals
+  const expiredCompliance = await db
+    .select({ projectId: complianceRecords.projectId })
+    .from(complianceRecords)
+    .where(
+      and(
+        inArray(complianceRecords.projectId, projectIds),
+        eq(complianceRecords.complianceStatus, "expired"),
+      )!,
+    );
+  for (const r of expiredCompliance) {
+    if (r.projectId) result.set(r.projectId, "red");
+  }
+
+  const overdueRfis = await db
+    .select({ projectId: rfis.projectId })
+    .from(rfis)
+    .where(
+      and(
+        inArray(rfis.projectId, projectIds),
+        or(eq(rfis.rfiStatus, "open"), eq(rfis.rfiStatus, "pending_response")),
+        lte(rfis.dueAt, now),
+      )!,
+    );
+  for (const r of overdueRfis) {
+    result.set(r.projectId, "red");
+  }
+
+  // Amber signals (don't downgrade red)
+  const soonExpiring = await db
+    .select({ projectId: complianceRecords.projectId })
+    .from(complianceRecords)
+    .where(
+      and(
+        inArray(complianceRecords.projectId, projectIds),
+        eq(complianceRecords.complianceStatus, "active"),
+        lte(complianceRecords.expiresAt, in14Days),
+      )!,
+    );
+  for (const r of soonExpiring) {
+    if (r.projectId && result.get(r.projectId) !== "red") {
+      result.set(r.projectId, "amber");
+    }
+  }
+
+  const stalePendingApprovals = await db
+    .select({ projectId: approvals.projectId })
+    .from(approvals)
+    .where(
+      and(
+        inArray(approvals.projectId, projectIds),
+        eq(approvals.approvalStatus, "pending_review"),
+      )!,
+    );
+  for (const r of stalePendingApprovals) {
+    if (result.get(r.projectId) === "green") {
+      result.set(r.projectId, "amber");
+    }
+  }
+
+  return result;
 }
 
 function matchesPortal(option: PortalOption, portalType: PortalType): boolean {

@@ -12,7 +12,6 @@ export default async function ContractorLayout({ children }: { children: ReactNo
     <AppShell
       portalType="contractor"
       orgName={shell.orgName}
-      memberCount={undefined}
       userName={shell.userName}
       userRole={shell.userRole}
       navSections={navSections}

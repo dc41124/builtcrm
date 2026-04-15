@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la \"/c/Users/David Cardona/Desktop/builtcrm/src/app/\\(portal\\)/subcontractor/project/\"*/compliance/)",
+      "Bash(cat \"/c/Users/David Cardona/Desktop/builtcrm/src/app/\\(portal\\)/subcontractor/project/\"*\"/upload-requests/page.tsx\")"
+    ]
+  }
+}

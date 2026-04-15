@@ -261,6 +261,7 @@ export default function MarketingPage() {
   const [resCat, setResCat] = useState<"all" | ResCat>("all");
   const [activeArticle, setActiveArticle] = useState<number | null>(null);
   const [activeFaq, setActiveFaq] = useState<number>(0);
+  const [mobileMenu, setMobileMenu] = useState(false);
 
   useEffect(() => {
     if (activeArticle === null) return;
@@ -272,8 +273,16 @@ export default function MarketingPage() {
   const nav = (p: PageKey) => {
     setPage(p);
     setActiveArticle(null);
+    setMobileMenu(false);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  useEffect(() => {
+    if (!mobileMenu) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [mobileMenu]);
 
   return (
     <div className="mkt" style={{ fontFamily: F.body, background: "#faf9f7", color: "#1a1714", WebkitFontSmoothing: "antialiased", lineHeight: 1.6, fontSize: 15, minHeight: "100vh" }}>
@@ -289,22 +298,18 @@ export default function MarketingPage() {
           .mkt nav > div{height:58px!important;gap:8px!important}
           .mkt nav > div > div:nth-child(2){display:none!important}
           .mkt nav > div > div:last-child{gap:6px!important}
-          .mkt nav > div > div:last-child a:first-child{display:none!important}
-          .mkt [style*="grid-template-columns"],
-          .mkt [style*="gridTemplateColumns"]{grid-template-columns:1fr!important;gap:16px!important}
+          .mkt .mkt-nav-login{display:none!important}
+          .mkt .mkt-nav-signup{display:none!important}
+          .mkt .mkt-hamburger{display:inline-flex!important}
+          .mkt [style*="grid-template-columns"]{grid-template-columns:1fr!important;gap:16px!important}
           .mkt section{padding:56px 18px!important}
-          .mkt [style*="padding: \\"100px 32px"],
-          .mkt [style*="padding: \\"72px 32px"],
-          .mkt [style*="padding: \\"80px 32px"],
-          .mkt [style*="padding: \\"40px 32px"]{padding-left:18px!important;padding-right:18px!important}
           .mkt footer{padding:56px 18px 32px!important}
           .mkt h1{font-size:38px!important;line-height:1.1!important}
           .mkt h2{font-size:28px!important;line-height:1.15!important}
-          .mkt [style*="padding: \\"32px 28px"]{padding:26px 22px!important}
           .mkt article{padding:32px 18px 60px!important}
           .mkt article h2{font-size:24px!important}
-          .mkt [style*="gap: 48"]{gap:24px!important;row-gap:12px!important}
           .mkt .faq-ml{grid-template-columns:1fr!important;min-height:auto!important}
+          .mkt .faq-ml > div:first-child{max-height:280px}
         }
       ` }} />
 
@@ -323,13 +328,36 @@ export default function MarketingPage() {
             ))}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <a href="/login" style={{ height: 38, padding: "0 16px", fontSize: 13.5, fontWeight: 620, color: "#5e5850", background: "transparent", border: "none", borderRadius: 10, cursor: "pointer", display: "inline-flex", alignItems: "center", textDecoration: "none", fontFamily: F.body }}>Log in</a>
-            <a href="/signup" style={{ height: 38, padding: "0 20px", fontSize: 13.5, fontWeight: 650, color: "white", background: "#5b4fc7", borderRadius: 10, display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer", textDecoration: "none", fontFamily: F.body }}>
+            <a href="/login" className="mkt-nav-login" style={{ height: 38, padding: "0 16px", fontSize: 13.5, fontWeight: 620, color: "#5e5850", background: "transparent", border: "none", borderRadius: 10, cursor: "pointer", display: "inline-flex", alignItems: "center", textDecoration: "none", fontFamily: F.body }}>Log in</a>
+            <a href="/signup" className="mkt-nav-signup" style={{ height: 38, padding: "0 20px", fontSize: 13.5, fontWeight: 650, color: "white", background: "#5b4fc7", borderRadius: 10, display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer", textDecoration: "none", fontFamily: F.body }}>
               Get started free <span style={{ width: 14, height: 14, display: "block" }}>{ARR}</span>
             </a>
+            <button
+              type="button"
+              aria-label={mobileMenu ? "Close menu" : "Open menu"}
+              onClick={() => setMobileMenu(!mobileMenu)}
+              className="mkt-hamburger"
+              style={{ display: "none", width: 40, height: 40, borderRadius: 10, border: "1px solid #e5e2dc", background: "white", cursor: "pointer", alignItems: "center", justifyContent: "center", padding: 0 }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a1714" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                {mobileMenu ? (<><path d="M18 6 6 18" /><path d="m6 6 12 12" /></>) : (<><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></>)}
+              </svg>
+            </button>
           </div>
         </div>
       </nav>
+      {mobileMenu && (
+        <div className="mkt-mobile-menu" style={{ position: "fixed", top: 58, left: 0, right: 0, bottom: 0, background: "#faf9f7", zIndex: 99, padding: "24px 20px", display: "flex", flexDirection: "column", gap: 4, overflowY: "auto" }}>
+          {([["home", "Product"], ["solutions", "Solutions"], ["pricing", "Pricing"], ["resources", "Resources"]] as [PageKey, string][]).map(([k, l]) => (
+            <button key={k} onClick={() => nav(k)} style={{ textAlign: "left", padding: "16px 14px", fontFamily: F.display, fontSize: 18, fontWeight: page === k ? 720 : 620, color: page === k ? "#5b4fc7" : "#1a1714", background: page === k ? "#eeedfb" : "transparent", border: "none", borderRadius: 12, cursor: "pointer" }}>{l}</button>
+          ))}
+          <div style={{ height: 1, background: "#eeece8", margin: "12px 0" }} />
+          <a href="/login" onClick={() => setMobileMenu(false)} style={{ padding: "14px 14px", fontSize: 15, fontWeight: 620, color: "#5e5850", textDecoration: "none", fontFamily: F.body }}>Log in</a>
+          <a href="/signup" onClick={() => setMobileMenu(false)} style={{ marginTop: 8, height: 50, borderRadius: 12, background: "#5b4fc7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 15, fontWeight: 680, textDecoration: "none", fontFamily: F.body }}>
+            Get started free <span style={{ width: 16, height: 16, display: "block" }}>{ARR}</span>
+          </a>
+        </div>
+      )}
 
       {/* ══════════ HOME / PRODUCT ══════════ */}
       {page === "home" && (
@@ -588,7 +616,7 @@ export default function MarketingPage() {
                   <h2 style={{ fontFamily: F.display, fontSize: "clamp(26px,3vw,34px)", fontWeight: 820, letterSpacing: "-.03em", lineHeight: 1.15, marginBottom: 14, color: "white" }}>Built by people who&apos;ve sat in job trailers</h2>
                   <p style={{ fontSize: 15, lineHeight: 1.65, color: "rgba(250,249,247,.7)", marginBottom: 24, fontWeight: 520 }}>We&apos;re a small team of ex-PMs, builders, and engineers who got tired of watching construction teams lose hours a day to spreadsheets and email chains. BuiltCRM is our answer — a single workspace designed around how real projects actually run.</p>
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                    <a href="/marketing/about" style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 44, padding: "0 22px", fontSize: 14, fontWeight: 680, color: "#1a1714", background: "white", borderRadius: 12, textDecoration: "none", fontFamily: F.body }}>
+                    <a href="/about" style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 44, padding: "0 22px", fontSize: 14, fontWeight: 680, color: "#1a1714", background: "white", borderRadius: 12, textDecoration: "none", fontFamily: F.body }}>
                       Read our story <span style={{ width: 14, height: 14, display: "block" }}>{ARR}</span>
                     </a>
                     <a href="#" style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 44, padding: "0 22px", fontSize: 14, fontWeight: 680, color: "white", background: "transparent", border: "1px solid rgba(255,255,255,.2)", borderRadius: 12, textDecoration: "none", fontFamily: F.body }}>Meet the team</a>

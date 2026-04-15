@@ -39,6 +39,7 @@ import {
   conversations,
   conversationParticipants,
   messages,
+  activityFeedItems,
 } from "./schema";
 
 // ---------------------------------------------------------------------------
@@ -270,6 +271,44 @@ async function seed() {
     country: "CA",
   });
 
+  const commercial2 = await upsert(projects, eq(projects.projectCode, "SUM-2026-003"), {
+    name: "Cascade Medical Clinic Fit-out",
+    projectCode: "SUM-2026-003",
+    projectType: "commercial_fitout",
+    clientSubtype: "commercial" as const,
+    projectStatus: "active" as const,
+    currentPhase: "phase_1" as const,
+    startDate: new Date("2026-02-10T00:00:00Z"),
+    targetCompletionDate: new Date("2026-09-20T00:00:00Z"),
+    contractorOrganizationId: summitOrg.id,
+    contractValueCents: 120_000_000, // CAD $1,200,000.00
+    addressLine1: "4420 Kingsway",
+    addressLine2: "Suite 300",
+    city: "Burnaby",
+    stateProvince: "BC",
+    postalCode: "V5H 4M9",
+    country: "CA",
+  });
+
+  const residential2 = await upsert(projects, eq(projects.projectCode, "SUM-2026-004"), {
+    name: "Harper Backyard ADU",
+    projectCode: "SUM-2026-004",
+    projectType: "residential_new_build",
+    clientSubtype: "residential" as const,
+    projectStatus: "active" as const,
+    currentPhase: "phase_1" as const,
+    startDate: new Date("2026-03-20T00:00:00Z"),
+    targetCompletionDate: new Date("2026-12-10T00:00:00Z"),
+    contractorOrganizationId: summitOrg.id,
+    contractValueCents: 34_000_000, // CAD $340,000.00
+    addressLine1: "2847 Cambie Street",
+    addressLine2: "Laneway",
+    city: "Vancouver",
+    stateProvince: "BC",
+    postalCode: "V5Z 2V2",
+    country: "CA",
+  });
+
   // ---- Project-organization memberships --------------------------------
   const orgMemberships: Array<{
     projectId: string;
@@ -299,6 +338,24 @@ async function seed() {
       workScope: "Kitchen plumbing rough-in and fixture installation",
     },
     { projectId: residential.id, organizationId: harperHousehold.id, membershipType: "client" },
+
+    { projectId: commercial2.id, organizationId: summitOrg.id, membershipType: "contractor" },
+    {
+      projectId: commercial2.id,
+      organizationId: northlineOrg.id,
+      membershipType: "subcontractor",
+      workScope: "Medical-grade electrical, emergency power, lighting",
+    },
+    { projectId: commercial2.id, organizationId: meridianOrg.id, membershipType: "client" },
+
+    { projectId: residential2.id, organizationId: summitOrg.id, membershipType: "contractor" },
+    {
+      projectId: residential2.id,
+      organizationId: pacificOrg.id,
+      membershipType: "subcontractor",
+      workScope: "ADU plumbing rough-in, water service tie-in",
+    },
+    { projectId: residential2.id, organizationId: harperHousehold.id, membershipType: "client" },
   ];
   for (const m of orgMemberships) {
     await upsert(
@@ -321,6 +378,15 @@ async function seed() {
     { projectId: residential.id, userId: summitPm.id, organizationId: summitOrg.id, roleAssignmentId: roleSummitPm.id },
     { projectId: residential.id, userId: pacificUser.id, organizationId: pacificOrg.id, roleAssignmentId: rolePacific.id },
     { projectId: residential.id, userId: residentialUser.id, organizationId: harperHousehold.id, roleAssignmentId: roleHarper.id },
+
+    { projectId: commercial2.id, userId: summitAdmin.id, organizationId: summitOrg.id, roleAssignmentId: roleSummitAdmin.id },
+    { projectId: commercial2.id, userId: summitPm.id, organizationId: summitOrg.id, roleAssignmentId: roleSummitPm.id },
+    { projectId: commercial2.id, userId: northlineUser.id, organizationId: northlineOrg.id, roleAssignmentId: roleNorthline.id },
+    { projectId: commercial2.id, userId: meridianUser.id, organizationId: meridianOrg.id, roleAssignmentId: roleMeridian.id },
+
+    { projectId: residential2.id, userId: summitPm.id, organizationId: summitOrg.id, roleAssignmentId: roleSummitPm.id },
+    { projectId: residential2.id, userId: pacificUser.id, organizationId: pacificOrg.id, roleAssignmentId: rolePacific.id },
+    { projectId: residential2.id, userId: residentialUser.id, organizationId: harperHousehold.id, roleAssignmentId: roleHarper.id },
   ];
   for (const um of userMemberships) {
     await upsert(
@@ -386,6 +452,28 @@ async function seed() {
 
   await seedProjectContent({
     project: residential,
+    contractorOrgId: summitOrg.id,
+    pmUserId: summitPm.id,
+    adminUserId: summitPm.id,
+    clientUserId: residentialUser.id,
+    subUserId: pacificUser.id,
+    subOrgId: pacificOrg.id,
+    residential: true,
+  });
+
+  await seedProjectContent({
+    project: commercial2,
+    contractorOrgId: summitOrg.id,
+    pmUserId: summitPm.id,
+    adminUserId: summitAdmin.id,
+    clientUserId: meridianUser.id,
+    subUserId: northlineUser.id,
+    subOrgId: northlineOrg.id,
+    residential: false,
+  });
+
+  await seedProjectContent({
+    project: residential2,
     contractorOrgId: summitOrg.id,
     pmUserId: summitPm.id,
     adminUserId: summitPm.id,
@@ -992,11 +1080,21 @@ async function seedProjectContent(ctx: ProjectContext) {
         { uid: pmUserId, body: "Hi Emily — demo wraps Thursday. Cabinets arrive the following Monday." },
         { uid: clientUserId, body: "Sounds great. Should I be off-site during demo day?" },
         { uid: pmUserId, body: "Yes, we recommend it for dust and noise. Crew will be done by 4pm." },
+        { uid: clientUserId, body: "Perfect. I'll take the kids to my sister's place." },
+        { uid: subUserId, body: "Plumbing rough-in will follow demo on Friday morning." },
+        { uid: pmUserId, body: "We'll need to confirm the island waste routing before then — see the open RFI." },
+        { uid: clientUserId, body: "Let me know if there's anything I need to decide on my end." },
+        { uid: pmUserId, body: "Will do. Photos from demo day will be uploaded end of day Thursday." },
       ]
       : [
         { uid: pmUserId, body: "Priya — mechanical rough-in inspection is booked for next Tuesday." },
         { uid: clientUserId, body: "Confirmed. I'll notify the tenant rep and forward the schedule." },
         { uid: subUserId, body: "Northline crew will have access Monday afternoon to prep Level 15." },
+        { uid: pmUserId, body: "Reminder: CO-014 needs decision before end of week — it's gating procurement." },
+        { uid: clientUserId, body: "Reviewing it today. Should have a response by EOD." },
+        { uid: subUserId, body: "We'll hold the panel order until we hear back." },
+        { uid: pmUserId, body: "Progress photos from Phase 2 are up in the documents module." },
+        { uid: clientUserId, body: "Thanks — forwarded to the ownership group." },
       ];
     for (const m of msgBodies) {
       await db.insert(messages).values({
@@ -1014,6 +1112,146 @@ async function seedProjectContent(ctx: ProjectContext) {
         lastMessagePreview: last.body.slice(0, 255),
       })
       .where(eq(conversations.id, convo.id));
+  }
+
+  // ---- Second conversation (RFI thread) --------------------------------
+  let rfiConvo = (
+    await db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.projectId, project.id),
+          eq(conversations.conversationType, "rfi_thread"),
+        )!,
+      )
+      .limit(1)
+  )[0];
+  if (!rfiConvo) {
+    [rfiConvo] = await db
+      .insert(conversations)
+      .values({
+        projectId: project.id,
+        title: residential ? "RFI-001 · Island waste routing" : "RFI-001 · Slab penetration coordination",
+        conversationType: "rfi_thread",
+        messageCount: 0,
+        visibilityScope: "project_wide",
+      })
+      .returning();
+  }
+
+  for (const uid of [pmUserId, subUserId]) {
+    await upsert(
+      conversationParticipants,
+      and(
+        eq(conversationParticipants.conversationId, rfiConvo.id),
+        eq(conversationParticipants.userId, uid),
+      )!,
+      { conversationId: rfiConvo.id, userId: uid },
+    );
+  }
+
+  const existingRfiMsgs = await db
+    .select()
+    .from(messages)
+    .where(eq(messages.conversationId, rfiConvo.id))
+    .limit(1);
+  if (!existingRfiMsgs[0]) {
+    const rfiBodies = residential
+      ? [
+          { uid: subUserId, body: "Opened an RFI on island waste routing — slab obstructions are unknown." },
+          { uid: pmUserId, body: "Can you send a photo of the current slab condition?" },
+          { uid: subUserId, body: "Photos attached in the RFI record. Requesting response by Friday." },
+        ]
+      : [
+          { uid: subUserId, body: "RFI opened for grid D/4 core drilling coordination." },
+          { uid: pmUserId, body: "Pulled the drawings — will circulate a revised coordination plan tomorrow." },
+          { uid: subUserId, body: "Thanks. We can hold the drilling until the revised plan is confirmed." },
+        ];
+    for (const m of rfiBodies) {
+      await db.insert(messages).values({
+        conversationId: rfiConvo.id,
+        senderUserId: m.uid,
+        body: m.body,
+      });
+    }
+    const lastRfi = rfiBodies[rfiBodies.length - 1];
+    await db
+      .update(conversations)
+      .set({
+        messageCount: rfiBodies.length,
+        lastMessageAt: new Date(),
+        lastMessagePreview: lastRfi.body.slice(0, 255),
+      })
+      .where(eq(conversations.id, rfiConvo.id));
+  }
+
+  // ---- Activity feed items ---------------------------------------------
+  const feedSeeds: Array<{
+    activityType:
+      | "project_update"
+      | "milestone_update"
+      | "approval_requested"
+      | "approval_completed"
+      | "file_uploaded"
+      | "comment_added";
+    title: string;
+    body: string;
+    actor: string;
+    daysAgo: number;
+  }> = [
+    {
+      activityType: "file_uploaded",
+      title: residential ? "Kitchen design drawings rev C uploaded" : "Architectural drawing set rev 4 uploaded",
+      body: "New drawing set available in Documents.",
+      actor: pmUserId,
+      daysAgo: 6,
+    },
+    {
+      activityType: "approval_requested",
+      title: residential ? "Approval requested: Weekend work for concrete pour" : "Approval requested: CO-014 mechanical reroute",
+      body: "Awaiting client decision.",
+      actor: pmUserId,
+      daysAgo: residential ? 1 : 5,
+    },
+    {
+      activityType: "approval_completed",
+      title: residential ? "Electrical panel upgrade approved" : "CO-013 electrical panel relocation approved",
+      body: "Decision recorded and scope released.",
+      actor: clientUserId,
+      daysAgo: residential ? 28 : 8,
+    },
+    {
+      activityType: "comment_added",
+      title: "New message in project thread",
+      body: "Latest update posted in the general conversation.",
+      actor: pmUserId,
+      daysAgo: 0,
+    },
+  ];
+  for (const f of feedSeeds) {
+    const existing = await db
+      .select()
+      .from(activityFeedItems)
+      .where(
+        and(
+          eq(activityFeedItems.projectId, project.id),
+          eq(activityFeedItems.title, f.title),
+        )!,
+      )
+      .limit(1);
+    if (!existing[0]) {
+      await db.insert(activityFeedItems).values({
+        projectId: project.id,
+        actorUserId: f.actor,
+        activityType: f.activityType,
+        surfaceType: "feed_item",
+        title: f.title,
+        body: f.body,
+        visibilityScope: "project_wide",
+        createdAt: new Date(Date.now() - f.daysAgo * 86400000),
+      });
+    }
   }
 }
 

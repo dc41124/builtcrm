@@ -134,12 +134,12 @@ export function resolvePortalPath(session: {
   portalType: string | null;
   clientSubtype: string | null;
 }): string {
-  if (session.portalType === "contractor") return "/app/contractor";
-  if (session.portalType === "subcontractor") return "/app/subcontractor";
+  if (session.portalType === "contractor") return "/contractor";
+  if (session.portalType === "subcontractor") return "/subcontractor";
   if (session.portalType === "client") {
     return session.clientSubtype === "residential"
-      ? "/app/residential"
-      : "/app/commercial";
+      ? "/residential"
+      : "/commercial";
   }
-  return "/app/no-portal";
+  return "/no-portal";
 }

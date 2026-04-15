@@ -12,5 +12,12 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/app/:path*"],
+  matcher: [
+    "/contractor/:path*",
+    "/subcontractor/:path*",
+    "/commercial/:path*",
+    "/residential/:path*",
+    "/select-portal",
+    "/no-portal",
+  ],
 };
