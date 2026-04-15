@@ -10,17 +10,15 @@ Read `CLAUDE.md` at the repo root for tech stack + conventions.
 
 ---
 
-## What's done (9 prototypes)
+## What's done (13 prototypes)
 
 1. **`builtcrm_design_system_shell.jsx`** → `src/components/shell/AppShell.tsx`
-   - Inline org name + slash + workspace switcher in sidebar header
-   - Search field, folder icons on sections, active-item accent dot
-   - Projects as toggleable module
-   - Sign-out button in footer
-   - Auto-derived breadcrumbs from `usePathname()` + portal type + projects list
-   - Tree item stagger animation on section open
-   - Settings section renders after Projects (via `placement: "after-projects"`
-     on NavSection)
+   - Inline org name + slash + workspace switcher in sidebar header, search
+     field, folder icons on sections, active-item accent dot, Projects as
+     toggleable module, sign-out button in footer
+   - Auto-derived breadcrumbs from `usePathname()` + portal type + projects
+     list, tree item stagger animation on section open, Settings section
+     renders after Projects (via `placement: "after-projects"` on NavSection)
 
 2. **`builtcrm_contractor_dashboard.jsx`** →
    `src/app/(portal)/contractor/dashboard/`
@@ -32,272 +30,162 @@ Read `CLAUDE.md` at the repo root for tech stack + conventions.
 3. **`builtcrm_contractor_project_home.jsx`** →
    `src/app/(portal)/contractor/project/[projectId]/`
    - Loader extended with `activity` feed + `unreadConversationCount`
-   - New `project-home.css` file (extracted from inline style)
    - Hero 2-col (main + snapshot card), context pills, key contacts strip,
      summary strip, `workspace-card.tsx` client component with 9-tab workspace,
      right rail (blockers/milestones/quick access)
 
-4. **`builtcrm_approvals_workflow.jsx`** (3 portals — contractor, commercial,
-   residential) → full visual rewrite to match prototype
+4. **`builtcrm_approvals_workflow.jsx`** (3 portals) — full visual rewrite
    - Rounded pill tabs, bordered queue cards, grey-header sections, detail
      header border, Commercial's "What it blocks" cell using `CATEGORY_BLOCKS`
-     map, Commercial 3-button decision (Approve/Reject/Request clarification),
-     residential simple `.sc` summary cards + Timing cell
+     map, Commercial 3-button decision, residential simple `.sc` summary cards
    - Commit 2 (loader work for real supporting docs + activity trail) deferred
 
 5. **`builtcrm_rfi_workflow_paired.jsx`** (contractor + subcontractor)
    - Loader extended with `assignedToOrganizationName` (join to `organizations`)
    - Rounded pill tabs, bordered queue cards with tag chips, detail 2×2 grid,
-     grey-header sections, synthesized tracking activity
-   - Contractor: inline create panel (replaces modal), right rail with
-     Blocking work / Response summary / Trade breakdown, "All open / Formal
-     RFIs / Issues / Closed" tab labels, `.rfd-btn` white-style buttons, Link
-     drawing + Send reminder + Add clarification buttons
-   - Subcontractor: Response composer with completeness dots, Response quality
-     + Your response stats rail cards
+     grey-header sections, synthesized tracking activity, inline create panel,
+     right rail variants per portal
 
 6. **`builtcrm_change_orders_workflow.jsx`** (3 portals) — full visual rewrite
-   - **Commit 2 done:** schema added `change_orders.schedule_impact_days`
-     (integer default 0), loader `loadRows()` extended with
-     `supportingDocuments[]` (via `document_links` + `documents` join) +
-     `activityTrail[]` (via `activity_feed_items` + `users` join)
-   - Contractor: Schedule impact cell wired to real data, Supporting documents
-     list populated, Approval timeline prefers real activity trail and falls
-     back to synthesized events
-   - Commercial: Impact card schedule-risk row wired, Supporting documents
-     list populated
-   - Residential: Timing cell wired to `scheduleImpactDays`
-   - Inline create panel on contractor (replaced modal)
+   - Commit 2 done: schema added `change_orders.schedule_impact_days`, loader
+     extended with `supportingDocuments[]` + `activityTrail[]`. All three
+     portals wired to real data.
 
-7. **`builtcrm_compliance_workflow_paired.jsx` — CONTRACTOR SIDE ONLY**
-   - Full rewrite of
-     `src/app/(portal)/contractor/project/[projectId]/compliance/compliance-workspace.tsx`
-   - Header pills + action buttons, simple `.cmp-sc` summary cards with
-     `.strong/.alert/.danger/.success` variants, rounded pill tabs, bordered
-     queue cards with tag chips + hot state, detail 2×2 grid (Organization /
-     Requirement / Accepted-until / State), synthesized verify checklist
-     (via `verifyItemsFor()` keyed off `complianceType`), grey-header sections,
-     review decision nested card, restriction control with consequence grid,
-     right rail (Org scorecard, Payment holds with `.cmp-phb` banner + file
-     rows, Recent activity placeholder, Compliance principle info card)
-   - `canDecide` was restricted to `pending && documentId` initially; relaxed
-     to "any non-active/non-waived record" with the Accept button disabled when
-     no document is on file
-   - **Subcontractor side NOT done** — see next section
+7. **`builtcrm_compliance_workflow_paired.jsx`** (contractor + subcontractor)
+   - Contractor side: full rewrite with `.cmp-sc` summary cards, pill tabs,
+     bordered queue cards, detail 2×2 grid, synthesized verify checklist,
+     review decision nested card, restriction control, right rail
+   - Subcontractor side: single-column `.rq-row` requirements list with detail
+     pane rendered below (no master-detail split), amount hero-less layout,
+     upload zone, right rail (restriction risk + payment hold + how it works)
 
----
+8. **`builtcrm_upload_requests_workflow_paired.jsx`** (contractor + sub)
+   - **Commit 1 + Commit 2 both done**
+   - Commit 1: inline create panel (contractor), `.urw-sc` KPI cards,
+     segmented tabs, `.urw-qp` queue card with search, 2-col detail with
+     right rail. Sub mirrors with Upload Files button in the header action
+     slot + SVG upload zone + optional Response Note textarea
+   - **Commit 2 schema change:** added `upload_requests.response_note text`
+     column (was run via raw SQL in Neon dev, not via drizzle push — see
+     "DB state" below)
+   - Submit endpoint (`/api/upload-requests/[id]/submit`) accepts optional
+     `responseNote`
+   - Loader: new shared `UploadRequestRow` + `UploadRequestFile` +
+     `UploadRequestActivityEvent` types, `loadUploadRequestEnrichment()`
+     helper does batched uploader-name lookups + `activity_feed_items` join
+     filtered to `related_object_type = 'upload_request'`
+   - UI: real submittedFile metadata, activity trail with color-coded dots,
+     response note renders below the file when present
 
-## IMMEDIATE NEXT TASK: Subcontractor compliance workspace
+9. **`builtcrm_billing_draw_workspace.jsx`** + **`builtcrm_billing_draw_client_review.jsx`** + **`docs/specs/residential_billing_draw_review.html`** — **all three billing surfaces done**
 
-**File:**
-`src/app/(portal)/subcontractor/project/[projectId]/compliance/compliance-upload-workspace.tsx`
+   **Contractor** (`billing-workspace.tsx`, 690-line file):
+   - Header pills + action buttons (Export PDF / Save draft / Submit for review)
+   - Queue: bordered cards with gap, thin scrollbar, accent ring selection
+   - Bottom grid 2-col → 3-col with **Package Documents** card
+   - AIA G702 9-item grid + G703 10-col table kept intact
+   - Commit 2: Package Documents card wired to real `supportingFiles[]`
 
-**Reference:** `docs/prototypes/builtcrm_compliance_workflow_paired.jsx` —
-specifically the subcontractor branch (search for `portal === "sub"` around
-line 657, and `subDetails` around line 133 for the data shape, and `.rq-row`
-/ `.rp` / `.phb` / `.mblk` / `.uz` styles in the `<style>` block).
+   **Commercial** (`billing-review.tsx`) — **fully re-spec'd to match prototype
+   after initial pass missed the container structure**:
+   - Full rewrite: `.bcr-workspace` single bordered card containing
+     `.bcr-ws-head` + `.bcr-ws-tabs` (pill-style "Needs my review / Approved
+     / Returned") + `.bcr-master-detail` (340px queue + detail) inside the
+     same card
+   - Queue: `.bcr-draw-card` with mono "Draw 06" ID + multi-line desc +
+     4-tag row + footer; custom sort select in `.bcr-queue-toolbar`
+   - G702 simplified to **4-item** strip (Contract sum / Work complete /
+     Retainage / Current due highlighted — NOT the contractor's 9-item AIA)
+   - G703 simplified to 5 cols (Description / Scheduled / This period /
+     Total / %)
+   - Detail sections use bordered `.bcr-ds` containers with grey
+     `.bcr-ds-head` bars + body padding — G702, G703, Lien waivers,
+     Supporting files, Your decision all wrapped the same way
+   - Lien waivers: colored dot + org name (joined from
+     `lien_waivers.organization_id` → `organizations.name`, added to
+     `LienWaiverRow.organizationName`) + status-derived label + Received/
+     Pending/Missing pill
+   - Decision: wrapped in `.bcr-ds` with `Action required` header pill,
+     intro copy, 3-option card grid with prototype's full option descriptions,
+     nested `.bcr-decision-compose` box with title + conditional textarea
+     + Submit/Cancel buttons
+   - Right rail `.bcr-rail` with 4 cards: Decision needed (alert), Contract
+     snapshot (5 `.bcr-file-row` rows label/sub/value), Recent activity
+     (wired to `selected.activityTrail`), Review principle (info variant)
+   - All custom CSS classes match prototype naming exactly — no leftover
+     `.bcr-section` / `.bcr-kpis` / `.bcr-row` from the first pass
+   - Hydration-safe: `const [now] = useState(() => Date.now())`, no `>`
+     child combinators anywhere in inline styles
 
-**Critical: the sub-side has a different layout from everything else we've
-done.** It is NOT a master-detail split. The prototype uses a **vertical list
-of all requirements** (`.rq-row` rows with colored dot + title/status + pill)
-inside a single `.ws` card, and the **detail pane for the selected row
-renders below the list**, not beside it. Current code uses master-detail
-split with tabs — this needs to be ripped out.
+   **Residential** (`residential/.../billing/billing-review.tsx`, NEW file,
+   built from `docs/specs/residential_billing_draw_review.html` since the
+   client-review prototype doesn't cover residential):
+   - Single-draw-focused layout (no tabs, no queue) — picks the first
+     `under_review` / `submitted` draw as the "current" payment
+   - `.rbr-hero` amount hero: big $ value + description + `.rbr-status-pill`
+     (30px, clock SVG icon) on the right
+   - 2-col `.rbr-layout` (main + 320px rail)
+   - Main: "What this payment covers" (line-item rows filtered to
+     `workCompletedThisPeriodCents > 0` + Total this payment footer),
+     `.rbr-dec` teal-bordered decision card (Approve this payment primary
+     with CheckIcon + Ask a question first secondary with MessageIcon +
+     textarea + teal "What happens when you approve?" explainer callout),
+     Supporting documents list with type-colored file icons (.pdf red,
+     .img blue, .doc teal) + Download button per row
+   - Rail: Budget context (progress bar + paid/this/after/remaining rows),
+     Past payments (filtered to approved/paid draws), Questions? (PM
+     contact placeholder)
+   - Decision flow wired to `/api/draw-requests/[id]/approve` (or
+     `approve-with-note` when note present) and `/return` for "Ask a
+     question first". Approve button flips to `.done` green state after
+     success, matching the prototype's state swap
+   - All `.rbr-pl` + `.rbr-status-pill` custom pill classes defined
+     (no Pill component used)
+   - `/residential/project/[id]/billing/page.tsx` rewired from `ComingSoon`
+     → `getClientProjectView` + `ResidentialBillingReview`
 
-### What to change
-
-1. **Remove dup crumb line** (`{projectName} · Compliance`)
-2. **Hydration fix** — `const now = Date.now()` → `useState(() => Date.now())`
-3. **Drop tabs entirely.** Remove the `TabId` union, the `TABS` array, the
-   `Card` import with tabs prop. Render ALL requirements vertically.
-4. **Header**: add pills row (Submission + tracking / N missing — restriction
-   risk / N expiring in 6 days) and actions (View accepted secondary + Upload
-   document primary). Shape matches prototype lines 660–674.
-5. **KPI strip**: drop `KpiCard`, use `.scmp-sc` simple bordered cards with
-   `.danger/.alert/.strong/.success` border variants. 4 cards: Missing /
-   Expiring / Submitted / Active. Each card is clickable and sets
-   `subSelected` to the first requirement in that bucket. Shape matches
-   prototype lines 676–681.
-6. **Workspace card** (`.ws`):
-   - Header: "Compliance requirements" + sub "All requirements for this
-     project. Missing or expiring items need your action."
-   - **Requirement list** (`.rq-row` style): colored dot (red/orange/green) +
-     title + status line + pill on right. Each row is a button that sets
-     `selectedId`. No tabs. Prototype lines 687–693.
-   - **Detail pane rendered below the list** (not beside). Only shows when
-     there's a selected record. Prototype lines 696–755.
-7. **Detail pane structure** (matches contractor compliance style we just did):
-   - Header: title + org line ("Required by {project}") + description + pill
-     stack, bottom border separator
-   - 2×2 `.dg` grid: Requirement / Status / Expires / Document (or similar
-     4-cell; match prototype's sub-detail grid)
-   - If needsUpload: grey-header **Upload record** section wrapping the
-     existing `UploadZone` component. Prototype's `.uz` has "Upload file"
-     primary + "Use project file" secondary. Current `UploadZone` handles the
-     presign/put/finalize flow — keep that logic but restyle the wrapper to
-     match the prototype's dashed-border `.uz` block.
-   - If submitted: grey-header **Submitted record** section with file row
-     + "Waiting on GC" pill. File name from `record.documentId.slice(0, 8)`
-     until Commit 2 loader adds real document metadata.
-   - **"Why this matters now" section** with red-tinted grey header (like the
-     contractor side's `.cmd-section.restrict` pattern). Inside: a red `.rp`
-     card with heading "Missing X may trigger restricted access" + explanation
-     + tag chips row ("Restriction in N days" / "Payments held" / "Clear by
-     submitting"). Prototype lines 738–753.
-8. **Right rail** — 4 cards:
-   - **Restriction risk** (danger-bordered): `.mblk` (inner muted-grey block)
-     with heading "X — N days" + paragraph. Only render when there are missing
-     records. Prototype lines 761–766.
-   - **Payment hold** (alert-bordered): `.phb` banner (orange-tinted box with
-     ! icon + "Payment hold active on your account" + subtext). Only when
-     hasHold. Prototype lines 767–772.
-   - **Recent activity** (plain): placeholder copy. Real data comes in
-     Commit 2. Match prototype's `.al` / `.ai` / `.a-dot` styles.
-   - **How compliance works** (info-bordered): static explanation paragraph.
-     Current copy is correct.
-9. **Thin scrollbar** on any vertically-scrolling container
-10. **All buttons should follow the `white-background not grey` convention** —
-    use `cmd-btn` style or equivalent. See the RFI contractor detail
-    (`.rfd-btn`) or compliance contractor detail (`.cmd-btn`) for the pattern.
-
-### Pattern to copy from
-
-You just finished the contractor compliance workspace — use it as a near-exact
-style reference for colors, section structure, tag chips, phb banner, dots
-scorecard. The sub side has fewer distinct sections but reuses the same
-visual vocabulary.
-
-### What NOT to change
-
-- `UploadZone` component logic (the presign → PUT → finalize → submit flow).
-  Only restyle its wrapper.
-- The `/api/compliance/{id}/submit` endpoint call.
-- The loader shape — sub loader already provides what's needed from
-  `SubcontractorProjectView["complianceRecords"]`.
-
----
-
-## Deferred follow-ups (tracked)
-
-Across the whole audit, there's a running list of things we've punted:
-
-### Approvals Commit 2 (loader work)
-- Extend `src/domain/loaders/approvals.ts` `ApprovalRow` with:
-  - `supportingDocuments[]` (join `document_links` where `linkedObjectType =
-    'approval'`)
-  - `activityTrail[]` (join `activity_feed_items` where `relatedObjectType =
-    'approval'`)
-- Wire into contractor `approvals-workspace.tsx` Tracking + Supporting
-  documents sections, and commercial `approvals-review.tsx` Supporting
-  documents section.
-- Pattern is identical to what we just did for change orders in
-  `src/domain/loaders/change-orders.ts` `loadRows()`.
-
-### RFIs Commit 2 (loader work)
-- Add `activityTrail[]` to `RfiRow` (from `activity_feed_items` with
-  `relatedObjectType = 'rfi'`)
-- Add `referenceFiles[]` to `RfiRow` (from `document_links` with
-  `linkedObjectType = 'rfi'`) — currently we show `drawingReference` /
-  `specificationReference` strings as file rows, but real attached files would
-  populate a proper list
-- Add response-time stats (avg response time, first-reply resolution %) to
-  the loader result, wire into the subcontractor right rail. Currently
-  computed client-side from `rfi.responses[]` which works but is naive.
-- **Schema question**: prototype distinguishes "Formal RFI" from "Issue".
-  Schema has no type field — decide whether to add `rfi_type` column or
-  continue treating everything as formal.
-
-### Compliance Commit 2 (loader work)
-- Extend compliance loader with:
-  - `supportingFile` (join `documents` via `documentId` to get real file name,
-    uploader, upload time, size instead of `documentId.slice(0, 8)`)
-  - `activityTrail[]` for the Recent activity right-rail card (both
-    contractor and subcontractor sides)
-- Verify checklist: currently synthesized via `verifyItemsFor()` keyed off
-  `complianceType`. Real verification items would need a new
-  `compliance_verification_items` table OR a JSON column on
-  `compliance_records`. Low priority.
-
-### Nav badge counts (end of audit)
-`NavItem` supports `badge` + `badgeType: "default" | "warn" | "danger"`, CSS
-is fully styled, but `src/lib/portal-nav.ts` never passes any values.
-
-**Plan:** at the very end of the audit, build one shared
-`getPortalNavCounts(portalType, orgId, userId, projectId)` per portal that
-returns all badge values in one round-trip (approvals pending, RFIs open,
-unread messages, compliance issues, etc.), then pass through
-`loadPortalShell` → `buildNavSections`. Do NOT do this mid-audit — every
-workflow we build adds a new count source, so doing it at the end hits the
-whole surface at once.
-
-### `const now = Date.now()` hydration sweep
-We've fixed this in approvals + RFIs + compliance (contractor). Still
-present in these workflow pages:
-- `src/app/(portal)/subcontractor/project/[projectId]/upload-requests/upload-response-workspace.tsx`
-  (lines 39 and 200 at last check)
-- `src/app/(portal)/subcontractor/project/[projectId]/compliance/compliance-upload-workspace.tsx`
-  (will be fixed when you rewrite this file — it's part of the task above)
-- `src/app/(portal)/contractor/project/[projectId]/compliance/compliance-workspace.tsx`
-  — **already fixed** in the just-finished contractor rewrite
-- `src/app/(portal)/contractor/project/[projectId]/upload-requests/upload-request-workspace.tsx`
-  (lines 45 and 214)
-
-Fix pattern: `const now = Date.now()` → `const [now] = useState(() => Date.now())`
-so the value is frozen on first render and doesn't drift between SSR and
-client hydration. The symptom when broken is a "hydration mismatch" error on
-pages where pill labels or relative-time strings depend on `now` at the
-3-day boundary.
-
-### Residential nav `/decisions` link
-The residential sidebar's "Decisions" section labels are "Scope changes" +
-"Confirmed choices" in `src/lib/portal-nav.ts`. The `/decisions` route exists
-(`src/app/(portal)/residential/project/[projectId]/decisions/`) and is used
-as the residential-language equivalent of approvals, but the sidebar never
-links to it. Add a "Decisions needed" link to the Decisions section pointing
-to `${base}/decisions`. Small change; do during residential portal audit or
-as a cleanup pass.
-
-### Contractor approvals cross-project page
-`src/app/(portal)/contractor/approvals/page.tsx` is still a `ComingSoon`
-placeholder. The approvals prototype doesn't cover the cross-project queue —
-leave as ComingSoon until there's a spec.
-
-### Relative href bugs
-We fixed these in residential and commercial project-home. Watch for more as
-new pages get audited: any `<Link href="something">` without a leading slash
-resolves against the current URL and will 404 or feed a garbage projectId to
-a dynamic route. Always use `${base}/...` where `base =
-/${portal}/project/${projectId}`.
+10. **`builtcrm_payment_financial_view_shared.jsx`** →
+    `src/components/financial-view.tsx` (was already built before this
+    session; audited and brought to spec)
+    - Fonts already matched portal (`var(--fd)` / `var(--fb)` / `var(--fm)`)
+    - Added contractor header action buttons (Export Report with DownloadIcon,
+      New Draw Request with FileIcon)
+    - Added `View all` mini-button to Draw History section head
+    - Added `Request Release` mini-button to Retainage Summary section head
+    - `SectionHead` component now accepts optional `action` slot
+    - Subcontractor "Your Contract Summary" grid re-labelled to match
+      prototype: Contract Value / Total Earned (accent) / Total Paid /
+      Remaining (warn)
+    - **Contractor `asOfLabel` now includes approval date**: walks both
+      approved-unpaid AND paid draws, tracks `latestApprovedDrawAt` (prefers
+      `reviewedAt`, falls back to `paidAt`), formats as
+      `"As of Draw #N · Approved Mon D, YYYY"`. New private `formatAsOfDate`
+      helper in the loader.
+    - **Sub scope line**: `SubcontractorFinancialView` gained a top-level
+      `scopeLabel: string | null` field. New query at the top of the sub
+      loader fetches `project_organization_memberships.work_scope` for the
+      current `{projectId, orgId}` pair. Sub card meta renders
+      `{orgName} — {scopeLabel} scope` (omits the suffix when scope is
+      null), matching the prototype's "Meridian MEP — Mechanical, Electrical
+      & Plumbing scope" pattern.
 
 ---
 
 ## What's left in the audit (prototypes not yet touched)
 
-**Workflows (paired):**
-- `builtcrm_upload_requests_workflow_paired.jsx` — next after compliance sub.
-  Same paired-workflow shape. Files:
-  `contractor/project/[projectId]/upload-requests/upload-request-workspace.tsx`
-  + `subcontractor/project/[projectId]/upload-requests/upload-response-workspace.tsx`
-- `builtcrm_billing_draw_workspace.jsx` + `builtcrm_billing_draw_client_review.jsx`
-  — contractor billing + client review. **Billing is the one workflow where
-  the user explicitly said "keep the create flow as a modal"** — all other
-  workflows use inline create panels.
-- `builtcrm_payment_financial_view_shared.jsx` — shared payments/financials
-  view across portals
-
-**Client portals:**
+**Client portals (likely next):**
 - `builtcrm_commercial_client_portal_pages.jsx` — commercial client pages
-  (progress, photos, schedule, billing, documents, messages, payments, etc.)
-- `builtcrm_residential_client_portal_pages.jsx` — residential pages (progress
-  & photos, schedule, budget, documents, messages)
-- `builtcrm_residential_selections_flow.jsx` — residential selections flow
-  (already has `selections-review.tsx` but needs audit)
+  (progress, photos, schedule, documents, messages, etc.). **Large
+  multi-page file.**
+- `builtcrm_residential_client_portal_pages.jsx` — residential pages
+  (progress & photos, schedule, budget, documents, messages). Also large.
+- `builtcrm_residential_selections_flow.jsx` — residential selections
+  (already has `selections-review.tsx` — audit needed)
 
 **Subcontractor:**
-- `builtcrm_subcontractor_today_board_project_home.jsx` — **user said: for
-  subcontractor today board AND project home, use THIS file, not the older
-  `builtcrm_subcontractor_today_board.jsx` file.** That's the current spec
-  for both pages.
+- `builtcrm_subcontractor_today_board_project_home.jsx` — **user said: use
+  THIS file for both the sub today board AND project home, not the older
+  `builtcrm_subcontractor_today_board.jsx` file.**
 
 **Shared:**
 - `builtcrm_messages_conversations_shared.jsx` → messaging pages across all
@@ -321,48 +209,167 @@ a dynamic route. Always use `${base}/...` where `base =
 
 ---
 
+## Deferred follow-ups (tracked)
+
+### Approvals Commit 2 (loader work)
+- Extend `src/domain/loaders/approvals.ts` `ApprovalRow` with
+  `supportingDocuments[]` (join `document_links` where `linked_object_type
+  = 'approval'`) + `activityTrail[]` (join `activity_feed_items` where
+  `related_object_type = 'approval'`)
+- Wire into contractor `approvals-workspace.tsx` Tracking + Supporting
+  documents sections, and commercial `approvals-review.tsx` Supporting
+  documents section
+- Pattern: identical to the upload-requests / change-orders / billing-draw
+  enrichment helpers
+
+### RFIs Commit 2 (loader work)
+- `activityTrail[]` from `activity_feed_items` with `related_object_type =
+  'rfi'`
+- `referenceFiles[]` from `document_links` with `linked_object_type = 'rfi'`
+- Move response-time stats (avg response time, first-reply resolution %)
+  from client-side compute into loader
+- **Schema question**: prototype distinguishes "Formal RFI" from "Issue".
+  Schema has no `rfi_type` field. Decide whether to add it or keep
+  everything as formal.
+
+### Compliance Commit 2 (loader work)
+- `supportingFile` with real document metadata (join `documents` via
+  `documentId` to get file name, uploader, upload time instead of
+  `documentId.slice(0, 8)`)
+- `activityTrail[]` for the Recent activity right-rail card (both
+  contractor and subcontractor sides)
+- Verify checklist: currently synthesized via `verifyItemsFor()` keyed off
+  `complianceType`. Real verification items would need a new
+  `compliance_verification_items` table OR a JSON column on
+  `compliance_records`. Low priority.
+
+### Financial view follow-ups
+- **Contractor Subcontractor Payment Status rows**: prototype shows a trade
+  line per sub row ("Mechanical · Electrical · Plumbing"). Loader's
+  `SubPaymentRollupRow` doesn't expose a scope/trade field. Pattern to
+  follow: join `project_organization_memberships.work_scope` into the
+  sub-payments query the same way we did for the sub view's top-level
+  `scopeLabel`, expose as `tradeScope` on the row type, and render it
+  under the org name in `.fv-sub-main`.
+- Subcontractor view is using it via the top-level `view.scopeLabel` field.
+
+### Nav badge counts (end of audit)
+`NavItem` supports `badge` + `badgeType: "default" | "warn" | "danger"`,
+CSS is fully styled, but `src/lib/portal-nav.ts` never passes any values.
+
+**Plan:** at the very end of the audit, build one shared
+`getPortalNavCounts(portalType, orgId, userId, projectId)` per portal that
+returns all badge values in one round-trip (approvals pending, RFIs open,
+unread messages, compliance issues, draws needing review, upload requests
+open, etc.), then pass through `loadPortalShell` → `buildNavSections`. Do
+NOT do this mid-audit.
+
+### `const now = Date.now()` hydration sweep
+We've fixed this in approvals, RFIs, compliance (both sides), upload
+requests (both sides), billing (commercial), financial. Still watch for it
+in any newly-touched file with a "use client" directive that computes
+"days ago" / "overdue by N days". Fix pattern:
+`const [now] = useState(() => Date.now())` so the value is frozen on first
+render.
+
+Also watch for `>` child combinators in inline `<style>` blocks — Next.js
+serializes `>` to `&gt;` in some cases, causing hydration mismatches on
+any selector like `.foo>span`. Always use descendant combinators
+(`.foo span`) or add a class to the target (`.foo-p` on a `<p>` tag).
+
+### Residential nav `/decisions` link
+The residential sidebar's "Decisions" section labels are "Scope changes" +
+"Confirmed choices" in `src/lib/portal-nav.ts`. The `/decisions` route
+exists (`src/app/(portal)/residential/project/[projectId]/decisions/`) and
+is used as the residential-language equivalent of approvals, but the
+sidebar never links to it. Add a "Decisions needed" link to the Decisions
+section pointing to `${base}/decisions`. Small change; do during
+residential portal audit or as a cleanup pass.
+
+### Contractor approvals cross-project page
+`src/app/(portal)/contractor/approvals/page.tsx` is still a `ComingSoon`
+placeholder. The approvals prototype doesn't cover the cross-project queue
+— leave as ComingSoon until there's a spec.
+
+### Contractor cross-project payment-tracking page
+`src/app/(portal)/contractor/payment-tracking/page.tsx` + sub equivalent
+are 5-line ComingSoon stubs. The real financial view lives at
+`/{portal}/project/[projectId]/financials`. Decide later whether to wire
+the cross-project aggregator or rename/remove.
+
+### Billing workspace: contractor Package Documents buttons
+The `Attach file` and `Submit for review` buttons in the contractor
+billing workspace's Package Documents card are UI-only. There's no
+matching API endpoint yet to attach a document to a draw or trigger
+submission. Wire when draw submission workflow lands.
+
+### Relative href bugs
+Watch for any `<Link href="something">` without a leading slash in new
+pages — resolves against the current URL and will 404 or feed a garbage
+`projectId` to a dynamic route. Always use `${base}/...` where
+`base = /${portal}/project/${projectId}`.
+
+---
+
+## DB state
+
+- Neon dev branch has been pushed through **change-orders Commit 2** schema
+  addition (`schedule_impact_days`) via `npm run db:push`.
+- **Upload requests `response_note` column** was added via raw SQL in the
+  Neon SQL editor, NOT via `drizzle-kit push`. `drizzle-kit push` tried to
+  drop+recreate several unrelated FK constraints (cosmetic FK name drift
+  across `project_org_memberships`, `project_user_memberships`,
+  `retainage_releases`, `sync_events`, `upload_requests`'s org FK) — user
+  opted to run `ALTER TABLE upload_requests ADD COLUMN response_note text;`
+  directly instead. **Next `db:push` will still want to rename those FK
+  constraints.** It's cosmetic and safe to run when convenient, but be
+  aware the diff will look larger than just the new column.
+
 ## Working conventions we've established
 
 1. **Audit format**: read prototype + current code, produce a structural
-   audit comparing them (KPI labels, detail grid cells, missing sections,
-   right-rail cards, etc.), propose a Commit 1 (visual/structural with
-   existing data) + Commit 2 (loader/schema work) split, get user approval,
-   then execute.
+   audit comparing them, propose Commit 1 (visual/structural with existing
+   data) + Commit 2 (loader/schema work) split, get user approval, then
+   execute.
 
-2. **Tab style**: the approvals/RFIs/change-orders/compliance prototypes all
-   use **rounded pill tabs** (`.wtab`), not the dashboard's full-width
-   underline strip. When rewriting a workflow page, drop `<Card tabs>` and
-   render a custom `.{prefix}-wtab` pill row. The dashboard is the ONLY page
-   that uses the underline-strip style.
+2. **Tab style varies per prototype**:
+   - Approvals / RFIs / change orders / compliance / upload requests
+     → rounded pill tabs (`.wtab`)
+   - Dashboard → full-width underline strip
+   - Upload requests → segmented grey-chip tabs (`.tabs`/`.tab`)
+   - Commercial billing workspace → pill tabs (`.bcr-tab`) inside the
+     workspace card
+   - Always check the specific prototype before assuming.
 
-3. **Queue cards**: workflow queues use **bordered rounded cards with gap**
-   between them, not divider rows. Active state uses accent border + tinted
-   background + color-mix box-shadow. Add a `.hot` variant with danger border
-   for urgent rows (overdue, missing, restricted).
+3. **Queue cards**: workflow queues use bordered rounded cards with gap,
+   not divider rows. Active state = accent border + tinted background +
+   `0 0 0 3px color-mix(in srgb, var(--ac) 15%, transparent)` ring. Add
+   a `.hot` variant with danger border for urgent rows.
 
-4. **Detail pane sections**: wrap content in bordered `.{prefix}-section`
-   containers with a **grey header bar** (`background: var(--s2)`,
-   `border-bottom: 1px solid var(--s3)`) containing the h4 title + optional
-   right-side action buttons, and a separate `.{prefix}-section-body` for
-   padded content.
+4. **Detail pane sections**: wrap content in bordered containers with a
+   **grey header bar** (`background: var(--s2)`, `border-bottom: 1px solid
+   var(--s3)`) containing the h4 title + optional right-side action
+   buttons/pills, and a separate body for padded content. Compliance
+   `.cmd-section` / upload-requests `.urd-rhdr` / billing `.bcr-ds-head`
+   all follow this pattern.
 
 5. **Detail header**: bottom border separating from the grid
    (`padding-bottom: 14px; border-bottom: 1px solid var(--s2)`).
 
-6. **Detail grid**: 2×2 = 4 cells using `.{prefix}-cell` / `.k` / `.v` / `.m`
-   pattern with `background: var(--s2)` / `border: 1px solid var(--s3)` /
+6. **2×2 detail grid**: `.{prefix}-cell` / `.k` / `.v` / `.m` pattern with
+   `background: var(--s2)` / `border: 1px solid var(--s3)` /
    `border-radius: var(--r-m)`. Use `.v.warn` / `.v.ok` / `.v.danger` /
    `.v.accent` color variants for sensitive values.
 
 7. **Thin scrollbar**: `::-webkit-scrollbar { width: 4px }` + transparent
-   track + `var(--s4)` thumb. Apply to ANY vertically-scrolling queue or
-   list.
+   track + `var(--s4)` thumb on any vertically-scrolling queue or list.
 
-8. **Hydration-safe `now`**: `const [now] = useState(() => Date.now())` in
-   all "use client" workflow components.
+8. **Hydration-safe `now`**: `const [now] = useState(() => Date.now())`
+   in all "use client" workflow components that compute relative times.
 
-9. **Inline create panels, not modals** — EXCEPT for billing draw workspace
-   (user explicitly chose modal for that one).
+9. **Inline create panels, not modals** — **EXCEPT for billing draw
+   workspace** (user explicitly kept the contractor draw flow as a
+   New Draw Request button in the header, no create modal built yet).
 
 10. **Remove duplicate crumb lines** from every page header — the shell's
     auto-derived breadcrumbs handle it now.
@@ -371,16 +378,18 @@ a dynamic route. Always use `${base}/...` where `base =
     background. Use `.{prefix}-btn` custom style when `Button` component's
     secondary variant looks grey in context.
 
-12. **KPI icons**: pass inline SVG `icon` prop to `KpiCard` (hourglass, alert
-    triangle, check circle, dollar, etc.). Dashboard audit established the
-    icon vocabulary.
+12. **KPI icons**: pass inline SVG `icon` prop to `KpiCard` (hourglass,
+    alert triangle, check circle, dollar, etc.) — OR use prototype's
+    `.sc` simple bordered cards with `.strong/.alert/.danger/.success`
+    variants for summary strips, which is the newer pattern used in
+    compliance, billing, upload requests.
 
 13. **Commit split**: always propose Commit 1 (visual, no schema/loader
     changes) + Commit 2 (loader work). Get user go-ahead on both. They
     commit on their end between each.
 
-14. **Typecheck after each file**: `npx tsc --noEmit` must pass clean before
-    reporting the file as done.
+14. **Typecheck after each file**: `npx tsc --noEmit` must pass clean
+    before reporting the file as done.
 
 15. **Client portals are project-scoped.** Commercial + residential portals
     use nested layouts at `{portal}/project/[projectId]/layout.tsx` that
@@ -390,29 +399,38 @@ a dynamic route. Always use `${base}/...` where `base =
     the parent commercial/residential layout** — it was broken that way
     originally (sidebar nav was empty).
 
----
+16. **Loader enrichment pattern**: when Commit 2 needs
+    `supportingDocuments[]` + `activityTrail[]` for a new object type, copy
+    the helper pattern from `loadUploadRequestEnrichment` (in
+    `src/domain/loaders/project-home.ts`) or `loadDrawRequestEnrichment`
+    (same file, for draws). Both do batched `document_links` + `documents`
+    + `activity_feed_items` + `users` joins filtered by
+    `linked_object_type` / `related_object_type` strings and return
+    `Map<objectId, rows>` for merging into the row shape.
 
-## Known state at handoff
+17. **Font tokens**: always use `var(--fd)` (DM Sans display), `var(--fb)`
+    (Instrument Sans body), `var(--fm)` (JetBrains Mono) — never hardcode
+    Google font strings. Weight floor 520, KPI values 820, card titles
+    720, page titles 820/26px (24px on client portals).
 
-- Context: ~25% remaining when writing this (handoff generated in the chat
-  that just finished compliance contractor)
-- Last commit made on the user's end: compliance contractor workspace Commit 1
-  (pending — user was going to commit after reading this handoff)
-- `npm run db:push` has been run against the Neon dev branch through the
-  change-orders Commit 2 schema addition. No migrations after that.
-- `npx tsc --noEmit` passes clean as of the last file write
-- Residential scope-changes title was bumped from 24px to 26px to match
-  prototype — confirmed looks right
+18. **Webpack cache ENOENT warning** (Windows-only): harmless warning in
+    the terminal about renaming `.next/cache/webpack/client-development/*.pack.gz_`
+    files — OneDrive/antivirus locking temp files. Fix: stop dev server,
+    `rm -rf .next`, restart. Permanent fix (not yet applied) would be
+    `config.cache = { type: "memory" }` in `next.config.ts` under `webpack
+    (config, { dev })` — trades slower cold starts for no more warnings.
 
 ---
 
 ## Starting the next chat
 
 Open the next chat with:
-> "Continuing the BuiltCRM audit. Read HANDOFF.md at the repo root, then
-> start with the subcontractor compliance workspace rewrite. Then move to
-> upload requests paired workflow."
+> "Continuing the BuiltCRM audit. Read HANDOFF.md at the repo root and
+> CLAUDE.md, then start on {next prototype}."
 
-The fresh chat should load `CLAUDE.md` and `HANDOFF.md` into context, then
-dive into the sub-compliance rewrite using the contractor compliance
-workspace as a style reference.
+The fresh chat should load `CLAUDE.md` + `HANDOFF.md` into context, pick
+the next prototype off the "What's left" list (recommended order:
+subcontractor today/project home → messages shared → documents shared →
+schedule shared → commercial client pages → residential client pages →
+selections → settings → login → onboarding), do the audit, propose
+Commit 1 + Commit 2, and execute.
