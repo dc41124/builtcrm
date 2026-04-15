@@ -557,14 +557,14 @@ export type DocumentRow = {
   updatedAt: Date;
 };
 
-type DocumentAudience = "contractor" | "subcontractor" | "client";
+export type DocumentAudience = "contractor" | "subcontractor" | "client";
 
 // Role-scoped read of every document on a project. Contractor sees all
 // non-archived rows; subs are blocked from client-only / internal-only
 // content; clients get only project-wide or explicitly client-visible
 // material. Supersession is resolved via document_links rows carrying
 // link_role='supersedes' (schema rule: don't add a column for this).
-async function loadDocumentsForProject(
+export async function loadDocumentsForProject(
   projectId: string,
   audience: DocumentAudience,
 ): Promise<DocumentRow[]> {
