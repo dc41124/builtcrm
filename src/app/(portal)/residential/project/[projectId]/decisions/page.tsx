@@ -40,7 +40,6 @@ export default async function ResidentialDecisionsPage({
 
   return (
     <ResidentialDecisionsReview
-      projectName={view.project.name}
       rows={view.rows}
       totals={view.totals}
     />

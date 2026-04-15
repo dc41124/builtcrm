@@ -169,7 +169,7 @@ export function buildNavSections(
         label: "Decisions",
         defaultOpen: true,
         items: mark([
-          { label: "Approvals", href: `${base}/approvals` },
+          { label: "Approval Center", href: `${base}/approvals` },
           { label: "Change Orders", href: `${base}/change-orders` },
         ]),
       },
@@ -186,7 +186,6 @@ export function buildNavSections(
         defaultOpen: true,
         items: mark([
           { label: "Project Files", href: `${base}/documents` },
-          { label: "Contracts", href: `${base}/contracts` },
         ]),
       },
       {

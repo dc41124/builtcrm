@@ -9,6 +9,7 @@ import { Pill, type PillColor } from "@/components/pill";
 import type { ClientProjectView } from "@/domain/loaders/project-home";
 
 type Props = {
+  projectId: string;
   projectName: string;
   milestones: ClientProjectView["milestones"];
   approvals: ClientProjectView["approvals"];
@@ -42,6 +43,7 @@ const MS_PILL: Record<string, { color: PillColor; label: string }> = {
 };
 
 export function ResidentialProjectHome({
+  projectId,
   projectName,
   milestones,
   approvals,
@@ -49,6 +51,7 @@ export function ResidentialProjectHome({
   selections,
   drawRequests,
 }: Props) {
+  const base = `/residential/project/${projectId}`;
   const totalMs = milestones.length;
   const completedMs = milestones.filter(
     (m) => m.milestoneStatus === "completed",
@@ -196,7 +199,7 @@ export function ResidentialProjectHome({
                       </div>
                       <Link
                         className="rph-dec-link"
-                        href={isApproval ? "decisions" : "scope-changes"}
+                        href={`${base}/${isApproval ? "decisions" : "scope-changes"}`}
                       >
                         Take a look →
                       </Link>
@@ -274,7 +277,7 @@ export function ResidentialProjectHome({
                     )}
                   </div>
                 )}
-                <Link href="selections" className="rph-sel-link">
+                <Link href={`${base}/selections`} className="rph-sel-link">
                   See all selections →
                 </Link>
               </div>
@@ -307,19 +310,19 @@ export function ResidentialProjectHome({
           <Card title="Jump to">
             <ul className="rph-links">
               <li>
-                <Link href="decisions">Decisions →</Link>
+                <Link href={`${base}/decisions`}>Decisions →</Link>
               </li>
               <li>
-                <Link href="scope-changes">Scope Changes →</Link>
+                <Link href={`${base}/scope-changes`}>Scope Changes →</Link>
               </li>
               <li>
-                <Link href="selections">Your Selections →</Link>
+                <Link href={`${base}/selections`}>Your Selections →</Link>
               </li>
               <li>
-                <Link href="schedule">Schedule →</Link>
+                <Link href={`${base}/schedule`}>Schedule →</Link>
               </li>
               <li>
-                <Link href="messages">Messages →</Link>
+                <Link href={`${base}/messages`}>Messages →</Link>
               </li>
             </ul>
           </Card>

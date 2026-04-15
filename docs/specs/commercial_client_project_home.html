@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BuiltCRM — Commercial Client · Project Home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ================================================================
+   DESIGN SYSTEM TOKENS — Commercial client variant (blue accent)
+   ================================================================ */
+:root {
+  --surface-0:#eef0f3;--surface-1:#ffffff;--surface-2:#f3f4f6;--surface-3:#e2e5e9;--surface-4:#d1d5db;
+  --surface-hover:#f5f6f8;--surface-incard:#f8f9fa;
+  --sidebar-bg:#ffffff;--sidebar-hover:#f5f6f8;--sidebar-active:#eef0f3;--sidebar-active-text:#1a1714;
+  --sidebar-section-text:#8b919a;--sidebar-item-text:#5a6170;--sidebar-border:#e8eaee;
+  --text-primary:#1a1714;--text-secondary:#6b655b;--text-tertiary:#9c958a;
+  --accent:#3178b9;--accent-hover:#2968a3;--accent-soft:#e8f1fa;--accent-text:#276299;--accent-muted:#b0cfe8;
+  --success:#2d8a5e;--success-soft:#edf7f1;--success-text:#1e6b46;
+  --warning:#c17a1a;--warning-soft:#fdf4e6;--warning-text:#96600f;
+  --danger:#c93b3b;--danger-soft:#fdeaea;--danger-text:#a52e2e;
+  --info:#3178b9;--info-soft:#e8f1fa;--info-text:#276299;
+  --font-display:'DM Sans',system-ui,sans-serif;--font-body:'Instrument Sans',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;
+  --shadow-sm:0 1px 3px rgba(26,23,20,.05);--shadow-md:0 4px 16px rgba(26,23,20,.06);--shadow-lg:0 8px 32px rgba(26,23,20,.1);
+  --shadow-ring:0 0 0 3px rgba(49,120,185,.15);
+  --sidebar-width:260px;--topbar-height:56px;
+  --ease-out:cubic-bezier(.16,1,.3,1);--dur-fast:120ms;--dur-normal:200ms;--dur-slow:350ms;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0}
+body{font-family:var(--font-body);background:var(--surface-0);color:var(--text-primary);-webkit-font-smoothing:antialiased;line-height:1.5;font-size:14px;font-weight:520}
+button{cursor:pointer;font-family:inherit;border:none;background:none}
+.app{display:grid;grid-template-columns:var(--sidebar-width) 1fr;min-height:100vh}
+
+/* ================================================================
+   SIDEBAR — commercial client variant
+   ================================================================ */
+.sidebar{background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:hidden}
+.brand{height:var(--topbar-height);display:flex;align-items:center;gap:var(--sp-3);padding:0 var(--sp-4) 0 var(--sp-5);border-bottom:1px solid var(--sidebar-border);flex-shrink:0}
+.brand-mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#1a3a5c,#3178b9);display:grid;place-items:center;flex-shrink:0}
+.brand-mark svg{width:16px;height:16px}
+.brand-name{font-family:var(--font-display);font-size:14px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+.brand-ctx{font-size:11.5px;color:var(--text-tertiary);line-height:1.2;margin-top:1px}
+
+.sb-welcome{margin:var(--sp-3) var(--sp-3) 0;padding:var(--sp-4);border:1px solid var(--surface-3);border-radius:var(--radius-lg);background:linear-gradient(180deg,#fff 0%,var(--surface-incard) 100%)}
+.sb-welcome h4{font-family:var(--font-display);font-size:13px;font-weight:650;margin-bottom:4px}
+.sb-welcome p{font-size:12px;color:var(--text-secondary);line-height:1.4}
+
+.sb-nav{flex:1;overflow-y:auto;padding:var(--sp-3) var(--sp-3) var(--sp-6)}
+.ns{margin-bottom:var(--sp-1)}.ns-h{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2);font-size:11px;font-weight:650;color:var(--sidebar-section-text);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;border-radius:var(--radius-sm)}
+.ns-chv{width:14px;height:14px;transition:transform var(--dur-normal) var(--ease-out)}.ns.closed .ns-chv{transform:rotate(-90deg)}.ns.closed .ns-items{display:none}
+.ni{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);padding:6px 10px 6px 12px;border-radius:var(--radius-md);font-size:13px;font-weight:500;color:var(--sidebar-item-text);cursor:pointer;transition:all var(--dur-fast) var(--ease-out);margin-bottom:1px;position:relative}
+.ni:hover{background:var(--sidebar-hover);color:var(--text-primary)}
+.ni.active{background:var(--sidebar-active);color:var(--sidebar-active-text);font-weight:620}
+.ni.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:16px;border-radius:0 3px 3px 0;background:var(--accent)}
+.ni-badge{min-width:18px;height:18px;padding:0 6px;border-radius:999px;font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-display);flex-shrink:0}
+.ni-badge{background:var(--accent-soft);color:var(--accent-text)}
+.ni-badge.amber{background:var(--warning-soft);color:var(--warning-text)}
+.ni-badge.red{background:var(--danger-soft);color:var(--danger-text)}
+
+.sb-foot{border-top:1px solid var(--sidebar-border);padding:var(--sp-3) var(--sp-4);flex-shrink:0}
+.sb-user{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-2);border-radius:var(--radius-md)}
+.u-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#3178b9,#5a9fd4);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-size:11.5px;font-weight:700;flex-shrink:0}
+
+/* TOPBAR */
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{height:var(--topbar-height);display:flex;align-items:center;justify-content:space-between;padding:0 var(--sp-6);border-bottom:1px solid var(--surface-3);background:rgba(238,240,243,.85);backdrop-filter:blur(12px);position:sticky;top:0;z-index:50}
+.bc{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-tertiary)}.bc .cur{color:var(--text-primary);font-weight:620}.bc .sep{font-size:11px;color:var(--surface-4)}
+.tb-acts{display:flex;align-items:center;gap:var(--sp-2)}
+.tb-btn{width:34px;height:34px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);color:var(--text-tertiary);display:grid;place-items:center;cursor:pointer;position:relative}
+.tb-btn .nd{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--danger);border:2px solid var(--surface-1)}
+.tb-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3178b9,#5a9fd4);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-size:11.5px;font-weight:700;cursor:pointer;margin-left:var(--sp-1)}
+
+.content{padding:var(--sp-6);flex:1}
+
+/* ================================================================
+   SHARED COMPONENTS
+   ================================================================ */
+.pill{height:22px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:650;display:inline-flex;align-items:center;white-space:nowrap;flex-shrink:0}
+.pill.blue{background:var(--accent-soft);color:var(--accent-text)}
+.pill.green{background:var(--success-soft);color:var(--success-text)}
+.pill.amber{background:var(--warning-soft);color:var(--warning-text)}
+.pill.red{background:var(--danger-soft);color:var(--danger-text)}
+.pill.gray{background:var(--surface-2);color:var(--text-secondary)}
+
+.btn{height:34px;padding:0 14px;border-radius:var(--radius-md);border:1px solid var(--surface-3);background:var(--surface-1);font-family:var(--font-body);font-size:13px;font-weight:560;color:var(--text-primary);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all var(--dur-fast) var(--ease-out);white-space:nowrap}
+.btn:hover{background:var(--surface-hover);border-color:var(--surface-4)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.primary:hover{background:var(--accent-hover)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--text-secondary);padding:0 8px}
+
+.card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);overflow:hidden}
+.c-head{display:flex;align-items:center;justify-content:space-between;padding:var(--sp-4) var(--sp-5);border-bottom:1px solid var(--surface-3)}
+.c-title{font-family:var(--font-display);font-size:15px;font-weight:680;letter-spacing:-.01em}
+.c-sub{font-size:12.5px;color:var(--text-tertiary);margin-top:2px}
+.c-body{padding:var(--sp-4) var(--sp-5)}
+
+/* ================================================================
+   HERO
+   ================================================================ */
+.hero{display:grid;grid-template-columns:1fr 320px;gap:var(--sp-5);margin-bottom:var(--sp-5)}
+.hero-main h1{font-family:var(--font-display);font-size:24px;font-weight:820;letter-spacing:-.03em;line-height:1.15}
+.hero-topline{display:flex;gap:var(--sp-2);flex-wrap:wrap;margin-top:var(--sp-3)}
+.hero-desc{margin-top:var(--sp-3);font-size:14px;color:var(--text-secondary);line-height:1.55;max-width:600px}
+.hero-meta{display:flex;gap:var(--sp-4);margin-top:var(--sp-4);flex-wrap:wrap}
+.hero-meta-chip{font-size:12.5px;color:var(--text-secondary)}
+.hero-meta-chip strong{color:var(--text-primary);font-weight:620}
+.hero-actions{display:flex;gap:var(--sp-2);margin-top:var(--sp-5)}
+
+.hero-side{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);padding:var(--sp-5)}
+.hero-side h4{font-family:var(--font-display);font-size:13px;font-weight:680;margin-bottom:var(--sp-3);color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em}
+.snapshot-item{padding:var(--sp-3) var(--sp-4);border-radius:var(--radius-lg);margin-bottom:var(--sp-2);border:1px solid var(--surface-3);background:var(--surface-2)}
+.snapshot-item:last-child{margin-bottom:0}
+.snapshot-item .sk{font-size:11px;font-weight:650;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em}
+.snapshot-item .sv{font-family:var(--font-display);font-size:18px;font-weight:820;margin-top:2px;letter-spacing:-.02em}
+.snapshot-item .sm{font-size:12px;color:var(--text-secondary);margin-top:2px}
+.snapshot-item.alert{background:var(--warning-soft);border-color:rgba(193,122,26,.15)}
+.snapshot-item.alert .sk{color:var(--warning-text)}
+.snapshot-item.danger{background:var(--danger-soft);border-color:rgba(201,59,59,.15)}
+.snapshot-item.danger .sk{color:var(--danger-text)}
+
+/* ================================================================
+   CONTACTS STRIP
+   ================================================================ */
+.contacts-strip{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-3) var(--sp-5);background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-xl);margin-bottom:var(--sp-5)}
+.contacts-label{font-family:var(--font-display);font-size:12px;font-weight:680;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;flex-shrink:0}
+.contacts-list{display:flex;gap:var(--sp-4);flex-wrap:wrap}
+.contact-chip{display:flex;align-items:center;gap:var(--sp-2)}
+.cc-av{width:26px;height:26px;border-radius:50%;color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-size:10px;font-weight:700;flex-shrink:0}
+.cc-name{font-family:var(--font-display);font-size:12.5px;font-weight:640}
+.cc-role{font-size:11.5px;color:var(--text-tertiary);font-weight:520}
+
+/* ================================================================
+   KPI STRIP
+   ================================================================ */
+.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-3);margin-bottom:var(--sp-5)}
+.kpi-card{background:var(--surface-1);border:1px solid var(--surface-3);border-radius:var(--radius-lg);padding:var(--sp-4) var(--sp-5)}
+.kpi-label{font-size:12px;font-weight:560;color:var(--text-tertiary);margin-bottom:var(--sp-1)}
+.kpi-value{font-family:var(--font-display);font-size:22px;font-weight:820;letter-spacing:-.02em}
+.kpi-meta{font-size:12px;color:var(--text-secondary);margin-top:2px}
+.kpi-card.accent{background:linear-gradient(135deg,var(--accent-soft),#fff);border-color:var(--accent-muted)}
+.kpi-card.accent .kpi-label{color:var(--accent-text)}
+.kpi-card.warn{background:linear-gradient(135deg,var(--warning-soft),#fff);border-color:rgba(193,122,26,.2)}
+.kpi-card.warn .kpi-label{color:var(--warning-text)}
+
+/* ================================================================
+   MAIN GRID
+   ================================================================ */
+.main-grid{display:grid;grid-template-columns:1fr 340px;gap:var(--sp-5);align-items:start}
+
+/* ACTIVITY FEED */
+.activity-item{display:flex;gap:var(--sp-3);padding:var(--sp-3) 0;border-bottom:1px solid var(--surface-3)}
+.activity-item:last-child{border-bottom:none}
+.a-icon{width:32px;height:32px;border-radius:var(--radius-md);display:grid;place-items:center;flex-shrink:0}
+.a-icon svg{width:16px;height:16px}
+.a-icon.blue{background:var(--accent-soft);color:var(--accent-text)}
+.a-icon.green{background:var(--success-soft);color:var(--success-text)}
+.a-icon.amber{background:var(--warning-soft);color:var(--warning-text)}
+.a-icon.red{background:var(--danger-soft);color:var(--danger-text)}
+.a-text{flex:1;min-width:0}
+.a-title{font-size:13px;font-weight:580;line-height:1.35}
+.a-title strong{font-weight:650;color:var(--text-primary)}
+.a-desc{font-size:12.5px;color:var(--text-secondary);margin-top:2px;line-height:1.4}
+.a-time{font-size:11.5px;color:var(--text-tertiary);flex-shrink:0;white-space:nowrap;margin-top:2px}
+
+/* PENDING ACTIONS */
+.action-row{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);padding:var(--sp-3) 0;border-bottom:1px solid var(--surface-3)}
+.action-row:last-child{border-bottom:none}
+.action-info{flex:1;min-width:0}
+.action-label{font-size:13px;font-weight:600}
+.action-detail{font-size:12px;color:var(--text-secondary);margin-top:1px}
+
+/* QUICK LINKS */
+.quick-links{display:grid;gap:var(--sp-2)}
+.quick-link{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3);border:1px solid var(--surface-3);border-radius:var(--radius-lg);cursor:pointer;transition:all var(--dur-fast) var(--ease-out)}
+.quick-link:hover{background:var(--surface-hover);border-color:var(--surface-4);transform:translateY(-1px)}
+.ql-icon{width:36px;height:36px;border-radius:var(--radius-md);display:grid;place-items:center;flex-shrink:0}
+.ql-icon svg{width:18px;height:18px}
+.ql-text h5{font-family:var(--font-display);font-size:13px;font-weight:650}
+.ql-text p{font-size:12px;color:var(--text-secondary);margin-top:1px}
+
+/* PROGRESS BAR */
+.progress-bar{height:6px;background:var(--surface-3);border-radius:999px;overflow:hidden;margin-top:var(--sp-2)}
+.progress-fill{height:100%;border-radius:999px;background:var(--accent);transition:width var(--dur-slow) var(--ease-out)}
+
+/* ANIMATIONS */
+@keyframes fadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.content > *{animation:fadeInUp .3s var(--ease-out) both}
+.content > *:nth-child(1){animation-delay:0ms}
+.content > *:nth-child(2){animation-delay:50ms}
+.content > *:nth-child(3){animation-delay:100ms}
+.content > *:nth-child(4){animation-delay:150ms}
+.content > *:nth-child(5){animation-delay:200ms}
+.content > *:nth-child(6){animation-delay:250ms}
+
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--surface-4);border-radius:10px}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ============================================================
+       SIDEBAR
+       ============================================================ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" fill="white" opacity=".9"/><rect x="5" y="5" width="5" height="5" rx="1" fill="white" opacity=".7"/><rect x="8" y="8" width="5" height="5" rx="1" fill="white" opacity=".5"/></svg>
+      </div>
+      <div><div class="brand-name">BuiltCRM</div><div class="brand-ctx">Client Portal</div></div>
+    </div>
+
+    <div class="sb-welcome">
+      <h4>Welcome, Rachel</h4>
+      <p>2 items awaiting your review and a new construction update from this week.</p>
+    </div>
+
+    <nav class="sb-nav">
+      <div class="ns">
+        <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Project</div>
+        <div class="ns-items">
+          <div class="ni active"><span>Project Home</span></div>
+          <div class="ni"><span>Progress & Updates</span></div>
+          <div class="ni"><span>Photos</span></div>
+          <div class="ni"><span>Schedule</span></div>
+        </div>
+      </div>
+      <div class="ns">
+        <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Decisions</div>
+        <div class="ns-items">
+          <div class="ni"><span>Approval Center</span><span class="ni-badge red">2</span></div>
+          <div class="ni"><span>Change Orders</span><span class="ni-badge amber">1</span></div>
+        </div>
+      </div>
+      <div class="ns">
+        <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Financial</div>
+        <div class="ns-items">
+          <div class="ni"><span>Billing & Draws</span></div>
+          <div class="ni"><span>Payment History</span></div>
+        </div>
+      </div>
+      <div class="ns">
+        <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Documents</div>
+        <div class="ns-items">
+          <div class="ni"><span>Project Files</span></div>
+        </div>
+      </div>
+      <div class="ns">
+        <div class="ns-h"><svg class="ns-chv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>Communication</div>
+        <div class="ns-items">
+          <div class="ni"><span>Messages</span><span class="ni-badge">2</span></div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="sb-foot">
+      <div class="sb-user">
+        <div class="u-av">RG</div>
+        <div>
+          <div style="font-size:13px;font-weight:580">Rachel Greyson</div>
+          <div style="font-size:11px;color:var(--text-tertiary)">Project Approver</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN
+       ============================================================ -->
+  <main class="main">
+    <div class="topbar">
+      <div class="bc"><span>Client Portal</span><span class="sep">›</span><span>Riverside Tower Fit-Out</span><span class="sep">›</span><span class="cur">Project Home</span></div>
+      <div class="tb-acts">
+        <button class="tb-btn" aria-label="Notifications"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="2"/><path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" stroke-width="2"/></svg><span class="nd"></span></button>
+        <div class="tb-av">RG</div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ========== HERO ========== -->
+      <section class="hero">
+        <div class="hero-main">
+          <h1>Riverside Tower Fit-Out</h1>
+          <div class="hero-topline">
+            <span class="pill blue">Active project</span>
+            <span class="pill amber">2 items awaiting review</span>
+            <span class="pill green">On schedule</span>
+          </div>
+          <p class="hero-desc">Your project dashboard — track construction progress, review approvals, and stay connected with the build team.</p>
+          <div class="hero-meta">
+            <div class="hero-meta-chip"><strong>Contractor:</strong> Cardona Construction</div>
+            <div class="hero-meta-chip"><strong>PM:</strong> David Cardona</div>
+            <div class="hero-meta-chip"><strong>Target completion:</strong> Aug 30, 2026</div>
+            <div class="hero-meta-chip"><strong>Contract:</strong> $3,800,000</div>
+          </div>
+          <div class="hero-actions">
+            <button class="btn primary">
+              <svg viewBox="0 0 24 24" fill="none" width="15" height="15"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Message Team
+            </button>
+            <button class="btn">
+              <svg viewBox="0 0 24 24" fill="none" width="15" height="15"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              View Documents
+            </button>
+            <button class="btn">View Schedule</button>
+          </div>
+        </div>
+
+        <div class="hero-side">
+          <h4>Project snapshot</h4>
+          <div class="snapshot-item alert">
+            <div class="sk">Awaiting your review</div>
+            <div class="sv">2 items</div>
+            <div class="sm">CO-014 + Draw #4 approval</div>
+          </div>
+          <div class="snapshot-item">
+            <div class="sk">Next milestone</div>
+            <div class="sv">Apr 22</div>
+            <div class="sm">Electrical rough-in inspection</div>
+          </div>
+          <div class="snapshot-item">
+            <div class="sk">Latest payment</div>
+            <div class="sv">$312,400</div>
+            <div class="sm">Draw #3 · Paid Mar 28</div>
+          </div>
+          <div class="snapshot-item">
+            <div class="sk">Unread messages</div>
+            <div class="sv">2 threads</div>
+            <div class="sm">PM update + CO clarification</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== CONTACTS STRIP ========== -->
+      <section class="contacts-strip">
+        <div class="contacts-label">Your project team</div>
+        <div class="contacts-list">
+          <div class="contact-chip">
+            <div class="cc-av" style="background:#5b4fc7">DC</div>
+            <span class="cc-name">David Cardona</span>
+            <span class="cc-role">Project Manager</span>
+          </div>
+          <div class="contact-chip">
+            <div class="cc-av" style="background:#3d6b8e">MS</div>
+            <span class="cc-name">Marco Silva</span>
+            <span class="cc-role">Superintendent</span>
+          </div>
+          <div class="contact-chip">
+            <div class="cc-av" style="background:var(--accent)">RG</div>
+            <span class="cc-name">Rachel Greyson</span>
+            <span class="cc-role">You · Approver</span>
+          </div>
+          <div class="contact-chip">
+            <div class="cc-av" style="background:var(--warning)">KL</div>
+            <span class="cc-name">Karen Liu</span>
+            <span class="cc-role">Owner Rep</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== KPI STRIP ========== -->
+      <section class="kpi-strip">
+        <div class="kpi-card">
+          <div class="kpi-label">Current phase</div>
+          <div class="kpi-value">Phase 3</div>
+          <div class="kpi-meta">Interior rough-in</div>
+          <div class="progress-bar"><div class="progress-fill" style="width:65%"></div></div>
+        </div>
+        <div class="kpi-card accent">
+          <div class="kpi-label">Pending approvals</div>
+          <div class="kpi-value">2</div>
+          <div class="kpi-meta">1 change order · 1 draw request</div>
+        </div>
+        <div class="kpi-card warn">
+          <div class="kpi-label">Open change orders</div>
+          <div class="kpi-value">3</div>
+          <div class="kpi-meta">$47,200 total impact</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Billing progress</div>
+          <div class="kpi-value">$1.24M</div>
+          <div class="kpi-meta">of $3.8M contract · 32.6% billed</div>
+          <div class="progress-bar"><div class="progress-fill" style="width:32.6%"></div></div>
+        </div>
+      </section>
+
+      <!-- ========== MAIN GRID ========== -->
+      <section class="main-grid">
+        <!-- LEFT COLUMN -->
+        <div style="display:grid;gap:var(--sp-5)">
+
+          <!-- Pending actions -->
+          <div class="card">
+            <div class="c-head">
+              <div><div class="c-title">Awaiting your review</div><div class="c-sub">Items that need your decision</div></div>
+              <span class="pill amber">2 pending</span>
+            </div>
+            <div class="c-body">
+              <div class="action-row">
+                <div class="action-info">
+                  <div class="action-label">CO-014 — Mechanical reroute, east corridor</div>
+                  <div class="action-detail">+$18,400 · Submitted Apr 10 · Affects Phase 3 timeline by 5 days</div>
+                </div>
+                <button class="btn primary" style="height:30px;font-size:12px">Review</button>
+              </div>
+              <div class="action-row">
+                <div class="action-info">
+                  <div class="action-label">Draw Request #4 — Interior rough-in progress</div>
+                  <div class="action-detail">$284,600 requested · Submitted Apr 12 · Covers work through Apr 8</div>
+                </div>
+                <button class="btn primary" style="height:30px;font-size:12px">Review</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent activity -->
+          <div class="card">
+            <div class="c-head">
+              <div><div class="c-title">Recent activity</div><div class="c-sub">Latest updates from your project</div></div>
+              <button class="btn ghost" style="font-size:12px">View all →</button>
+            </div>
+            <div class="c-body">
+              <div class="activity-item">
+                <div class="a-icon blue"><svg viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="2"/></svg></div>
+                <div class="a-text">
+                  <div class="a-title"><strong>Weekly progress report</strong> shared by David Cardona</div>
+                  <div class="a-desc">Interior rough-in at 65% completion. Electrical, plumbing, and HVAC running on schedule. Photo set attached (12 photos).</div>
+                </div>
+                <div class="a-time">2h ago</div>
+              </div>
+              <div class="activity-item">
+                <div class="a-icon amber"><svg viewBox="0 0 24 24" fill="none"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+                <div class="a-text">
+                  <div class="a-title"><strong>CO-014</strong> submitted for your review</div>
+                  <div class="a-desc">Mechanical reroute due to existing conditions in east corridor discovered during demolition.</div>
+                </div>
+                <div class="a-time">1d ago</div>
+              </div>
+              <div class="activity-item">
+                <div class="a-icon green"><svg viewBox="0 0 24 24" fill="none"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M22 4 12 14.01l-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <div class="a-text">
+                  <div class="a-title"><strong>Draw #3</strong> payment confirmed — $312,400</div>
+                  <div class="a-desc">Payment received and recorded. Lien waivers from all subs are on file.</div>
+                </div>
+                <div class="a-time">3d ago</div>
+              </div>
+              <div class="activity-item">
+                <div class="a-icon blue"><svg viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2"/></svg></div>
+                <div class="a-text">
+                  <div class="a-title"><strong>David Cardona</strong> sent a message</div>
+                  <div class="a-desc">Heads up on the CO-014 — quick clarification on the cost breakdown if you have a moment.</div>
+                </div>
+                <div class="a-time">3d ago</div>
+              </div>
+              <div class="activity-item">
+                <div class="a-icon green"><svg viewBox="0 0 24 24" fill="none"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M22 4 12 14.01l-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <div class="a-text">
+                  <div class="a-title"><strong>Milestone completed</strong> — Structural framing signoff</div>
+                  <div class="a-desc">Phase 2 structural work passed final inspection on Apr 5.</div>
+                </div>
+                <div class="a-time">5d ago</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- RIGHT RAIL -->
+        <div style="display:grid;gap:var(--sp-5);align-content:start">
+
+          <!-- Quick access -->
+          <div class="card">
+            <div class="c-head"><div class="c-title">Quick access</div></div>
+            <div class="c-body">
+              <div class="quick-links">
+                <div class="quick-link">
+                  <div class="ql-icon" style="background:var(--accent-soft);color:var(--accent-text)"><svg viewBox="0 0 24 24" fill="none"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                  <div class="ql-text"><h5>Progress & Updates</h5><p>Weekly reports and phase tracking</p></div>
+                </div>
+                <div class="quick-link">
+                  <div class="ql-icon" style="background:var(--success-soft);color:var(--success-text)"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                  <div class="ql-text"><h5>Photos</h5><p>84 photos across 4 sets</p></div>
+                </div>
+                <div class="quick-link">
+                  <div class="ql-icon" style="background:var(--warning-soft);color:var(--warning-text)"><svg viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+                  <div class="ql-text"><h5>Project Files</h5><p>14 documents shared</p></div>
+                </div>
+                <div class="quick-link">
+                  <div class="ql-icon" style="background:#eeedfb;color:#4a3fb0"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/><path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+                  <div class="ql-text"><h5>Schedule</h5><p>18 milestones · 65% complete</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Upcoming milestones -->
+          <div class="card">
+            <div class="c-head"><div><div class="c-title">Upcoming milestones</div><div class="c-sub">Next 30 days</div></div></div>
+            <div class="c-body" style="display:grid;gap:var(--sp-3)">
+              <div style="display:flex;align-items:center;gap:var(--sp-3)">
+                <div style="width:42px;text-align:center;flex-shrink:0">
+                  <div style="font-family:var(--font-display);font-size:18px;font-weight:820;line-height:1">22</div>
+                  <div style="font-size:11px;color:var(--text-tertiary);font-weight:600">APR</div>
+                </div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:600">Electrical rough-in inspection</div>
+                  <div style="font-size:12px;color:var(--text-secondary)">Phase 3 · In 7 days</div>
+                </div>
+                <span class="pill amber" style="font-size:10px">Upcoming</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:var(--sp-3)">
+                <div style="width:42px;text-align:center;flex-shrink:0">
+                  <div style="font-family:var(--font-display);font-size:18px;font-weight:820;line-height:1">30</div>
+                  <div style="font-size:11px;color:var(--text-tertiary);font-weight:600">APR</div>
+                </div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:600">Plumbing pressure test</div>
+                  <div style="font-size:12px;color:var(--text-secondary)">Phase 3 · In 15 days</div>
+                </div>
+                <span class="pill gray" style="font-size:10px">Scheduled</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:var(--sp-3)">
+                <div style="width:42px;text-align:center;flex-shrink:0">
+                  <div style="font-family:var(--font-display);font-size:18px;font-weight:820;line-height:1">8</div>
+                  <div style="font-size:11px;color:var(--text-tertiary);font-weight:600">MAY</div>
+                </div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:600">Drywall close-in walkthrough</div>
+                  <div style="font-size:12px;color:var(--text-secondary)">Phase 3 · In 23 days</div>
+                </div>
+                <span class="pill gray" style="font-size:10px">Scheduled</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Financial summary -->
+          <div class="card">
+            <div class="c-head"><div><div class="c-title">Financial summary</div></div></div>
+            <div class="c-body" style="display:grid;gap:var(--sp-3)">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:13px;color:var(--text-secondary)">Original contract</span>
+                <span style="font-family:var(--font-display);font-size:14px;font-weight:700">$3,800,000</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:13px;color:var(--text-secondary)">Approved changes</span>
+                <span style="font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--warning-text)">+$28,800</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding-top:var(--sp-2);border-top:1px solid var(--surface-3)">
+                <span style="font-size:13px;font-weight:620">Current contract value</span>
+                <span style="font-family:var(--font-display);font-size:16px;font-weight:820">$3,828,800</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:var(--sp-2)">
+                <span style="font-size:13px;color:var(--text-secondary)">Billed to date</span>
+                <span style="font-family:var(--font-display);font-size:14px;font-weight:700">$1,240,000</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:13px;color:var(--text-secondary)">Paid to date</span>
+                <span style="font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--success-text)">$1,240,000</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:13px;color:var(--text-secondary)">Retainage held</span>
+                <span style="font-family:var(--font-display);font-size:14px;font-weight:700">$124,000</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:13px;color:var(--text-secondary)">Remaining</span>
+                <span style="font-family:var(--font-display);font-size:14px;font-weight:700">$2,588,800</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+document.querySelectorAll('.ns-h').forEach(h => h.addEventListener('click', () => h.closest('.ns').classList.toggle('closed')));
+</script>
+</body>
+</html>

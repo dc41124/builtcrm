@@ -36,6 +36,7 @@ export default async function ResidentialProjectHomePage({
 
   return (
     <ResidentialProjectHome
+      projectId={projectId}
       projectName={view.project.name}
       milestones={view.milestones}
       approvals={view.approvals}

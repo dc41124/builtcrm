@@ -36,7 +36,6 @@ export default async function ContractorApprovalsPage({
 
   return (
     <ContractorApprovalsWorkspace
-      projectName={view.project.name}
       rows={view.rows}
       totals={view.totals}
     />

@@ -36,7 +36,6 @@ export default async function CommercialApprovalsPage({
 
   return (
     <CommercialApprovalsReview
-      projectName={view.project.name}
       rows={view.rows}
       totals={view.totals}
       originalContractCents={view.originalContractCents}

@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 
 import { Button } from "@/components/button";
-import { KpiCard } from "@/components/kpi-card";
 import { Pill } from "@/components/pill";
 import type {
   ApprovalRow,
@@ -30,11 +29,9 @@ function formatDate(d: Date): string {
 }
 
 export function ResidentialDecisionsReview({
-  projectName,
   rows,
   totals,
 }: {
-  projectName: string;
   rows: ApprovalRow[];
   totals: ApprovalTotals;
 }) {
@@ -53,7 +50,6 @@ export function ResidentialDecisionsReview({
     <div className="dec">
       <header className="dec-head">
         <div>
-          <div className="dec-crumbs">{projectName} · Decisions</div>
           <h1 className="dec-title">Decisions Needed</h1>
           <p className="dec-desc">
             Your builder occasionally needs your OK on something before they can
@@ -63,26 +59,26 @@ export function ResidentialDecisionsReview({
         </div>
       </header>
 
-      <div className="dec-kpis">
-        <KpiCard
-          label="Needs your OK"
-          value={pending.length.toString()}
-          meta={pending.length === 0 ? "You're all caught up" : "Take a look when you can"}
-          iconColor="red"
-          alert={pending.length > 0}
-        />
-        <KpiCard
-          label="Already approved"
-          value={approved.length.toString()}
-          meta="All set"
-          iconColor="green"
-        />
-        <KpiCard
-          label="Total project"
-          value={totals.total.toString()}
-          meta="Decisions so far"
-          iconColor="purple"
-        />
+      <div className="dec-sum">
+        <div className={`dec-sc ${pending.length > 0 ? "danger" : ""}`}>
+          <div className="dec-sc-l">Needs your OK</div>
+          <div className="dec-sc-v">{pending.length}</div>
+          <div className="dec-sc-m">
+            {pending.length === 0
+              ? "You're all caught up"
+              : "Take a look when you can"}
+          </div>
+        </div>
+        <div className="dec-sc">
+          <div className="dec-sc-l">Already approved</div>
+          <div className="dec-sc-v">{approved.length}</div>
+          <div className="dec-sc-m">All set</div>
+        </div>
+        <div className="dec-sc">
+          <div className="dec-sc-l">Total project</div>
+          <div className="dec-sc-v">{totals.total}</div>
+          <div className="dec-sc-m">Decisions so far</div>
+        </div>
       </div>
 
       {firstPending && (
@@ -98,9 +94,9 @@ export function ResidentialDecisionsReview({
           <div className="rac-why">
             <h5>Why they&apos;re asking</h5>
             <p>
-              Your builder wants to make sure you&apos;re comfortable with this
-              before they proceed. There&apos;s no rush — just take a look and
-              let them know.
+              {firstPending.decisionNote ??
+                firstPending.description ??
+                "Your builder wants to make sure you're comfortable with this before they proceed. There's no rush — just take a look and let them know."}
             </p>
           </div>
 
@@ -190,11 +186,16 @@ export function ResidentialDecisionsReview({
       <style>{`
         .dec{display:flex;flex-direction:column;gap:20px}
         .dec-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
-        .dec-crumbs{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t3);text-transform:uppercase;letter-spacing:.04em}
-        .dec-title{font-family:var(--fd);font-size:24px;font-weight:820;letter-spacing:-.03em;color:var(--t1);line-height:1.15;margin:6px 0 4px}
+        .dec-title{font-family:var(--fd);font-size:24px;font-weight:820;letter-spacing:-.03em;color:var(--t1);line-height:1.15;margin:0}
         .dec-desc{font-family:var(--fb);font-size:13.5px;font-weight:540;color:var(--t2);line-height:1.5;max-width:720px;margin:0}
-        .dec-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-        @media(max-width:900px){.dec-kpis{grid-template-columns:1fr}}
+        .dec-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+        @media(max-width:900px){.dec-sum{grid-template-columns:1fr}}
+        .dec-sc{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:14px 16px;box-shadow:var(--shsm)}
+        .dec-sc.danger{border-color:color-mix(in srgb,var(--dg) 25%,var(--s3))}
+        .dec-sc-l{font-family:var(--fd);font-size:11px;font-weight:720;text-transform:uppercase;letter-spacing:.05em;color:var(--t3)}
+        .dec-sc-v{font-family:var(--fd);font-size:22px;font-weight:820;letter-spacing:-.03em;margin-top:4px;color:var(--t1)}
+        .dec-sc.danger .dec-sc-v{color:var(--dg-t)}
+        .dec-sc-m{font-family:var(--fb);font-size:12px;font-weight:520;color:var(--t2);margin-top:3px}
         .dec-section-title{font-family:var(--fd);font-size:14px;font-weight:700;color:var(--t1);margin:8px 0 0}
         .rac{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-xl);padding:18px 20px;box-shadow:var(--shsm);display:flex;flex-direction:column;gap:8px}
         .rac.pending{border-color:var(--ac-m);border-width:2px}
