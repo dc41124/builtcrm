@@ -234,7 +234,7 @@ export type SelectionCategoryRow = {
   items: SelectionItemRow[];
 };
 
-async function loadSelectionsForProject(
+export async function loadSelectionsForProject(
   projectId: string,
   opts: { publishedOnly?: boolean } = {},
 ): Promise<SelectionCategoryRow[]> {
