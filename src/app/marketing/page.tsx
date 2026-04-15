@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 const F = {
   display: "'DM Sans',system-ui,sans-serif",
@@ -260,6 +260,14 @@ export default function MarketingPage() {
   const [annual, setAnnual] = useState(true);
   const [resCat, setResCat] = useState<"all" | ResCat>("all");
   const [activeArticle, setActiveArticle] = useState<number | null>(null);
+  const [activeFaq, setActiveFaq] = useState<number>(0);
+
+  useEffect(() => {
+    if (activeArticle === null) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [activeArticle]);
 
   const nav = (p: PageKey) => {
     setPage(p);
@@ -269,8 +277,7 @@ export default function MarketingPage() {
 
   return (
     <div className="mkt" style={{ fontFamily: F.body, background: "#faf9f7", color: "#1a1714", WebkitFontSmoothing: "antialiased", lineHeight: 1.6, fontSize: 15, minHeight: "100vh" }}>
-      <style>{`
-        /* ── Marketing responsive ── overrides inline styles via !important */
+      <style dangerouslySetInnerHTML={{ __html: `
         @media (max-width:1023px){
           .mkt [style*="grid-template-columns: repeat(4"],
           .mkt [style*="gridTemplateColumns: repeat(4"]{grid-template-columns:repeat(2,1fr)!important}
@@ -280,38 +287,26 @@ export default function MarketingPage() {
         @media (max-width:767px){
           .mkt nav{padding:0 14px!important}
           .mkt nav > div{height:58px!important;gap:8px!important}
-          /* hide the center nav links on mobile — keep logo + Get started */
           .mkt nav > div > div:nth-child(2){display:none!important}
-          /* simplify right-side CTAs: hide "Log in" link, keep primary */
           .mkt nav > div > div:last-child{gap:6px!important}
           .mkt nav > div > div:last-child a:first-child{display:none!important}
-
-          /* collapse every grid to single column */
           .mkt [style*="grid-template-columns"],
           .mkt [style*="gridTemplateColumns"]{grid-template-columns:1fr!important;gap:16px!important}
-
-          /* section padding */
           .mkt section{padding:56px 18px!important}
           .mkt [style*="padding: \\"100px 32px"],
           .mkt [style*="padding: \\"72px 32px"],
           .mkt [style*="padding: \\"80px 32px"],
           .mkt [style*="padding: \\"40px 32px"]{padding-left:18px!important;padding-right:18px!important}
           .mkt footer{padding:56px 18px 32px!important}
-
-          /* tighten hero */
           .mkt h1{font-size:38px!important;line-height:1.1!important}
           .mkt h2{font-size:28px!important;line-height:1.15!important}
-
-          /* feature / pricing cards */
           .mkt [style*="padding: \\"32px 28px"]{padding:26px 22px!important}
-          /* article reader */
           .mkt article{padding:32px 18px 60px!important}
           .mkt article h2{font-size:24px!important}
-
-          /* trust bar */
           .mkt [style*="gap: 48"]{gap:24px!important;row-gap:12px!important}
+          .mkt .faq-ml{grid-template-columns:1fr!important;min-height:auto!important}
         }
-      `}</style>
+      ` }} />
 
       {/* ── STICKY NAV ── */}
       <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(250,249,247,.85)", backdropFilter: "blur(16px)", borderBottom: "1px solid #eeece8", padding: "0 32px" }}>
@@ -354,7 +349,7 @@ export default function MarketingPage() {
               </div>
             </div>
           </section>
-          <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}`}</style>
+          <style dangerouslySetInnerHTML={{ __html: `@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}` }} />
 
           {/* Trust Bar */}
           <div style={{ padding: "40px 32px 60px", textAlign: "center" }}>
@@ -372,12 +367,12 @@ export default function MarketingPage() {
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#5b4fc7" }}>The platform</div>
               <h2 style={{ fontFamily: F.display, fontSize: "clamp(30px,3.5vw,42px)", fontWeight: 820, letterSpacing: "-.035em", lineHeight: 1.12, marginTop: 8 }}>One project. Every stakeholder.<br />Zero confusion.</h2>
               <p style={{ fontSize: 15, color: "#5e5850", maxWidth: 560, margin: "12px auto 0" }}>Billing, RFIs, change orders, selections, documents, scheduling — all in one workspace your whole team actually uses.</p>
-              <div style={{ maxWidth: 960, margin: "40px auto 0", background: "white", border: "1px solid #e5e2dc", borderRadius: 24, boxShadow: "0 20px 60px rgba(26,23,20,.1)", overflow: "hidden", aspectRatio: "16/9", display: "grid", placeItems: "center", position: "relative" }}>
-                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 40, background: "#f5f4f1", borderBottom: "1px solid #eeece8", display: "flex", alignItems: "center", padding: "0 16px", gap: 8 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d1cdc5" }} /><span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d1cdc5" }} /><span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d1cdc5" }} />
-                  <div style={{ flex: 1, maxWidth: 300, height: 22, background: "white", borderRadius: 6, border: "1px solid #eeece8", marginLeft: 12 }} />
+              <div style={{ maxWidth: 960, margin: "40px auto 0", background: "white", border: "1px solid #e5e2dc", borderRadius: 24, boxShadow: "0 20px 60px rgba(26,23,20,.1)", overflow: "hidden", aspectRatio: "16/9", position: "relative" }}>
+                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 36, background: "#f5f4f1", borderBottom: "1px solid #eeece8", display: "flex", alignItems: "center", padding: "0 14px", gap: 6, zIndex: 2 }}>
+                  <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#e27b6b" }} /><span style={{ width: 9, height: 9, borderRadius: "50%", background: "#e9b84f" }} /><span style={{ width: 9, height: 9, borderRadius: "50%", background: "#6fbf7f" }} />
+                  <div style={{ flex: 1, maxWidth: 280, height: 20, background: "white", borderRadius: 5, border: "1px solid #eeece8", marginLeft: 12, display: "flex", alignItems: "center", padding: "0 10px", fontSize: 10, color: "#928b80", fontFamily: F.body, fontWeight: 520 }}>app.builtcrm.com / dashboard</div>
                 </div>
-                <span style={{ fontSize: 14, color: "#928b80", fontWeight: 550 }}>Interactive product screenshot</span>
+                <DashboardMock />
               </div>
             </div>
           </Section>
@@ -398,6 +393,36 @@ export default function MarketingPage() {
                   <p style={{ fontSize: 14, color: "#5e5850", lineHeight: 1.55, fontWeight: 520 }}>{f.desc}</p>
                 </div>
               ))}
+            </div>
+          </Section>
+
+          {/* Feature deep-dives */}
+          <Section>
+            <div style={{ display: "flex", flexDirection: "column", gap: 80 }}>
+              <FeatureRow
+                eyebrow="Billing"
+                title="AIA-format draw requests, without the paperwork"
+                desc="Build your schedule of values once. Every draw request auto-populates with line-item detail, tracks retainage, and hands off clean G702/G703 documents to your architect and owner."
+                bullets={["Schedule of values workspace", "Line-item draw applications", "Automatic retainage calculations", "Lien waiver collection"]}
+                mock={<BillingMock />}
+                flip={false}
+              />
+              <FeatureRow
+                eyebrow="Coordination"
+                title="RFIs and change orders in one threaded workspace"
+                desc="Field questions get logged, assigned, and answered in context — with a full audit trail. Change orders flow through the same system, so nothing gets lost between an iMessage and a spreadsheet."
+                bullets={["Threaded RFI responses", "Assignee routing by trade", "Change order financial impact", "Full audit history"]}
+                mock={<RfiMock />}
+                flip={true}
+              />
+              <FeatureRow
+                eyebrow="Client portals"
+                title="A clean, role-shaped view for every stakeholder"
+                desc="Commercial owners see approvals, draws, and documentation. Homeowners see photos, selections, and a budget they can actually understand. You publish — clients see only what's ready."
+                bullets={["Commercial approvals ledger", "Residential selections studio", "Progress photo feed", "Controlled publish workflow"]}
+                mock={<PortalMock />}
+                flip={false}
+              />
             </div>
           </Section>
 
@@ -465,13 +490,83 @@ export default function MarketingPage() {
                       ))}
                     </div>
                   </div>
-                  <div style={{ background: "white", border: "1px solid #e5e2dc", borderRadius: 20, aspectRatio: "4/3", display: "grid", placeItems: "center", boxShadow: "0 4px 16px rgba(26,23,20,.06)" }}>
-                    <span style={{ fontSize: 13, color: "#928b80", fontWeight: 550 }}>{s.preview}</span>
+                  <div style={{ background: "white", border: "1px solid #e5e2dc", borderRadius: 20, aspectRatio: "4/3", overflow: "hidden", boxShadow: "0 4px 16px rgba(26,23,20,.06)", position: "relative" }}>
+                    <SolutionMock audience={audience} />
                   </div>
                 </div>
               );
             })()}
           </Section>
+
+          {/* Rollout timeline */}
+          <Section alt>
+            <div style={{ textAlign: "center", maxWidth: 600, margin: "0 auto 48px" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#5b4fc7" }}>How rollout works</div>
+              <h2 style={{ fontFamily: F.display, fontSize: "clamp(26px,3vw,36px)", fontWeight: 820, letterSpacing: "-.035em", lineHeight: 1.12, marginTop: 8 }}>Live on your first project in a week</h2>
+              <p style={{ fontSize: 15, lineHeight: 1.6, color: "#5e5850", marginTop: 12, fontWeight: 520 }}>No SOW. No implementation fee. No six-week deployment. Start with one project, invite your team, keep building.</p>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20, position: "relative" }}>
+              {[
+                { n: "01", d: "Day 1", h: "Spin up your workspace", p: "Create your org, import a schedule of values, and invite your PM team. The platform is ready before your first coffee break." },
+                { n: "02", d: "Day 2-3", h: "Loop in subs & clients", p: "Send portal invites to your subcontractors and clients. They land in a scoped view — no training required, no learning curve." },
+                { n: "03", d: "Day 4-7", h: "Run your first draw", p: "Build a draw from your SOV, attach lien waivers, and submit. Architect and owner review in real time. You're live." },
+              ].map((s, i) => (
+                <div key={i} style={{ background: "white", border: "1px solid #eeece8", borderRadius: 20, padding: "28px 26px", position: "relative" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg,#5b4fc7,#7c6fe0)", color: "white", display: "grid", placeItems: "center", fontFamily: F.display, fontSize: 14, fontWeight: 820, letterSpacing: "-.02em" }}>{s.n}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#928b80", textTransform: "uppercase", letterSpacing: ".05em" }}>{s.d}</div>
+                  </div>
+                  <h3 style={{ fontFamily: F.display, fontSize: 17, fontWeight: 740, letterSpacing: "-.015em", marginBottom: 8, color: "#1a1714" }}>{s.h}</h3>
+                  <p style={{ fontSize: 13.5, color: "#5e5850", lineHeight: 1.55, fontWeight: 520 }}>{s.p}</p>
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          {/* Comparison strip */}
+          <Section>
+            <div style={{ textAlign: "center", maxWidth: 560, margin: "0 auto 40px" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#5b4fc7" }}>The old way vs the BuiltCRM way</div>
+              <h2 style={{ fontFamily: F.display, fontSize: "clamp(26px,3vw,36px)", fontWeight: 820, letterSpacing: "-.035em", lineHeight: 1.12, marginTop: 8 }}>Stop taxing your team with context switching</h2>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, maxWidth: 920, margin: "0 auto" }}>
+              <div style={{ background: "white", border: "1px solid #eeece8", borderRadius: 20, padding: "28px 28px", opacity: .85 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 720, padding: "3px 10px", borderRadius: 999, color: "#928b80", background: "#f3f1ee", textTransform: "uppercase", letterSpacing: ".04em" }}>Spreadsheets + email</span>
+                </div>
+                {[
+                  "SOV lives in Excel, draws rebuilt from scratch each month",
+                  "RFIs lost in email threads, no audit trail",
+                  "Compliance tracked in a shared drive folder nobody checks",
+                  "Clients call to ask what's happening on site",
+                  "Sub coordination happens in 4 group texts",
+                ].map(l => (
+                  <div key={l} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 13.5, color: "#5e5850", lineHeight: 1.5, marginBottom: 10, fontWeight: 520 }}>
+                    <span style={{ width: 16, height: 16, color: "#d04b3a", flexShrink: 0, marginTop: 1, display: "block" }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+                    </span>{l}
+                  </div>
+                ))}
+              </div>
+              <div style={{ background: "linear-gradient(135deg,#eeedfb,#faf9f7)", border: "2px solid #5b4fc7", borderRadius: 20, padding: "28px 28px", boxShadow: "0 12px 40px rgba(91,79,199,.12)", position: "relative" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 720, padding: "3px 10px", borderRadius: 999, color: "white", background: "#5b4fc7", textTransform: "uppercase", letterSpacing: ".04em" }}>BuiltCRM</span>
+                </div>
+                {[
+                  "SOV is the source — draws auto-populate from the last approved app",
+                  "RFIs threaded, routed, and timestamped with full history",
+                  "Compliance alerts fire 30/14/7 days before any cert expires",
+                  "Clients log into their portal and see progress themselves",
+                  "One workspace for everyone — GC, subs, owners, architects",
+                ].map(l => (
+                  <div key={l} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 13.5, color: "#1a1714", lineHeight: 1.5, marginBottom: 10, fontWeight: 560 }}>
+                    <span style={{ width: 16, height: 16, color: "#5b4fc7", flexShrink: 0, marginTop: 1, display: "block" }}>{CHK}</span>{l}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Section>
+
           <Section alt>
             <div style={{ textAlign: "center", maxWidth: 640, margin: "0 auto" }}>
               <h2 style={{ fontFamily: F.display, fontSize: "clamp(30px,3.5vw,42px)", fontWeight: 820, letterSpacing: "-.035em", lineHeight: 1.12, marginBottom: 16 }}>One platform, every perspective</h2>
@@ -479,6 +574,34 @@ export default function MarketingPage() {
               <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
                 <Btn lg primary href="/signup">Get started free</Btn>
                 <Btn lg secondary onClick={() => nav("pricing")}>See pricing</Btn>
+              </div>
+            </div>
+          </Section>
+
+          {/* About Us teaser */}
+          <Section>
+            <div style={{ maxWidth: 960, margin: "0 auto", background: "linear-gradient(135deg,#2c2541,#3d3366)", borderRadius: 24, padding: "56px 56px", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: -80, right: -80, width: 280, height: 280, borderRadius: "50%", background: "radial-gradient(circle,rgba(91,79,199,.35),transparent 70%)", pointerEvents: "none" }} />
+              <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 48, alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#a89cf0", marginBottom: 12 }}>About BuiltCRM</div>
+                  <h2 style={{ fontFamily: F.display, fontSize: "clamp(26px,3vw,34px)", fontWeight: 820, letterSpacing: "-.03em", lineHeight: 1.15, marginBottom: 14, color: "white" }}>Built by people who&apos;ve sat in job trailers</h2>
+                  <p style={{ fontSize: 15, lineHeight: 1.65, color: "rgba(250,249,247,.7)", marginBottom: 24, fontWeight: 520 }}>We&apos;re a small team of ex-PMs, builders, and engineers who got tired of watching construction teams lose hours a day to spreadsheets and email chains. BuiltCRM is our answer — a single workspace designed around how real projects actually run.</p>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <a href="/marketing/about" style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 44, padding: "0 22px", fontSize: 14, fontWeight: 680, color: "#1a1714", background: "white", borderRadius: 12, textDecoration: "none", fontFamily: F.body }}>
+                      Read our story <span style={{ width: 14, height: 14, display: "block" }}>{ARR}</span>
+                    </a>
+                    <a href="#" style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 44, padding: "0 22px", fontSize: 14, fontWeight: 680, color: "white", background: "transparent", border: "1px solid rgba(255,255,255,.2)", borderRadius: 12, textDecoration: "none", fontFamily: F.body }}>Meet the team</a>
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14 }}>
+                  {[["2024", "Founded"], ["18", "Team members"], ["500+", "Projects piloted"], ["4", "Portal roles"]].map(([v, l]) => (
+                    <div key={l} style={{ background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 14, padding: "18px 18px" }}>
+                      <div style={{ fontFamily: F.display, fontSize: 26, fontWeight: 820, letterSpacing: "-.02em", color: "white", lineHeight: 1 }}>{v}</div>
+                      <div style={{ fontSize: 12, color: "rgba(250,249,247,.5)", marginTop: 4, fontWeight: 520 }}>{l}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </Section>
@@ -525,20 +648,54 @@ export default function MarketingPage() {
               ))}
             </div>
           </Section>
+
+          {/* Included in every plan */}
           <Section alt>
-            <div style={{ textAlign: "center", marginBottom: 40 }}>
-              <h2 style={{ fontFamily: F.display, fontSize: "clamp(22px,2.5vw,28px)", fontWeight: 750, letterSpacing: "-.03em", lineHeight: 1.2 }}>Frequently asked questions</h2>
+            <div style={{ textAlign: "center", maxWidth: 600, margin: "0 auto 48px" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#5b4fc7" }}>Included in every plan</div>
+              <h2 style={{ fontFamily: F.display, fontSize: "clamp(26px,3vw,36px)", fontWeight: 820, letterSpacing: "-.035em", lineHeight: 1.12, marginTop: 8 }}>The essentials, standard</h2>
+              <p style={{ fontSize: 15, lineHeight: 1.6, color: "#5e5850", marginTop: 12, fontWeight: 520 }}>No nickel-and-diming on core functionality. Every plan ships with the workflows your team needs on day one.</p>
             </div>
-            <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
-              {FAQS.map((f, i) => (
-                <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ fontSize: 11, fontWeight: 650, letterSpacing: ".03em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end", color: "#4a3fb0" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#5b4fc7" }} />{f.sender}</div>
-                  <div style={{ alignSelf: "flex-end", maxWidth: "85%", padding: "14px 18px", fontSize: 14, lineHeight: 1.55, background: "#5b4fc7", color: "white", borderRadius: "14px 14px 4px 14px", fontWeight: 600 }}>{f.q}</div>
-                  <div style={{ fontSize: 11, fontWeight: 650, letterSpacing: ".03em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6, color: "#928b80" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#2a7f6f" }} />BuiltCRM</div>
-                  <div style={{ alignSelf: "flex-start", maxWidth: "85%", padding: "14px 18px", fontSize: 14, lineHeight: 1.55, background: "white", color: "#5e5850", border: "1px solid #eeece8", borderRadius: "14px 14px 14px 4px", boxShadow: "0 1px 3px rgba(26,23,20,.04)", fontWeight: 520 }}>{f.a}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, maxWidth: 960, margin: "0 auto" }}>
+              {[
+                { c: "#5b4fc7", h: "Unlimited clients", p: "Never pay per seat for owners or homeowners. Portal access is always free." },
+                { c: "#3d6b8e", h: "Unlimited subs", p: "Every subcontractor you work with gets scoped portal access at no extra cost." },
+                { c: "#2d8a5e", h: "Data export", p: "Your project data is yours. Export to CSV or JSON anytime, no lock-in." },
+                { c: "#c17a1a", h: "Encrypted at rest", p: "AES-256 encryption, row-level tenant isolation, daily backups — table stakes." },
+              ].map(x => (
+                <div key={x.h} style={{ background: "white", border: "1px solid #eeece8", borderRadius: 16, padding: "22px 22px" }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: `${x.c}18`, color: x.c, display: "grid", placeItems: "center", marginBottom: 14 }}>
+                    <span style={{ width: 18, height: 18, display: "block" }}>{CHK}</span>
+                  </div>
+                  <h3 style={{ fontFamily: F.display, fontSize: 15, fontWeight: 720, letterSpacing: "-.015em", marginBottom: 6, color: "#1a1714" }}>{x.h}</h3>
+                  <p style={{ fontSize: 12.5, color: "#5e5850", lineHeight: 1.55, fontWeight: 520 }}>{x.p}</p>
                 </div>
               ))}
             </div>
+          </Section>
+
+          {/* Testimonial strip */}
+          <Section>
+            <div style={{ maxWidth: 860, margin: "0 auto", textAlign: "center" }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="#5b4fc7" opacity=".2" style={{ margin: "0 auto 20px" }}><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.76-2.017-2-2H4c-1.24 0-2 .75-2 1.993V11c0 1.25.76 2 2 2h2s.5 1-1.5 2C2 16 3 21 3 21zm14 0c3 0 7-1 7-8V5c0-1.25-.76-2.017-2-2h-4c-1.24 0-2 .75-2 1.993V11c0 1.25.76 2 2 2h2s.5 1-1.5 2c-1.5 1-.5 6-.5 6z" /></svg>
+              <p style={{ fontFamily: F.display, fontSize: "clamp(20px,2.2vw,26px)", fontWeight: 620, letterSpacing: "-.02em", lineHeight: 1.35, color: "#1a1714", marginBottom: 24 }}>&ldquo;We priced it against adding another project coordinator. BuiltCRM paid for itself in three weeks — and our clients actually enjoy logging in now.&rdquo;</p>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#5b4fc7,#7c6fe0)", color: "white", display: "grid", placeItems: "center", fontFamily: F.display, fontSize: 15, fontWeight: 720 }}>ER</div>
+                <div style={{ textAlign: "left" }}>
+                  <div style={{ fontFamily: F.display, fontSize: 14, fontWeight: 720, color: "#1a1714" }}>Elena Ramirez</div>
+                  <div style={{ fontSize: 12, color: "#928b80", fontWeight: 520 }}>Operations Director · Ridgeline Builders</div>
+                </div>
+              </div>
+            </div>
+          </Section>
+
+          <Section alt>
+            <div style={{ textAlign: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#5b4fc7" }}>Questions</div>
+              <h2 style={{ fontFamily: F.display, fontSize: "clamp(22px,2.5vw,28px)", fontWeight: 750, letterSpacing: "-.03em", lineHeight: 1.2, marginTop: 8 }}>Answered the way we answer everything</h2>
+              <p style={{ fontSize: 14.5, color: "#5e5850", maxWidth: 500, margin: "10px auto 0", fontWeight: 520 }}>Each question is its own conversation — click a thread to open the answer. Same workspace your team uses inside BuiltCRM.</p>
+            </div>
+            <FaqMessages active={activeFaq} setActive={setActiveFaq} />
           </Section>
         </div>
       )}
@@ -563,8 +720,9 @@ export default function MarketingPage() {
                 const origIdx = RESOURCES.indexOf(r);
                 return (
                   <div key={i} onClick={() => setActiveArticle(origIdx)} style={{ background: "white", border: "1px solid #eeece8", borderRadius: 20, overflow: "hidden", cursor: "pointer", transition: "all 250ms" }}>
-                    <div style={{ aspectRatio: "16/9", background: "#f5f4f1", position: "relative" }}>
-                      <span style={{ position: "absolute", top: 12, left: 12, fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 999, color: "white", textTransform: "uppercase", letterSpacing: ".04em", background: catColor }}>{r.cat === "case-study" ? "Case study" : r.cat.charAt(0).toUpperCase() + r.cat.slice(1)}</span>
+                    <div style={{ aspectRatio: "16/9", position: "relative", overflow: "hidden" }}>
+                      <ResourceThumb idx={origIdx} color={catColor} />
+                      <span style={{ position: "absolute", top: 12, left: 12, fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 999, color: "white", textTransform: "uppercase", letterSpacing: ".04em", background: catColor, zIndex: 2 }}>{r.cat === "case-study" ? "Case study" : r.cat.charAt(0).toUpperCase() + r.cat.slice(1)}</span>
                     </div>
                     <div style={{ padding: "20px 24px 24px" }}>
                       <h3 style={{ fontFamily: F.display, fontSize: 16, fontWeight: 700, letterSpacing: "-.015em", lineHeight: 1.3, marginBottom: 8 }}>{r.title}</h3>
@@ -683,4 +841,608 @@ function Btn({ children, lg, primary, secondary, href, onClick }: { children: Re
   };
   if (href) return <a href={href} style={style}>{children}</a>;
   return <button onClick={onClick} style={style}>{children}</button>;
+}
+
+/* ─── FAQ as messages workspace ─── */
+const FAQ_META: { type: string; typeColor: string; senderColor: string; time: string; date: string; unread: boolean }[] = [
+  { type: "General", typeColor: "#5b4fc7", senderColor: "#2a7f6f", time: "9:14 AM", date: "Today", unread: false },
+  { type: "Billing", typeColor: "#c17a1a", senderColor: "#5b4fc7", time: "9:22 AM", date: "Today", unread: true },
+  { type: "General", typeColor: "#5b4fc7", senderColor: "#5b4fc7", time: "10:03 AM", date: "Today", unread: false },
+  { type: "Security", typeColor: "#3178b9", senderColor: "#3178b9", time: "10:41 AM", date: "Today", unread: true },
+  { type: "Integrations", typeColor: "#2d8a5e", senderColor: "#5b4fc7", time: "11:08 AM", date: "Today", unread: false },
+];
+
+function FaqMessages({ active, setActive }: { active: number; setActive: (i: number) => void }) {
+  const cur = FAQS[active];
+  const meta = FAQ_META[active];
+  return (
+    <div style={{ maxWidth: 960, margin: "32px auto 0", background: "white", border: "1px solid #eeece8", borderRadius: 20, boxShadow: "0 8px 30px rgba(26,23,20,.06)", overflow: "hidden" }}>
+      {/* Workspace header */}
+      <div style={{ padding: "14px 22px", borderBottom: "1px solid #eeece8", display: "flex", alignItems: "center", gap: 12, background: "#faf9f7" }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5b4fc7" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: F.display, fontSize: 14, fontWeight: 720, color: "#1a1714", letterSpacing: "-.01em" }}>Customer questions</div>
+          <div style={{ fontSize: 11.5, color: "#928b80", fontWeight: 520 }}>{FAQS.length} conversations · Live workspace preview</div>
+        </div>
+        <div style={{ fontSize: 10.5, fontWeight: 720, padding: "3px 10px", borderRadius: 999, color: "#2d8a5e", background: "#edf7f1", textTransform: "uppercase", letterSpacing: ".04em" }}>Inbox</div>
+      </div>
+
+      {/* Two-pane layout */}
+      <div className="faq-ml" style={{ display: "grid", gridTemplateColumns: "320px 1fr", minHeight: 520, background: "#faf9f7" }}>
+        {/* Conversation list */}
+        <div style={{ borderRight: "1px solid #eeece8", background: "white", display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: "12px 16px 10px", borderBottom: "1px solid #f3f1ee" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "#928b80", marginBottom: 8 }}>Conversations</div>
+            <div style={{ height: 30, borderRadius: 8, border: "1px solid #eeece8", background: "#faf9f7", padding: "0 10px", display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#928b80", fontWeight: 520 }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
+              Search questions
+            </div>
+          </div>
+          <div style={{ overflowY: "auto", flex: 1 }}>
+            {FAQS.map((f, i) => {
+              const m = FAQ_META[i];
+              const isActive = i === active;
+              const initial = f.sender.charAt(0);
+              return (
+                <div
+                  key={i}
+                  onClick={() => setActive(i)}
+                  style={{
+                    padding: "14px 16px",
+                    borderBottom: "1px solid #f3f1ee",
+                    cursor: "pointer",
+                    display: "flex",
+                    gap: 11,
+                    background: isActive ? "#eeedfb" : "transparent",
+                    borderLeft: isActive ? "3px solid #5b4fc7" : "3px solid transparent",
+                    transition: "background 120ms",
+                  }}
+                >
+                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: m.senderColor, color: "white", display: "grid", placeItems: "center", fontFamily: F.display, fontSize: 13, fontWeight: 720, flexShrink: 0 }}>{initial}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
+                      <span style={{ fontFamily: F.display, fontSize: 13, fontWeight: isActive ? 720 : 660, color: "#1a1714", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.sender}</span>
+                      <span style={{ fontSize: 10.5, color: "#928b80", fontWeight: 520, flexShrink: 0 }}>{m.time}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "#5e5850", lineHeight: 1.4, fontWeight: 520, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{f.q}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                      <span style={{ fontSize: 9.5, fontWeight: 720, padding: "2px 7px", borderRadius: 999, color: m.typeColor, background: `${m.typeColor}15`, textTransform: "uppercase", letterSpacing: ".04em" }}>{m.type}</span>
+                      {m.unread && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#5b4fc7" }} />}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Thread detail */}
+        <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+          {/* Thread header */}
+          <div style={{ padding: "16px 22px", borderBottom: "1px solid #eeece8", background: "white" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
+              <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 740, color: "#1a1714", letterSpacing: "-.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cur.q}</div>
+              <span style={{ fontSize: 10.5, fontWeight: 720, padding: "3px 9px", borderRadius: 999, color: meta.typeColor, background: `${meta.typeColor}15`, textTransform: "uppercase", letterSpacing: ".04em", flexShrink: 0 }}>{meta.type}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5, color: "#928b80", fontWeight: 520, flexWrap: "wrap" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", borderRadius: 999, background: "#f3f1ee", color: "#5e5850", fontWeight: 620 }}>
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: meta.senderColor }} />{cur.sender}
+              </span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", borderRadius: 999, background: "#f3f1ee", color: "#5e5850", fontWeight: 620 }}>
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#5b4fc7" }} />BuiltCRM team
+              </span>
+            </div>
+          </div>
+
+          {/* Message scroll */}
+          <div style={{ padding: "22px 26px", background: "#faf9f7", flex: 1, display: "flex", flexDirection: "column", gap: 20 }}>
+            <div style={{ alignSelf: "center", fontSize: 10.5, fontWeight: 620, color: "#928b80", textTransform: "uppercase", letterSpacing: ".06em", padding: "3px 10px", background: "white", border: "1px solid #eeece8", borderRadius: 999 }}>{meta.date}</div>
+
+            {/* Incoming */}
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-end", maxWidth: "85%" }}>
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: meta.senderColor, color: "white", display: "grid", placeItems: "center", fontFamily: F.display, fontSize: 12, fontWeight: 720, flexShrink: 0 }}>{cur.sender.charAt(0)}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 620, color: "#5e5850", marginBottom: 4, paddingLeft: 2 }}>{cur.sender}</div>
+                <div style={{ padding: "11px 15px", fontSize: 14, lineHeight: 1.55, background: "white", color: "#1a1714", border: "1px solid #eeece8", borderRadius: "14px 14px 14px 4px", fontWeight: 540 }}>{cur.q}</div>
+                <div style={{ fontSize: 10.5, color: "#928b80", marginTop: 4, paddingLeft: 2, fontWeight: 520 }}>{meta.time}</div>
+              </div>
+            </div>
+
+            {/* Outgoing */}
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexDirection: "row-reverse", maxWidth: "85%", alignSelf: "flex-end" }}>
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg,#2c2541,#5b4fc7)", color: "white", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <svg viewBox="0 0 80 80" width="16" height="16"><rect x="14" y="14" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="4" opacity=".5" /><rect x="26" y="26" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="4" opacity=".75" /><rect x="32" y="32" width="26" height="26" rx="4" fill="white" opacity=".95" /></svg>
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 620, color: "#5e5850", marginBottom: 4, paddingRight: 2, textAlign: "right" }}>BuiltCRM team</div>
+                <div style={{ padding: "11px 15px", fontSize: 14, lineHeight: 1.55, background: "#5b4fc7", color: "white", borderRadius: "14px 14px 4px 14px", fontWeight: 520 }}>{cur.a}</div>
+                <div style={{ fontSize: 10.5, color: "#928b80", marginTop: 4, paddingRight: 2, fontWeight: 520, textAlign: "right" }}>
+                  {(() => { const [h, rest] = meta.time.split(":"); const [mins, ap] = rest.split(" "); const nm = (parseInt(mins) + 2) % 60; return `${h}:${String(nm).padStart(2, "0")} ${ap}`; })()}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Composer */}
+          <div style={{ padding: "12px 18px", borderTop: "1px solid #eeece8", background: "white", display: "flex", alignItems: "center", gap: 10 }}>
+            <button type="button" style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #eeece8", background: "#faf9f7", color: "#928b80", cursor: "pointer", display: "grid", placeItems: "center" }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+            </button>
+            <div style={{ flex: 1, height: 36, border: "1px solid #eeece8", borderRadius: 10, background: "#faf9f7", padding: "0 14px", display: "flex", alignItems: "center", fontSize: 13, color: "#928b80", fontWeight: 520, fontFamily: F.body }}>Reply to this question…</div>
+            <button type="button" style={{ height: 36, padding: "0 16px", borderRadius: 10, background: "#5b4fc7", color: "white", border: "none", fontSize: 13, fontWeight: 680, fontFamily: F.body, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              Send
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Product preview: mini contractor dashboard ─── */
+function DashboardMock() {
+  const navItems: [string, boolean][] = [["Dashboard", true], ["Projects", false], ["Billing", false], ["RFIs", false], ["Documents", false], ["Messages", false]];
+  const kpis: [string, string, string][] = [
+    ["Active projects", "12", "+2 this month"],
+    ["Open RFIs", "8", "3 overdue"],
+    ["Draws pending", "$284k", "Across 4 projects"],
+    ["Compliance", "96%", "1 expiring soon"],
+  ];
+  const attention: [string, string, string, string][] = [
+    ["RFI #0142 overdue", "Riverside Tower · Framing clarification", "Overdue", "#d04b3a"],
+    ["Draw #08 ready to submit", "Harbor Lofts · $42,500 net", "Ready", "#2d8a5e"],
+    ["Insurance expires in 5 days", "Ironwood Electrical · GL cert", "Warning", "#c17a1a"],
+  ];
+  const health: [string, number, string][] = [["Riverside Tower", 72, "#5b4fc7"], ["Harbor Lofts", 48, "#2d8a5e"], ["Aspen Ridge", 91, "#3178b9"], ["Birchwood Estate", 22, "#c17a1a"]];
+  return (
+    <div style={{ position: "absolute", top: 36, left: 0, right: 0, bottom: 0, display: "grid", gridTemplateColumns: "172px 1fr", background: "#faf9f7", fontSize: 11 }}>
+      {/* Sidebar */}
+      <div style={{ background: "#2c2541", color: "white", padding: "16px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 6px 14px", borderBottom: "1px solid rgba(255,255,255,.08)", marginBottom: 10 }}>
+          <div style={{ width: 22, height: 22, borderRadius: 6, background: "linear-gradient(135deg,#5b4fc7,#7c6fe0)", display: "grid", placeItems: "center" }}>
+            <svg viewBox="0 0 80 80" width="12" height="12"><rect x="14" y="14" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="4" opacity=".5" /><rect x="26" y="26" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="4" opacity=".75" /><rect x="32" y="32" width="26" height="26" rx="4" fill="white" opacity=".95" /></svg>
+          </div>
+          <div style={{ fontFamily: F.display, fontSize: 12, fontWeight: 780, letterSpacing: "-.02em" }}>BuiltCRM</div>
+        </div>
+        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "rgba(255,255,255,.3)", padding: "4px 8px 6px" }}>Workspace</div>
+        {navItems.map(([l, active]) => (
+          <div key={l} style={{ padding: "7px 10px", borderRadius: 6, fontSize: 11, fontWeight: active ? 680 : 560, color: active ? "white" : "rgba(255,255,255,.6)", background: active ? "rgba(91,79,199,.35)" : "transparent", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ width: 4, height: 4, borderRadius: "50%", background: active ? "#a89cf0" : "rgba(255,255,255,.3)" }} />{l}
+          </div>
+        ))}
+      </div>
+      {/* Main */}
+      <div style={{ padding: "14px 18px", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div>
+            <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 820, letterSpacing: "-.02em", color: "#1a1714" }}>Dashboard</div>
+            <div style={{ fontSize: 10, color: "#928b80", fontWeight: 520, marginTop: 1 }}>Summit Contracting · 12 active projects</div>
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <div style={{ width: 24, height: 22, borderRadius: 5, background: "white", border: "1px solid #eeece8" }} />
+            <div style={{ width: 22, height: 22, borderRadius: "50%", background: "#5b4fc7", color: "white", display: "grid", placeItems: "center", fontSize: 9, fontFamily: F.display, fontWeight: 720 }}>DR</div>
+          </div>
+        </div>
+        {/* KPIs */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 10 }}>
+          {kpis.map(([l, v, m], i) => (
+            <div key={i} style={{ background: "white", border: "1px solid #eeece8", borderRadius: 8, padding: "8px 10px" }}>
+              <div style={{ fontSize: 8.5, color: "#928b80", fontWeight: 620, textTransform: "uppercase", letterSpacing: ".04em" }}>{l}</div>
+              <div style={{ fontFamily: F.display, fontSize: 17, fontWeight: 820, letterSpacing: "-.02em", color: "#1a1714", marginTop: 2 }}>{v}</div>
+              <div style={{ fontSize: 8.5, color: "#5e5850", fontWeight: 520, marginTop: 1 }}>{m}</div>
+            </div>
+          ))}
+        </div>
+        {/* Main cards */}
+        <div style={{ display: "grid", gridTemplateColumns: "1.35fr 1fr", gap: 8 }}>
+          <div style={{ background: "white", border: "1px solid #eeece8", borderRadius: 8, padding: "10px 12px" }}>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: "#1a1714", fontFamily: F.display, marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+              <span>Needs attention</span><span style={{ fontSize: 8.5, color: "#928b80", fontWeight: 520 }}>3 items</span>
+            </div>
+            {attention.map(([t, s, pill, pc], i) => (
+              <div key={i} style={{ display: "flex", gap: 8, padding: "7px 0", borderBottom: i < 2 ? "1px solid #f3f1ee" : "none", alignItems: "flex-start" }}>
+                <div style={{ width: 3, alignSelf: "stretch", borderRadius: 2, background: pc, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 10, fontWeight: 680, color: "#1a1714", fontFamily: F.display, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t}</div>
+                  <div style={{ fontSize: 9, color: "#928b80", fontWeight: 520, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s}</div>
+                </div>
+                <div style={{ fontSize: 8, fontWeight: 720, padding: "2px 6px", borderRadius: 4, color: pc, background: `${pc}15`, textTransform: "uppercase", letterSpacing: ".03em", flexShrink: 0 }}>{pill}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: "white", border: "1px solid #eeece8", borderRadius: 8, padding: "10px 12px" }}>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: "#1a1714", fontFamily: F.display, marginBottom: 8 }}>Project health</div>
+            {health.map(([n, p, c], i) => (
+              <div key={i} style={{ marginBottom: i < 3 ? 8 : 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                  <span style={{ fontSize: 9, color: "#1a1714", fontWeight: 620, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "70%" }}>{n}</span>
+                  <span style={{ fontSize: 9, color: "#5e5850", fontFamily: F.display, fontWeight: 700 }}>{p}%</span>
+                </div>
+                <div style={{ height: 4, borderRadius: 2, background: "#f3f1ee", overflow: "hidden" }}>
+                  <div style={{ width: `${p}%`, height: "100%", background: c, borderRadius: 2 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Feature deep-dive row ─── */
+function FeatureRow({ eyebrow, title, desc, bullets, mock, flip }: { eyebrow: string; title: string; desc: string; bullets: string[]; mock: ReactNode; flip: boolean }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56, alignItems: "center" }}>
+      <div style={{ order: flip ? 2 : 1 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#5b4fc7", marginBottom: 10 }}>{eyebrow}</div>
+        <h3 style={{ fontFamily: F.display, fontSize: "clamp(24px,2.8vw,32px)", fontWeight: 800, letterSpacing: "-.03em", lineHeight: 1.15, marginBottom: 14, color: "#1a1714" }}>{title}</h3>
+        <p style={{ fontSize: 15, lineHeight: 1.6, color: "#5e5850", marginBottom: 22, fontWeight: 520 }}>{desc}</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {bullets.map(b => (
+            <div key={b} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13.5, color: "#1a1714", fontWeight: 560 }}>
+              <span style={{ width: 18, height: 18, borderRadius: "50%", background: "#eeedfb", color: "#5b4fc7", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <span style={{ width: 11, height: 11, display: "block" }}>{CHK}</span>
+              </span>{b}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ order: flip ? 1 : 2, background: "white", border: "1px solid #e5e2dc", borderRadius: 20, boxShadow: "0 12px 40px rgba(26,23,20,.08)", overflow: "hidden", aspectRatio: "4/3", position: "relative" }}>
+        {mock}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Billing mock: G703 line items ─── */
+function BillingMock() {
+  const lines: [string, string, string, string][] = [
+    ["Site prep & excavation", "$48,000", "100%", "$0"],
+    ["Concrete foundation", "$92,500", "100%", "$0"],
+    ["Framing & rough carpentry", "$184,200", "78%", "$40,524"],
+    ["Mechanical rough-in", "$62,400", "45%", "$34,320"],
+    ["Electrical rough-in", "$54,800", "40%", "$32,880"],
+    ["Plumbing rough-in", "$38,600", "35%", "$25,090"],
+  ];
+  return (
+    <div style={{ position: "absolute", inset: 0, padding: "16px 18px", display: "flex", flexDirection: "column", background: "#faf9f7" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 10, color: "#928b80", fontWeight: 620, textTransform: "uppercase", letterSpacing: ".04em" }}>Draw request #08</div>
+          <div style={{ fontFamily: F.display, fontSize: 16, fontWeight: 800, color: "#1a1714", letterSpacing: "-.02em", marginTop: 2 }}>Harbor Lofts — G703</div>
+        </div>
+        <div style={{ fontSize: 10, fontWeight: 720, padding: "4px 10px", borderRadius: 999, color: "#c17a1a", background: "#fbf2e4", textTransform: "uppercase", letterSpacing: ".04em" }}>Draft</div>
+      </div>
+      <div style={{ background: "white", border: "1px solid #eeece8", borderRadius: 10, overflow: "hidden", flex: 1 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1.8fr 1fr .7fr 1fr", gap: 8, padding: "8px 12px", background: "#f5f4f1", borderBottom: "1px solid #eeece8", fontSize: 9, color: "#5e5850", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em" }}>
+          <span>Description</span><span style={{ textAlign: "right" }}>Scheduled</span><span style={{ textAlign: "right" }}>%</span><span style={{ textAlign: "right" }}>Balance</span>
+        </div>
+        {lines.map(([d, s, pct, bal], i) => (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "1.8fr 1fr .7fr 1fr", gap: 8, padding: "8px 12px", borderBottom: i < lines.length - 1 ? "1px solid #f5f4f1" : "none", fontSize: 11, alignItems: "center" }}>
+            <span style={{ color: "#1a1714", fontWeight: 560, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d}</span>
+            <span style={{ textAlign: "right", color: "#5e5850", fontFamily: "'JetBrains Mono',monospace", fontSize: 10 }}>{s}</span>
+            <span style={{ textAlign: "right", color: "#5b4fc7", fontWeight: 700, fontFamily: F.display }}>{pct}</span>
+            <span style={{ textAlign: "right", color: "#1a1714", fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 600 }}>{bal}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 10, padding: "10px 14px", background: "white", border: "1px solid #eeece8", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <div style={{ fontSize: 9, color: "#928b80", fontWeight: 620, textTransform: "uppercase", letterSpacing: ".04em" }}>Net this draw</div>
+          <div style={{ fontFamily: F.display, fontSize: 18, fontWeight: 820, color: "#1a1714", letterSpacing: "-.02em" }}>$132,814</div>
+        </div>
+        <div style={{ padding: "7px 14px", borderRadius: 8, background: "#5b4fc7", color: "white", fontSize: 11, fontWeight: 680, fontFamily: F.body }}>Submit draw</div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── RFI mock: threaded conversation ─── */
+function RfiMock() {
+  return (
+    <div style={{ position: "absolute", inset: 0, padding: "16px 18px", background: "#faf9f7", display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 10, color: "#928b80", fontWeight: 620, textTransform: "uppercase", letterSpacing: ".04em" }}>RFI #0142</div>
+          <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 800, color: "#1a1714", letterSpacing: "-.02em", marginTop: 2 }}>Framing clarification — grid line C</div>
+          <div style={{ fontSize: 10, color: "#5e5850", fontWeight: 520, marginTop: 3 }}>Riverside Tower · Assigned to Structural Eng.</div>
+        </div>
+        <div style={{ fontSize: 10, fontWeight: 720, padding: "4px 10px", borderRadius: 999, color: "#d04b3a", background: "#fbe9e6", textTransform: "uppercase", letterSpacing: ".04em" }}>Overdue</div>
+      </div>
+      <div style={{ flex: 1, background: "white", border: "1px solid #eeece8", borderRadius: 10, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12, overflow: "hidden" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+          <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#3d6b8e", color: "white", display: "grid", placeItems: "center", fontSize: 10, fontFamily: F.display, fontWeight: 720, flexShrink: 0 }}>MT</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10, fontWeight: 620, color: "#5e5850", marginBottom: 3 }}>Mike Torres · Field PM</div>
+            <div style={{ padding: "8px 12px", fontSize: 11, lineHeight: 1.5, background: "#f5f4f1", color: "#1a1714", borderRadius: "10px 10px 10px 3px", fontWeight: 520 }}>Beam size at grid C-7 doesn&apos;t match plan set rev 3. Need confirmation before Friday pour — W14x22 or W14x30?</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexDirection: "row-reverse" }}>
+          <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#5b4fc7", color: "white", display: "grid", placeItems: "center", fontSize: 10, fontFamily: F.display, fontWeight: 720, flexShrink: 0 }}>DR</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10, fontWeight: 620, color: "#5e5850", marginBottom: 3, textAlign: "right" }}>David Reeve · PM</div>
+            <div style={{ padding: "8px 12px", fontSize: 11, lineHeight: 1.5, background: "#5b4fc7", color: "white", borderRadius: "10px 10px 3px 10px", fontWeight: 520 }}>Forwarded to structural. Expecting response today. Holding pour just in case.</div>
+          </div>
+        </div>
+        <div style={{ marginTop: "auto", padding: "8px 12px", background: "#faf9f7", border: "1px dashed #d1cdc5", borderRadius: 8, fontSize: 10, color: "#928b80", fontWeight: 520 }}>Waiting on Rivera Structural Engineering · 2d 4h</div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Portal mock: client tiles ─── */
+function PortalMock() {
+  const tiles: [string, string, string, string][] = [
+    ["Approvals", "3 pending", "#3178b9", "Change order #4"],
+    ["Draws", "$284k total", "#5b4fc7", "Draw #08 ready"],
+    ["Documents", "42 files", "#2d8a5e", "Updated 2h ago"],
+    ["Progress", "Week 14", "#c17a1a", "7 new photos"],
+  ];
+  return (
+    <div style={{ position: "absolute", inset: 0, padding: "16px 18px", background: "#faf9f7", display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 10, color: "#928b80", fontWeight: 620, textTransform: "uppercase", letterSpacing: ".04em" }}>Client portal</div>
+          <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 800, color: "#1a1714", letterSpacing: "-.02em", marginTop: 2 }}>Harbor Lofts — Owner view</div>
+        </div>
+        <div style={{ width: 22, height: 22, borderRadius: "50%", background: "#3178b9", color: "white", display: "grid", placeItems: "center", fontSize: 9, fontFamily: F.display, fontWeight: 720 }}>SH</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, flex: 1 }}>
+        {tiles.map(([l, v, c, sub], i) => (
+          <div key={i} style={{ background: "white", border: "1px solid #eeece8", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ width: 20, height: 20, borderRadius: 5, background: `${c}18`, color: c, display: "grid", placeItems: "center", marginBottom: 6 }}>
+                <span style={{ width: 4, height: 4, borderRadius: "50%", background: c }} />
+              </div>
+              <div style={{ fontSize: 9, color: "#928b80", fontWeight: 620, textTransform: "uppercase", letterSpacing: ".04em" }}>{l}</div>
+              <div style={{ fontFamily: F.display, fontSize: 14, fontWeight: 800, color: "#1a1714", letterSpacing: "-.015em", marginTop: 1 }}>{v}</div>
+            </div>
+            <div style={{ fontSize: 9.5, color: c, fontWeight: 680, marginTop: 6 }}>{sub} →</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Solutions: per-audience dashboard previews ─── */
+function SolutionMock({ audience }: { audience: SolutionKey }) {
+  if (audience === "gc") return <SolutionGC />;
+  if (audience === "sub") return <SolutionSub />;
+  if (audience === "commercial") return <SolutionCommercial />;
+  return <SolutionResidential />;
+}
+
+function SolutionGC() {
+  const kpis: [string, string][] = [["Active", "12"], ["RFIs", "8"], ["Draws", "$284k"], ["Comp.", "96%"]];
+  const rows: [string, number, string][] = [["Riverside Tower", 72, "#5b4fc7"], ["Harbor Lofts", 48, "#2d8a5e"], ["Aspen Ridge", 91, "#3178b9"], ["Birchwood", 22, "#c17a1a"]];
+  return (
+    <div style={{ position: "absolute", inset: 0, padding: "16px 18px", background: "#faf9f7", display: "flex", flexDirection: "column" }}>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 10, color: "#928b80", fontWeight: 620, textTransform: "uppercase", letterSpacing: ".04em" }}>Contractor</div>
+        <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 820, color: "#1a1714", letterSpacing: "-.02em", marginTop: 1 }}>Dashboard</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6, marginBottom: 10 }}>
+        {kpis.map(([l, v], i) => (
+          <div key={i} style={{ background: "white", border: "1px solid #eeece8", borderRadius: 8, padding: "8px 10px" }}>
+            <div style={{ fontSize: 8.5, color: "#928b80", fontWeight: 620, textTransform: "uppercase", letterSpacing: ".03em" }}>{l}</div>
+            <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 820, color: "#1a1714", letterSpacing: "-.02em", marginTop: 1 }}>{v}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ background: "white", border: "1px solid #eeece8", borderRadius: 10, padding: "12px 14px", flex: 1 }}>
+        <div style={{ fontFamily: F.display, fontSize: 11, fontWeight: 720, color: "#1a1714", marginBottom: 10 }}>Project health</div>
+        {rows.map(([n, p, c], i) => (
+          <div key={i} style={{ marginBottom: i < rows.length - 1 ? 10 : 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ fontSize: 10.5, color: "#1a1714", fontWeight: 620 }}>{n}</span>
+              <span style={{ fontSize: 10.5, color: "#5e5850", fontFamily: F.display, fontWeight: 720 }}>{p}%</span>
+            </div>
+            <div style={{ height: 5, borderRadius: 3, background: "#f3f1ee", overflow: "hidden" }}>
+              <div style={{ width: `${p}%`, height: "100%", background: c, borderRadius: 3 }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SolutionSub() {
+  const tasks: [string, string, string][] = [
+    ["Upload insurance cert", "Ironwood Electrical · Due today", "#d04b3a"],
+    ["Respond to RFI #0142", "Riverside Tower · Grid C beam", "#c17a1a"],
+    ["Submit draw backup", "Harbor Lofts · Photos needed", "#3d6b8e"],
+    ["Sign updated scope", "Aspen Ridge · Electrical", "#2d8a5e"],
+  ];
+  return (
+    <div style={{ position: "absolute", inset: 0, padding: "16px 18px", background: "#faf9f7", display: "flex", flexDirection: "column" }}>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 10, color: "#928b80", fontWeight: 620, textTransform: "uppercase", letterSpacing: ".04em" }}>Subcontractor</div>
+        <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 820, color: "#1a1714", letterSpacing: "-.02em", marginTop: 1 }}>Today Board</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: 10 }}>
+        {[["4", "Tasks"], ["2", "RFIs"], ["1", "Alerts"]].map(([v, l], i) => (
+          <div key={i} style={{ background: "white", border: "1px solid #eeece8", borderRadius: 8, padding: "8px 10px" }}>
+            <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 820, color: "#3d6b8e", letterSpacing: "-.02em" }}>{v}</div>
+            <div style={{ fontSize: 8.5, color: "#928b80", fontWeight: 620, textTransform: "uppercase", letterSpacing: ".03em" }}>{l}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ background: "white", border: "1px solid #eeece8", borderRadius: 10, padding: "10px 12px", flex: 1 }}>
+        <div style={{ fontFamily: F.display, fontSize: 11, fontWeight: 720, color: "#1a1714", marginBottom: 6 }}>Attention list</div>
+        {tasks.map(([t, s, c], i) => (
+          <div key={i} style={{ display: "flex", gap: 8, padding: "7px 0", borderBottom: i < tasks.length - 1 ? "1px solid #f3f1ee" : "none", alignItems: "center" }}>
+            <div style={{ width: 3, height: 20, borderRadius: 2, background: c, flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 640, color: "#1a1714", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t}</div>
+              <div style={{ fontSize: 9, color: "#928b80", fontWeight: 520, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SolutionCommercial() {
+  const approvals: [string, string, string][] = [
+    ["Change order #4", "$18,420 · Structural", "Pending"],
+    ["Procurement — HVAC", "$42,800 · Carrier spec", "Pending"],
+    ["Substitution request", "Finish hardware", "Review"],
+  ];
+  const draws: [string, string, string][] = [["Draw #07", "$98,400", "Paid"], ["Draw #08", "$132,814", "Pending"]];
+  return (
+    <div style={{ position: "absolute", inset: 0, padding: "16px 18px", background: "#faf9f7", display: "flex", flexDirection: "column" }}>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 10, color: "#928b80", fontWeight: 620, textTransform: "uppercase", letterSpacing: ".04em" }}>Commercial owner</div>
+        <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 820, color: "#1a1714", letterSpacing: "-.02em", marginTop: 1 }}>Harbor Lofts</div>
+      </div>
+      <div style={{ background: "white", border: "1px solid #eeece8", borderRadius: 10, padding: "10px 12px", marginBottom: 8 }}>
+        <div style={{ fontSize: 9.5, fontWeight: 700, color: "#1a1714", fontFamily: F.display, marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
+          <span>Approvals</span><span style={{ fontSize: 8.5, color: "#3178b9", fontWeight: 720 }}>3 waiting</span>
+        </div>
+        {approvals.map(([t, s, p], i) => (
+          <div key={i} style={{ display: "flex", gap: 8, padding: "6px 0", borderBottom: i < approvals.length - 1 ? "1px solid #f3f1ee" : "none", alignItems: "center" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, fontWeight: 640, color: "#1a1714", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t}</div>
+              <div style={{ fontSize: 8.5, color: "#928b80", fontWeight: 520 }}>{s}</div>
+            </div>
+            <div style={{ fontSize: 8, fontWeight: 720, padding: "2px 6px", borderRadius: 4, color: "#3178b9", background: "#e8f1fa", textTransform: "uppercase", letterSpacing: ".03em" }}>{p}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ background: "white", border: "1px solid #eeece8", borderRadius: 10, padding: "10px 12px", flex: 1 }}>
+        <div style={{ fontSize: 9.5, fontWeight: 700, color: "#1a1714", fontFamily: F.display, marginBottom: 6 }}>Draw ledger</div>
+        {draws.map(([l, v, s], i) => (
+          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: i < draws.length - 1 ? "1px solid #f3f1ee" : "none" }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 640, color: "#1a1714" }}>{l}</div>
+              <div style={{ fontSize: 8.5, color: "#928b80", fontFamily: "'JetBrains Mono',monospace" }}>{v}</div>
+            </div>
+            <div style={{ fontSize: 8, fontWeight: 720, padding: "2px 6px", borderRadius: 4, color: s === "Paid" ? "#2d8a5e" : "#c17a1a", background: s === "Paid" ? "#edf7f1" : "#fbf2e4", textTransform: "uppercase", letterSpacing: ".03em" }}>{s}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SolutionResidential() {
+  const selections: [string, string, string][] = [
+    ["Kitchen countertop", "Carrara Quartz", "$4,200 / $4,500"],
+    ["Primary bath tile", "Chose yesterday", "$2,800 / $3,000"],
+    ["Hardwood flooring", "Need to choose", "Allowance $8,500"],
+  ];
+  return (
+    <div style={{ position: "absolute", inset: 0, padding: "16px 18px", background: "#faf9f7", display: "flex", flexDirection: "column" }}>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 10, color: "#928b80", fontWeight: 620, textTransform: "uppercase", letterSpacing: ".04em" }}>Your home</div>
+        <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 820, color: "#1a1714", letterSpacing: "-.02em", marginTop: 1 }}>Birchwood Estate</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 8 }}>
+        <div style={{ background: "linear-gradient(135deg,#2a7f6f,#4fa697)", borderRadius: 10, padding: "10px 12px", color: "white" }}>
+          <div style={{ fontSize: 8.5, fontWeight: 620, textTransform: "uppercase", letterSpacing: ".03em", opacity: .8 }}>Progress</div>
+          <div style={{ fontFamily: F.display, fontSize: 16, fontWeight: 820, letterSpacing: "-.02em", marginTop: 2 }}>Week 14</div>
+          <div style={{ fontSize: 9, fontWeight: 520, marginTop: 2, opacity: .85 }}>Framing complete</div>
+        </div>
+        <div style={{ background: "white", border: "1px solid #eeece8", borderRadius: 10, padding: "10px 12px" }}>
+          <div style={{ fontSize: 8.5, fontWeight: 620, textTransform: "uppercase", letterSpacing: ".03em", color: "#928b80" }}>Next payment</div>
+          <div style={{ fontFamily: F.display, fontSize: 16, fontWeight: 820, color: "#1a1714", letterSpacing: "-.02em", marginTop: 2 }}>$42,500</div>
+          <div style={{ fontSize: 9, fontWeight: 520, marginTop: 2, color: "#5e5850" }}>Milestone: drywall</div>
+        </div>
+      </div>
+      <div style={{ background: "white", border: "1px solid #eeece8", borderRadius: 10, padding: "10px 12px", flex: 1 }}>
+        <div style={{ fontSize: 9.5, fontWeight: 700, color: "#1a1714", fontFamily: F.display, marginBottom: 6 }}>Selections studio</div>
+        {selections.map(([t, s, a], i) => (
+          <div key={i} style={{ display: "flex", gap: 8, padding: "6px 0", borderBottom: i < selections.length - 1 ? "1px solid #f3f1ee" : "none", alignItems: "center" }}>
+            <div style={{ width: 20, height: 20, borderRadius: 5, background: i === 2 ? "#f3f1ee" : "#e6f5f1", border: i === 2 ? "1px dashed #d1cdc5" : "none", flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, fontWeight: 640, color: "#1a1714", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t}</div>
+              <div style={{ fontSize: 8.5, color: i === 2 ? "#c17a1a" : "#2a7f6f", fontWeight: 620 }}>{s}</div>
+            </div>
+            <div style={{ fontSize: 8.5, color: "#5e5850", fontFamily: "'JetBrains Mono',monospace", fontWeight: 560 }}>{a}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Resource thumbnails ─── */
+function ResourceThumb({ idx, color }: { idx: number; color: string }) {
+  const themes: ReactNode[] = [
+    // 0: Why construction needs better software — connected nodes
+    (
+      <svg viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
+        <defs><linearGradient id="rt0" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".18" /><stop offset="1" stopColor={color} stopOpacity=".04" /></linearGradient></defs>
+        <rect width="200" height="113" fill="url(#rt0)" />
+        <g stroke={color} strokeWidth="1.2" opacity=".45"><line x1="50" y1="35" x2="100" y2="56" /><line x1="100" y1="56" x2="150" y2="35" /><line x1="100" y1="56" x2="60" y2="80" /><line x1="100" y1="56" x2="140" y2="80" /></g>
+        <g fill={color}><circle cx="50" cy="35" r="6" /><circle cx="150" cy="35" r="6" /><circle cx="100" cy="56" r="8" /><circle cx="60" cy="80" r="6" /><circle cx="140" cy="80" r="6" /></g>
+      </svg>
+    ),
+    // 1: AIA billing guide — document rows
+    (
+      <svg viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
+        <defs><linearGradient id="rt1" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".18" /><stop offset="1" stopColor={color} stopOpacity=".04" /></linearGradient></defs>
+        <rect width="200" height="113" fill="url(#rt1)" />
+        <rect x="50" y="22" width="100" height="78" rx="6" fill="white" stroke={color} strokeOpacity=".3" />
+        <rect x="58" y="32" width="54" height="6" rx="2" fill={color} fillOpacity=".7" />
+        <rect x="58" y="44" width="84" height="3" rx="1.5" fill={color} fillOpacity=".25" />
+        <rect x="58" y="52" width="84" height="3" rx="1.5" fill={color} fillOpacity=".25" />
+        <rect x="58" y="60" width="68" height="3" rx="1.5" fill={color} fillOpacity=".25" />
+        <rect x="58" y="72" width="84" height="16" rx="3" fill={color} fillOpacity=".12" />
+        <text x="62" y="83" fontFamily="monospace" fontSize="6" fill={color} fontWeight="700">G702 / G703</text>
+      </svg>
+    ),
+    // 2: Ridgeline case study — progress bar
+    (
+      <svg viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
+        <defs><linearGradient id="rt2" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".2" /><stop offset="1" stopColor={color} stopOpacity=".05" /></linearGradient></defs>
+        <rect width="200" height="113" fill="url(#rt2)" />
+        <text x="40" y="48" fontFamily="DM Sans,sans-serif" fontSize="24" fontWeight="820" fill={color} letterSpacing="-1">18→7</text>
+        <text x="40" y="62" fontFamily="sans-serif" fontSize="7" fill={color} fillOpacity=".7" fontWeight="600">DAYS TO PAYMENT</text>
+        <rect x="40" y="76" width="120" height="6" rx="3" fill={color} fillOpacity=".15" />
+        <rect x="40" y="76" width="46" height="6" rx="3" fill={color} />
+        <circle cx="86" cy="79" r="4" fill="white" stroke={color} strokeWidth="1.5" />
+      </svg>
+    ),
+    // 3: Selections — color swatches
+    (
+      <svg viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
+        <defs><linearGradient id="rt3" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".18" /><stop offset="1" stopColor={color} stopOpacity=".04" /></linearGradient></defs>
+        <rect width="200" height="113" fill="url(#rt3)" />
+        <g><rect x="48" y="32" width="28" height="48" rx="4" fill="#e8dcc4" stroke={color} strokeOpacity=".3" />
+          <rect x="80" y="32" width="28" height="48" rx="4" fill="#c8b89a" stroke={color} strokeOpacity=".3" />
+          <rect x="112" y="32" width="28" height="48" rx="4" fill={color} fillOpacity=".6" stroke={color} />
+          <rect x="144" y="32" width="28" height="48" rx="4" fill="#a89078" stroke={color} strokeOpacity=".3" /></g>
+        <circle cx="126" cy="70" r="3" fill="white" stroke={color} strokeWidth="1.5" />
+      </svg>
+    ),
+    // 4: Compliance — shield with check
+    (
+      <svg viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
+        <defs><linearGradient id="rt4" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".2" /><stop offset="1" stopColor={color} stopOpacity=".04" /></linearGradient></defs>
+        <rect width="200" height="113" fill="url(#rt4)" />
+        <path d="M100 26 L130 36 L130 62 Q130 82 100 92 Q70 82 70 62 L70 36 Z" fill="white" stroke={color} strokeWidth="2" />
+        <path d="M85 58 L96 68 L115 48" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+    // 5: Apex — convergence arrows
+    (
+      <svg viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
+        <defs><linearGradient id="rt5" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".2" /><stop offset="1" stopColor={color} stopOpacity=".04" /></linearGradient></defs>
+        <rect width="200" height="113" fill="url(#rt5)" />
+        <g stroke={color} strokeWidth="2" fill="none" strokeLinecap="round">
+          <path d="M40 30 Q80 40 100 56" /><path d="M40 85 Q80 72 100 56" />
+          <path d="M160 30 Q120 40 100 56" /><path d="M160 85 Q120 72 100 56" />
+        </g>
+        <circle cx="100" cy="56" r="10" fill={color} />
+        <g fill={color} fillOpacity=".6"><circle cx="40" cy="30" r="4" /><circle cx="40" cy="85" r="4" /><circle cx="160" cy="30" r="4" /><circle cx="160" cy="85" r="4" /></g>
+      </svg>
+    ),
+  ];
+  return <div style={{ position: "absolute", inset: 0, background: `${color}0d` }}>{themes[idx] ?? themes[0]}</div>;
 }
