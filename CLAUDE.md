@@ -83,6 +83,18 @@ docs/            # Architecture specs and reference docs
 - **Integration spec:** `@docs/specs/integration_architecture_spec.md` — accounting, Stripe, email, calendar, webhooks
 - **Schema draft notes:** `@docs/specs/schema_draft_v1.pdf` — design rules and ID strategy
 - **Design mockups:** `@docs/design/*.html` — 24 production HTML mockups (feature spec, not implementation target)
+- **JSX prototypes:** `@docs/prototypes/*.jsx` — 24 JSX prototypes showing exact visual design for every screen. These are the pixel-level reference. Match them exactly for layout, typography, spacing, and colors.
+
+## Phase 3 Frontend Rules
+- Every page component must read its corresponding JSX prototype for visual reference
+- Typography: DM Sans for display/headings/values/buttons/pills, Instrument Sans for body/descriptions/meta, JetBrains Mono ONLY for IDs, org names, file names, SKU codes, data table cells (NEVER currency values or KPI numbers)
+- Weight floor: 520 minimum everywhere. KPI values: 820. Page titles: 820 at 26px (24px for client portals). Buttons: 620-650. Pills: 700. Card titles: 680-740.
+- Portal accent colors: contractor `#5b4fc7`, subcontractor `#3d6b8e`, commercial `#3178b9`, residential `#2a7f6f`
+- Logo: cascading rectangle SVG (three outlined/filled rectangles), never a "B" lettermark
+- No emojis — all icons are inline SVGs
+- Residential language: "Scope Changes" not "Change Orders", "Decisions" not "Approvals"
+- All data fetching happens server-side in loaders. Client components are for interactivity only.
+- The existing backend API routes and loaders from Phase 1 are the data source. Do not recreate them — connect to them.
 
 ## Definition of Done
 A feature is complete when:
