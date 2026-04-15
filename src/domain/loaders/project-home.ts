@@ -745,11 +745,18 @@ export type ContractorProjectView = {
   uploadRequests: Array<{
     id: string;
     title: string;
+    description: string | null;
     requestStatus: string;
     requestedFromOrganizationId: string | null;
+    requestedFromOrganizationName: string | null;
     expectedFileType: string | null;
     dueAt: Date | null;
+    submittedAt: Date | null;
+    completedAt: Date | null;
+    revisionNote: string | null;
+    createdAt: Date;
     submittedDocumentId: string | null;
+    submittedDocumentTitle: string | null;
   }>;
   approvals: Array<{
     id: string;
@@ -902,13 +909,25 @@ export async function getContractorProjectView(
       .select({
         id: uploadRequests.id,
         title: uploadRequests.title,
+        description: uploadRequests.description,
         requestStatus: uploadRequests.requestStatus,
         requestedFromOrganizationId: uploadRequests.requestedFromOrganizationId,
+        requestedFromOrganizationName: organizations.name,
         expectedFileType: uploadRequests.expectedFileType,
         dueAt: uploadRequests.dueAt,
+        submittedAt: uploadRequests.submittedAt,
+        completedAt: uploadRequests.completedAt,
+        revisionNote: uploadRequests.revisionNote,
+        createdAt: uploadRequests.createdAt,
         submittedDocumentId: uploadRequests.submittedDocumentId,
+        submittedDocumentTitle: documents.title,
       })
       .from(uploadRequests)
+      .leftJoin(
+        organizations,
+        eq(organizations.id, uploadRequests.requestedFromOrganizationId),
+      )
+      .leftJoin(documents, eq(documents.id, uploadRequests.submittedDocumentId))
       .where(eq(uploadRequests.projectId, projectId))
       .orderBy(desc(uploadRequests.createdAt)),
     db
@@ -1222,6 +1241,20 @@ export type SubcontractorProjectView = {
     dueAt: Date | null;
     revisionNote: string | null;
   }>;
+  allUploadRequests: Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    requestStatus: string;
+    expectedFileType: string | null;
+    dueAt: Date | null;
+    submittedAt: Date | null;
+    completedAt: Date | null;
+    revisionNote: string | null;
+    createdAt: Date;
+    submittedDocumentId: string | null;
+    submittedDocumentTitle: string | null;
+  }>;
   complianceRecords: Array<{
     id: string;
     complianceType: string;
@@ -1246,7 +1279,14 @@ export async function getSubcontractorProjectView(
   const projectId = context.project.id;
   const subOrgId = context.organization.id;
 
-  const [rfiRows, coRows, milestoneRows, pendingRows, complianceRows] = await Promise.all([
+  const [
+    rfiRows,
+    coRows,
+    milestoneRows,
+    pendingRows,
+    allUploadRows,
+    complianceRows,
+  ] = await Promise.all([
     loadRfisWithResponses(projectId, { assignedToOrganizationId: subOrgId }),
     db
       .select({
@@ -1293,6 +1333,30 @@ export async function getSubcontractorProjectView(
       .orderBy(desc(uploadRequests.createdAt)),
     db
       .select({
+        id: uploadRequests.id,
+        title: uploadRequests.title,
+        description: uploadRequests.description,
+        requestStatus: uploadRequests.requestStatus,
+        expectedFileType: uploadRequests.expectedFileType,
+        dueAt: uploadRequests.dueAt,
+        submittedAt: uploadRequests.submittedAt,
+        completedAt: uploadRequests.completedAt,
+        revisionNote: uploadRequests.revisionNote,
+        createdAt: uploadRequests.createdAt,
+        submittedDocumentId: uploadRequests.submittedDocumentId,
+        submittedDocumentTitle: documents.title,
+      })
+      .from(uploadRequests)
+      .leftJoin(documents, eq(documents.id, uploadRequests.submittedDocumentId))
+      .where(
+        and(
+          eq(uploadRequests.projectId, projectId),
+          eq(uploadRequests.requestedFromOrganizationId, subOrgId),
+        ),
+      )
+      .orderBy(desc(uploadRequests.createdAt)),
+    db
+      .select({
         id: complianceRecords.id,
         complianceType: complianceRecords.complianceType,
         complianceStatus: complianceRecords.complianceStatus,
@@ -1320,6 +1384,7 @@ export async function getSubcontractorProjectView(
     assignedChangeOrders: coRows,
     myMilestones: milestoneRows,
     pendingUploadRequests: pendingRows,
+    allUploadRequests: allUploadRows,
     complianceRecords: complianceRows,
     conversations: await loadConversationsForUser(projectId, context.user.id),
     documents: await loadDocumentsForProject(projectId, "subcontractor"),
