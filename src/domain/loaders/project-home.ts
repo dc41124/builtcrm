@@ -410,7 +410,7 @@ export type ConversationRow = {
 // Loads every conversation the user participates in for this project,
 // along with recent messages and participant display names. Unread count
 // is derived from the user's own last_read_at marker.
-async function loadConversationsForUser(
+export async function loadConversationsForUser(
   projectId: string,
   userId: string,
 ): Promise<ConversationRow[]> {
