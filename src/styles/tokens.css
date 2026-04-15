@@ -1,0 +1,141 @@
+/*
+ * BuiltCRM design tokens
+ * Extracted from docs/prototypes/builtcrm_design_system_shell.jsx (:root block).
+ * Token names match the prototype exactly so prototype CSS can be lifted 1:1.
+ */
+
+:root {
+  /* surfaces */
+  --s0: #f0f1f4;
+  --s1: #ffffff;
+  --s2: #f3f4f6;
+  --s3: #e2e5e9;
+  --s4: #d1d5db;
+  --sh: #f5f6f8;
+  --sa: #e5e7eb;
+
+  /* sidebar surfaces */
+  --sb-bg: #fafbfc;
+  --sb-h: #eff0f4;
+  --sb-a: #e8e9f0;
+  --sb-bdr: #e4e6eb;
+  --sb-mbg: #ffffff;
+  --sb-mbdr: #e0e3e8;
+
+  /* text */
+  --t1: #111318;
+  --t2: #4a4f5c;
+  --t3: #7d8290;
+  --ti: #faf9f7;
+
+  /* contractor accent (default portal) */
+  --ac: #5b4fc7;
+  --ac-h: #4f44b3;
+  --ac-s: #eeedfb;
+  --ac-t: #4a3fb0;
+
+  /* semantic — ok / warn / danger / info */
+  --ok: #2d8a5e;
+  --ok-s: #edf7f1;
+  --ok-t: #1e6b46;
+  --wr: #c17a1a;
+  --wr-s: #fdf4e6;
+  --wr-t: #96600f;
+  --dg: #c93b3b;
+  --dg-s: #fdeaea;
+  --dg-t: #a52e2e;
+  --in: #3178b9;
+  --in-s: #e8f1fa;
+  --in-t: #276299;
+
+  /* portal accents (selectable by role) */
+  --portal-contractor: #5b4fc7;
+  --portal-subcontractor: #3d6b8e;
+  --portal-commercial: #3178b9;
+  --portal-residential: #2a7f6f;
+
+  /* font stacks */
+  --fd: 'DM Sans', system-ui, sans-serif;
+  --fb: 'Instrument Sans', system-ui, sans-serif;
+  --fm: 'JetBrains Mono', monospace;
+
+  /* radii */
+  --r-s: 6px;
+  --r-m: 10px;
+  --r-l: 14px;
+  --r-xl: 18px;
+
+  /* shadows */
+  --shsm: 0 1px 3px rgba(26, 23, 20, 0.05);
+  --shmd: 0 4px 16px rgba(26, 23, 20, 0.06);
+  --shlg: 0 10px 32px rgba(26, 23, 20, 0.08);
+  --shri: 0 0 0 3px rgba(91, 79, 199, 0.15);
+
+  /* layout */
+  --sw: 268px;
+  --th: 52px;
+
+  /* motion */
+  --e: cubic-bezier(0.16, 1, 0.3, 1);
+  --df: 120ms;
+  --dn: 200ms;
+  --ds: 350ms;
+
+  /* ancillary surfaces */
+  --tb-bg: rgba(255, 255, 255, 0.88);
+  --tab-bg: #f8f9fa;
+  --rh: #f8f9fa;
+  --mb: #f8f9fa;
+  --tl: #dde0e5;
+}
+
+.dark {
+  --s0: #0c0e14;
+  --s1: #171a24;
+  --s2: #1e2130;
+  --s3: #2a2e3c;
+  --s4: #3a3f52;
+  --sh: #222536;
+  --sa: #2a2e3c;
+
+  --sb-bg: #10121a;
+  --sb-h: #1a1d2a;
+  --sb-a: #222536;
+  --sb-bdr: #222536;
+  --sb-mbg: #151820;
+  --sb-mbdr: #272b3a;
+
+  --t1: #edeae5;
+  --t2: #a8a39a;
+  --t3: #6e6a62;
+  --ti: #1a1714;
+
+  --ac: #7b6ff0;
+  --ac-h: #6e62e0;
+  --ac-s: #252040;
+  --ac-t: #a99ff8;
+
+  --ok: #3da872;
+  --ok-s: #162a1f;
+  --ok-t: #5ec494;
+  --wr: #d49530;
+  --wr-s: #2a2010;
+  --wr-t: #e8b44e;
+  --dg: #e05252;
+  --dg-s: #2c1414;
+  --dg-t: #f28080;
+  --in: #4a94d4;
+  --in-s: #141f2c;
+  --in-t: #6cb0ee;
+
+  --shsm: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --shmd: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --shlg: 0 10px 32px rgba(0, 0, 0, 0.35);
+  --shri: 0 0 0 3px rgba(123, 111, 240, 0.2);
+
+  --tb-bg: rgba(16, 18, 26, 0.88);
+  --tab-bg: #1a1d2a;
+  --rh: #1a1d2a;
+  --mb: #1a1d2a;
+  --tl: #2e3240;
+}

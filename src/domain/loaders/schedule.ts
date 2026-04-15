@@ -5,98 +5,29 @@ import { milestones, organizations, users } from "@/db/schema";
 
 import {
   getEffectiveContext,
-  type EffectiveContext,
   type SessionLike,
 } from "../context";
 import { assertCan } from "../permissions";
 
-// ---- Types --------------------------------------------------------------
+// Re-export everything from shared so existing server-side imports
+// (e.g. `import { ScheduleView } from "@/domain/loaders/schedule"`)
+// continue to work without changes.
+export * from "./schedule.shared";
 
-export const MILESTONE_STATUS_VALUES = [
-  "scheduled",
-  "in_progress",
-  "completed",
-  "missed",
-  "cancelled",
-] as const;
-export type MilestoneStatus = (typeof MILESTONE_STATUS_VALUES)[number];
-
-export const MILESTONE_TYPE_VALUES = [
-  "inspection",
-  "deadline",
-  "submission",
-  "walkthrough",
-  "delivery",
-  "payment",
-  "completion",
-  "custom",
-] as const;
-export type MilestoneType = (typeof MILESTONE_TYPE_VALUES)[number];
-
-export const MILESTONE_VISIBILITY_VALUES = [
-  "internal_only",
-  "client_visible",
-  "subcontractor_scoped",
-  "project_wide",
-  "phase_scoped",
-  "scope_scoped",
-] as const;
-export type MilestoneVisibility = (typeof MILESTONE_VISIBILITY_VALUES)[number];
-
-export type MilestoneRow = {
-  id: string;
-  title: string;
-  description: string | null;
-  milestoneType: MilestoneType;
-  milestoneStatus: MilestoneStatus;
-  scheduledDate: Date;
-  completedDate: Date | null;
-  phase: string | null;
-  assignedToUserId: string | null;
-  assignedToUserName: string | null;
-  assignedToOrganizationId: string | null;
-  assignedToOrganizationName: string | null;
-  sortOrder: number;
-  visibilityScope: MilestoneVisibility;
-};
-
-export type PhaseGroup = {
-  name: string;
-  milestones: MilestoneRow[];
-  completedCount: number;
-  totalCount: number;
-  firstDate: Date | null;
-  lastDate: Date | null;
-  state: "completed" | "active" | "upcoming";
-};
-
-export type ScheduleStats = {
-  total: number;
-  completed: number;
-  inProgress: number;
-  upcoming: number;
-  missed: number;
-};
-
-export type ScheduleView = {
-  context: EffectiveContext;
-  project: EffectiveContext["project"];
-  role: EffectiveContext["role"];
-  canWrite: boolean;
-  milestones: MilestoneRow[];
-  phases: PhaseGroup[];
-  stats: ScheduleStats;
-  overallProgressPct: number;
-};
+import type {
+  MilestoneRow,
+  MilestoneStatus,
+  MilestoneType,
+  MilestoneVisibility,
+  PhaseGroup,
+  ScheduleStats,
+  ScheduleView,
+} from "./schedule.shared";
 
 type LoaderInput = { session: SessionLike | null | undefined; projectId: string };
 
 // ---- Loader -------------------------------------------------------------
 
-// Returns the schedule view for the calling user's effective role. Visibility
-// is filtered at the query level: contractors see everything, subs see their
-// own org's items plus anything explicitly scoped to subcontractors or the
-// whole project, and clients only see project-wide / client-visible rows.
 export async function getScheduleView(
   input: LoaderInput,
 ): Promise<ScheduleView> {
@@ -110,9 +41,6 @@ export async function getScheduleView(
 
   let whereClause = baseWhere;
   if (role === "subcontractor_user") {
-    // OR: rows assigned to the caller's org, OR rows visible to all subs /
-    // everyone on the project. Subcontractors never see internal_only /
-    // client_visible rows.
     whereClause = and(
       baseWhere,
       or(
@@ -236,8 +164,6 @@ function groupByPhase(rows: MilestoneRow[]): PhaseGroup[] {
     });
   }
 
-  // Order phases by their earliest scheduled date so "Preconstruction" sorts
-  // before "Phase 1" without requiring any numeric parsing hack.
   groups.sort((a, b) => {
     const at = a.firstDate?.getTime() ?? Number.MAX_SAFE_INTEGER;
     const bt = b.firstDate?.getTime() ?? Number.MAX_SAFE_INTEGER;
@@ -274,68 +200,4 @@ function computeStats(rows: MilestoneRow[]): ScheduleStats {
     }
   }
   return { total: rows.length, completed, inProgress, upcoming, missed };
-}
-
-// ---- Countdown helpers (pure, used by UI) -------------------------------
-
-export function daysUntil(date: Date, now: Date = new Date()): number {
-  const ms = date.getTime() - now.getTime();
-  return Math.round(ms / (24 * 60 * 60 * 1000));
-}
-
-export type CountdownLabel = {
-  text: string;
-  tone: "overdue" | "soon" | "done" | "neutral";
-};
-
-export function countdownLabel(
-  m: Pick<MilestoneRow, "milestoneStatus" | "scheduledDate" | "completedDate">,
-  now: Date = new Date(),
-): CountdownLabel {
-  if (m.milestoneStatus === "completed") {
-    const when = m.completedDate ?? m.scheduledDate;
-    return { text: `Completed ${formatShortDate(when)}`, tone: "done" };
-  }
-  if (m.milestoneStatus === "cancelled") {
-    return { text: "Cancelled", tone: "neutral" };
-  }
-  const days = daysUntil(m.scheduledDate, now);
-  if (m.milestoneStatus === "missed" || days < 0) {
-    const overdueDays = Math.abs(days);
-    return {
-      text:
-        overdueDays === 0
-          ? "Overdue today"
-          : `${overdueDays} day${overdueDays === 1 ? "" : "s"} overdue`,
-      tone: "overdue",
-    };
-  }
-  if (days <= 7) {
-    return {
-      text: days === 0 ? "Today" : `In ${days} day${days === 1 ? "" : "s"}`,
-      tone: "soon",
-    };
-  }
-  return { text: `In ${days} days`, tone: "neutral" };
-}
-
-export function formatShortDate(d: Date): string {
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-// Residential language transform — softens construction-speak for the
-// residential client timeline. Commercial clients keep the contractor terms.
-const RESIDENTIAL_TYPE_LABELS: Record<MilestoneType, string> = {
-  inspection: "Inspection",
-  deadline: "Important Date",
-  submission: "Submittal",
-  walkthrough: "Site Visit",
-  delivery: "Delivery",
-  payment: "Payment",
-  completion: "Milestone",
-  custom: "Update",
-};
-
-export function residentialTypeLabel(t: MilestoneType): string {
-  return RESIDENTIAL_TYPE_LABELS[t];
 }

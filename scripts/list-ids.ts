@@ -10,7 +10,7 @@ async function main() {
 
   console.log("\n=== PROJECTS ===");
   for (const p of projs) {
-    console.log(`  ${p.projectCode.padEnd(14)}  ${p.id}  ·  ${p.name}`);
+    console.log(`  ${(p.projectCode ?? "").padEnd(14)}  ${p.id}  ·  ${p.name}`);
   }
 
   console.log("\n=== ORGANIZATIONS ===");
@@ -25,7 +25,7 @@ async function main() {
 
   console.log("\n=== PROJECT MEMBERSHIPS ===");
   for (const p of projs) {
-    console.log(`\n  ${p.name} (${p.projectCode}):`);
+    console.log(`\n  ${p.name} (${p.projectCode ?? "—"}):`);
     const mems = await db
       .select({
         userId: projectUserMemberships.userId,

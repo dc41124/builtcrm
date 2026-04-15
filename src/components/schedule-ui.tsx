@@ -16,7 +16,7 @@ import {
   type MilestoneVisibility,
   type PhaseGroup,
   type ScheduleStats,
-} from "@/domain/loaders/schedule";
+} from "@/domain/loaders/schedule.shared";
 
 type ScheduleRole =
   | "contractor_admin"
