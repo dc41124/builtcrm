@@ -15,10 +15,13 @@ import {
   messages,
   milestones,
   organizations,
+  projectOrganizationMemberships,
   projectUserMemberships,
+  projects,
   retainageReleases,
   rfiResponses,
   rfis,
+  roleAssignments,
   scheduleOfValues,
   selectionCategories,
   selectionDecisions,
@@ -790,6 +793,30 @@ export type ContractorProjectView = {
   selections: SelectionCategoryRow[];
   conversations: ConversationRow[];
   documents: DocumentRow[];
+  details: {
+    projectType: string | null;
+    currentPhase: string;
+    projectStatus: string;
+    startDate: Date | null;
+    targetCompletionDate: Date | null;
+    addressLine1: string | null;
+    city: string | null;
+    stateProvince: string | null;
+    contractValueCents: number | null;
+    clientOrganizationId: string | null;
+    clientOrganizationName: string | null;
+  };
+  teamMembers: Array<{
+    id: string;
+    userId: string;
+    displayName: string | null;
+    email: string;
+    roleKey: string;
+    portalType: string;
+    organizationId: string;
+    organizationName: string | null;
+    organizationType: string;
+  }>;
 };
 
 export async function getContractorProjectView(
@@ -844,9 +871,33 @@ export async function getContractorProjectView(
       .where(eq(drawRequests.projectId, projectId))
       .orderBy(desc(drawRequests.drawNumber)),
     db
-      .select({ id: projectUserMemberships.id })
+      .select({
+        id: projectUserMemberships.id,
+        userId: users.id,
+        displayName: users.displayName,
+        email: users.email,
+        roleKey: roleAssignments.roleKey,
+        portalType: roleAssignments.portalType,
+        organizationId: organizations.id,
+        organizationName: organizations.name,
+        organizationType: organizations.organizationType,
+      })
       .from(projectUserMemberships)
-      .where(eq(projectUserMemberships.projectId, projectId)),
+      .innerJoin(users, eq(users.id, projectUserMemberships.userId))
+      .innerJoin(
+        roleAssignments,
+        eq(roleAssignments.id, projectUserMemberships.roleAssignmentId),
+      )
+      .innerJoin(
+        organizations,
+        eq(organizations.id, projectUserMemberships.organizationId),
+      )
+      .where(
+        and(
+          eq(projectUserMemberships.projectId, projectId),
+          eq(projectUserMemberships.membershipStatus, "active"),
+        ),
+      ),
     db
       .select({
         id: uploadRequests.id,
@@ -1039,6 +1090,40 @@ export async function getContractorProjectView(
   const conversationList = await loadConversationsForUser(projectId, context.user.id);
   const documentList = await loadDocumentsForProject(projectId, "contractor");
 
+  const [projectRow] = await db
+    .select({
+      projectType: projects.projectType,
+      currentPhase: projects.currentPhase,
+      projectStatus: projects.projectStatus,
+      startDate: projects.startDate,
+      targetCompletionDate: projects.targetCompletionDate,
+      addressLine1: projects.addressLine1,
+      city: projects.city,
+      stateProvince: projects.stateProvince,
+      contractValueCents: projects.contractValueCents,
+    })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+
+  const [clientOrgRow] = await db
+    .select({
+      organizationId: organizations.id,
+      organizationName: organizations.name,
+    })
+    .from(projectOrganizationMemberships)
+    .innerJoin(
+      organizations,
+      eq(organizations.id, projectOrganizationMemberships.organizationId),
+    )
+    .where(
+      and(
+        eq(projectOrganizationMemberships.projectId, projectId),
+        eq(projectOrganizationMemberships.membershipType, "client"),
+      ),
+    )
+    .limit(1);
+
   const sovRow = sovRows[0] ?? null;
   const sovLineItemRows = sovRow
     ? await db
@@ -1085,6 +1170,30 @@ export async function getContractorProjectView(
     selections,
     conversations: conversationList,
     documents: documentList,
+    details: {
+      projectType: projectRow?.projectType ?? null,
+      currentPhase: projectRow?.currentPhase ?? "preconstruction",
+      projectStatus: projectRow?.projectStatus ?? "draft",
+      startDate: projectRow?.startDate ?? null,
+      targetCompletionDate: projectRow?.targetCompletionDate ?? null,
+      addressLine1: projectRow?.addressLine1 ?? null,
+      city: projectRow?.city ?? null,
+      stateProvince: projectRow?.stateProvince ?? null,
+      contractValueCents: projectRow?.contractValueCents ?? null,
+      clientOrganizationId: clientOrgRow?.organizationId ?? null,
+      clientOrganizationName: clientOrgRow?.organizationName ?? null,
+    },
+    teamMembers: teamRows.map((t) => ({
+      id: t.id,
+      userId: t.userId,
+      displayName: t.displayName,
+      email: t.email,
+      roleKey: t.roleKey,
+      portalType: t.portalType,
+      organizationId: t.organizationId,
+      organizationName: t.organizationName,
+      organizationType: t.organizationType,
+    })),
   };
 }
 
