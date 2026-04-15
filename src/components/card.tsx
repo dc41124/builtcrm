@@ -35,7 +35,7 @@ export function Card({
     if (onTabChange) onTabChange(id);
     else setInternalActive(id);
   };
-  const hasHeader = title || subtitle || headerRight || tabs;
+  const hasHeader = title || subtitle || headerRight;
   return (
     <>
       <div className={`bc-card ${alert ? "bc-card-alert" : ""} ${className}`}>
@@ -44,22 +44,22 @@ export function Card({
             <div className="bc-card-head-left">
               {title && <div className="bc-card-title">{title}</div>}
               {subtitle && <div className="bc-card-sub">{subtitle}</div>}
-              {tabs && (
-                <div className="bc-card-tabs">
-                  {tabs.map((t) => (
-                    <button
-                      key={t.id}
-                      className={`bc-card-tab ${active === t.id ? "bc-card-tab-active" : ""}`}
-                      onClick={() => handleTab(t.id)}
-                      type="button"
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
             {headerRight && <div className="bc-card-head-right">{headerRight}</div>}
+          </div>
+        )}
+        {tabs && (
+          <div className="bc-card-tabs">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                className={`bc-card-tab ${active === t.id ? "bc-card-tab-active" : ""}`}
+                onClick={() => handleTab(t.id)}
+                type="button"
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
         )}
         <div className={padded ? "bc-card-body" : ""}>{children}</div>
@@ -72,10 +72,10 @@ export function Card({
         .bc-card-title{font-family:var(--fd);font-size:15px;font-weight:740;color:var(--t1);letter-spacing:-.01em}
         .bc-card-sub{font-family:var(--fb);font-size:12.5px;font-weight:540;color:var(--t2)}
         .bc-card-head-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
-        .bc-card-tabs{display:flex;gap:4px;margin-top:10px}
-        .bc-card-tab{background:transparent;border:none;font-family:var(--fb);font-size:13px;font-weight:600;color:var(--t2);padding:6px 12px;border-radius:var(--r-s);cursor:pointer;transition:all var(--df) var(--e)}
-        .bc-card-tab:hover{background:var(--sh);color:var(--t1)}
-        .bc-card-tab-active{background:var(--s2);color:var(--t1);font-weight:720}
+        .bc-card-tabs{display:flex;padding:0 20px;border-top:1px solid var(--s3);border-bottom:1px solid var(--s3);background:var(--s2)}
+        .bc-card-tab{background:none;border:none;border-bottom:2px solid transparent;font-family:var(--fb);font-size:13px;font-weight:600;color:var(--t3);padding:10px 14px;cursor:pointer;transition:all var(--df) var(--e);white-space:nowrap;margin-bottom:-1px;font-family:var(--fb)}
+        .bc-card-tab:hover{color:var(--t2)}
+        .bc-card-tab-active{color:var(--t1);font-weight:720;border-bottom-color:var(--accent)}
         .bc-card-body{padding:16px 20px}
       `}</style>
     </>

@@ -20,6 +20,7 @@ export type NavSection = {
   label: string;
   items: NavItem[];
   defaultOpen?: boolean;
+  placement?: "before-projects" | "after-projects";
 };
 
 export type ShellProject = {
@@ -172,6 +173,49 @@ export default function AppShell({
   const initials = userName.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
   const projectsOpen = !!expanded[PROJECTS_KEY];
 
+  const renderSections = (placement: "before-projects" | "after-projects") =>
+    navSections
+      .filter((s) => (s.placement ?? "before-projects") === placement)
+      .map((section) => {
+        const isOpen = !!expanded[section.label];
+        return (
+          <div className={`b-mod ${isOpen ? "exp" : ""}`} key={section.label}>
+            <button className="b-mod-h" onClick={() => toggle(section.label)}>
+              <span className="b-mod-ico">{isOpen ? FolderOpenIcon : FolderIcon}</span>
+              {section.label}
+              <span className={`b-mod-chev ${isOpen ? "open" : ""}`}>{ChevronRight}</span>
+            </button>
+            {isOpen && (
+              <div className="b-tree">
+                {section.items.map((item, i) => (
+                  <a
+                    key={item.label}
+                    href={item.href}
+                    className={`b-ti ${item.active ? "on" : ""}`}
+                    style={{ animationDelay: `${i * 30}ms` }}
+                  >
+                    {item.icon && (
+                      <span style={{ display: "flex", color: "var(--t3)" }}>
+                        {item.icon}
+                      </span>
+                    )}
+                    <span style={{ flex: 1 }}>{item.label}</span>
+                    {item.badge != null && (
+                      <span
+                        className={`b-tbdg ${item.badgeType && item.badgeType !== "default" ? item.badgeType : ""}`}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
+                    {item.active && <span className="b-dot-ac" />}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      });
+
   return (
     <div
       className={`bcrm ${mobileOpen ? "mobile-open" : ""}`}
@@ -217,34 +261,7 @@ export default function AppShell({
           </div>
 
           <nav className="b-nav">
-            {navSections.map((section) => {
-              const isOpen = !!expanded[section.label];
-              return (
-                <div className={`b-mod ${isOpen ? "exp" : ""}`} key={section.label}>
-                  <button className="b-mod-h" onClick={() => toggle(section.label)}>
-                    <span className="b-mod-ico">{isOpen ? FolderOpenIcon : FolderIcon}</span>
-                    {section.label}
-                    <span className={`b-mod-chev ${isOpen ? "open" : ""}`}>{ChevronRight}</span>
-                  </button>
-                  {isOpen && (
-                    <div className="b-tree">
-                      {section.items.map((item) => (
-                        <a key={item.label} href={item.href} className={`b-ti ${item.active ? "on" : ""}`}>
-                          {item.icon && <span style={{ display: "flex", color: "var(--t3)" }}>{item.icon}</span>}
-                          <span style={{ flex: 1 }}>{item.label}</span>
-                          {item.badge != null && (
-                            <span className={`b-tbdg ${item.badgeType && item.badgeType !== "default" ? item.badgeType : ""}`}>
-                              {item.badge}
-                            </span>
-                          )}
-                          {item.active && <span className="b-dot-ac" />}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {renderSections("before-projects")}
 
             {projects.length > 0 && (
               <div className={`b-mod ${projectsOpen ? "exp" : ""}`}>
@@ -255,7 +272,8 @@ export default function AppShell({
                 </button>
                 {projectsOpen && (
                   <div className="b-tree">
-                    {projects.map((p) => {
+                    {projects.map((p, i) => {
+                      const style = { animationDelay: `${i * 30}ms` };
                       const inner = (
                         <>
                           <span className={`b-pd ${p.dot}`} />
@@ -266,15 +284,17 @@ export default function AppShell({
                         </>
                       );
                       return p.href ? (
-                        <a key={p.name} href={p.href} className={`b-tp ${p.active ? "on" : ""}`}>{inner}</a>
+                        <a key={p.name} href={p.href} className={`b-tp ${p.active ? "on" : ""}`} style={style}>{inner}</a>
                       ) : (
-                        <div key={p.name} className={`b-tp ${p.active ? "on" : ""}`}>{inner}</div>
+                        <div key={p.name} className={`b-tp ${p.active ? "on" : ""}`} style={style}>{inner}</div>
                       );
                     })}
                   </div>
                 )}
               </div>
             )}
+
+            {renderSections("after-projects")}
           </nav>
 
           <div className="b-foot">

@@ -5,6 +5,7 @@ import {
   activityFeedItems,
   approvals,
   complianceRecords,
+  conversations,
   drawRequests,
   milestones,
   projects,
@@ -65,12 +66,41 @@ export type ContractorDashboardActivity = {
   dot: "ok" | "wr" | "dg" | "ac" | "in";
 };
 
+export type ContractorDashboardFinancialHealth = {
+  totalContractCents: number;
+  paidCents: number;
+  unpaidCents: number;
+  retainageCents: number;
+  remainingCents: number;
+};
+
+export type ContractorDashboardApprovalWaiting = {
+  id: string;
+  title: string;
+  description: string;
+  pillLabel: string;
+  pillColor: "red" | "amber" | "blue" | "purple" | "gray" | "green";
+  href: string;
+};
+
+export type ContractorDashboardMessage = {
+  id: string;
+  from: string;
+  text: string;
+  time: string;
+  href: string;
+};
+
 export type ContractorDashboardData = {
   kpis: ContractorDashboardKpis;
   priorities: ContractorDashboardPriority[];
+  approvalsAsPriorities: ContractorDashboardPriority[];
   projectHealth: ContractorDashboardProjectHealth[];
   upcoming: ContractorDashboardUpcoming[];
   activity: ContractorDashboardActivity[];
+  financialHealth: ContractorDashboardFinancialHealth;
+  approvalsWaiting: ContractorDashboardApprovalWaiting[];
+  recentMessages: ContractorDashboardMessage[];
 };
 
 type LoaderInput = { contractorOrganizationId: string };
@@ -121,9 +151,19 @@ export async function getContractorDashboardData(
         complianceAlertLabel: null,
       },
       priorities: [],
+      approvalsAsPriorities: [],
       projectHealth: [],
       upcoming: [],
       activity: [],
+      financialHealth: {
+        totalContractCents: 0,
+        paidCents: 0,
+        unpaidCents: 0,
+        retainageCents: 0,
+        remainingCents: 0,
+      },
+      approvalsWaiting: [],
+      recentMessages: [],
     };
   }
 
@@ -324,7 +364,159 @@ export async function getContractorDashboardData(
     dot: activityDot(a.type),
   }));
 
-  return { kpis, priorities, projectHealth, upcoming, activity };
+  // ---- Financial health strip ----------------------------------------------
+  const totalContractCents = orgProjects.reduce(
+    (sum, p) => sum + (p.contractValueCents ?? 0),
+    0,
+  );
+  const [finAgg] = await db
+    .select({
+      paid: sql<number>`coalesce(sum(${drawRequests.currentPaymentDueCents}) filter (where ${drawRequests.paidAt} is not null), 0)::bigint`,
+      unpaid: sql<number>`coalesce(sum(${drawRequests.currentPaymentDueCents}) filter (where ${drawRequests.paidAt} is null and ${drawRequests.drawRequestStatus} in ('submitted','under_review','approved','approved_with_note')), 0)::bigint`,
+      retainage: sql<number>`coalesce(sum(${drawRequests.totalRetainageCents} - ${drawRequests.retainageReleasedCents}), 0)::bigint`,
+    })
+    .from(drawRequests)
+    .where(inArray(drawRequests.projectId, projectIds));
+
+  const paidCents = Number(finAgg?.paid ?? 0);
+  const unpaidCents = Number(finAgg?.unpaid ?? 0);
+  const retainageCents = Number(finAgg?.retainage ?? 0);
+  const remainingCents = Math.max(
+    0,
+    totalContractCents - paidCents - unpaidCents - retainageCents,
+  );
+  const financialHealth: ContractorDashboardFinancialHealth = {
+    totalContractCents,
+    paidCents,
+    unpaidCents,
+    retainageCents,
+    remainingCents,
+  };
+
+  // ---- Approvals waiting + approvals priorities tab ------------------------
+  const approvalRows = await db
+    .select({
+      id: approvals.id,
+      title: approvals.title,
+      description: approvals.description,
+      status: approvals.approvalStatus,
+      projectId: approvals.projectId,
+      projectName: projects.name,
+      submittedAt: approvals.submittedAt,
+    })
+    .from(approvals)
+    .innerJoin(projects, eq(projects.id, approvals.projectId))
+    .where(
+      and(
+        eq(projects.contractorOrganizationId, orgId),
+        inArray(approvals.approvalStatus, [
+          "pending_review",
+          "needs_revision",
+        ]),
+      ),
+    )
+    .orderBy(asc(approvals.submittedAt))
+    .limit(6);
+
+  const approvalsWaiting: ContractorDashboardApprovalWaiting[] = approvalRows
+    .slice(0, 4)
+    .map((a) => {
+      const { label, color } = approvalPill(a.status);
+      return {
+        id: a.id,
+        title: a.title,
+        description: a.description
+          ? `${a.projectName} · ${truncate(a.description, 80)}`
+          : `${a.projectName} · Awaiting decision`,
+        pillLabel: label,
+        pillColor: color,
+        href: `/contractor/project/${a.projectId}/approvals`,
+      };
+    });
+
+  const approvalsAsPriorities: ContractorDashboardPriority[] = approvalRows.map(
+    (a) => {
+      const { label, color } = approvalPill(a.status);
+      const ageDays = a.submittedAt
+        ? Math.max(
+            0,
+            Math.round((now.getTime() - a.submittedAt.getTime()) / 86400000),
+          )
+        : null;
+      return {
+        id: a.id,
+        title: a.title,
+        description: a.description
+          ? `${a.projectName} · ${truncate(a.description, 100)}`
+          : `${a.projectName} · Awaiting decision`,
+        pillLabel: label,
+        pillColor: color,
+        time: ageDays === null ? "Just submitted" : `${ageDays}d open`,
+        urgent: a.status === "needs_revision",
+        href: `/contractor/project/${a.projectId}/approvals`,
+      };
+    },
+  );
+
+  // ---- Recent messages -----------------------------------------------------
+  const conversationRows = await db
+    .select({
+      id: conversations.id,
+      projectId: conversations.projectId,
+      title: conversations.title,
+      preview: conversations.lastMessagePreview,
+      lastAt: conversations.lastMessageAt,
+      projectName: projects.name,
+    })
+    .from(conversations)
+    .innerJoin(projects, eq(projects.id, conversations.projectId))
+    .where(
+      and(
+        eq(projects.contractorOrganizationId, orgId),
+        isNotNull(conversations.lastMessageAt),
+      ),
+    )
+    .orderBy(desc(conversations.lastMessageAt))
+    .limit(3);
+
+  const recentMessages: ContractorDashboardMessage[] = conversationRows.map(
+    (c) => ({
+      id: c.id,
+      from: c.title ?? c.projectName,
+      text: c.preview ?? "(no preview)",
+      time: c.lastAt ? formatRelative(c.lastAt, now) : "",
+      href: `/contractor/project/${c.projectId}/messages`,
+    }),
+  );
+
+  return {
+    kpis,
+    priorities,
+    approvalsAsPriorities,
+    projectHealth,
+    upcoming,
+    activity,
+    financialHealth,
+    approvalsWaiting,
+    recentMessages,
+  };
+}
+
+function approvalPill(
+  status: "draft" | "pending_review" | "needs_revision" | "approved" | "rejected",
+): { label: string; color: ContractorDashboardPriority["pillColor"] } {
+  switch (status) {
+    case "needs_revision":
+      return { label: "Needs revision", color: "red" };
+    case "pending_review":
+      return { label: "In review", color: "amber" };
+    default:
+      return { label: "Open", color: "gray" };
+  }
+}
+
+function truncate(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
 
 function phaseToLabel(

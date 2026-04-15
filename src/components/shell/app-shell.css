@@ -81,6 +81,8 @@
 .b-ti:hover{background:var(--sb-h);color:var(--t1)}
 .b-ti.on{background:var(--ac-s);color:var(--ac-t);font-weight:700}
 .b-dot-ac{width:5px;height:5px;border-radius:50%;background:var(--ac);flex-shrink:0;margin-left:auto}
+@keyframes b-tree-in{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:translateX(0)}}
+.b-ti,.b-tp{animation:b-tree-in var(--dn) var(--e) both}
 .b-tbdg{min-width:16px;height:16px;padding:0 5px;border-radius:999px;font-size:10px;font-weight:750;display:inline-flex;align-items:center;justify-content:center;font-family:var(--fd);flex-shrink:0;margin-left:auto;background:var(--ac-s);color:var(--ac-t)}
 .b-tbdg.warn{background:var(--wr-s);color:var(--wr-t)}
 .b-tbdg.danger{background:var(--dg-s);color:var(--dg-t)}

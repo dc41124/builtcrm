@@ -51,6 +51,7 @@ export function buildNavSections(
       {
         label: "Settings",
         defaultOpen: false,
+        placement: "after-projects",
         items: mark([
           { label: "Organization", href: "/contractor/settings/organization" },
           { label: "Team & Roles", href: "/contractor/settings/team" },
@@ -121,6 +122,7 @@ export function buildNavSections(
       {
         label: "Company",
         defaultOpen: false,
+        placement: "after-projects",
         items: mark([
           { label: "Team", href: "/subcontractor/team" },
           { label: "Settings", href: "/subcontractor/settings" },
