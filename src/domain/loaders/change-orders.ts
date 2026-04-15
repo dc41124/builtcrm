@@ -1,7 +1,15 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { changeOrders, projects, rfis, users } from "@/db/schema";
+import {
+  activityFeedItems,
+  changeOrders,
+  documentLinks,
+  documents,
+  projects,
+  rfis,
+  users,
+} from "@/db/schema";
 
 import {
   getEffectiveContext,
@@ -9,6 +17,22 @@ import {
   type SessionLike,
 } from "../context";
 import { AuthorizationError } from "../permissions";
+
+export type ChangeOrderSupportingDoc = {
+  id: string;
+  title: string;
+  documentType: string;
+  linkRole: string;
+};
+
+export type ChangeOrderActivityEvent = {
+  id: string;
+  title: string;
+  body: string | null;
+  activityType: string;
+  actorName: string | null;
+  createdAt: Date;
+};
 
 export type ChangeOrderRow = {
   id: string;
@@ -18,6 +42,7 @@ export type ChangeOrderRow = {
   reason: string | null;
   changeOrderStatus: string;
   amountCents: number;
+  scheduleImpactDays: number;
   originatingRfiId: string | null;
   originatingRfiNumber: number | null;
   requestedByName: string | null;
@@ -28,6 +53,8 @@ export type ChangeOrderRow = {
   submittedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  supportingDocuments: ChangeOrderSupportingDoc[];
+  activityTrail: ChangeOrderActivityEvent[];
 };
 
 export type ChangeOrderTotals = {
@@ -75,6 +102,7 @@ async function loadRows(projectId: string, clientScoped: boolean) {
       reason: changeOrders.reason,
       changeOrderStatus: changeOrders.changeOrderStatus,
       amountCents: changeOrders.amountCents,
+      scheduleImpactDays: changeOrders.scheduleImpactDays,
       originatingRfiId: changeOrders.originatingRfiId,
       originatingRfiNumber: rfis.sequentialNumber,
       requestedByUserId: changeOrders.requestedByUserId,
@@ -90,6 +118,10 @@ async function loadRows(projectId: string, clientScoped: boolean) {
     .leftJoin(rfis, eq(rfis.id, changeOrders.originatingRfiId))
     .where(baseWhere)
     .orderBy(desc(changeOrders.changeOrderNumber));
+
+  if (rows.length === 0) return [];
+
+  const coIds = rows.map((r) => r.id);
 
   const userIds = Array.from(
     new Set(
@@ -109,6 +141,70 @@ async function loadRows(projectId: string, clientScoped: boolean) {
     for (const u of uRows) nameMap.set(u.id, u.displayName);
   }
 
+  // Supporting docs: join document_links → documents, filter to this CO set
+  const docRows = await db
+    .select({
+      linkedObjectId: documentLinks.linkedObjectId,
+      documentId: documents.id,
+      title: documents.title,
+      documentType: documents.documentType,
+      linkRole: documentLinks.linkRole,
+    })
+    .from(documentLinks)
+    .innerJoin(documents, eq(documents.id, documentLinks.documentId))
+    .where(
+      and(
+        eq(documentLinks.linkedObjectType, "change_order"),
+        inArray(documentLinks.linkedObjectId, coIds),
+      ),
+    );
+  const docsByCo = new Map<string, ChangeOrderSupportingDoc[]>();
+  for (const d of docRows) {
+    const arr = docsByCo.get(d.linkedObjectId) ?? [];
+    arr.push({
+      id: d.documentId,
+      title: d.title,
+      documentType: d.documentType,
+      linkRole: d.linkRole,
+    });
+    docsByCo.set(d.linkedObjectId, arr);
+  }
+
+  // Activity trail: filter to events that reference each CO
+  const activityRows = await db
+    .select({
+      id: activityFeedItems.id,
+      relatedObjectId: activityFeedItems.relatedObjectId,
+      title: activityFeedItems.title,
+      body: activityFeedItems.body,
+      activityType: activityFeedItems.activityType,
+      createdAt: activityFeedItems.createdAt,
+      actorName: users.displayName,
+    })
+    .from(activityFeedItems)
+    .leftJoin(users, eq(users.id, activityFeedItems.actorUserId))
+    .where(
+      and(
+        eq(activityFeedItems.relatedObjectType, "change_order"),
+        inArray(activityFeedItems.relatedObjectId, coIds),
+      ),
+    )
+    .orderBy(asc(activityFeedItems.createdAt));
+  const activityByCo = new Map<string, ChangeOrderActivityEvent[]>();
+  for (const a of activityRows) {
+    if (!a.relatedObjectId) continue;
+    const arr = activityByCo.get(a.relatedObjectId) ?? [];
+    arr.push({
+      id: a.id,
+      title: a.title,
+      body: a.body,
+      activityType: a.activityType,
+      actorName: a.actorName,
+      createdAt: a.createdAt,
+    });
+    activityByCo.set(a.relatedObjectId, arr);
+  }
+
   return rows.map<ChangeOrderRow>((r) => ({
     id: r.id,
     changeOrderNumber: r.changeOrderNumber,
@@ -117,6 +213,7 @@ async function loadRows(projectId: string, clientScoped: boolean) {
     reason: r.reason,
     changeOrderStatus: r.changeOrderStatus,
     amountCents: r.amountCents,
+    scheduleImpactDays: r.scheduleImpactDays,
     originatingRfiId: r.originatingRfiId,
     originatingRfiNumber: r.originatingRfiNumber,
     requestedByName: r.requestedByUserId
@@ -131,6 +228,8 @@ async function loadRows(projectId: string, clientScoped: boolean) {
     submittedAt: r.submittedAt,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
+    supportingDocuments: docsByCo.get(r.id) ?? [],
+    activityTrail: activityByCo.get(r.id) ?? [],
   }));
 }
 

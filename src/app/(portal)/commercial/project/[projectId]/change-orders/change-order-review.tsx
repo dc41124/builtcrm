@@ -409,9 +409,23 @@ function ClientChangeOrderDetail({ co }: { co: ChangeOrderRow }) {
         <div className="ccd-ir">
           <div>
             <h5>Schedule risk</h5>
-            <p>If not approved this week, work may slip</p>
+            <p>
+              {co.scheduleImpactDays > 0
+                ? "If not approved soon, work may slip"
+                : co.scheduleImpactDays < 0
+                  ? "Approval brings schedule benefit"
+                  : "No timeline effect"}
+            </p>
           </div>
-          <span className="ccd-iv muted">Not tracked</span>
+          <span
+            className={`ccd-iv ${co.scheduleImpactDays > 0 ? "warn" : co.scheduleImpactDays < 0 ? "ok" : "muted"}`}
+          >
+            {co.scheduleImpactDays === 0
+              ? "No change"
+              : co.scheduleImpactDays > 0
+                ? `+${co.scheduleImpactDays} days`
+                : `${co.scheduleImpactDays} days`}
+          </span>
         </div>
         <div className="ccd-ir">
           <div>
@@ -457,10 +471,24 @@ function ClientChangeOrderDetail({ co }: { co: ChangeOrderRow }) {
           <h4>Supporting documents</h4>
         </div>
         <div className="ccd-section-body">
-          <p className="ccd-p">
-            Cost breakdowns, revised drawings, and other supporting files from
-            your contractor will appear here.
-          </p>
+          {co.supportingDocuments.length === 0 ? (
+            <p className="ccd-p">
+              Cost breakdowns, revised drawings, and other supporting files
+              from your contractor will appear here.
+            </p>
+          ) : (
+            co.supportingDocuments.map((d) => (
+              <div key={d.id} className="ccd-fr">
+                <div>
+                  <h5>{d.title}</h5>
+                  <p>{formatStatus(d.linkRole)}</p>
+                </div>
+                <span className="ccd-fc">
+                  {commercialExtensionFor(d.documentType)}
+                </span>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -554,6 +582,11 @@ function ClientChangeOrderDetail({ co }: { co: ChangeOrderRow }) {
         .ccd-section-head h4{font-family:var(--fd);font-size:13px;font-weight:700;color:var(--t1);margin:0}
         .ccd-section-body{padding:14px 16px}
         .ccd-p{font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t2);margin:0;line-height:1.55}
+        .ccd-fr{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--s2)}
+        .ccd-fr:last-child{border-bottom:none}
+        .ccd-fr h5{font-family:var(--fd);font-size:13px;font-weight:620;color:var(--t1);margin:0}
+        .ccd-fr p{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);margin:2px 0 0}
+        .ccd-fc{font-family:var(--fd);font-size:11px;font-weight:700;color:var(--t3);padding:3px 8px;border-radius:var(--r-s);background:var(--s2);white-space:nowrap;text-transform:uppercase}
 
         .ccd-dec{border:2px solid color-mix(in srgb,var(--ac) 35%,var(--s3));border-radius:var(--r-l);padding:18px;background:linear-gradient(180deg,color-mix(in srgb,var(--ac-s) 30%,var(--s1)),var(--s1));display:flex;flex-direction:column;gap:10px}
         .ccd-dec h4{font-family:var(--fd);font-size:15px;font-weight:750;color:var(--t1);margin:0}
@@ -576,4 +609,12 @@ function ClientChangeOrderDetail({ co }: { co: ChangeOrderRow }) {
       `}</style>
     </div>
   );
+}
+
+function commercialExtensionFor(documentType: string): string {
+  const lower = documentType.toLowerCase();
+  if (lower.includes("drawing") || lower.includes("cad")) return "DWG";
+  if (lower.includes("photo") || lower.includes("image")) return "JPG";
+  if (lower.includes("spec")) return "SPEC";
+  return "PDF";
 }

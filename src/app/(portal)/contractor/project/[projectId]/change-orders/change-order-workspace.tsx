@@ -475,8 +475,22 @@ function ContractorChangeOrderDetail({ co }: { co: ChangeOrderRow }) {
         </div>
         <div className="cod-cell">
           <div className="cod-k">Schedule impact</div>
-          <div className="cod-v">—</div>
-          <div className="cod-m">Not tracked yet</div>
+          <div
+            className={`cod-v ${co.scheduleImpactDays > 0 ? "warn" : co.scheduleImpactDays < 0 ? "ok" : ""}`}
+          >
+            {co.scheduleImpactDays === 0
+              ? "No change"
+              : co.scheduleImpactDays > 0
+                ? `+${co.scheduleImpactDays} days`
+                : `${co.scheduleImpactDays} days`}
+          </div>
+          <div className="cod-m">
+            {co.scheduleImpactDays > 0
+              ? "Risk if not approved soon"
+              : co.scheduleImpactDays < 0
+                ? "Schedule benefit"
+                : "No timeline effect"}
+          </div>
         </div>
         <div className="cod-cell">
           <div className="cod-k">Originated from</div>
@@ -519,10 +533,24 @@ function ContractorChangeOrderDetail({ co }: { co: ChangeOrderRow }) {
           </div>
         </div>
         <div className="cod-section-body">
-          <p className="cod-p">
-            Attach cost breakdowns, revised drawings, or other supporting files
-            for the client reviewer.
-          </p>
+          {co.supportingDocuments.length === 0 ? (
+            <p className="cod-p">
+              Attach cost breakdowns, revised drawings, or other supporting
+              files for the client reviewer.
+            </p>
+          ) : (
+            co.supportingDocuments.map((d) => (
+              <div key={d.id} className="cod-fr">
+                <div>
+                  <h5>{d.title}</h5>
+                  <p>{formatStatus(d.linkRole)}</p>
+                </div>
+                <span className="cod-fc">
+                  {extensionFor(d.documentType)}
+                </span>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -532,62 +560,83 @@ function ContractorChangeOrderDetail({ co }: { co: ChangeOrderRow }) {
         </div>
         <div className="cod-section-body">
           <div className="cod-activity">
-            <div className="cod-ai">
-              <div className="cod-dot action" />
-              <div className="cod-at">
-                <strong>{co.requestedByName ?? "Contractor"}</strong> created
-                CO-{String(co.changeOrderNumber).padStart(3, "0")}
-                {co.originatingRfiNumber != null
-                  ? ` from RFI-${String(co.originatingRfiNumber).padStart(3, "0")}`
-                  : ""}
-              </div>
-              <div className="cod-atm">{formatDate(co.createdAt)}</div>
-            </div>
-            {co.submittedAt && (
+            {co.activityTrail.length > 0 ? (
+              co.activityTrail.map((ev) => (
+                <div key={ev.id} className="cod-ai">
+                  <div className={`cod-dot ${activityDotClass(ev.activityType)}`} />
+                  <div className="cod-at">
+                    {ev.actorName ? (
+                      <>
+                        <strong>{ev.actorName}</strong> {ev.title.toLowerCase()}
+                      </>
+                    ) : (
+                      ev.title
+                    )}
+                    {ev.body ? ` — ${ev.body}` : ""}
+                  </div>
+                  <div className="cod-atm">{formatDate(ev.createdAt)}</div>
+                </div>
+              ))
+            ) : (
               <>
                 <div className="cod-ai">
                   <div className="cod-dot action" />
                   <div className="cod-at">
-                    <strong>{co.requestedByName ?? "Contractor"}</strong>{" "}
-                    submitted for client review
+                    <strong>{co.requestedByName ?? "Contractor"}</strong> created
+                    CO-{String(co.changeOrderNumber).padStart(3, "0")}
+                    {co.originatingRfiNumber != null
+                      ? ` from RFI-${String(co.originatingRfiNumber).padStart(3, "0")}`
+                      : ""}
                   </div>
-                  <div className="cod-atm">{formatDate(co.submittedAt)}</div>
+                  <div className="cod-atm">{formatDate(co.createdAt)}</div>
                 </div>
-                <div className="cod-ai">
-                  <div className="cod-dot sys" />
-                  <div className="cod-at">Client notified via email</div>
-                  <div className="cod-atm">{formatDate(co.submittedAt)}</div>
-                </div>
-                {co.changeOrderStatus === "pending_client_approval" &&
-                  daysWaiting != null && (
+                {co.submittedAt && (
+                  <>
+                    <div className="cod-ai">
+                      <div className="cod-dot action" />
+                      <div className="cod-at">
+                        <strong>{co.requestedByName ?? "Contractor"}</strong>{" "}
+                        submitted for client review
+                      </div>
+                      <div className="cod-atm">{formatDate(co.submittedAt)}</div>
+                    </div>
                     <div className="cod-ai">
                       <div className="cod-dot sys" />
-                      <div className="cod-at">
-                        Pending — no response yet ({daysWaiting}{" "}
-                        {daysWaiting === 1 ? "day" : "days"})
-                      </div>
-                      <div className="cod-atm">Today</div>
+                      <div className="cod-at">Client notified via email</div>
+                      <div className="cod-atm">{formatDate(co.submittedAt)}</div>
                     </div>
-                  )}
+                    {co.changeOrderStatus === "pending_client_approval" &&
+                      daysWaiting != null && (
+                        <div className="cod-ai">
+                          <div className="cod-dot sys" />
+                          <div className="cod-at">
+                            Pending — no response yet ({daysWaiting}{" "}
+                            {daysWaiting === 1 ? "day" : "days"})
+                          </div>
+                          <div className="cod-atm">Today</div>
+                        </div>
+                      )}
+                  </>
+                )}
+                {co.approvedAt && (
+                  <div className="cod-ai">
+                    <div className="cod-dot ok" />
+                    <div className="cod-at">
+                      <strong>{co.approvedByName ?? "Client"}</strong> approved
+                      this change order
+                    </div>
+                    <div className="cod-atm">{formatDate(co.approvedAt)}</div>
+                  </div>
+                )}
+                {co.rejectionReason && (
+                  <div className="cod-ai">
+                    <div className="cod-dot sys" />
+                    <div className="cod-at">
+                      <strong>Client feedback:</strong> {co.rejectionReason}
+                    </div>
+                  </div>
+                )}
               </>
-            )}
-            {co.approvedAt && (
-              <div className="cod-ai">
-                <div className="cod-dot ok" />
-                <div className="cod-at">
-                  <strong>{co.approvedByName ?? "Client"}</strong> approved this
-                  change order
-                </div>
-                <div className="cod-atm">{formatDate(co.approvedAt)}</div>
-              </div>
-            )}
-            {co.rejectionReason && (
-              <div className="cod-ai">
-                <div className="cod-dot sys" />
-                <div className="cod-at">
-                  <strong>Client feedback:</strong> {co.rejectionReason}
-                </div>
-              </div>
             )}
           </div>
         </div>
@@ -634,6 +683,11 @@ function ContractorChangeOrderDetail({ co }: { co: ChangeOrderRow }) {
         .cod-p{font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t2);margin:0;line-height:1.55}
         .cod-btn{height:32px;padding:0 12px;border-radius:var(--r-m);border:1px solid var(--s3);background:var(--s1);color:var(--t1);font-family:var(--fb);font-size:12px;font-weight:640;cursor:pointer;transition:all var(--df) var(--e);white-space:nowrap}
         .cod-btn:hover{border-color:var(--s4);background:var(--sh)}
+        .cod-fr{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--s2)}
+        .cod-fr:last-child{border-bottom:none}
+        .cod-fr h5{font-family:var(--fd);font-size:13px;font-weight:620;color:var(--t1);margin:0}
+        .cod-fr p{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);margin:2px 0 0}
+        .cod-fc{font-family:var(--fd);font-size:11px;font-weight:700;color:var(--t3);padding:3px 8px;border-radius:var(--r-s);background:var(--s2);white-space:nowrap;text-transform:uppercase}
 
         .cod-activity{display:flex;flex-direction:column}
         .cod-ai{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--s2);align-items:flex-start}
@@ -795,4 +849,20 @@ function CreatePanel({
       `}</style>
     </div>
   );
+}
+
+function extensionFor(documentType: string): string {
+  const lower = documentType.toLowerCase();
+  if (lower.includes("drawing") || lower.includes("cad")) return "DWG";
+  if (lower.includes("photo") || lower.includes("image")) return "JPG";
+  if (lower.includes("spec")) return "SPEC";
+  return "PDF";
+}
+
+function activityDotClass(type: string): string {
+  if (type === "approval_completed") return "ok";
+  if (type === "approval_requested") return "action";
+  if (type === "comment_added") return "action";
+  if (type === "file_uploaded") return "action";
+  return "sys";
 }

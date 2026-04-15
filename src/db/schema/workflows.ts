@@ -243,6 +243,7 @@ export const changeOrders = pgTable(
     changeOrderStatus: changeOrderStatusEnum("change_order_status").default("draft").notNull(),
 
     amountCents: integer("amount_cents").notNull().default(0),
+    scheduleImpactDays: integer("schedule_impact_days").notNull().default(0),
 
     reason: text("reason"),
     originatingRfiId: uuid("originating_rfi_id").references((): AnyPgColumn => rfis.id, {

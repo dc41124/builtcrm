@@ -173,9 +173,29 @@ function PendingScopeCard({ co }: { co: ChangeOrderRow }) {
         </div>
         <div className="rsc-stat">
           <div className="rsc-stat-k">Timing</div>
-          <div className="rsc-stat-v">No delay</div>
+          <div
+            className="rsc-stat-v"
+            style={{
+              color:
+                co.scheduleImpactDays > 0
+                  ? "var(--wr-t)"
+                  : co.scheduleImpactDays < 0
+                    ? "var(--ok-t)"
+                    : "var(--t1)",
+            }}
+          >
+            {co.scheduleImpactDays === 0
+              ? "No delay"
+              : co.scheduleImpactDays > 0
+                ? `+${co.scheduleImpactDays} days`
+                : `Saves ${Math.abs(co.scheduleImpactDays)} days`}
+          </div>
           <div className="rsc-stat-m">
-            Work can continue on schedule
+            {co.scheduleImpactDays > 0
+              ? "Schedule impact"
+              : co.scheduleImpactDays < 0
+                ? "Schedule benefit"
+                : "Work can continue on schedule"}
           </div>
         </div>
       </div>
