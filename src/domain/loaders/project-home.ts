@@ -63,6 +63,7 @@ async function loadRfisWithResponses(
       body: rfis.body,
       rfiStatus: rfis.rfiStatus,
       assignedToOrganizationId: rfis.assignedToOrganizationId,
+      assignedToOrganizationName: organizations.name,
       assignedToUserId: rfis.assignedToUserId,
       dueAt: rfis.dueAt,
       respondedAt: rfis.respondedAt,
@@ -73,6 +74,10 @@ async function loadRfisWithResponses(
       createdAt: rfis.createdAt,
     })
     .from(rfis)
+    .leftJoin(
+      organizations,
+      eq(organizations.id, rfis.assignedToOrganizationId),
+    )
     .where(whereClause)
     .orderBy(desc(rfis.createdAt));
 
@@ -127,6 +132,7 @@ export type RfiRow = {
   body: string | null;
   rfiStatus: string;
   assignedToOrganizationId: string | null;
+  assignedToOrganizationName: string | null;
   assignedToUserId: string | null;
   dueAt: Date | null;
   respondedAt: Date | null;
