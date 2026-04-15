@@ -539,13 +539,36 @@ function DrawDetail({ draw, sov }: { draw: DrawRow; sov: Sov }) {
         <section className="bl-mini">
           <div className="bl-mini-head">
             <div className="bl-mini-title">Package Documents</div>
-            <div className="bl-mini-sub">Attachments for this draw</div>
+            <div className="bl-mini-sub">
+              {draw.supportingFiles.length > 0
+                ? `${draw.supportingFiles.length} file${draw.supportingFiles.length === 1 ? "" : "s"} attached`
+                : "Attachments for this draw"}
+            </div>
           </div>
           <div className="bl-mini-body">
-            <p className="bl-pkg-empty">
-              Attach closeout documents, invoices, and supporting files. These
-              travel with the draw package when it's submitted for review.
-            </p>
+            {draw.supportingFiles.length === 0 ? (
+              <p className="bl-pkg-empty">
+                Attach closeout documents, invoices, and supporting files.
+                These travel with the draw package when it&apos;s submitted for
+                review.
+              </p>
+            ) : (
+              <div className="bl-pkg-files">
+                {draw.supportingFiles.map((f) => (
+                  <div key={f.id} className="bl-pkg-row">
+                    <div className="bl-pkg-info">
+                      <div className="bl-pkg-name">{f.title}</div>
+                      <div className="bl-pkg-meta">
+                        {f.linkRole.replace(/_/g, " ")}
+                      </div>
+                    </div>
+                    <span className="bl-pkg-chip">
+                      {f.documentType.toUpperCase()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="bl-pkg-acts">
               <button type="button" className="bl-btn sm">
                 Attach file
@@ -728,6 +751,12 @@ function WorkspaceStyles() {
       @media(max-width:1280px){.bl-bottom{grid-template-columns:1fr 1fr}}
       @media(max-width:900px){.bl-bottom{grid-template-columns:1fr}}
       .bl-pkg-empty{font-family:var(--fb);font-size:12.5px;font-weight:540;color:var(--t2);margin:0;line-height:1.55}
+      .bl-pkg-files{display:flex;flex-direction:column;gap:6px}
+      .bl-pkg-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--s3);border-radius:var(--r-m);background:var(--sh)}
+      .bl-pkg-info{min-width:0;flex:1}
+      .bl-pkg-name{font-family:var(--fm);font-size:12px;font-weight:540;color:var(--t1);word-break:break-all}
+      .bl-pkg-meta{font-family:var(--fb);font-size:11px;font-weight:540;color:var(--t3);margin-top:1px;text-transform:capitalize}
+      .bl-pkg-chip{font-family:var(--fd);font-size:10px;font-weight:700;color:var(--t3);padding:2px 6px;border-radius:var(--r-s);background:var(--s2);white-space:nowrap;flex-shrink:0}
       .bl-pkg-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
       .bl-mini{border:1px solid var(--s3);border-radius:var(--r-m);background:var(--s1);display:flex;flex-direction:column}
       .bl-mini-head{padding:14px 16px;border-bottom:1px solid var(--s3)}

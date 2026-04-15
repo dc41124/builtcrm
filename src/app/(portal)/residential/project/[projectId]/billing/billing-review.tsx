@@ -4,10 +4,10 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { EmptyState } from "@/components/empty-state";
-import { Pill, type PillColor } from "@/components/pill";
 import type { ClientProjectView } from "@/domain/loaders/project-home";
 
 type Draw = ClientProjectView["drawRequests"][number];
+type PillClass = "teal" | "amber" | "green" | "red" | "gray";
 
 function fmtMoney(cents: number | null | undefined): string {
   if (cents == null) return "—";
@@ -34,14 +34,12 @@ function monthLabel(d: Date): string {
   });
 }
 
-function statusView(
-  status: string,
-): { color: PillColor; label: string } {
+function statusView(status: string): { color: PillClass; label: string } {
   switch (status) {
     case "under_review":
       return { color: "amber", label: "Waiting for your review" };
     case "submitted":
-      return { color: "blue", label: "Submitted" };
+      return { color: "teal", label: "Submitted" };
     case "approved":
     case "approved_with_note":
       return { color: "green", label: "Approved" };
@@ -53,6 +51,65 @@ function statusView(
       return { color: "gray", label: status.replace(/_/g, " ") };
   }
 }
+
+function fileIconFor(documentType: string): {
+  label: string;
+  variant: "pdf" | "img" | "doc";
+} {
+  const t = documentType.toLowerCase();
+  if (t.includes("image") || t.includes("photo") || t.includes("img"))
+    return { label: "IMG", variant: "img" };
+  if (t.includes("pdf")) return { label: "PDF", variant: "pdf" };
+  return {
+    label: documentType.slice(0, 3).toUpperCase() || "DOC",
+    variant: "doc",
+  };
+}
+
+const ClockIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    width="14"
+    height="14"
+    stroke="currentColor"
+    strokeWidth="2"
+  >
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 6v6l4 2" strokeLinecap="round" />
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    width="16"
+    height="16"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <path d="M22 4 12 14.01l-3-3" />
+  </svg>
+);
+
+const MessageIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    width="16"
+    height="16"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+);
 
 export function ResidentialBillingReview({ draws }: { projectName: string; draws: Draw[] }) {
   const current = useMemo(
@@ -121,13 +178,13 @@ export function ResidentialBillingReview({ draws }: { projectName: string; draws
         </p>
         <div className="rbr-head-pills">
           {pendingCount > 0 && (
-            <Pill color="amber">
+            <span className="rbr-pl amber">
               {pendingCount} payment{pendingCount === 1 ? "" : "s"} waiting for you
-            </Pill>
+            </span>
           )}
-          <Pill color="green">
+          <span className="rbr-pl teal">
             Draw #{current.drawNumber} · {monthLabel(current.periodFrom)}
-          </Pill>
+          </span>
         </div>
       </header>
 
@@ -145,7 +202,10 @@ export function ResidentialBillingReview({ draws }: { projectName: string; draws
         </div>
         <div className="rbr-hero-status">
           <div className="rbr-hero-status-lbl">Status</div>
-          <Pill color={status.color}>{status.label}</Pill>
+          <div className={`rbr-status-pill ${status.color}`}>
+            <ClockIcon />
+            {status.label}
+          </div>
         </div>
       </div>
 
@@ -199,12 +259,44 @@ export function ResidentialBillingReview({ draws }: { projectName: string; draws
                 <h3>Supporting documents</h3>
                 <p className="sub">Files attached to this payment request</p>
               </div>
+              {current.supportingFiles.length > 0 && (
+                <span className="rbr-pl gray">
+                  {current.supportingFiles.length} file
+                  {current.supportingFiles.length === 1 ? "" : "s"}
+                </span>
+              )}
             </div>
             <div className="rbr-card-b">
-              <p className="rbr-empty">
-                Your builder will attach invoices, receipts, and photos here
-                when they&apos;re available.
-              </p>
+              {current.supportingFiles.length === 0 ? (
+                <p className="rbr-empty">
+                  Your builder will attach invoices, receipts, and photos here
+                  when they&apos;re available.
+                </p>
+              ) : (
+                <div className="rbr-files">
+                  {current.supportingFiles.map((f) => {
+                    const icon = fileIconFor(f.documentType);
+                    return (
+                      <div key={f.id} className="rbr-file">
+                        <div className="rbr-file-left">
+                          <div className={`rbr-file-icon ${icon.variant}`}>
+                            {icon.label}
+                          </div>
+                          <div className="rbr-file-info">
+                            <div className="rbr-file-name">{f.title}</div>
+                            <div className="rbr-file-meta">
+                              {f.linkRole.replace(/_/g, " ")}
+                            </div>
+                          </div>
+                        </div>
+                        <button type="button" className="rbr-btn xs">
+                          Download
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -404,7 +496,7 @@ function DecisionCard({ draw }: { draw: Draw }) {
         <h3>Your decision</h3>
         <p>
           If everything looks right, approve the payment. If you have questions
-          or something doesn&apos;t look right, send a question to your builder
+          or something doesn&apos;t look right, send a message to your builder
           and they&apos;ll sort it out.
         </p>
       </div>
@@ -412,12 +504,13 @@ function DecisionCard({ draw }: { draw: Draw }) {
         <div className="rbr-dec-acts">
           <button
             type="button"
-            className="rbr-btn pri lg"
+            className={`rbr-btn lg ${approved ? "done" : "pri"}`}
             onClick={approve}
             disabled={pending != null || approved}
           >
+            <CheckIcon />
             {approved
-              ? "✓ Approved"
+              ? "Approved"
               : pending === "approve"
                 ? "Approving…"
                 : "Approve this payment"}
@@ -428,16 +521,19 @@ function DecisionCard({ draw }: { draw: Draw }) {
             onClick={askQuestion}
             disabled={pending != null || approved}
           >
+            <MessageIcon />
             {pending === "question" ? "Sending…" : "Ask a question first"}
           </button>
         </div>
-        <textarea
-          className="rbr-dec-ta"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Optional — add a note for your builder (e.g., 'Looks good, thanks!' or 'Can you clarify the material cost?')"
-          disabled={pending != null || approved}
-        />
+        <div>
+          <textarea
+            className="rbr-dec-ta"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Optional — add a note for your builder (e.g., 'Looks good, thanks!' or 'Can you clarify the material cost?')"
+            disabled={pending != null || approved}
+          />
+        </div>
         {error && <p className="rbr-err">{error}</p>}
         <div className="rbr-explainer">
           <h5>What happens when you approve?</h5>
@@ -445,8 +541,8 @@ function DecisionCard({ draw }: { draw: Draw }) {
             Your builder receives your approval and the payment moves forward
             according to your contract terms. You&apos;ll see this show up
             under &ldquo;Past payments&rdquo; once it&apos;s processed. If you
-            have questions, use the Ask a question button — nothing moves
-            forward until you say it&apos;s OK.
+            have questions, use the message button — nothing moves forward
+            until you say it&apos;s OK.
           </p>
         </div>
       </div>
@@ -508,13 +604,32 @@ function ResidentialStyles() {
       .rbr-explainer h5{font-family:var(--fd);font-size:13px;font-weight:700;color:var(--ac-t);margin:0 0 4px}
       .rbr-explainer p{font-family:var(--fb);font-size:12.5px;font-weight:540;color:var(--t2);margin:0;line-height:1.55}
 
-      .rbr-btn{height:34px;padding:0 14px;border-radius:var(--r-m);border:1px solid var(--s3);background:var(--s1);color:var(--t1);font-family:var(--fb);font-size:12.5px;font-weight:640;cursor:pointer;transition:all var(--df) var(--e);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+      .rbr-btn{height:34px;padding:0 14px;border-radius:var(--r-m);border:1px solid var(--s3);background:var(--s1);color:var(--t1);font-family:var(--fb);font-size:12.5px;font-weight:640;cursor:pointer;transition:all var(--df) var(--e);display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
       .rbr-btn:hover:not(:disabled){border-color:var(--s4);background:var(--sh)}
       .rbr-btn:disabled{opacity:.6;cursor:not-allowed}
       .rbr-btn.pri{background:var(--ac);border-color:var(--ac);color:#fff}
       .rbr-btn.pri:hover:not(:disabled){background:var(--ac-h);border-color:var(--ac-h)}
+      .rbr-btn.done{background:var(--ok);border-color:var(--ok);color:#fff}
+      .rbr-btn.done:disabled{opacity:1}
       .rbr-btn.lg{height:40px;padding:0 20px;font-size:13.5px;font-weight:660}
       .rbr-btn.sm{height:30px;padding:0 12px;font-size:12px}
+      .rbr-btn.xs{height:28px;padding:0 10px;font-size:11px;gap:4px}
+
+      /* Pills (custom) */
+      .rbr-pl{height:22px;padding:0 9px;border-radius:999px;font-family:var(--fd);font-size:11px;font-weight:650;display:inline-flex;align-items:center;white-space:nowrap;border:1px solid transparent}
+      .rbr-pl.teal{background:var(--ac-s);color:var(--ac-t);border-color:color-mix(in srgb,var(--ac) 30%,var(--s3))}
+      .rbr-pl.amber{background:var(--wr-s);color:var(--wr-t);border-color:color-mix(in srgb,var(--wr) 30%,var(--s3))}
+      .rbr-pl.green{background:var(--ok-s);color:var(--ok-t);border-color:color-mix(in srgb,var(--ok) 30%,var(--s3))}
+      .rbr-pl.red{background:var(--dg-s);color:var(--dg-t);border-color:color-mix(in srgb,var(--dg) 30%,var(--s3))}
+      .rbr-pl.gray{background:var(--s2);color:var(--t3);border-color:var(--s3);font-size:10px}
+
+      /* Hero status pill with icon */
+      .rbr-status-pill{height:30px;padding:0 14px;border-radius:999px;font-family:var(--fd);font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;border:1px solid transparent}
+      .rbr-status-pill.amber{background:var(--wr-s);color:var(--wr-t);border-color:color-mix(in srgb,var(--wr) 30%,var(--s3))}
+      .rbr-status-pill.teal{background:var(--ac-s);color:var(--ac-t);border-color:color-mix(in srgb,var(--ac) 30%,var(--s3))}
+      .rbr-status-pill.green{background:var(--ok-s);color:var(--ok-t);border-color:color-mix(in srgb,var(--ok) 30%,var(--s3))}
+      .rbr-status-pill.red{background:var(--dg-s);color:var(--dg-t);border-color:color-mix(in srgb,var(--dg) 30%,var(--s3))}
+      .rbr-status-pill.gray{background:var(--s2);color:var(--t3);border-color:var(--s3)}
 
       .rbr-budget-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
       .rbr-budget-head .k{font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t2)}
@@ -523,7 +638,7 @@ function ResidentialStyles() {
       .rbr-bar-paid{height:100%;background:var(--ac)}
       .rbr-bar-this{height:100%;background:var(--wr);opacity:.75}
       .rbr-bar-legend{display:flex;gap:16px;margin-top:8px}
-      .rbr-bar-legend>span{display:flex;align-items:center;gap:4px;font-family:var(--fb);font-size:11px;font-weight:540;color:var(--t3)}
+      .rbr-bar-legend span{display:flex;align-items:center;gap:4px;font-family:var(--fb);font-size:11px;font-weight:540;color:var(--t3)}
       .rbr-bar-legend .dot{width:8px;height:8px;border-radius:50%}
       .rbr-bar-legend .dot.paid{background:var(--ac)}
       .rbr-bar-legend .dot.this{background:var(--wr);opacity:.75}
@@ -546,6 +661,19 @@ function ResidentialStyles() {
       .rbr-pm-info{flex:1;min-width:0}
       .rbr-pm-name{font-family:var(--fd);font-size:13px;font-weight:680;color:var(--t1)}
       .rbr-pm-sub{font-family:var(--fb);font-size:11.5px;font-weight:540;color:var(--t3);margin-top:1px}
+
+      .rbr-files{display:flex;flex-direction:column}
+      .rbr-file{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--s3)}
+      .rbr-file:first-child{padding-top:0}
+      .rbr-file:last-child{border-bottom:none;padding-bottom:0}
+      .rbr-file-left{display:flex;align-items:center;gap:12px;min-width:0;flex:1}
+      .rbr-file-icon{width:32px;height:32px;border-radius:var(--r-m);display:grid;place-items:center;font-family:var(--fd);font-size:10px;font-weight:700;flex-shrink:0}
+      .rbr-file-icon.pdf{background:var(--dg-s);color:var(--dg-t)}
+      .rbr-file-icon.img{background:var(--in-s);color:var(--in-t)}
+      .rbr-file-icon.doc{background:var(--ac-s);color:var(--ac-t)}
+      .rbr-file-info{min-width:0;flex:1}
+      .rbr-file-name{font-family:var(--fb);font-size:13px;font-weight:620;color:var(--t1);word-break:break-all}
+      .rbr-file-meta{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);margin-top:1px;text-transform:capitalize}
     `}</style>
   );
 }

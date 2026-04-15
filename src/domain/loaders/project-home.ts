@@ -148,6 +148,7 @@ export type LienWaiverRow = {
   id: string;
   drawRequestId: string;
   organizationId: string;
+  organizationName: string | null;
   lienWaiverType: "conditional_progress" | "unconditional_progress" | "conditional_final" | "unconditional_final";
   lienWaiverStatus: "requested" | "submitted" | "accepted" | "rejected" | "waived";
   amountCents: number;
@@ -268,6 +269,96 @@ async function loadUploadRequestEnrichment(
         uploadedAt: r.submittedAt ?? new Date(),
       });
     }
+  }
+
+  for (const a of activityRows) {
+    if (!a.relatedObjectId) continue;
+    const arr = activityById.get(a.relatedObjectId) ?? [];
+    arr.push({
+      id: a.id,
+      title: a.title,
+      body: a.body,
+      activityType: a.activityType,
+      actorName: a.actorName,
+      createdAt: a.createdAt,
+    });
+    activityById.set(a.relatedObjectId, arr);
+  }
+
+  return { filesById, activityById };
+}
+
+export type DrawRequestSupportingFile = {
+  id: string;
+  title: string;
+  documentType: string;
+  linkRole: string;
+};
+
+export type DrawRequestActivityEvent = {
+  id: string;
+  title: string;
+  body: string | null;
+  activityType: string;
+  actorName: string | null;
+  createdAt: Date;
+};
+
+async function loadDrawRequestEnrichment(drawIds: string[]): Promise<{
+  filesById: Map<string, DrawRequestSupportingFile[]>;
+  activityById: Map<string, DrawRequestActivityEvent[]>;
+}> {
+  const filesById = new Map<string, DrawRequestSupportingFile[]>();
+  const activityById = new Map<string, DrawRequestActivityEvent[]>();
+  if (drawIds.length === 0) return { filesById, activityById };
+
+  const [docRows, activityRows] = await Promise.all([
+    db
+      .select({
+        linkedObjectId: documentLinks.linkedObjectId,
+        documentId: documents.id,
+        title: documents.title,
+        documentType: documents.documentType,
+        linkRole: documentLinks.linkRole,
+      })
+      .from(documentLinks)
+      .innerJoin(documents, eq(documents.id, documentLinks.documentId))
+      .where(
+        and(
+          eq(documentLinks.linkedObjectType, "draw_request"),
+          inArray(documentLinks.linkedObjectId, drawIds),
+        ),
+      ),
+    db
+      .select({
+        id: activityFeedItems.id,
+        relatedObjectId: activityFeedItems.relatedObjectId,
+        title: activityFeedItems.title,
+        body: activityFeedItems.body,
+        activityType: activityFeedItems.activityType,
+        createdAt: activityFeedItems.createdAt,
+        actorName: users.displayName,
+      })
+      .from(activityFeedItems)
+      .leftJoin(users, eq(users.id, activityFeedItems.actorUserId))
+      .where(
+        and(
+          eq(activityFeedItems.relatedObjectType, "draw_request"),
+          inArray(activityFeedItems.relatedObjectId, drawIds),
+        ),
+      )
+      .orderBy(desc(activityFeedItems.createdAt)),
+  ]);
+
+  for (const d of docRows) {
+    const arr = filesById.get(d.linkedObjectId) ?? [];
+    arr.push({
+      id: d.documentId,
+      title: d.title,
+      documentType: d.documentType,
+      linkRole: d.linkRole,
+    });
+    filesById.set(d.linkedObjectId, arr);
   }
 
   for (const a of activityRows) {
@@ -876,6 +967,8 @@ export type ContractorProjectView = {
       retainagePercentApplied: number;
     }>;
     lienWaivers: LienWaiverRow[];
+    supportingFiles: DrawRequestSupportingFile[];
+    activityTrail: DrawRequestActivityEvent[];
   }>;
   retainageReleases: RetainageReleaseRow[];
   uploadRequests: UploadRequestRow[];
@@ -1143,8 +1236,23 @@ export async function getContractorProjectView(
       : Promise.resolve([] as never[]),
     drawIds.length
       ? db
-          .select()
+          .select({
+            id: lienWaivers.id,
+            drawRequestId: lienWaivers.drawRequestId,
+            organizationId: lienWaivers.organizationId,
+            organizationName: organizations.name,
+            lienWaiverType: lienWaivers.lienWaiverType,
+            lienWaiverStatus: lienWaivers.lienWaiverStatus,
+            amountCents: lienWaivers.amountCents,
+            throughDate: lienWaivers.throughDate,
+            documentId: lienWaivers.documentId,
+            requestedAt: lienWaivers.requestedAt,
+            submittedAt: lienWaivers.submittedAt,
+            acceptedAt: lienWaivers.acceptedAt,
+            createdAt: lienWaivers.createdAt,
+          })
           .from(lienWaivers)
+          .leftJoin(organizations, eq(organizations.id, lienWaivers.organizationId))
           .where(inArray(lienWaivers.drawRequestId, drawIds))
           .orderBy(asc(lienWaivers.lienWaiverType), desc(lienWaivers.createdAt))
       : Promise.resolve([] as never[]),
@@ -1168,6 +1276,7 @@ export async function getContractorProjectView(
       id: w.id,
       drawRequestId: w.drawRequestId,
       organizationId: w.organizationId,
+      organizationName: w.organizationName,
       lienWaiverType: w.lienWaiverType,
       lienWaiverStatus: w.lienWaiverStatus,
       amountCents: w.amountCents,
@@ -1195,6 +1304,8 @@ export async function getContractorProjectView(
     consumedAt: r.consumedAt,
     createdAt: r.createdAt,
   }));
+
+  const drawEnrichment = await loadDrawRequestEnrichment(drawIds);
 
   const drawRequestsView = drawRows.map((d) => ({
     id: d.id,
@@ -1236,6 +1347,8 @@ export async function getContractorProjectView(
       retainagePercentApplied: l.retainagePercentApplied,
     })),
     lienWaivers: waiversByDraw.get(d.id) ?? [],
+    supportingFiles: drawEnrichment.filesById.get(d.id) ?? [],
+    activityTrail: drawEnrichment.activityById.get(d.id) ?? [],
   }));
 
   const selections = await loadSelectionsForProject(projectId);
@@ -1668,6 +1781,8 @@ export type ClientProjectView = {
       retainageCents: number;
       retainagePercentApplied: number;
     }>;
+    supportingFiles: DrawRequestSupportingFile[];
+    activityTrail: DrawRequestActivityEvent[];
   }>;
   retainageReleases: RetainageReleaseRow[];
   selections: SelectionCategoryRow[];
@@ -1818,8 +1933,26 @@ export async function getClientProjectView(
         : Promise.resolve([] as never[]),
       clientDrawIds.length
         ? db
-            .select()
+            .select({
+              id: lienWaivers.id,
+              drawRequestId: lienWaivers.drawRequestId,
+              organizationId: lienWaivers.organizationId,
+              organizationName: organizations.name,
+              lienWaiverType: lienWaivers.lienWaiverType,
+              lienWaiverStatus: lienWaivers.lienWaiverStatus,
+              amountCents: lienWaivers.amountCents,
+              throughDate: lienWaivers.throughDate,
+              documentId: lienWaivers.documentId,
+              requestedAt: lienWaivers.requestedAt,
+              submittedAt: lienWaivers.submittedAt,
+              acceptedAt: lienWaivers.acceptedAt,
+              createdAt: lienWaivers.createdAt,
+            })
             .from(lienWaivers)
+            .leftJoin(
+              organizations,
+              eq(organizations.id, lienWaivers.organizationId),
+            )
             .where(inArray(lienWaivers.drawRequestId, clientDrawIds))
             .orderBy(
               asc(lienWaivers.lienWaiverType),
@@ -1846,6 +1979,7 @@ export async function getClientProjectView(
       id: w.id,
       drawRequestId: w.drawRequestId,
       organizationId: w.organizationId,
+      organizationName: w.organizationName,
       lienWaiverType: w.lienWaiverType,
       lienWaiverStatus: w.lienWaiverStatus,
       amountCents: w.amountCents,
@@ -1859,6 +1993,8 @@ export async function getClientProjectView(
     arr.push(row);
     clientWaiversByDraw.set(w.drawRequestId, arr);
   }
+
+  const clientDrawEnrichment = await loadDrawRequestEnrichment(clientDrawIds);
 
   const clientRetainageReleasesView: RetainageReleaseRow[] = clientReleaseRows.map(
     (r) => ({
@@ -1936,6 +2072,8 @@ export async function getClientProjectView(
         retainageCents: l.retainageCents,
         retainagePercentApplied: l.retainagePercentApplied,
       })),
+      supportingFiles: clientDrawEnrichment.filesById.get(d.id) ?? [],
+      activityTrail: clientDrawEnrichment.activityById.get(d.id) ?? [],
     })),
   };
 }
