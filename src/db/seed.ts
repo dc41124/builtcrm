@@ -524,6 +524,57 @@ async function seedProjectContent(ctx: ProjectContext) {
     }
   }
 
+  // ---- Project-scoped compliance records (4) ---------------------------
+  const complianceSeeds = [
+    {
+      complianceType: "Commercial General Liability ($5M)",
+      complianceStatus: "pending" as const,
+      expiresAt: new Date(Date.now() + 6 * 86400000),
+      hasDoc: true,
+    },
+    {
+      complianceType: "WCB Clearance Letter (BC)",
+      complianceStatus: "pending" as const,
+      expiresAt: new Date(Date.now() + 2 * 86400000),
+      hasDoc: false,
+    },
+    {
+      complianceType: "Site orientation roster",
+      complianceStatus: "rejected" as const,
+      expiresAt: null,
+      hasDoc: false,
+    },
+    {
+      complianceType: "Safety training records",
+      complianceStatus: "active" as const,
+      expiresAt: new Date(Date.now() + 75 * 86400000),
+      hasDoc: true,
+    },
+  ];
+  for (const c of complianceSeeds) {
+    const existing = await db
+      .select()
+      .from(complianceRecords)
+      .where(
+        and(
+          eq(complianceRecords.projectId, project.id),
+          eq(complianceRecords.organizationId, subOrgId),
+          eq(complianceRecords.complianceType, c.complianceType),
+        )!,
+      )
+      .limit(1);
+    if (!existing[0]) {
+      await db.insert(complianceRecords).values({
+        projectId: project.id,
+        organizationId: subOrgId,
+        complianceType: c.complianceType,
+        complianceStatus: c.complianceStatus,
+        expiresAt: c.expiresAt,
+        documentId: c.hasDoc ? docIds[0] : null,
+      });
+    }
+  }
+
   // ---- RFIs (3) --------------------------------------------------------
   const rfiRows = residential
     ? [
