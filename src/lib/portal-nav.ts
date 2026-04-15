@@ -49,9 +49,9 @@ export function buildNavSections(
   if (portalType === "subcontractor") {
     const sections: NavSection[] = [
       {
-        label: "Workspace",
+        label: "Work",
         defaultOpen: true,
-        items: mark([{ label: "Today", href: "/subcontractor/today" }]),
+        items: mark([{ label: "Today Board", href: "/subcontractor/today" }]),
       },
     ];
     if (projectId) {
@@ -60,11 +60,12 @@ export function buildNavSections(
         label: "Project",
         defaultOpen: true,
         items: mark([
-          { label: "Overview", href: `${base}` },
+          { label: "Project Home", href: `${base}` },
           { label: "Schedule", href: `${base}/schedule` },
           { label: "RFIs", href: `${base}/rfis` },
           { label: "Upload Requests", href: `${base}/upload-requests` },
           { label: "Compliance", href: `${base}/compliance` },
+          { label: "Financials", href: `${base}/financials` },
           { label: "Messages", href: `${base}/messages` },
           { label: "Documents", href: `${base}/documents` },
         ]),
