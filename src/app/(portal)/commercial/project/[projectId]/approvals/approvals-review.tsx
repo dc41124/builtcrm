@@ -393,6 +393,9 @@ export function CommercialApprovalsReview({
         .apr-split{display:grid;grid-template-columns:340px minmax(0,1fr);padding:16px 20px 20px;gap:14px;align-items:start}
         @media(max-width:900px){.apr-split{grid-template-columns:1fr}}
         .apr-queue{display:flex;flex-direction:column;gap:6px;max-height:720px;overflow-y:auto;min-width:0}
+        .apr-queue::-webkit-scrollbar{width:4px}
+        .apr-queue::-webkit-scrollbar-track{background:transparent}
+        .apr-queue::-webkit-scrollbar-thumb{background:var(--s4);border-radius:2px}
         .apr-ac{text-align:left;background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:12px 14px;cursor:pointer;transition:all var(--dn) var(--e);display:flex;flex-direction:column;gap:6px}
         .apr-ac:hover{border-color:var(--s4);box-shadow:var(--shsm)}
         .apr-ac.on{border-color:color-mix(in srgb,var(--ac) 40%,var(--s3));background:color-mix(in srgb,var(--ac-s) 30%,var(--s1));box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 15%,transparent)}

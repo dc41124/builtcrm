@@ -9,6 +9,7 @@ import { Pill, type PillColor } from "@/components/pill";
 import type { ClientProjectView } from "@/domain/loaders/project-home";
 
 type Props = {
+  projectId: string;
   projectName: string;
   milestones: ClientProjectView["milestones"];
   approvals: ClientProjectView["approvals"];
@@ -43,6 +44,7 @@ const MILESTONE_PILL: Record<string, { color: PillColor; label: string }> = {
 };
 
 export function CommercialProjectHome({
+  projectId,
   projectName,
   milestones,
   approvals,
@@ -50,6 +52,7 @@ export function CommercialProjectHome({
   drawRequests,
   decisions,
 }: Props) {
+  const base = `/commercial/project/${projectId}`;
   const latestDraw = drawRequests.reduce<ClientProjectView["drawRequests"][number] | null>(
     (acc, d) => (acc && acc.drawNumber > d.drawNumber ? acc : d),
     null,
@@ -291,19 +294,19 @@ export function CommercialProjectHome({
           <Card title="Quick links">
             <ul className="cph-links">
               <li>
-                <Link href="approvals">Approval Center →</Link>
+                <Link href={`${base}/approvals`}>Approval Center →</Link>
               </li>
               <li>
-                <Link href="change-orders">Change Orders →</Link>
+                <Link href={`${base}/change-orders`}>Change Orders →</Link>
               </li>
               <li>
-                <Link href="billing">Billing & Draws →</Link>
+                <Link href={`${base}/billing`}>Billing & Draws →</Link>
               </li>
               <li>
-                <Link href="documents">Project Files →</Link>
+                <Link href={`${base}/documents`}>Project Files →</Link>
               </li>
               <li>
-                <Link href="messages">Messages →</Link>
+                <Link href={`${base}/messages`}>Messages →</Link>
               </li>
             </ul>
           </Card>

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/button";
-import { KpiCard } from "@/components/kpi-card";
 import { Pill } from "@/components/pill";
 import { EmptyState } from "@/components/empty-state";
 import type {
@@ -17,7 +16,6 @@ import {
 } from "@/domain/loaders/change-order-format";
 
 export function ResidentialScopeChangesReview({
-  projectName,
   rows,
   totals,
 }: {
@@ -33,7 +31,6 @@ export function ResidentialScopeChangesReview({
   return (
     <div className="rsc">
       <header className="rsc-head">
-        <div className="rsc-crumbs">{projectName} · Scope Changes</div>
         <h1 className="rsc-title">Scope Changes</h1>
         <p className="rsc-desc">
           Sometimes things change during construction. When your builder needs
@@ -42,30 +39,28 @@ export function ResidentialScopeChangesReview({
         </p>
       </header>
 
-      <div className="rsc-kpis">
-        <KpiCard
-          label="Needs your OK"
-          value={pendingRows.length.toString()}
-          meta={
-            pendingRows.length === 0
+      <div className="rsc-sum">
+        <div className={`rsc-sc ${pendingRows.length > 0 ? "danger" : ""}`}>
+          <div className="rsc-sc-l">Needs your OK</div>
+          <div className="rsc-sc-v">{pendingRows.length}</div>
+          <div className="rsc-sc-m">
+            {pendingRows.length === 0
               ? "Nothing to review"
-              : "Review when you're ready"
-          }
-          iconColor="red"
-          alert={pendingRows.length > 0}
-        />
-        <KpiCard
-          label="Already approved"
-          value={approvedRows.length.toString()}
-          meta="Part of your project now"
-          iconColor="green"
-        />
-        <KpiCard
-          label="Net cost change"
-          value={formatSignedCents(totals.approvedChangesCents)}
-          meta="From approved changes"
-          iconColor="amber"
-        />
+              : "Review when you're ready"}
+          </div>
+        </div>
+        <div className="rsc-sc">
+          <div className="rsc-sc-l">Already approved</div>
+          <div className="rsc-sc-v">{approvedRows.length}</div>
+          <div className="rsc-sc-m">Part of your project now</div>
+        </div>
+        <div className="rsc-sc">
+          <div className="rsc-sc-l">Net cost change</div>
+          <div className="rsc-sc-v">
+            {formatSignedCents(totals.approvedChangesCents)}
+          </div>
+          <div className="rsc-sc-m">From approved changes</div>
+        </div>
       </div>
 
       {pendingRows.length === 0 && approvedRows.length === 0 ? (
@@ -92,11 +87,16 @@ export function ResidentialScopeChangesReview({
       <style>{`
         .rsc{display:flex;flex-direction:column;gap:16px}
         .rsc-head{display:flex;flex-direction:column;gap:6px}
-        .rsc-crumbs{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t3);text-transform:uppercase;letter-spacing:.04em}
-        .rsc-title{font-family:var(--fd);font-size:24px;font-weight:820;letter-spacing:-.03em;color:var(--t1);line-height:1.15;margin:0}
+        .rsc-title{font-family:var(--fd);font-size:26px;font-weight:820;letter-spacing:-.035em;color:var(--t1);line-height:1.15;margin:0}
         .rsc-desc{font-family:var(--fb);font-size:14px;font-weight:540;color:var(--t2);line-height:1.55;max-width:720px;margin:0}
-        .rsc-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-        @media(max-width:900px){.rsc-kpis{grid-template-columns:1fr}}
+        .rsc-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+        @media(max-width:900px){.rsc-sum{grid-template-columns:1fr}}
+        .rsc-sc{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:14px 16px;box-shadow:var(--shsm)}
+        .rsc-sc.danger{border-color:color-mix(in srgb,var(--dg) 25%,var(--s3))}
+        .rsc-sc-l{font-family:var(--fd);font-size:11px;font-weight:720;text-transform:uppercase;letter-spacing:.05em;color:var(--t3)}
+        .rsc-sc-v{font-family:var(--fd);font-size:22px;font-weight:820;letter-spacing:-.03em;margin-top:4px;color:var(--t1)}
+        .rsc-sc.danger .rsc-sc-v{color:var(--dg-t)}
+        .rsc-sc-m{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);margin-top:3px}
         .rsc-section-title{font-family:var(--fd);font-size:15px;font-weight:740;color:var(--t1);margin:10px 0 0}
       `}</style>
     </div>
@@ -172,9 +172,10 @@ function PendingScopeCard({ co }: { co: ChangeOrderRow }) {
           </div>
         </div>
         <div className="rsc-stat">
-          <div className="rsc-stat-k">Submitted</div>
-          <div className="rsc-stat-v">
-            {co.submittedAt ? formatDate(co.submittedAt) : "—"}
+          <div className="rsc-stat-k">Timing</div>
+          <div className="rsc-stat-v">No delay</div>
+          <div className="rsc-stat-m">
+            Work can continue on schedule
           </div>
         </div>
       </div>

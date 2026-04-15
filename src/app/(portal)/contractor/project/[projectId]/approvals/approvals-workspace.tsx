@@ -460,6 +460,9 @@ export function ContractorApprovalsWorkspace({
         .apw-split{display:grid;grid-template-columns:360px minmax(0,1fr);padding:16px 20px 20px;gap:14px;align-items:start}
         @media(max-width:900px){.apw-split{grid-template-columns:1fr}}
         .apw-queue{display:flex;flex-direction:column;gap:6px;max-height:640px;overflow-y:auto;min-width:0}
+        .apw-queue::-webkit-scrollbar{width:4px}
+        .apw-queue::-webkit-scrollbar-track{background:transparent}
+        .apw-queue::-webkit-scrollbar-thumb{background:var(--s4);border-radius:2px}
         .apw-ac{text-align:left;background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:12px 14px;cursor:pointer;transition:all var(--dn) var(--e);display:flex;flex-direction:column;gap:6px}
         .apw-ac:hover{border-color:var(--s4);box-shadow:var(--shsm)}
         .apw-ac.on{border-color:color-mix(in srgb,var(--ac) 40%,var(--s3));background:color-mix(in srgb,var(--ac-s) 30%,var(--s1));box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 15%,transparent)}
