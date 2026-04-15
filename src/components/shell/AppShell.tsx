@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { signOut } from "@/auth/client";
 import "./app-shell.css";
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -100,6 +101,13 @@ const FolderIcon = (
 const FolderOpenIcon = (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2l1-5a2 2 0 00-2-2H7a2 2 0 00-2 2l-1 5z" />
+  </svg>
+);
+const LogoutIcon = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" y1="12" x2="9" y2="12" />
   </svg>
 );
 const LogoMark = (
@@ -272,10 +280,21 @@ export default function AppShell({
           <div className="b-foot">
             <div className="b-user">
               <div className="b-av">{initials}</div>
-              <div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="b-un">{userName}</div>
                 <div className="b-ur">{userRole}</div>
               </div>
+              <button
+                className="b-signout"
+                onClick={async () => {
+                  await signOut();
+                  window.location.href = "/login";
+                }}
+                aria-label="Sign out"
+                title="Sign out"
+              >
+                {LogoutIcon}
+              </button>
             </div>
           </div>
         </aside>

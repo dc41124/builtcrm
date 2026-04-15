@@ -100,8 +100,10 @@
 .b-user{display:flex;align-items:center;gap:10px;padding:6px;border-radius:var(--r-m);cursor:pointer;transition:background var(--df) var(--e)}
 .b-user:hover{background:var(--sb-h)}
 .b-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--ac) 0%,var(--accent-l) 100%);color:#fff;display:grid;place-items:center;font-family:var(--fd);font-size:11px;font-weight:800;flex-shrink:0}
-.b-un{font-size:13px;font-weight:660;color:var(--t1);line-height:1.2}
-.b-ur{font-size:11px;font-weight:520;color:var(--t3);line-height:1.2;margin-top:1px}
+.b-un{font-size:13px;font-weight:660;color:var(--t1);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-ur{font-size:11px;font-weight:520;color:var(--t3);line-height:1.2;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-signout{width:28px;height:28px;border-radius:var(--r-s);border:1px solid transparent;background:none;color:var(--t3);display:grid;place-items:center;cursor:pointer;flex-shrink:0;transition:all var(--df) var(--e)}
+.b-signout:hover{background:var(--dg-s);color:var(--dg-t);border-color:var(--dg-s)}
 
 /* main */
 .b-main{min-width:0;display:flex;flex-direction:column}
@@ -132,7 +134,7 @@ html.dark .b-theme-moon{display:none}
 /* ── TABLET: 768px–1279px ── sidebar auto-collapses to icons */
 @media (max-width:1279px){
   .b-app{grid-template-columns:var(--sw-c) 1fr !important}
-  .b-appn,.b-slash,.b-orgn,.b-sw,.b-srch,.b-mod-h,.b-tree,.b-un,.b-ur{display:none}
+  .b-appn,.b-slash,.b-orgn,.b-sw,.b-srch,.b-mod-h,.b-tree,.b-un,.b-ur,.b-signout{display:none}
   .b-hdr-row{justify-content:center}
   .b-foot{display:flex;justify-content:center}
   .b-mod{background:transparent;border-color:transparent;box-shadow:none}
@@ -149,7 +151,8 @@ html.dark .b-theme-moon{display:none}
     z-index:200;box-shadow:var(--shlg);
   }
   /* restore full labels inside the drawer */
-  .b-sb .b-appn,.b-sb .b-slash,.b-sb .b-orgn,.b-sb .b-sw,.b-sb .b-srch,.b-sb .b-mod-h,.b-sb .b-tree,.b-sb .b-un,.b-sb .b-ur{display:revert}
+  .b-sb .b-appn,.b-sb .b-slash,.b-sb .b-orgn,.b-sb .b-sw,.b-sb .b-srch,.b-sb .b-mod-h,.b-sb .b-tree,.b-sb .b-un,.b-sb .b-ur,.b-sb .b-signout{display:revert}
+  .b-sb .b-signout{display:grid}
   .b-sb .b-srch{display:block}
   .b-sb .b-hdr-row{justify-content:flex-start}
   .b-sb .b-foot{display:block}
