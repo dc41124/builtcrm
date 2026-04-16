@@ -593,63 +593,50 @@ function ApprovalDetail({ row, now }: { row: ApprovalRow; now: number }) {
         </div>
         <div className="apd-section-body">
         <div className="apd-activity">
-          {row.submittedAt && (
-            <>
-              <div className="apd-ai">
-                <div className="apd-dot" />
+          {row.activityTrail.length > 0 ? (
+            row.activityTrail.map((a) => (
+              <div key={a.id} className="apd-ai">
+                <div className={`apd-dot${a.activityType === "status_change" ? " ok" : ""}`} />
                 <div className="apd-at">
-                  <strong>{row.requestedByName ?? "Contractor"}</strong> submitted approval request
-                  {row.assignedToOrganizationName
-                    ? ` to ${row.assignedToOrganizationName}`
-                    : ""}
+                  {a.actorName ? <strong>{a.actorName}</strong> : null}
+                  {a.actorName ? " " : ""}
+                  {a.title}
                 </div>
-                <div className="apd-atm">{formatDate(row.submittedAt)}</div>
+                <div className="apd-atm">{formatDate(a.createdAt)}</div>
               </div>
-              <div className="apd-ai">
-                <div className="apd-dot sys" />
-                <div className="apd-at">Client notified via email</div>
-                <div className="apd-atm">{formatDate(row.submittedAt)}</div>
-              </div>
-              {overdueBy != null && reviewDueAt && (
+            ))
+          ) : (
+            <>
+              {row.submittedAt && (
                 <div className="apd-ai">
-                  <div className="apd-dot sys" />
+                  <div className="apd-dot" />
                   <div className="apd-at">
-                    Review deadline reached &mdash; no response
+                    <strong>{row.requestedByName ?? "Contractor"}</strong> submitted approval request
+                    {row.assignedToOrganizationName
+                      ? ` to ${row.assignedToOrganizationName}`
+                      : ""}
                   </div>
-                  <div className="apd-atm">{formatDate(reviewDueAt)}</div>
+                  <div className="apd-atm">{formatDate(row.submittedAt)}</div>
                 </div>
               )}
-              {overdueBy != null && overdueBy >= 1 && reviewDueAt && (
+              {row.decidedAt && (
+                <div className="apd-ai">
+                  <div className="apd-dot ok" />
+                  <div className="apd-at">
+                    <strong>{row.decidedByName ?? "Client"}</strong>{" "}
+                    {row.approvalStatus === "approved" ? "approved" : "decided on"}{" "}
+                    this request
+                  </div>
+                  <div className="apd-atm">{formatDate(row.decidedAt)}</div>
+                </div>
+              )}
+              {!row.submittedAt && (
                 <div className="apd-ai">
                   <div className="apd-dot sys" />
-                  <div className="apd-at">Automated reminder sent to client</div>
-                  <div className="apd-atm">
-                    {formatDate(new Date(reviewDueAt.getTime() + 86400000))}
-                  </div>
+                  <div className="apd-at">Draft request &mdash; not yet submitted</div>
                 </div>
               )}
             </>
-          )}
-          {row.decidedAt && (
-            <div className="apd-ai">
-              <div className="apd-dot ok" />
-              <div className="apd-at">
-                <strong>{row.decidedByName ?? "Client"}</strong>{" "}
-                {row.approvalStatus === "approved"
-                  ? "approved"
-                  : "decided on"}{" "}
-                this request
-              </div>
-              <div className="apd-atm">{formatDate(row.decidedAt)}</div>
-            </div>
-          )}
-          {!row.submittedAt && (
-            <div className="apd-ai">
-              <div className="apd-dot sys" />
-              <div className="apd-at">
-                Draft request &mdash; not yet submitted
-              </div>
-            </div>
           )}
         </div>
         </div>
@@ -657,12 +644,31 @@ function ApprovalDetail({ row, now }: { row: ApprovalRow; now: number }) {
 
       <div className="apd-section">
         <div className="apd-section-head">
-          <h3>Supporting documents sent</h3>
+          <h3>Supporting documents ({row.supportingDocuments.length})</h3>
         </div>
         <div className="apd-section-body">
-          <p className="apd-note">
-            Attach supporting drawings, cost breakdowns, or specs for the reviewer.
-          </p>
+          {row.supportingDocuments.length === 0 ? (
+            <p className="apd-note">
+              No supporting documents attached yet. Attach drawings, cost breakdowns, or specs for the reviewer.
+            </p>
+          ) : (
+            <div className="apd-docs">
+              {row.supportingDocuments.map((d) => (
+                <div key={d.id} className="apd-doc-row">
+                  <div className="apd-doc-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                  </div>
+                  <div className="apd-doc-info">
+                    <div className="apd-doc-title">{d.title}</div>
+                    <div className="apd-doc-meta">{d.documentType} · {d.linkRole}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -702,6 +708,12 @@ function ApprovalDetail({ row, now }: { row: ApprovalRow; now: number }) {
         .apd-at strong{color:var(--t1);font-weight:650}
         .apd-atm{font-family:var(--fb);font-size:11px;color:var(--t3);flex-shrink:0;padding-top:2px}
         .apd-note{font-family:var(--fb);font-size:12.5px;color:var(--t2);margin:0;line-height:1.55}
+        .apd-docs{display:flex;flex-direction:column;gap:6px}
+        .apd-doc-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--s3);border-radius:var(--r-m);background:var(--s1)}
+        .apd-doc-icon{width:28px;height:28px;border-radius:var(--r-s);background:var(--in-s);color:var(--in-t);display:grid;place-items:center;flex-shrink:0}
+        .apd-doc-info{flex:1;min-width:0}
+        .apd-doc-title{font-family:var(--fd);font-size:12.5px;font-weight:640;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .apd-doc-meta{font-family:var(--fb);font-size:11px;color:var(--t3);margin-top:1px;font-weight:520}
       ` }} />
     </div>
   );

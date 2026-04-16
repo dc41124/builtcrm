@@ -1,7 +1,15 @@
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { approvals, organizations, projects, users } from "@/db/schema";
+import {
+  activityFeedItems,
+  approvals,
+  documentLinks,
+  documents,
+  organizations,
+  projects,
+  users,
+} from "@/db/schema";
 
 import {
   getEffectiveContext,
@@ -9,6 +17,22 @@ import {
   type SessionLike,
 } from "../context";
 import { AuthorizationError } from "../permissions";
+
+export type ApprovalSupportingDoc = {
+  id: string;
+  title: string;
+  documentType: string;
+  linkRole: string;
+};
+
+export type ApprovalActivityEvent = {
+  id: string;
+  title: string;
+  body: string | null;
+  activityType: string;
+  actorName: string | null;
+  createdAt: Date;
+};
 
 export type ApprovalRow = {
   id: string;
@@ -27,6 +51,8 @@ export type ApprovalRow = {
   assignedToOrganizationName: string | null;
   createdAt: Date;
   updatedAt: Date;
+  supportingDocuments: ApprovalSupportingDoc[];
+  activityTrail: ApprovalActivityEvent[];
 };
 
 export type ApprovalTotals = {
@@ -62,6 +88,80 @@ const CLIENT_VISIBLE_STATUSES = [
   "rejected",
   "needs_revision",
 ] as const;
+
+async function loadApprovalEnrichment(approvalIds: string[]): Promise<{
+  docsById: Map<string, ApprovalSupportingDoc[]>;
+  activityById: Map<string, ApprovalActivityEvent[]>;
+}> {
+  const docsById = new Map<string, ApprovalSupportingDoc[]>();
+  const activityById = new Map<string, ApprovalActivityEvent[]>();
+  if (approvalIds.length === 0) return { docsById, activityById };
+
+  const [docRows, activityRows] = await Promise.all([
+    db
+      .select({
+        linkedObjectId: documentLinks.linkedObjectId,
+        documentId: documents.id,
+        title: documents.title,
+        documentType: documents.documentType,
+        linkRole: documentLinks.linkRole,
+      })
+      .from(documentLinks)
+      .innerJoin(documents, eq(documents.id, documentLinks.documentId))
+      .where(
+        and(
+          eq(documentLinks.linkedObjectType, "approval"),
+          inArray(documentLinks.linkedObjectId, approvalIds),
+        ),
+      ),
+    db
+      .select({
+        id: activityFeedItems.id,
+        relatedObjectId: activityFeedItems.relatedObjectId,
+        title: activityFeedItems.title,
+        body: activityFeedItems.body,
+        activityType: activityFeedItems.activityType,
+        createdAt: activityFeedItems.createdAt,
+        actorName: users.displayName,
+      })
+      .from(activityFeedItems)
+      .leftJoin(users, eq(users.id, activityFeedItems.actorUserId))
+      .where(
+        and(
+          eq(activityFeedItems.relatedObjectType, "approval"),
+          inArray(activityFeedItems.relatedObjectId, approvalIds),
+        ),
+      )
+      .orderBy(desc(activityFeedItems.createdAt)),
+  ]);
+
+  for (const d of docRows) {
+    const arr = docsById.get(d.linkedObjectId) ?? [];
+    arr.push({
+      id: d.documentId,
+      title: d.title,
+      documentType: d.documentType,
+      linkRole: d.linkRole,
+    });
+    docsById.set(d.linkedObjectId, arr);
+  }
+
+  for (const a of activityRows) {
+    if (!a.relatedObjectId) continue;
+    const arr = activityById.get(a.relatedObjectId) ?? [];
+    arr.push({
+      id: a.id,
+      title: a.title,
+      body: a.body,
+      activityType: a.activityType,
+      actorName: a.actorName,
+      createdAt: a.createdAt,
+    });
+    activityById.set(a.relatedObjectId, arr);
+  }
+
+  return { docsById, activityById };
+}
 
 async function loadRows(
   projectId: string,
@@ -132,6 +232,10 @@ async function loadRows(
     for (const o of oRows) orgMap.set(o.id, o.name);
   }
 
+  const { docsById, activityById } = await loadApprovalEnrichment(
+    rows.map((r) => r.id),
+  );
+
   return rows.map<ApprovalRow>((r) => ({
     id: r.id,
     approvalNumber: r.approvalNumber,
@@ -155,6 +259,8 @@ async function loadRows(
       : null,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
+    supportingDocuments: docsById.get(r.id) ?? [],
+    activityTrail: activityById.get(r.id) ?? [],
   }));
 }
 
