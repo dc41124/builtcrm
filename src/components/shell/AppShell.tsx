@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "@/auth/client";
 import "./app-shell.css";
@@ -279,7 +280,7 @@ export default function AppShell({
             {isOpen && (
               <div className="b-tree">
                 {section.items.map((item, i) => (
-                  <a
+                  <Link
                     key={item.label}
                     href={item.href}
                     className={`b-ti ${item.active ? "on" : ""}`}
@@ -299,7 +300,7 @@ export default function AppShell({
                       </span>
                     )}
                     {item.active && <span className="b-dot-ac" />}
-                  </a>
+                  </Link>
                 ))}
               </div>
             )}
@@ -375,7 +376,7 @@ export default function AppShell({
                         </>
                       );
                       return p.href ? (
-                        <a key={p.name} href={p.href} className={`b-tp ${p.active ? "on" : ""}`} style={style}>{inner}</a>
+                        <Link key={p.name} href={p.href} className={`b-tp ${p.active ? "on" : ""}`} style={style}>{inner}</Link>
                       ) : (
                         <div key={p.name} className={`b-tp ${p.active ? "on" : ""}`} style={style}>{inner}</div>
                       );
@@ -428,7 +429,7 @@ export default function AppShell({
                     {isLast || !bc.href ? (
                       <span className={isLast ? "b-bc-cur" : undefined}>{bc.label}</span>
                     ) : (
-                      <a href={bc.href} className="b-bc-lnk">{bc.label}</a>
+                      <Link href={bc.href!} className="b-bc-lnk">{bc.label}</Link>
                     )}
                   </span>
                 );

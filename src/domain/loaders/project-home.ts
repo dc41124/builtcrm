@@ -606,6 +606,8 @@ export type MessageRow = {
   senderName: string | null;
   body: string;
   attachedDocumentId: string | null;
+  attachedDocumentTitle: string | null;
+  attachedDocumentUrl: string | null;
   isSystemMessage: boolean;
   createdAt: Date;
 };
@@ -702,11 +704,14 @@ export async function loadConversationsForUser(
         senderName: users.displayName,
         body: messages.body,
         attachedDocumentId: messages.attachedDocumentId,
+        attachedDocumentTitle: documents.title,
+        attachedDocumentStorageKey: documents.storageKey,
         isSystemMessage: messages.isSystemMessage,
         createdAt: messages.createdAt,
       })
       .from(messages)
       .leftJoin(users, eq(users.id, messages.senderUserId))
+      .leftJoin(documents, eq(documents.id, messages.attachedDocumentId))
       .where(inArray(messages.conversationId, conversationIds))
       .orderBy(asc(messages.createdAt)),
   ]);
@@ -722,6 +727,21 @@ export async function loadConversationsForUser(
     participantsByConversation.set(p.conversationId, arr);
   }
 
+  // Presign download URLs for messages with attachments
+  const attachmentKeys = messageRows
+    .filter((m) => m.attachedDocumentStorageKey)
+    .map((m) => ({ id: m.id, key: m.attachedDocumentStorageKey! }));
+  const presignedUrlMap = new Map<string, string>();
+  if (attachmentKeys.length > 0) {
+    const urls = await Promise.all(
+      attachmentKeys.map(async (a) => ({
+        id: a.id,
+        url: await presignDownloadUrl({ key: a.key, expiresInSeconds: 600 }),
+      })),
+    );
+    for (const u of urls) presignedUrlMap.set(u.id, u.url);
+  }
+
   const messagesByConversation = new Map<string, MessageRow[]>();
   for (const m of messageRows) {
     const arr = messagesByConversation.get(m.conversationId) ?? [];
@@ -732,6 +752,8 @@ export async function loadConversationsForUser(
       senderName: m.senderName,
       body: m.body,
       attachedDocumentId: m.attachedDocumentId,
+      attachedDocumentTitle: m.attachedDocumentTitle,
+      attachedDocumentUrl: presignedUrlMap.get(m.id) ?? null,
       isSystemMessage: m.isSystemMessage,
       createdAt: m.createdAt,
     });

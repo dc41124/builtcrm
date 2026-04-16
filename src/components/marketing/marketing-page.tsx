@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import Link from "next/link";
 
 const F = {
   display: "'DM Sans',system-ui,sans-serif",
@@ -328,10 +329,10 @@ export default function MarketingPage() {
             ))}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <a href="/login" className="mkt-nav-login" style={{ height: 38, padding: "0 16px", fontSize: 13.5, fontWeight: 620, color: "#5e5850", background: "transparent", border: "none", borderRadius: 10, cursor: "pointer", display: "inline-flex", alignItems: "center", textDecoration: "none", fontFamily: F.body }}>Log in</a>
-            <a href="/signup" className="mkt-nav-signup" style={{ height: 38, padding: "0 20px", fontSize: 13.5, fontWeight: 650, color: "white", background: "#5b4fc7", borderRadius: 10, display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer", textDecoration: "none", fontFamily: F.body }}>
+            <Link href="/login" className="mkt-nav-login" style={{ height: 38, padding: "0 16px", fontSize: 13.5, fontWeight: 620, color: "#5e5850", background: "transparent", border: "none", borderRadius: 10, cursor: "pointer", display: "inline-flex", alignItems: "center", textDecoration: "none", fontFamily: F.body }}>Log in</Link>
+            <Link href="/signup" className="mkt-nav-signup" style={{ height: 38, padding: "0 20px", fontSize: 13.5, fontWeight: 650, color: "white", background: "#5b4fc7", borderRadius: 10, display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer", textDecoration: "none", fontFamily: F.body }}>
               Get started free <span style={{ width: 14, height: 14, display: "block" }}>{ARR}</span>
-            </a>
+            </Link>
             <button
               type="button"
               aria-label={mobileMenu ? "Close menu" : "Open menu"}
@@ -352,10 +353,10 @@ export default function MarketingPage() {
             <button key={k} onClick={() => nav(k)} style={{ textAlign: "left", padding: "16px 14px", fontFamily: F.display, fontSize: 18, fontWeight: page === k ? 720 : 620, color: page === k ? "#5b4fc7" : "#1a1714", background: page === k ? "#eeedfb" : "transparent", border: "none", borderRadius: 12, cursor: "pointer" }}>{l}</button>
           ))}
           <div style={{ height: 1, background: "#eeece8", margin: "12px 0" }} />
-          <a href="/login" onClick={() => setMobileMenu(false)} style={{ padding: "14px 14px", fontSize: 15, fontWeight: 620, color: "#5e5850", textDecoration: "none", fontFamily: F.body }}>Log in</a>
-          <a href="/signup" onClick={() => setMobileMenu(false)} style={{ marginTop: 8, height: 50, borderRadius: 12, background: "#5b4fc7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 15, fontWeight: 680, textDecoration: "none", fontFamily: F.body }}>
+          <Link href="/login" onClick={() => setMobileMenu(false)} style={{ padding: "14px 14px", fontSize: 15, fontWeight: 620, color: "#5e5850", textDecoration: "none", fontFamily: F.body }}>Log in</Link>
+          <Link href="/signup" onClick={() => setMobileMenu(false)} style={{ marginTop: 8, height: 50, borderRadius: 12, background: "#5b4fc7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 15, fontWeight: 680, textDecoration: "none", fontFamily: F.body }}>
             Get started free <span style={{ width: 16, height: 16, display: "block" }}>{ARR}</span>
-          </a>
+          </Link>
         </div>
       )}
 
@@ -616,9 +617,9 @@ export default function MarketingPage() {
                   <h2 style={{ fontFamily: F.display, fontSize: "clamp(26px,3vw,34px)", fontWeight: 820, letterSpacing: "-.03em", lineHeight: 1.15, marginBottom: 14, color: "white" }}>Built by people who&apos;ve sat in job trailers</h2>
                   <p style={{ fontSize: 15, lineHeight: 1.65, color: "rgba(250,249,247,.7)", marginBottom: 24, fontWeight: 520 }}>We&apos;re a small team of ex-PMs, builders, and engineers who got tired of watching construction teams lose hours a day to spreadsheets and email chains. BuiltCRM is our answer — a single workspace designed around how real projects actually run.</p>
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                    <a href="/about" style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 44, padding: "0 22px", fontSize: 14, fontWeight: 680, color: "#1a1714", background: "white", borderRadius: 12, textDecoration: "none", fontFamily: F.body }}>
+                    <Link href="/about" style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 44, padding: "0 22px", fontSize: 14, fontWeight: 680, color: "#1a1714", background: "white", borderRadius: 12, textDecoration: "none", fontFamily: F.body }}>
                       Read our story <span style={{ width: 14, height: 14, display: "block" }}>{ARR}</span>
-                    </a>
+                    </Link>
                     <a href="#" style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 44, padding: "0 22px", fontSize: 14, fontWeight: 680, color: "white", background: "transparent", border: "1px solid rgba(255,255,255,.2)", borderRadius: 12, textDecoration: "none", fontFamily: F.body }}>Meet the team</a>
                   </div>
                 </div>
@@ -664,7 +665,11 @@ export default function MarketingPage() {
                     {!p.custom && <span style={{ fontSize: 14, color: "#928b80", fontWeight: 550 }}>/month</span>}
                   </div>
                   <div style={{ fontSize: 12, color: "#928b80", marginBottom: 24 }}>{p.custom ? "tailored to your team" : annual ? "billed annually" : "billed monthly"}</div>
-                  <a href={p.custom ? "#" : "/signup"} style={{ width: "100%", height: 42, borderRadius: 10, fontSize: 14, fontWeight: 650, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 24, border: p.ctaPrimary ? "none" : "1px solid #e5e2dc", background: p.ctaPrimary ? "#5b4fc7" : "white", color: p.ctaPrimary ? "white" : "#1a1714", cursor: "pointer", textDecoration: "none", fontFamily: F.body, boxSizing: "border-box" }}>{p.cta}</a>
+                  {p.custom ? (
+                    <a href="#" style={{ width: "100%", height: 42, borderRadius: 10, fontSize: 14, fontWeight: 650, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 24, border: "1px solid #e5e2dc", background: "white", color: "#1a1714", cursor: "pointer", textDecoration: "none", fontFamily: F.body, boxSizing: "border-box" }}>{p.cta}</a>
+                  ) : (
+                    <Link href="/signup" style={{ width: "100%", height: 42, borderRadius: 10, fontSize: 14, fontWeight: 650, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 24, border: p.ctaPrimary ? "none" : "1px solid #e5e2dc", background: p.ctaPrimary ? "#5b4fc7" : "white", color: p.ctaPrimary ? "white" : "#1a1714", cursor: "pointer", textDecoration: "none", fontFamily: F.body, boxSizing: "border-box" }}>{p.cta}</Link>
+                  )}
                   <div style={{ height: 1, background: "#eeece8", marginBottom: 20 }} />
                   <div style={{ fontSize: 12, fontWeight: 650, color: "#928b80", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 12 }}>{p.label}</div>
                   {p.features.map((f, fi) => (
@@ -867,7 +872,8 @@ function Btn({ children, lg, primary, secondary, href, onClick }: { children: Re
     border: secondary ? "1px solid #e5e2dc" : "none", boxShadow: secondary ? "0 1px 3px rgba(26,23,20,.04)" : "none",
     cursor: "pointer", fontFamily: F.body, textDecoration: "none", boxSizing: "border-box",
   };
-  if (href) return <a href={href} style={style}>{children}</a>;
+  if (href && href !== "#") return <Link href={href} style={style}>{children}</Link>;
+  if (href === "#") return <a href="#" style={style}>{children}</a>;
   return <button onClick={onClick} style={style}>{children}</button>;
 }
 

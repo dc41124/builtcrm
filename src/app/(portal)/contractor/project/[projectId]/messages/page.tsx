@@ -27,7 +27,6 @@ export default async function Page({
       <MessagesWorkspace
         portal="contractor"
         projectId={view.project.id}
-        projectName={view.project.name}
         currentUserId={view.currentUserId}
         conversations={view.conversations}
         participantOptions={view.participantOptions}

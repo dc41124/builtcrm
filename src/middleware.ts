@@ -8,7 +8,9 @@ export function middleware(req: NextRequest) {
     url.searchParams.set("next", req.nextUrl.pathname);
     return NextResponse.redirect(url);
   }
-  return NextResponse.next();
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-pathname", req.nextUrl.pathname);
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {

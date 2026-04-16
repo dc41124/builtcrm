@@ -219,6 +219,10 @@ Read `CLAUDE.md` at the repo root for tech stack + conventions.
 ### Nav badge counts (end of audit)
 - Build `getPortalNavCounts()` per portal, wire through `loadPortalShell`
 
+### Messages real-time features (deferred — requires WebSocket/SSE infrastructure)
+- Typing indicator (animated dots + "{name} is typing…")
+- Online/offline presence dots on participant chips in thread header
+
 ### Other tracked items
 - `const now = Date.now()` hydration sweep (ongoing)
 - `>` child combinator sweep (done for all known files)

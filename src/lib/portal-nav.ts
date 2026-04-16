@@ -14,10 +14,56 @@ export function buildNavSections(
     items.map((i) => ({ ...i, active: activeHref === i.href }));
 
   if (portalType === "contractor") {
-    // Contractor sidebar is mostly global (cross-project), per the design
-    // system shell prototype. Project-scoped links only appear when a
-    // project is active.
-    const sections: NavSection[] = [
+    if (projectId) {
+      // Inside a project: show project-scoped nav with Dashboard as escape hatch.
+      const base = `/contractor/project/${projectId}`;
+      return [
+        {
+          label: "Overview",
+          defaultOpen: true,
+          items: mark([
+            { label: "Dashboard", href: "/contractor/dashboard" },
+          ]),
+        },
+        {
+          label: "Project",
+          defaultOpen: true,
+          items: mark([
+            { label: "Project Home", href: `${base}` },
+            { label: "Schedule", href: `${base}/schedule` },
+            { label: "RFIs", href: `${base}/rfis` },
+            { label: "Change Orders", href: `${base}/change-orders` },
+            { label: "Approvals", href: `${base}/approvals` },
+            { label: "Compliance", href: `${base}/compliance` },
+            { label: "Billing", href: `${base}/billing` },
+            { label: "Payments", href: `${base}/payments` },
+            { label: "Selections", href: `${base}/selections` },
+            { label: "Upload Requests", href: `${base}/upload-requests` },
+            { label: "Messages", href: `${base}/messages` },
+            { label: "Documents", href: `${base}/documents` },
+          ]),
+        },
+        {
+          label: "Financials",
+          defaultOpen: true,
+          items: mark([
+            { label: "Financials", href: `${base}/financials` },
+          ]),
+        },
+        {
+          label: "Settings",
+          defaultOpen: false,
+          placement: "after-projects",
+          items: mark([
+            { label: "Organization", href: "/contractor/settings/organization" },
+            { label: "Team & Roles", href: "/contractor/settings/team" },
+            { label: "Integrations", href: "/contractor/settings/integrations" },
+          ]),
+        },
+      ];
+    }
+    // No project context: show cross-project nav.
+    return [
       {
         label: "Core",
         defaultOpen: true,
@@ -59,34 +105,48 @@ export function buildNavSections(
         ]),
       },
     ];
-    if (projectId) {
-      const base = `/contractor/project/${projectId}`;
-      sections.push({
-        label: "Project",
-        defaultOpen: true,
-        items: mark([
-          { label: "Project Home", href: `${base}` },
-          { label: "Schedule", href: `${base}/schedule` },
-          { label: "RFIs", href: `${base}/rfis` },
-          { label: "Change Orders", href: `${base}/change-orders` },
-          { label: "Approvals", href: `${base}/approvals` },
-          { label: "Compliance", href: `${base}/compliance` },
-          { label: "Billing", href: `${base}/billing` },
-          { label: "Payments", href: `${base}/payments` },
-          { label: "Selections", href: `${base}/selections` },
-          { label: "Upload Requests", href: `${base}/upload-requests` },
-          { label: "Messages", href: `${base}/messages` },
-          { label: "Documents", href: `${base}/documents` },
-        ]),
-      });
-    }
-    return sections;
   }
 
   if (portalType === "subcontractor") {
-    // Subcontractor sidebar is also mostly global (today board + cross-project
-    // queues), per builtcrm_subcontractor_today_board.jsx.
-    const sections: NavSection[] = [
+    if (projectId) {
+      // Inside a project: show project-scoped nav with Today Board as escape hatch.
+      const base = `/subcontractor/project/${projectId}`;
+      return [
+        {
+          label: "Overview",
+          defaultOpen: true,
+          items: mark([
+            { label: "Today Board", href: "/subcontractor/today" },
+          ]),
+        },
+        {
+          label: "Project",
+          defaultOpen: true,
+          items: mark([
+            { label: "Project Home", href: `${base}` },
+            { label: "Schedule", href: `${base}/schedule` },
+            { label: "RFIs", href: `${base}/rfis` },
+            { label: "Upload Requests", href: `${base}/upload-requests` },
+            { label: "Compliance", href: `${base}/compliance` },
+            { label: "Payments", href: `${base}/payments` },
+            { label: "Financials", href: `${base}/financials` },
+            { label: "Messages", href: `${base}/messages` },
+            { label: "Documents", href: `${base}/documents` },
+          ]),
+        },
+        {
+          label: "Company",
+          defaultOpen: false,
+          placement: "after-projects",
+          items: mark([
+            { label: "Team", href: "/subcontractor/team" },
+            { label: "Settings", href: "/subcontractor/settings" },
+          ]),
+        },
+      ];
+    }
+    // No project context: show cross-project nav.
+    return [
       {
         label: "Work",
         defaultOpen: true,
@@ -129,24 +189,6 @@ export function buildNavSections(
         ]),
       },
     ];
-    if (projectId) {
-      const base = `/subcontractor/project/${projectId}`;
-      sections.push({
-        label: "Project",
-        defaultOpen: true,
-        items: mark([
-          { label: "Project Home", href: `${base}` },
-          { label: "Schedule", href: `${base}/schedule` },
-          { label: "RFIs", href: `${base}/rfis` },
-          { label: "Upload Requests", href: `${base}/upload-requests` },
-          { label: "Compliance", href: `${base}/compliance` },
-          { label: "Payments", href: `${base}/payments` },
-          { label: "Messages", href: `${base}/messages` },
-          { label: "Documents", href: `${base}/documents` },
-        ]),
-      });
-    }
-    return sections;
   }
 
   if (portalType === "commercial") {

@@ -114,14 +114,14 @@ export function ScheduleView(props: ScheduleViewProps) {
 
   return (
     <div className={`sch sch-${portal}`}>
-      <style>{`
-        .sch {
-          --sch-ac: ${accent.ac};
-          --sch-ach: ${accent.ach};
-          --sch-acs: ${accent.acs};
-          --sch-act: ${accent.act};
-          --sch-acm: ${accent.acm};
-          --sch-ri: 0 0 0 3px ${accent.ri};
+      <style dangerouslySetInnerHTML={{ __html: `
+.sch {
+  --sch-ac: ${accent.ac};
+  --sch-ach: ${accent.ach};
+  --sch-acs: ${accent.acs};
+  --sch-act: ${accent.act};
+  --sch-acm: ${accent.acm};
+  --sch-ri: 0 0 0 3px ${accent.ri};
           font-family: var(--fb);
           color: var(--t1);
           display: flex;
@@ -224,7 +224,7 @@ export function ScheduleView(props: ScheduleViewProps) {
         .sch-form-row { display:grid;grid-template-columns:1fr 1fr;gap:10px; }
         .sch-form-acts { display:flex;gap:8px;justify-content:flex-end;margin-top:6px; }
         .sch-err { font-size:12px;color:var(--dg-t);font-weight:540; }
-      `}</style>
+      ` }} />
 
       {portal === "residential" ? (
         <ResidentialTimeline {...props} />

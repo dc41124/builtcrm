@@ -324,10 +324,32 @@ a.btn-auth.residential:hover,
   margin-bottom: 16px;
 }
 .checkbox-row input[type='checkbox'] {
+  -webkit-appearance: none;
+  appearance: none;
   width: 16px;
   height: 16px;
   border-radius: 4px;
-  accent-color: var(--accent);
+  border: 2px solid var(--surface-4);
+  background: var(--surface-1);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+.checkbox-row input[type='checkbox']:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.checkbox-row input[type='checkbox']:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 .checkbox-row label {
   font-size: 13px;

@@ -1,23 +1,10 @@
 import type { ReactNode } from "react";
 
-import AppShell from "@/components/shell/AppShell";
-import { buildNavSections } from "@/lib/portal-nav";
-import { loadPortalShell } from "@/lib/portal-shell";
-
-export default async function ContractorLayout({ children }: { children: ReactNode }) {
-  const shell = await loadPortalShell("contractor");
-  const navSections = buildNavSections("contractor");
-
-  return (
-    <AppShell
-      portalType="contractor"
-      orgName={shell.orgName}
-      userName={shell.userName}
-      userRole={shell.userRole}
-      navSections={navSections}
-      projects={shell.projects}
-    >
-      {children}
-    </AppShell>
-  );
+// Contractor portal is split into two route groups:
+//   (global)/  — cross-project pages (dashboard, settings, etc.)
+//   project/[projectId]/ — project-scoped pages
+// Each has its own layout that renders AppShell with/without projectId.
+// This parent is a passthrough, matching the client portal pattern.
+export default function ContractorLayout({ children }: { children: ReactNode }) {
+  return <>{children}</>;
 }

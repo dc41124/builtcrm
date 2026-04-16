@@ -1175,7 +1175,9 @@ async function seedProjectContent(ctx: ProjectContext) {
       .returning();
   }
 
-  for (const uid of [pmUserId, clientUserId, subUserId]) {
+  const convParticipantIds = [pmUserId, clientUserId, subUserId];
+  if (ctx.adminUserId && ctx.adminUserId !== pmUserId) convParticipantIds.push(ctx.adminUserId);
+  for (const uid of convParticipantIds) {
     await upsert(
       conversationParticipants,
       and(
@@ -1267,7 +1269,9 @@ async function seedProjectContent(ctx: ProjectContext) {
       .returning();
   }
 
-  for (const uid of [pmUserId, subUserId]) {
+  const rfiConvParticipantIds = [pmUserId, subUserId];
+  if (ctx.adminUserId && ctx.adminUserId !== pmUserId) rfiConvParticipantIds.push(ctx.adminUserId);
+  for (const uid of rfiConvParticipantIds) {
     await upsert(
       conversationParticipants,
       and(
