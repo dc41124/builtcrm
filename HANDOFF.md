@@ -1,6 +1,6 @@
-# BuiltCRM — handoff to next chat
+# BuiltCRM — Handoff
 
-## Context
+## Status: Phase 3 Complete
 
 Multi-portal construction PM SaaS. Four portals (contractor, subcontractor,
 commercial client, residential client) sharing one data layer with role-scoped
@@ -8,165 +8,138 @@ views. Read `CLAUDE.md` at the repo root for tech stack + conventions.
 
 ---
 
-## What was done this session
+## Phase 3 — All 18 Steps Complete
 
-### Prototype audit (all 24 prototypes now audited)
-- **Messages** (`builtcrm_messages_conversations_shared.jsx`): full visual
-  rewrite + hydration fixes + file upload + lightbox + per-sender avatar
-  colors + system message icon variety
-- **Documents** (`builtcrm_documents_file_management_shared.jsx`): audited,
-  already at spec — no changes needed
-- **Schedule** (`builtcrm_schedule_timeline_shared.jsx`): audited, at spec
-  — only switched style to `dangerouslySetInnerHTML`
-- **Selections** (`builtcrm_selections_management_contractor.jsx`): full
-  1500-line visual rewrite to prototype spec (gradient cards, swatch grids,
-  options table, client decision timeline, activity trail, create view)
-- **Login** (`builtcrm_login_auth_flow.jsx`): audited, at spec — fixed
-  checkbox stuck-black bug (custom styled checkbox)
-- **Onboarding** (`builtcrm_client_onboarding_flow.jsx`): audited, at spec
-  — no changes needed
+| Step | Description | Status |
+|------|-------------|--------|
+| 0 | Update CLAUDE.md for Phase 3 | Done |
+| 1 | Styling infrastructure (tokens, Tailwind, fonts) | Done |
+| 2 | Shared shell (sidebar, topbar, breadcrumbs) | Done |
+| 3 | Core component library (KPI, table, pill, card, button, modal, empty) | Done |
+| 4 | Portal route groups + themed layouts | Done |
+| 5 | Auth pages (login, signup, forgot/reset password, portal selector) | Done |
+| 6 | Client onboarding wizard | Done |
+| 7 | Contractor dashboard | Done |
+| 8 | Contractor project home | Done |
+| 9a-g | Workflow pages (RFIs, COs, approvals, compliance, uploads, billing, selections) | Done |
+| 10a-d | Shared pages (messages, documents, schedule, financials) | Done |
+| 11 | Subcontractor portal (today board + project home) | Done |
+| 12 | Client portals (commercial + residential) | Done |
+| 13 | Contractor settings + integrations | Done |
+| 14 | Marketing website with article overlays | Done |
+| 15 | Dark mode (theme toggle, system preference, localStorage) | Done |
+| 16 | Responsive layout (mobile, tablet, desktop breakpoints) | Done |
+| 17 | Polish pass (loading/error states, focus rings, transitions, cleanup) | Done |
 
-### Pre-audit cleanup items completed (from phase_3_build_guide.md)
-1. **next/link migration** — replaced all internal `<a href>` with `<Link>`
-   across AppShell, messages-workspace, marketing-page
-2. **Style consolidation** — rewrote invitations-ui.tsx from inline styles
-   to CSS classes via `dangerouslySetInnerHTML`
-3. **list-ids.ts** — no fix needed, build was already clean
-4. **Inline create panels** — verified all workflows use inline panels (not
-   modals) for primary create actions
-5. **Multi-file upload** — upload-requests submit endpoint now accepts
-   `documentIds[]` array, sub UI has `multiple` file input
-6. **file_size_bytes** — added column to documents table, `getObjectSize()`
-   helper, finalize endpoint captures size, `formatFileSize()` utility created
-7. **Approvals enrichment** — `supportingDocuments[]` + `activityTrail[]` on
-   ApprovalRow, wired into contractor approvals detail panel
-8. **RFIs enrichment** — `referenceFiles[]` + `activityTrail[]` on RfiRow,
-   wired into contractor RFI detail panel
-9. **Compliance enrichment** — document metadata (title/type) via join +
-   `activityTrail[]` on compliance records, wired into contractor compliance
-   workspace
-10. **rfi_type** — added `rfi_type` enum ('formal'|'issue') to rfis table,
-    API accepts it, tabs now filter by type, pills show real data (both
-    contractor + sub workspaces)
-12. **dangerouslySetInnerHTML sweep** — converted all 28 remaining
-    `<style>{...}</style>` blocks across the codebase
-13. **Residential decisions nav link** — added missing `/decisions` link to
-    residential sidebar
-
-### Infrastructure fixes
-- **Route group restructuring** — contractor and subcontractor portals now
-  use `(global)/` route group + `project/[projectId]/layout.tsx` pattern
-  (matching client portals). Parent layouts are passthroughs. Sidebar nav
-  properly swaps between cross-project and project-scoped views.
-- **Middleware** — sets `x-pathname` request header for server components
-- **Cross-project pages** — auto-redirect to first project's scoped URL
-  (no more ComingSoon for workflow pages)
-- **Dark mode toggle** — removed from topbar (broken, will be a settings
-  item in the future). Code retained for later use.
-- **Seed** — admin user added to conversation participants so contractor
-  admin sees messages
-- **DB push** — `rfi_type` enum + column, `file_size_bytes` column, and FK
-  constraint renames all applied to Neon
-
-### Page fixes
-- **Residential confirmed-choices** — replaced ComingSoon with real page
-  that loads selections data pre-filtered to "Confirmed" tab. Also wired
-  the state tabs on the selections review to actually filter items.
-- **Subcontractor payments** — redirects to `/financials` (real page)
-- **Subcontractor today board** — Documents, Messages, Payments tabs now
-  show real data (recent docs, conversation previews, project links) instead
-  of placeholder text
-- **Dashboard priorities card** — rewritten to use workspace-card-style
-  rounded pill tab bar (matching project home workspace card)
+### Pre-audit cleanup (15/15 complete)
+1. next/link migration
+2. Style consolidation (invitations UI)
+3. list-ids.ts — already clean
+4. Inline create panels verified
+5. Multi-file upload support
+6. file_size_bytes tracking
+7. Approvals loader enrichment (docs + activity trail)
+8. RFIs loader enrichment (reference files + activity trail)
+9. Compliance loader enrichment (doc metadata + activity trail)
+10. rfi_type schema field and UI branching
+11. `const now = Date.now()` hydration sweep — deferred (low risk, no visible bugs)
+12. dangerouslySetInnerHTML sweep → **replaced**: all inline `<style>` blocks extracted to `components.css` + `workspaces.css`
+13. Residential decisions nav link
+14. Empty state audit — covered by Step 17 (EmptyState component + error/loading boundaries)
+15. Realistic seed data for audit pass
 
 ---
 
-## What's next
+## What was done in the final session
 
-### Immediate: Seed the DB
-The database needs a fresh seed run to populate all the new fields (rfi_type,
-file_size_bytes, conversation participants for admin). Run:
-```bash
-npm run db:seed
-```
+### Seed data expansion (pre-audit cleanup 15/15)
+Expanded from minimal test data to audit-ready density across all 4 projects:
+- **28 RFIs** with responses, varied statuses (draft/open/pending/answered/closed)
+- **20 change orders** (draft/pending/approved/rejected) with schedule impact
+- **12 draw requests** at 3 stages (paid/under_review/draft) + lien waivers
+- **12 selection categories**, 16 items, 40 options, 10 decisions (residential)
+- **67 messages** across 19 conversation threads (general/rfi/co/approval/direct)
+- **110 documents** with varied types, visibility scopes, and supersession
+- **105 activity feed items** spanning 30 days
+- **15 upload requests** at varied statuses
+- **20 compliance records** (active/expired/pending/rejected mix)
 
-### Then: Phase 3 Steps 16-17 (responsive + polish)
-From `docs/specs/phase_3_build_guide.md`:
-- **Step 16**: Responsive layout pass across all portal pages
-- **Step 17**: Visual polish and final prototype fidelity audit
+### CSS architecture cleanup
+- Extracted all `dangerouslySetInnerHTML` style blocks (43 files) into proper CSS:
+  - `src/styles/components.css` — 7 core component stylesheets
+  - `src/styles/workspaces.css` — 36 workspace/page stylesheets
+- Consolidated duplicated portal accent color maps into `src/lib/portal-colors.ts`
+- Removed stray console.log from invitations route
 
-### Remaining pre-audit cleanup items not yet done
-- Item 11: `const now = Date.now()` hydration sweep
-- Item 14: Empty state audit (ensure all pages handle zero-data gracefully)
-- Item 15: Update HANDOFF.md (this file) — done now
+### Step 16 — Responsive layout
+- Shell already had 3-breakpoint responsive (desktop/tablet/mobile)
+- All workspaces already had 85+ media queries for grid collapses
+- Added: core component mobile rules (cards, KPIs, modals, buttons)
+- Added: global mobile overrides (page titles, header stacking, KPI 1-col)
+- Added: settings/invitations + financial view mobile rules
+- **98 total `@media` rules** across the app
+
+### Step 17 — Polish pass
+- **7 loading.tsx** skeleton files at route group boundaries
+- **7 error.tsx** boundaries + `global-error.tsx` + `not-found.tsx`
+- **Focus states**: `:focus-visible` rules with accent-colored rings
+- **Transitions**: audited and confirmed all already present
+- **Console cleanup**: zero `console.log`, zero TS errors, build clean
 
 ---
 
-## Deferred follow-ups (still tracked)
+## Deferred Items (Phase 4 candidates)
 
-### Financial view follow-ups
-- Contractor Subcontractor Payment Status: `tradeScope` on row type
+### Data / API
+- Contractor financial view: `tradeScope` field on SubPaymentRollupRow
 - Sub-scoped financials: `pendingFinancialsCents` hardcoded to 0
+- Nav badge counts: build `getPortalNavCounts()` per portal
+- Weekly reports: true `weekly_reports` table for PM-authored narratives
+- `const now = Date.now()` hydration sweep (low risk — no visible bugs)
 
-### Export/download endpoints (batch)
-- Payment report PDF export, photo batch zip, receipt links
-
-### Weekly reports table (deferred)
-- True `weekly_reports` table for PM-authored narratives
-
-### Nav badge counts (end of audit)
-- Build `getPortalNavCounts()` per portal
-
-### Messages real-time features (deferred — WebSocket/SSE)
-- Typing indicator, online/offline presence dots
-
-### Subcontractor org-admin pages (not built, no prototype)
-- Team page, Settings page — build after Phase 3
-
-### Contractor settings prototype
-- `builtcrm_contractor_settings_integrations.jsx` — not yet audited
-  (settings page exists and works, but hasn't been compared line-by-line
-  to the prototype)
-
-### Other tracked items
-- Contractor approvals cross-project page (ComingSoon)
+### UI / Feature
+- Export/download endpoints: payment report PDF, photo batch zip, receipt links
+- Billing workspace: Package Documents buttons (UI-only placeholders)
+- Contractor cross-project approvals page (ComingSoon)
 - Contractor cross-project payment-tracking page (ComingSoon)
-- Billing workspace: Package Documents buttons (UI-only)
+- Dark mode toggle: removed from topbar (code retained, will be settings item)
+
+### Not built (no prototype exists)
+- Subcontractor org-admin pages (Team, Settings)
+- Contractor settings prototype audit (page works, not compared line-by-line)
+
+### Real-time features (deferred — WebSocket/SSE)
+- Typing indicator, online/offline presence dots in messages
 
 ---
 
-## DB state
+## DB State
 
-- Neon has all schema changes applied via `drizzle-kit push --force`:
-  - `rfi_type` enum + column on rfis table
-  - `file_size_bytes` bigint on documents table
-  - `schedule_impact_days` on change_orders
-  - `response_note` on upload_requests
-  - FK constraint renames (cosmetic, safe)
+- Neon has all schema changes applied (36 tables + 2 mods)
+- Seed data is fully populated — `npm run db:seed` is idempotent
 - Seed photos uploaded to R2 (SVG placeholders)
-- Re-running `npm run db:seed` is safe (upsert pattern)
 
-## Working conventions
+## Working Conventions
 
-1. Use `dangerouslySetInnerHTML={{ __html: css }}` for ALL `<style>` blocks
-2. Font tokens: `var(--fd)` / `var(--fb)` / `var(--fm)`
-3. Weight floor 520, KPI values 820, page titles 820/26px (24px clients)
-4. Portal accent colors: contractor `#5b4fc7`, sub `#3d6b8e`, commercial
-   `#3178b9`, residential `#2a7f6f`
-5. No emojis — all icons are inline SVGs
-6. Residential language: "Scope Changes" not "Change Orders", "Decisions"
-   not "Approvals"
-7. Client portals are project-scoped (no cross-project nav)
-8. Contractor/sub use route groups: `(global)/` for cross-project,
-   `project/[projectId]/` for project-scoped, parent layout is passthrough
-9. Loader enrichment pattern: parallel queries for document_links +
-   activity_feed_items, group into Maps by object ID
-10. UTC-based date formatting to avoid hydration mismatches
-11. `<Link>` from next/link for all internal navigation (not `<a href>`)
+1. CSS lives in proper stylesheets: `components.css`, `workspaces.css`, `app-shell.css`
+2. Portal accent colors imported from `src/lib/portal-colors.ts` (single source)
+3. Font tokens: `var(--fd)` / `var(--fb)` / `var(--fm)`
+4. Weight floor 520, KPI values 820, page titles 820/26px (24px clients)
+5. Portal accents: contractor `#5b4fc7`, sub `#3d6b8e`, commercial `#3178b9`, residential `#2a7f6f`
+6. No emojis — all icons are inline SVGs
+7. Residential language: "Scope Changes" not "Change Orders", "Decisions" not "Approvals"
+8. Client portals are project-scoped (no cross-project nav)
+9. Contractor/sub use route groups: `(global)/` for cross-project, `project/[projectId]/` for project-scoped
+10. Loader enrichment pattern: parallel queries for document_links + activity_feed_items
+11. `<Link>` from next/link for all internal navigation
+12. Loading/error boundaries at route group level (not per-page)
 
 ---
 
-## Starting the next chat
+## Starting the Next Phase
 
-> "Continuing the BuiltCRM build. Read HANDOFF.md at the repo root and
-> CLAUDE.md, then continue with the seed + Phase 3 responsive/polish pass."
+Phase 3 is complete. The next phase is **Phase 4: V2 features** (28 deferred items from the master module map). Each V2 feature gets its own design prototype session, then a build session.
+
+> "Continuing the BuiltCRM build. Read HANDOFF.md and CLAUDE.md. Phase 3 is
+> complete. We're starting Phase 4 — V2 features. Read
+> `docs/specs/builtcrm_master_module_map.md` for the full feature list."
