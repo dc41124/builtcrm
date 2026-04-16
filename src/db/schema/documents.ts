@@ -1,4 +1,5 @@
 import {
+  bigint,
   boolean,
   index,
   pgEnum,
@@ -35,6 +36,7 @@ export const documents = pgTable(
       .references(() => users.id, { onDelete: "restrict" }),
     visibilityScope: visibilityScopeEnum("visibility_scope").notNull(),
     audienceScope: audienceScopeEnum("audience_scope").notNull(),
+    fileSizeBytes: bigint("file_size_bytes", { mode: "number" }),
     documentStatus: documentStatusEnum("document_status").default("active").notNull(),
     isSuperseded: boolean("is_superseded").default(false).notNull(),
     ...timestamps,

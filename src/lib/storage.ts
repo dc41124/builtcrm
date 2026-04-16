@@ -71,3 +71,12 @@ export async function objectExists(key: string): Promise<boolean> {
     return false;
   }
 }
+
+export async function getObjectSize(key: string): Promise<number | null> {
+  try {
+    const res = await r2.send(new HeadObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+    return res.ContentLength ?? null;
+  } catch {
+    return null;
+  }
+}

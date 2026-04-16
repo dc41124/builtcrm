@@ -8,7 +8,7 @@ import { documentLinks, documents } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError, assertCan } from "@/domain/permissions";
-import { objectExists } from "@/lib/storage";
+import { getObjectSize, objectExists } from "@/lib/storage";
 
 const VISIBILITY_VALUES = [
   "internal_only",
@@ -76,11 +76,15 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!(await objectExists(parsed.data.storageKey))) {
-      return NextResponse.json(
-        { error: "object_not_found_in_storage" },
-        { status: 404 },
-      );
+    const fileSize = await getObjectSize(parsed.data.storageKey);
+    if (fileSize === null) {
+      // getObjectSize returns null if the object doesn't exist
+      if (!(await objectExists(parsed.data.storageKey))) {
+        return NextResponse.json(
+          { error: "object_not_found_in_storage" },
+          { status: 404 },
+        );
+      }
     }
 
     const result = await db.transaction(async (tx) => {
@@ -94,6 +98,7 @@ export async function POST(req: Request) {
           uploadedByUserId: ctx.user.id,
           visibilityScope: parsed.data.visibilityScope,
           audienceScope: parsed.data.audienceScope,
+          fileSizeBytes: fileSize,
         })
         .returning();
 
