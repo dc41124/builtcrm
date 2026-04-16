@@ -38,6 +38,8 @@ export const complianceStatusEnum = pgEnum("compliance_status", [
   "waived",
 ]);
 
+export const rfiTypeEnum = pgEnum("rfi_type", ["formal", "issue"]);
+
 export const rfiStatusEnum = pgEnum("rfi_status", [
   "draft",
   "open",
@@ -163,6 +165,7 @@ export const rfis = pgTable(
     subject: varchar("subject", { length: 255 }).notNull(),
     body: text("body"),
     rfiStatus: rfiStatusEnum("rfi_status").default("draft").notNull(),
+    rfiType: rfiTypeEnum("rfi_type").default("issue").notNull(),
 
     createdByUserId: uuid("created_by_user_id")
       .notNull()

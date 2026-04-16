@@ -11,20 +11,17 @@ import type { RfiRow } from "@/domain/loaders/project-home";
 
 type TabId = "open" | "formal" | "issues" | "closed";
 
-// Formal RFI vs Issue distinction isn't in the schema yet — both tabs proxy
-// to "all open" for now. Added as a schema follow-up when we circle back to
-// the RFI workflow loader extension.
 const TABS: { id: TabId; label: string; match: (r: RfiRow) => boolean }[] = [
   { id: "open", label: "All open", match: (r) => r.rfiStatus !== "closed" },
   {
     id: "formal",
     label: "Formal RFIs",
-    match: (r) => r.rfiStatus !== "closed",
+    match: (r) => r.rfiStatus !== "closed" && r.rfiType === "formal",
   },
   {
     id: "issues",
     label: "Issues",
-    match: (r) => r.rfiStatus !== "closed",
+    match: (r) => r.rfiStatus !== "closed" && r.rfiType === "issue",
   },
   { id: "closed", label: "Closed", match: (r) => r.rfiStatus === "closed" },
 ];
@@ -75,7 +72,8 @@ export function ContractorRfiWorkspace({
       (r) => r.rfiStatus !== "closed" && r.dueAt && r.dueAt.getTime() < now,
     ).length;
     const answered = rfis.filter((r) => r.rfiStatus === "answered").length;
-    return { open, awaiting, overdue, answered, formal: rfis.length };
+    const formal = rfis.filter((r) => r.rfiType === "formal" && r.rfiStatus !== "closed").length;
+    return { open, awaiting, overdue, answered, formal };
   }, [rfis, now]);
 
   const filtered = useMemo(() => {
@@ -253,7 +251,7 @@ export function ContractorRfiWorkspace({
                           </Pill>
                         </div>
                         <div className="rfp-tc-tags">
-                          <span className="rfp-mt">Formal RFI</span>
+                          <span className={`rfp-mt${r.rfiType === "formal" ? " ac" : ""}`}>{r.rfiType === "formal" ? "Formal RFI" : "Issue"}</span>
                           {r.assignedToOrganizationName && (
                             <span className="rfp-mt">
                               {r.assignedToOrganizationName}
@@ -435,6 +433,7 @@ export function ContractorRfiWorkspace({
         .rfp-tc-desc{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);margin-top:2px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
         .rfp-tc-tags{display:flex;gap:4px;flex-wrap:wrap}
         .rfp-mt{height:20px;padding:0 7px;border-radius:999px;border:1px solid var(--s3);background:var(--s2);color:var(--t3);font-family:var(--fd);font-size:10px;font-weight:700;display:inline-flex;align-items:center;white-space:nowrap}
+        .rfp-mt.ac{background:var(--ac-s);border-color:var(--ac-m);color:var(--ac-t)}
         .rfp-mt.dg{background:var(--dg-s);border-color:color-mix(in srgb,var(--dg) 35%,var(--s3));color:var(--dg-t)}
         .rfp-tc-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:var(--fb);font-size:11px;font-weight:540;color:var(--t3);margin-top:2px}
 
@@ -482,7 +481,7 @@ function RfiDetail({ rfi, now }: { rfi: RfiRow; now: number }) {
           <Pill color={statusPill(rfi.rfiStatus, Boolean(overdue))}>
             {overdue ? "Blocked" : formatStatus(rfi.rfiStatus)}
           </Pill>
-          <Pill color="purple">Formal RFI</Pill>
+          <Pill color={rfi.rfiType === "formal" ? "purple" : "gray"}>{rfi.rfiType === "formal" ? "Formal RFI" : "Issue"}</Pill>
         </div>
       </div>
 
@@ -682,6 +681,7 @@ function CreatePanel({
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rfiType, setRfiType] = useState<"formal" | "issue">("issue");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [assignedToOrganizationId, setAssignedToOrganizationId] = useState("");
@@ -698,6 +698,7 @@ function CreatePanel({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         projectId,
+        rfiType,
         subject,
         body: body || undefined,
         assignedToOrganizationId: assignedToOrganizationId || undefined,
@@ -731,6 +732,16 @@ function CreatePanel({
       </div>
       <form onSubmit={onSubmit} className="rfp-cp-form">
         <div className="rfp-cp-row">
+          <label>
+            <span>Type</span>
+            <select
+              value={rfiType}
+              onChange={(e) => setRfiType(e.target.value as "formal" | "issue")}
+            >
+              <option value="issue">Issue (lightweight)</option>
+              <option value="formal">Formal RFI</option>
+            </select>
+          </label>
           <label>
             <span>Subject</span>
             <input
@@ -790,7 +801,7 @@ function CreatePanel({
             Attach files
           </Button>
           <Button variant="primary" type="submit" loading={pending}>
-            Create issue
+            {rfiType === "formal" ? "Create formal RFI" : "Create issue"}
           </Button>
         </div>
       </form>

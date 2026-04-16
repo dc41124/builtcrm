@@ -221,7 +221,7 @@ export function SubRfiResponseWorkspace({
                         </Pill>
                       </div>
                       <div className="srfp-tc-tags">
-                        <span className="srfp-mt dg">Formal RFI</span>
+                        <span className={`srfp-mt${r.rfiType === "formal" ? " dg" : ""}`}>{r.rfiType === "formal" ? "Formal RFI" : "Issue"}</span>
                         {overdue && <span className="srfp-mt dg">Blocking work</span>}
                         <span className="srfp-mt">Markup needed</span>
                       </div>
@@ -425,14 +425,14 @@ function SubRfiDetail({ rfi, now }: { rfi: RfiRow; now: number }) {
           <Pill color={statusPill(rfi.rfiStatus, Boolean(overdue))}>
             {overdue ? "Overdue" : formatStatus(rfi.rfiStatus)}
           </Pill>
-          <Pill color="purple">Formal RFI</Pill>
+          <Pill color={rfi.rfiType === "formal" ? "purple" : "gray"}>{rfi.rfiType === "formal" ? "Formal RFI" : "Issue"}</Pill>
         </div>
       </div>
 
       <div className="srfd-grid">
         <div className="srfd-cell">
           <div className="srfd-k">What&rsquo;s needed</div>
-          <div className="srfd-v">Formal response</div>
+          <div className="srfd-v">{rfi.rfiType === "formal" ? "Formal response" : "Quick response"}</div>
           <div className="srfd-m">
             Field report + markup + constraint explanation
           </div>
@@ -469,7 +469,9 @@ function SubRfiDetail({ rfi, now }: { rfi: RfiRow; now: number }) {
         <div className="srfd-section-body">
           <p className="srfd-p">
             {rfi.body ??
-              "The contractor needs your written response along with any supporting markups or field notes. Formal RFIs require a complete answer — a quick text-only reply is usually not sufficient."}
+              (rfi.rfiType === "formal"
+                ? "The contractor needs your written response along with any supporting markups or field notes. Formal RFIs require a complete answer — a quick text-only reply is usually not sufficient."
+                : "The contractor has flagged an issue for your attention. Review and respond with the relevant details.")}
           </p>
           <div className="srfd-tags">
             <span className="srfp-mt">Field condition report needed</span>

@@ -64,6 +64,7 @@ async function loadRfisWithResponses(
       subject: rfis.subject,
       body: rfis.body,
       rfiStatus: rfis.rfiStatus,
+      rfiType: rfis.rfiType,
       assignedToOrganizationId: rfis.assignedToOrganizationId,
       assignedToOrganizationName: organizations.name,
       assignedToUserId: rfis.assignedToUserId,
@@ -133,6 +134,7 @@ export type RfiRow = {
   subject: string;
   body: string | null;
   rfiStatus: string;
+  rfiType: "formal" | "issue";
   assignedToOrganizationId: string | null;
   assignedToOrganizationName: string | null;
   assignedToUserId: string | null;
