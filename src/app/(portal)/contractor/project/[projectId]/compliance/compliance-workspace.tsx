@@ -454,9 +454,28 @@ export function ContractorComplianceWorkspace({
               <span className="sub">Compliance events on this project.</span>
             </div>
             <div className="cmp-rc-b">
-              <p className="cmp-rc-p">
-                Activity feed will populate as compliance events land.
-              </p>
+              {(() => {
+                const allActivity = records
+                  .flatMap((r) => r.activityTrail)
+                  .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+                  .slice(0, 6);
+                return allActivity.length > 0 ? (
+                  allActivity.map((a) => (
+                    <div key={a.id} className="cmp-ai">
+                      <div className="cmp-ai-dot" />
+                      <div className="cmp-ai-text">
+                        {a.actorName && <strong>{a.actorName}</strong>}
+                        {a.actorName ? " " : ""}{a.title}
+                      </div>
+                      <div className="cmp-ai-time">{formatDate(a.createdAt)}</div>
+                    </div>
+                  ))
+                ) : null;
+              })() ?? (
+                <p className="cmp-rc-p">
+                  Activity feed will populate as compliance events land.
+                </p>
+              )}
             </div>
           </div>
 
@@ -544,6 +563,12 @@ export function ContractorComplianceWorkspace({
         .cmp-rc-h .sub{font-family:var(--fb);font-size:11.5px;font-weight:540;color:var(--t3);margin-top:3px;display:block}
         .cmp-rc-b{padding:10px 16px 16px}
         .cmp-rc-p{font-family:var(--fb);font-size:12.5px;font-weight:540;color:var(--t2);margin:0;line-height:1.55}
+        .cmp-ai{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--s2)}
+        .cmp-ai:last-child{border-bottom:none}
+        .cmp-ai-dot{width:8px;height:8px;border-radius:50%;background:var(--ac);flex-shrink:0;margin-top:5px}
+        .cmp-ai-text{flex:1;font-family:var(--fb);font-size:12.5px;color:var(--t2);line-height:1.45;font-weight:520}
+        .cmp-ai-text strong{font-weight:650;color:var(--t1)}
+        .cmp-ai-time{font-family:var(--fb);font-size:11px;color:var(--t3);white-space:nowrap;flex-shrink:0;font-weight:520}
 
         .cmp-orow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--s2)}
         .cmp-orow:last-child{border-bottom:none}
@@ -713,12 +738,12 @@ function ComplianceDetail({
           <div className="cmd-section-body">
             <div className="cmd-fr">
               <div>
-                <h5>Compliance document</h5>
+                <h5>{record.documentTitle ?? "Compliance document"}</h5>
                 <p>
-                  Uploaded · document {record.documentId.slice(0, 8)}
+                  {record.documentType ?? "Document"} · {record.documentId.slice(0, 8)}
                 </p>
               </div>
-              <span className="cmd-fc">PDF</span>
+              <span className="cmd-fc">{record.documentType === "insurance" ? "INS" : "PDF"}</span>
             </div>
             {verify.length > 0 && (
               <div className="cmd-vl">

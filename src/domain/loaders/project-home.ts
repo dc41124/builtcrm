@@ -1094,6 +1094,16 @@ export type ContractorProjectView = {
     complianceStatus: string;
     expiresAt: Date | null;
     documentId: string | null;
+    documentTitle: string | null;
+    documentType: string | null;
+    activityTrail: Array<{
+      id: string;
+      title: string;
+      body: string | null;
+      activityType: string;
+      actorName: string | null;
+      createdAt: Date;
+    }>;
   }>;
   scheduleOfValues: {
     id: string;
@@ -1283,9 +1293,12 @@ export async function getContractorProjectView(
         complianceStatus: complianceRecords.complianceStatus,
         expiresAt: complianceRecords.expiresAt,
         documentId: complianceRecords.documentId,
+        documentTitle: documents.title,
+        documentType: documents.documentType,
       })
       .from(complianceRecords)
       .leftJoin(organizations, eq(organizations.id, complianceRecords.organizationId))
+      .leftJoin(documents, eq(documents.id, complianceRecords.documentId))
       .where(eq(complianceRecords.projectId, projectId))
       .orderBy(desc(complianceRecords.createdAt)),
     db
@@ -1574,6 +1587,41 @@ export async function getContractorProjectView(
     }),
   );
 
+  // Compliance activity trail enrichment
+  const complianceIds = complianceRows.map((r) => r.id);
+  const complianceActivityRows = complianceIds.length > 0
+    ? await db
+        .select({
+          id: activityFeedItems.id,
+          relatedObjectId: activityFeedItems.relatedObjectId,
+          title: activityFeedItems.title,
+          body: activityFeedItems.body,
+          activityType: activityFeedItems.activityType,
+          createdAt: activityFeedItems.createdAt,
+          actorName: users.displayName,
+        })
+        .from(activityFeedItems)
+        .leftJoin(users, eq(users.id, activityFeedItems.actorUserId))
+        .where(
+          and(
+            eq(activityFeedItems.relatedObjectType, "compliance_record"),
+            inArray(activityFeedItems.relatedObjectId, complianceIds),
+          ),
+        )
+        .orderBy(desc(activityFeedItems.createdAt))
+    : [];
+  const complianceActivityById = new Map<string, Array<{ id: string; title: string; body: string | null; activityType: string; actorName: string | null; createdAt: Date }>>();
+  for (const a of complianceActivityRows) {
+    if (!a.relatedObjectId) continue;
+    const arr = complianceActivityById.get(a.relatedObjectId) ?? [];
+    arr.push({ id: a.id, title: a.title, body: a.body, activityType: a.activityType, actorName: a.actorName, createdAt: a.createdAt });
+    complianceActivityById.set(a.relatedObjectId, arr);
+  }
+  const enrichedComplianceRows = complianceRows.map((r) => ({
+    ...r,
+    activityTrail: complianceActivityById.get(r.id) ?? [],
+  }));
+
   return {
     context,
     project: context.project,
@@ -1585,7 +1633,7 @@ export async function getContractorProjectView(
     retainageReleases: retainageReleasesView,
     uploadRequests: contractorUploadRequestRows,
     approvals: approvalRows,
-    complianceRecords: complianceRows,
+    complianceRecords: enrichedComplianceRows,
     scheduleOfValues: sovRow
       ? {
           id: sovRow.id,
@@ -1669,6 +1717,8 @@ export type SubcontractorProjectView = {
     complianceStatus: string;
     expiresAt: Date | null;
     documentId: string | null;
+    documentTitle: string | null;
+    documentType: string | null;
   }>;
   conversations: ConversationRow[];
   documents: DocumentRow[];
@@ -1800,8 +1850,11 @@ export async function getSubcontractorProjectView(
         complianceStatus: complianceRecords.complianceStatus,
         expiresAt: complianceRecords.expiresAt,
         documentId: complianceRecords.documentId,
+        documentTitle: documents.title,
+        documentType: documents.documentType,
       })
       .from(complianceRecords)
+      .leftJoin(documents, eq(documents.id, complianceRecords.documentId))
       .where(
         and(
           eq(complianceRecords.projectId, projectId),
