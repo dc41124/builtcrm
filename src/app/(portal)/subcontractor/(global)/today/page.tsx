@@ -124,11 +124,14 @@ export default async function SubcontractorTodayPage() {
           attention={data.attention}
           projectList={data.projectList}
           compliance={data.compliance}
+          recentDocuments={data.recentDocuments}
+          recentConversations={data.recentConversations}
           tabCounts={{
             rfis: k.openRfis,
             uploads: k.openUploadRequests,
             compliance: k.complianceIssues,
             messages: qa.unreadMessages,
+            documents: qa.documentCount,
           }}
         />
 

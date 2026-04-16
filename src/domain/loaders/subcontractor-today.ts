@@ -11,6 +11,7 @@ import {
   projects,
   rfis,
   uploadRequests,
+  users,
 } from "@/db/schema";
 
 export type SubTodayKpis = {
@@ -59,6 +60,26 @@ export type SubTodayQuickAccessCounts = {
   pendingFinancialsCents: number;
 };
 
+export type SubTodayDocument = {
+  id: string;
+  title: string;
+  documentType: string;
+  projectId: string;
+  projectName: string;
+  uploaderName: string | null;
+  createdAt: string;
+};
+
+export type SubTodayConversation = {
+  id: string;
+  title: string | null;
+  projectId: string;
+  projectName: string;
+  lastMessagePreview: string | null;
+  lastMessageAt: string | null;
+  unreadCount: number;
+};
+
 export type SubTodayCurrentFocus = {
   projectId: string;
   name: string;
@@ -70,6 +91,8 @@ export type SubTodayData = {
   projectList: SubTodayProject[];
   attention: SubTodayAttention[];
   compliance: SubTodayCompliance[];
+  recentDocuments: SubTodayDocument[];
+  recentConversations: SubTodayConversation[];
   quickAccessCounts: SubTodayQuickAccessCounts;
   currentFocus: SubTodayCurrentFocus;
 };
@@ -149,6 +172,8 @@ export async function getSubcontractorTodayData(input: {
         documentCount: 0,
         pendingFinancialsCents: 0,
       },
+      recentDocuments: [],
+      recentConversations: [],
       currentFocus: null,
     };
   }
@@ -405,10 +430,77 @@ export async function getSubcontractorTodayData(input: {
   const quickAccessCounts: SubTodayQuickAccessCounts = {
     unreadMessages: unreadRows[0]?.count ?? 0,
     documentCount: docCountRow[0]?.count ?? 0,
-    // Sub-scoped draws don't exist yet — leave at 0 until sub payment
-    // tracking lands in a follow-up.
     pendingFinancialsCents: 0,
   };
+
+  // Recent documents across projects
+  const recentDocRows = projectIds.length > 0
+    ? await db
+        .select({
+          id: documents.id,
+          title: documents.title,
+          documentType: documents.documentType,
+          projectId: documents.projectId,
+          projectName: projects.name,
+          uploaderName: users.displayName,
+          createdAt: documents.createdAt,
+        })
+        .from(documents)
+        .leftJoin(projects, eq(projects.id, documents.projectId))
+        .leftJoin(users, eq(users.id, documents.uploadedByUserId))
+        .where(inArray(documents.projectId, projectIds))
+        .orderBy(desc(documents.createdAt))
+        .limit(12)
+    : [];
+  const recentDocuments: SubTodayDocument[] = recentDocRows.map((d) => ({
+    id: d.id,
+    title: d.title,
+    documentType: d.documentType,
+    projectId: d.projectId,
+    projectName: d.projectName ?? "Unknown",
+    uploaderName: d.uploaderName,
+    createdAt: d.createdAt.toISOString(),
+  }));
+
+  // Recent conversations across projects
+  const recentConvRows = projectIds.length > 0 && userId
+    ? await db
+        .select({
+          id: conversations.id,
+          title: conversations.title,
+          projectId: conversations.projectId,
+          projectName: projects.name,
+          lastMessagePreview: conversations.lastMessagePreview,
+          lastMessageAt: conversations.lastMessageAt,
+          lastReadAt: conversationParticipants.lastReadAt,
+          messageCount: conversations.messageCount,
+        })
+        .from(conversations)
+        .innerJoin(
+          conversationParticipants,
+          and(
+            eq(conversationParticipants.conversationId, conversations.id),
+            eq(conversationParticipants.userId, userId),
+          ),
+        )
+        .leftJoin(projects, eq(projects.id, conversations.projectId))
+        .where(inArray(conversations.projectId, projectIds))
+        .orderBy(desc(conversations.lastMessageAt))
+        .limit(12)
+    : [];
+  const recentConversations: SubTodayConversation[] = recentConvRows.map((c) => {
+    const unread = c.lastMessageAt && (!c.lastReadAt || c.lastReadAt.getTime() < c.lastMessageAt.getTime())
+      ? 1 : 0;
+    return {
+      id: c.id,
+      title: c.title,
+      projectId: c.projectId,
+      projectName: c.projectName ?? "Unknown",
+      lastMessagePreview: c.lastMessagePreview,
+      lastMessageAt: c.lastMessageAt?.toISOString() ?? null,
+      unreadCount: unread,
+    };
+  });
 
   // Current focus: project with the most urgent attention items
   const urgentByProject = new Map<string, number>();
@@ -437,6 +529,8 @@ export async function getSubcontractorTodayData(input: {
     projectList,
     attention,
     compliance,
+    recentDocuments,
+    recentConversations,
     quickAccessCounts,
     currentFocus,
   };

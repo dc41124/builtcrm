@@ -183,11 +183,14 @@ export function ResidentialSelectionsReview({
   projectName,
   categories,
   totals,
+  initialTab = "overview",
 }: {
   projectName: string;
   categories: SelectionCategoryRow[];
   totals: ResidentialSelectionsTotals;
+  initialTab?: "overview" | "exploring" | "provisional" | "confirmed" | "revision";
 }) {
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
   const allItems = useMemo<FlatItem[]>(() => {
     const out: FlatItem[] = [];
     for (const c of categories) {
@@ -225,7 +228,8 @@ export function ResidentialSelectionsReview({
           <button
             key={t.k}
             type="button"
-            className={`rsel-state-tab${t.k === "overview" ? " active" : ""}`}
+            className={`rsel-state-tab${activeTab === t.k ? " active" : ""}`}
+            onClick={() => setActiveTab(t.k)}
           >
             <span className="rsel-tab-dot" style={{ background: t.dot }} />
             {t.label}
@@ -284,6 +288,12 @@ export function ResidentialSelectionsReview({
         />
       ) : (
         categories
+          .map((cat) => {
+            const filtered = activeTab === "overview"
+              ? cat.items
+              : cat.items.filter((i) => itemView(i) === activeTab);
+            return { ...cat, items: filtered };
+          })
           .filter((c) => c.items.length > 0)
           .map((cat) => (
             <section key={cat.id} className="rsel-cat">

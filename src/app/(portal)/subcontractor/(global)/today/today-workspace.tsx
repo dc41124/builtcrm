@@ -6,6 +6,8 @@ import Link from "next/link";
 import type {
   SubTodayAttention,
   SubTodayCompliance,
+  SubTodayConversation,
+  SubTodayDocument,
   SubTodayProject,
 } from "@/domain/loaders/subcontractor-today";
 
@@ -33,11 +35,14 @@ export type TodayWorkspaceProps = {
   attention: SubTodayAttention[];
   projectList: SubTodayProject[];
   compliance: SubTodayCompliance[];
+  recentDocuments: SubTodayDocument[];
+  recentConversations: SubTodayConversation[];
   tabCounts: {
     rfis: number;
     uploads: number;
     compliance: number;
     messages: number;
+    documents: number;
   };
 };
 
@@ -72,6 +77,8 @@ export function SubcontractorTodayWorkspace({
   attention,
   projectList,
   compliance,
+  recentDocuments,
+  recentConversations,
   tabCounts,
 }: TodayWorkspaceProps) {
   const [tab, setTab] = useState("work");
@@ -86,8 +93,8 @@ export function SubcontractorTodayWorkspace({
       badge: tabCounts.compliance || undefined,
       badgeType: tabCounts.compliance > 0 ? "danger" : undefined,
     },
-    { id: "docs", label: "Documents" },
-    { id: "messages", label: "Messages", badge: tabCounts.messages },
+    { id: "docs", label: "Documents", badge: tabCounts.documents || undefined },
+    { id: "messages", label: "Messages", badge: tabCounts.messages || undefined },
     { id: "payments", label: "Payments" },
   ];
 
@@ -259,8 +266,24 @@ export function SubcontractorTodayWorkspace({
     if (current === "docs") {
       return (
         <div className="stb-sfb">
-          <h4>Documents</h4>
-          <EmptyBlock text="Cross-project document browser lands with the shared Documents module." />
+          <h4>Recent documents across projects</h4>
+          {recentDocuments.length === 0 ? (
+            <EmptyBlock text="No documents available yet." />
+          ) : (
+            <div className="stb-lst">
+              {recentDocuments.map((d) => (
+                <Link key={d.id} href={`/subcontractor/project/${d.projectId}/documents`} className="stb-lr">
+                  <div className="stb-lr-main">
+                    <h5>{d.title}</h5>
+                    <p>{d.projectName} · {d.documentType}{d.uploaderName ? ` · ${d.uploaderName}` : ""}</p>
+                  </div>
+                  <div className="stb-lr-side">
+                    <span className="stb-pl steel">{d.documentType.toUpperCase().slice(0, 4)}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       );
     }
@@ -268,8 +291,28 @@ export function SubcontractorTodayWorkspace({
     if (current === "messages") {
       return (
         <div className="stb-sfb">
-          <h4>Messages</h4>
-          <EmptyBlock text="Cross-project message inbox lands with the shared Messages module." />
+          <h4>Conversations across projects</h4>
+          {recentConversations.length === 0 ? (
+            <EmptyBlock text="No conversations yet." />
+          ) : (
+            <div className="stb-lst">
+              {recentConversations.map((c) => (
+                <Link key={c.id} href={`/subcontractor/project/${c.projectId}/messages`} className={`stb-lr${c.unreadCount > 0 ? " hot" : ""}`}>
+                  <div className="stb-lr-main">
+                    <h5>{c.title ?? "General"}</h5>
+                    <p>{c.projectName}{c.lastMessagePreview ? ` · ${c.lastMessagePreview.slice(0, 80)}` : ""}</p>
+                  </div>
+                  <div className="stb-lr-side">
+                    {c.unreadCount > 0 ? (
+                      <span className="stb-pl red">Unread</span>
+                    ) : (
+                      <span className="stb-pl green">Read</span>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       );
     }
@@ -277,8 +320,24 @@ export function SubcontractorTodayWorkspace({
     if (current === "payments") {
       return (
         <div className="stb-sfb">
-          <h4>Payment status</h4>
-          <EmptyBlock text="Draw and PO status will appear here when the GC issues them." />
+          <h4>Payment status across projects</h4>
+          {projectList.length === 0 ? (
+            <EmptyBlock text="No project assignments yet." />
+          ) : (
+            <div className="stb-lst">
+              {projectList.map((p) => (
+                <Link key={p.id} href={`/subcontractor/project/${p.id}/payments`} className="stb-lr">
+                  <div className="stb-lr-main">
+                    <h5>{p.name}</h5>
+                    <p>{p.phaseLabel} · Payment tracking</p>
+                  </div>
+                  <div className="stb-lr-side">
+                    <span className="stb-pl steel">View</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       );
     }

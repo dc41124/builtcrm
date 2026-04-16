@@ -436,10 +436,6 @@ export default function AppShell({
               })}
             </div>
             <div className="b-tr">
-              <button className="b-tbb b-theme-toggle" onClick={toggleTheme} aria-label="Toggle theme">
-                <span className="b-theme-icon b-theme-moon">{MoonIcon}</span>
-                <span className="b-theme-icon b-theme-sun">{SunIcon}</span>
-              </button>
               <button className="b-tbb" aria-label="Notifications">
                 {BellIcon}
                 <div className="b-nd" />
