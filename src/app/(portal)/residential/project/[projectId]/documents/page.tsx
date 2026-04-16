@@ -2,9 +2,10 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/auth/config";
-import { DocumentsWorkspace } from "@/components/documents-workspace";
 import { getDocumentsView } from "@/domain/loaders/documents";
 import { AuthorizationError } from "@/domain/permissions";
+
+import { ResidentialDocumentsView } from "./documents-view";
 
 export default async function Page({
   params,
@@ -24,10 +25,8 @@ export default async function Page({
       "residential",
     );
     return (
-      <DocumentsWorkspace
-        portal="residential"
+      <ResidentialDocumentsView
         projectId={view.project.id}
-        projectName={view.project.name}
         currentUserId={view.currentUserId}
         canWrite={view.canWrite}
         documents={view.documents}

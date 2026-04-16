@@ -1889,6 +1889,8 @@ export type ClientProjectView = {
     impactScheduleDays: number;
     description: string | null;
     decisionNote: string | null;
+    submittedAt: Date | null;
+    decidedAt: Date | null;
   }>;
   drawRequests: Array<{
     id: string;
@@ -1940,6 +1942,7 @@ export type ClientProjectView = {
   phasePercentByPhase: Record<string, number>;
   currentPhase: string;
   contractorOrganizationName: string | null;
+  gcContacts: SubProjectGcContact[];
 };
 
 export type ClientActivityEvent = {
@@ -2044,6 +2047,8 @@ export async function getClientProjectView(
         impactScheduleDays: approvals.impactScheduleDays,
         description: approvals.description,
         decisionNote: approvals.decisionNote,
+        submittedAt: approvals.submittedAt,
+        decidedAt: approvals.decidedAt,
       })
       .from(approvals)
       .where(
@@ -2337,6 +2342,58 @@ export async function getClientProjectView(
     : [];
   const contractorOrganizationName = contractorOrgRow?.name ?? null;
 
+  // Build team contacts — includes contractor, subs, AND client members
+  const clientGcContactRows = await db
+    .select({
+      id: users.id,
+      displayName: users.displayName,
+      roleKey: roleAssignments.roleKey,
+    })
+    .from(projectUserMemberships)
+    .innerJoin(users, eq(users.id, projectUserMemberships.userId))
+    .innerJoin(
+      roleAssignments,
+      and(
+        eq(roleAssignments.userId, projectUserMemberships.userId),
+        eq(roleAssignments.organizationId, projectUserMemberships.organizationId),
+      ),
+    )
+    .where(
+      and(
+        eq(projectUserMemberships.projectId, projectId),
+        eq(projectUserMemberships.membershipStatus, "active"),
+      ),
+    );
+
+  const roleLabelMap: Record<string, string> = {
+    project_manager: "Project Manager",
+    superintendent: "Superintendent",
+    owner: "Owner",
+    admin: "Admin",
+    estimator: "Estimator",
+    foreman: "Foreman",
+  };
+  const clientGcSeen = new Set<string>();
+  const clientGcContacts: SubProjectGcContact[] = [];
+  for (const g of clientGcContactRows) {
+    if (clientGcSeen.has(g.id)) continue;
+    clientGcSeen.add(g.id);
+    const name = g.displayName ?? "Team member";
+    const initials = name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("") || "GC";
+    clientGcContacts.push({
+      id: g.id,
+      name,
+      roleLabel: roleLabelMap[g.roleKey] ?? g.roleKey.split("_").map((w) => w[0]?.toUpperCase() + w.slice(1)).join(" "),
+      initials,
+    });
+    if (clientGcContacts.length >= 6) break;
+  }
+
   const FALLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
   const MAX_PHOTOS_PER_UPDATE = 8;
 
@@ -2466,6 +2523,7 @@ export async function getClientProjectView(
     phasePercentByPhase,
     currentPhase,
     contractorOrganizationName,
+    gcContacts: clientGcContacts,
     decisions: coRows,
     openRequests: rfiRows,
     approvals: approvalRows,

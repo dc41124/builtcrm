@@ -1,7 +1,10 @@
 import { headers } from "next/headers";
+import { eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/auth/config";
+import { db } from "@/db/client";
+import { organizations, projects } from "@/db/schema";
 import {
   getClientProjectView,
   type ClientProjectView,
@@ -38,11 +41,16 @@ export default async function CommercialProjectHomePage({
     <CommercialProjectHome
       projectId={projectId}
       projectName={view.project.name}
+      contractorName={view.contractorOrganizationName ?? "Your contractor"}
+      currentPhase={view.currentPhase}
       milestones={view.milestones}
       approvals={view.approvals}
       openRequests={view.openRequests}
       drawRequests={view.drawRequests}
       decisions={view.decisions}
+      activityTrail={view.activityTrail}
+      gcContacts={view.gcContacts ?? []}
+      conversations={view.conversations}
     />
   );
 }

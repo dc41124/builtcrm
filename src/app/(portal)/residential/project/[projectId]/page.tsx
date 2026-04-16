@@ -38,11 +38,16 @@ export default async function ResidentialProjectHomePage({
     <ResidentialProjectHome
       projectId={projectId}
       projectName={view.project.name}
+      contractorName={view.contractorOrganizationName ?? "Your builder"}
+      currentPhase={view.currentPhase}
       milestones={view.milestones}
       approvals={view.approvals}
       decisions={view.decisions}
       selections={view.selections}
       drawRequests={view.drawRequests}
+      activityTrail={view.activityTrail}
+      gcContacts={view.gcContacts ?? []}
+      conversations={view.conversations}
     />
   );
 }

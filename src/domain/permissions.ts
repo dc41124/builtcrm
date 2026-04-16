@@ -51,7 +51,10 @@ const POLICY: Record<Resource, Policy> = {
   project: { read: EVERYONE, write: ALL_CONTRACTOR },
   document: {
     read: EVERYONE,
-    write: new Set([...ALL_CONTRACTOR, "subcontractor_user"]),
+    // Clients can upload their own docs (insurance, tax exemptions, etc.).
+    // Per-doc ownership is enforced inside each API endpoint — clients can
+    // only edit/supersede/archive docs they uploaded themselves.
+    write: new Set([...ALL_CONTRACTOR, "subcontractor_user", ...CLIENTS]),
   },
   rfi: {
     read: EVERYONE,

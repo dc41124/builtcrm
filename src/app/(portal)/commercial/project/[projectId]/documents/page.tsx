@@ -30,6 +30,7 @@ export default async function Page({
         projectName={view.project.name}
         currentUserId={view.currentUserId}
         canWrite={view.canWrite}
+        canManageAnyDoc={view.canManageAnyDoc}
         documents={view.documents}
         linkableItems={view.linkableItems}
       />

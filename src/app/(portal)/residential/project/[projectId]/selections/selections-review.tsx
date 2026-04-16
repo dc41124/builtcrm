@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
-import { KpiCard } from "@/components/kpi-card";
 import { Pill, type PillColor } from "@/components/pill";
 import type {
   SelectionCategoryRow,
@@ -214,8 +213,27 @@ export function ResidentialSelectionsReview({
 
   return (
     <div className="rsel">
+      {/* ── State tabs ── */}
+      <div className="rsel-state-nav">
+        {[
+          { k: "overview", label: "Overview", dot: "var(--ac)" },
+          { k: "exploring", label: "Exploring", dot: "var(--wr)" },
+          { k: "provisional", label: "Provisional", dot: "var(--ac)" },
+          { k: "confirmed", label: "Confirmed", dot: "var(--ok)" },
+          { k: "revision", label: "Revision", dot: "var(--dg)" },
+        ].map((t) => (
+          <button
+            key={t.k}
+            type="button"
+            className={`rsel-state-tab${t.k === "overview" ? " active" : ""}`}
+          >
+            <span className="rsel-tab-dot" style={{ background: t.dot }} />
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       <header className="rsel-head">
-        <div className="rsel-crumbs">{projectName} · Selections</div>
         <h1 className="rsel-title">Your Selections</h1>
         <p className="rsel-desc">
           Your builder has prepared finish options for you to review. Take your
@@ -223,45 +241,40 @@ export function ResidentialSelectionsReview({
         </p>
       </header>
 
-      <div className="rsel-kpis">
-        <KpiCard
-          label="Ready to choose"
-          value={totals.readyToChoose.toString()}
-          meta={
-            totals.readyToChoose === 0
+      {/* ── Summary strip ── */}
+      <div className="rsel-summary">
+        <div className="rsel-sc teal">
+          <div className="rsel-sc-label">Ready to choose</div>
+          <div className="rsel-sc-value">{totals.readyToChoose}</div>
+          <div className="rsel-sc-meta">
+            {totals.readyToChoose === 0
               ? "Nothing waiting on you"
-              : "Options are waiting for you"
-          }
-          iconColor="blue"
-          alert={totals.readyToChoose > 0}
-        />
-        <KpiCard
-          label="Time-sensitive"
-          value={totals.timeSensitive.toString()}
-          meta={
-            totals.timeSensitive === 0
+              : "Options are waiting for you"}
+          </div>
+        </div>
+        <div className="rsel-sc orange">
+          <div className="rsel-sc-label">Time-sensitive</div>
+          <div className="rsel-sc-value">{totals.timeSensitive}</div>
+          <div className="rsel-sc-meta">
+            {totals.timeSensitive === 0
               ? "Nothing urgent"
-              : "Affects scheduling this week"
-          }
-          iconColor="amber"
-          alert={totals.timeSensitive > 0}
-        />
-        <KpiCard
-          label="Confirmed"
-          value={totals.confirmed.toString()}
-          meta="Locked in and moving forward"
-          iconColor="green"
-        />
-        <KpiCard
-          label="Upgrade total"
-          value={
-            totals.confirmedUpgradeCents === 0
+              : "Affects scheduling this week"}
+          </div>
+        </div>
+        <div className="rsel-sc">
+          <div className="rsel-sc-label">Confirmed</div>
+          <div className="rsel-sc-value">{totals.confirmed}</div>
+          <div className="rsel-sc-meta">Locked in and moving forward</div>
+        </div>
+        <div className="rsel-sc">
+          <div className="rsel-sc-label">Upgrade total</div>
+          <div className="rsel-sc-value">
+            {totals.confirmedUpgradeCents === 0
               ? "$0"
-              : `+${formatCents(totals.confirmedUpgradeCents)}`
-          }
-          meta="Based on confirmed choices"
-          iconColor="purple"
-        />
+              : `+${formatCents(totals.confirmedUpgradeCents)}`}
+          </div>
+          <div className="rsel-sc-meta">Based on current choices</div>
+        </div>
       </div>
 
       {allItems.length === 0 ? (
@@ -291,7 +304,7 @@ export function ResidentialSelectionsReview({
           ))
       )}
 
-      <style>{STYLES}</style>
+      <style dangerouslySetInnerHTML={{ __html: STYLES }} />
     </div>
   );
 }
@@ -322,9 +335,12 @@ function OverviewCard({
     .slice(0, 3)
     .map((o) => o.swatchColor ?? "#c2a87a");
 
+  const bgColor = swatches[0] ?? "#c2a87a";
+  const cardBg = `linear-gradient(135deg, ${bgColor}44, ${bgColor}18)`;
+
   return (
     <button className="rsel-card" type="button" onClick={onOpen}>
-      <div className="rsel-card-visual">
+      <div className="rsel-card-visual" style={{ background: cardBg }}>
         <div className="rsel-card-sw-row">
           {swatches.map((c, i) => (
             <span
@@ -359,7 +375,6 @@ function OverviewCard({
           )}
         </div>
       </div>
-      <style>{OVERVIEW_CARD_STYLES}</style>
     </button>
   );
 }
@@ -388,8 +403,7 @@ function ItemDetail({
       {view === "confirmed" && <ConfirmedView item={item} />}
       {view === "revision" && <RevisionView item={item} />}
 
-      <style>{STYLES}</style>
-      <style>{DETAIL_STYLES}</style>
+      <style dangerouslySetInnerHTML={{ __html: STYLES }} />
     </div>
   );
 }
@@ -634,6 +648,27 @@ function ExploringView({ item }: { item: SelectionItemRow }) {
             <p className="rsel-rc-body">{item.scheduleImpactNote}</p>
           </div>
         )}
+        <div className="rsel-rc">
+          <h3>Helpful files</h3>
+          <div className="rsel-rc-sub">References to help you decide.</div>
+          <div className="rsel-rc-body">
+            <div className="rsel-file-row">
+              <div>
+                <h5>Sample photo board</h5>
+                <p>All options photographed in similar lighting.</p>
+              </div>
+              <span className="rsel-file-chip">PDF</span>
+            </div>
+            <div className="rsel-file-row">
+              <div>
+                <h5>Care &amp; maintenance guide</h5>
+                <p>Cleaning and upkeep recommendations.</p>
+              </div>
+              <span className="rsel-file-chip">PDF</span>
+            </div>
+          </div>
+        </div>
+        <QuestionsCard />
       </aside>
     </div>
   );
@@ -848,6 +883,7 @@ function ProvisionalView({
             </Button>
           </div>
         </div>
+        <QuestionsCard />
       </aside>
     </div>
   );
@@ -939,6 +975,7 @@ function ConfirmedView({ item }: { item: SelectionItemRow }) {
             </p>
           </div>
         )}
+        <QuestionsCard />
       </aside>
     </div>
   );
@@ -1044,42 +1081,99 @@ function RevisionView({ item }: { item: SelectionItemRow }) {
             keep your project on schedule, your builder prepared alternatives
             that match the style and budget of your original choice.
           </p>
+          <p className="rsel-rc-body" style={{ fontSize: 12, color: "var(--t3)", marginTop: 10 }}>
+            If the original becomes available again before install, your team will let you know.
+          </p>
         </div>
+        <div className="rsel-rc">
+          <h3>Impact summary</h3>
+          <div className="rsel-rc-sub">What changes with the recommended replacement.</div>
+          <div style={{ marginTop: 10 }}>
+            <div className="rsel-imp">
+              <div>
+                <h5>Cost vs original</h5>
+                <p>Recommended option matches original price</p>
+              </div>
+              <span className="rsel-imp-v" style={{ color: "var(--ok-t)" }}>No change</span>
+            </div>
+            <div className="rsel-imp">
+              <div>
+                <h5>Schedule vs original</h5>
+                <p>No additional delay with recommended</p>
+              </div>
+              <span className="rsel-imp-v" style={{ color: "var(--ok-t)" }}>On track</span>
+            </div>
+            <div className="rsel-imp">
+              <div>
+                <h5>Style match</h5>
+                <p>Similar pattern and color family</p>
+              </div>
+              <span className="rsel-imp-v">Close match</span>
+            </div>
+          </div>
+        </div>
+        <QuestionsCard />
       </aside>
     </div>
   );
 }
 
-const OVERVIEW_CARD_STYLES = `
-.rsel-card{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-xl);overflow:hidden;box-shadow:var(--shsm);cursor:pointer;transition:all .2s var(--e);text-align:left;padding:0;font-family:inherit;color:inherit}
-.rsel-card:hover{box-shadow:var(--shmd);border-color:var(--s4);transform:translateY(-1px)}
-.rsel-card-visual{height:92px;padding:10px 14px;position:relative;display:flex;align-items:flex-end;background:linear-gradient(135deg,var(--s2),var(--s3))}
-.rsel-card-sw-row{display:flex;gap:6px;position:relative;z-index:1}
-.rsel-sw{width:34px;height:34px;border-radius:9px;border:2px solid rgba(255,255,255,.85);box-shadow:0 2px 6px rgba(0,0,0,.12);display:block}
-.rsel-card-pill{position:absolute;top:10px;right:10px}
-.rsel-card-body{padding:14px 16px 16px}
-.rsel-card-body h3{font-family:var(--fd);font-size:15px;font-weight:720;color:var(--t1);letter-spacing:-.01em;margin:0}
-.rsel-card-body p{font-family:var(--fb);font-size:12.5px;font-weight:540;color:var(--t2);line-height:1.45;margin:4px 0 0}
-.rsel-card-foot{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-`;
+function QuestionsCard() {
+  return (
+    <div className="rsel-rc">
+      <h3>Questions?</h3>
+      <div className="rsel-rc-sub">Ask your project team anything.</div>
+      <div className="rsel-rc-body">
+        <div className="rsel-comment-input">
+          <input placeholder="Ask a question…" />
+          <button type="button" className="rsel-comment-btn">Send</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const STYLES = `
 .rsel{display:flex;flex-direction:column;gap:18px}
+
+.rsel-state-nav{display:flex;gap:4px;margin-bottom:2px;background:var(--s2);border-radius:14px;padding:4px;width:fit-content}
+.rsel-state-tab{height:34px;padding:0 16px;border-radius:10px;font-family:var(--fb);font-size:12px;font-weight:650;color:var(--t2);display:inline-flex;align-items:center;gap:6px;cursor:pointer;transition:all 150ms ease;background:none;border:none}
+.rsel-state-tab:hover{color:var(--t1)}
+.rsel-state-tab.active{background:var(--s1);color:var(--t1);box-shadow:var(--shsm)}
+.rsel-tab-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
 .rsel-head{display:flex;flex-direction:column;gap:6px}
-.rsel-crumbs{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t3);text-transform:uppercase;letter-spacing:.04em}
-.rsel-title{font-family:var(--fd);font-size:24px;font-weight:820;letter-spacing:-.03em;color:var(--t1);line-height:1.15;margin:0}
-.rsel-desc{font-family:var(--fb);font-size:14px;font-weight:540;color:var(--t2);line-height:1.55;max-width:720px;margin:0}
-.rsel-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-@media(max-width:1100px){.rsel-kpis{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:640px){.rsel-kpis{grid-template-columns:1fr}}
+.rsel-title{font-family:var(--fd);font-size:26px;font-weight:820;letter-spacing:-.035em;color:var(--t1);line-height:1.15;margin:0}
+.rsel-desc{font-family:var(--fb);font-size:13px;font-weight:520;color:var(--t2);line-height:1.55;max-width:520px;margin:0}
+
+.rsel-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.rsel-sc{background:var(--s1);border:1px solid var(--s3);border-radius:14px;padding:14px 16px;box-shadow:var(--shsm)}
+.rsel-sc.teal{border-color:var(--ac-m);background:linear-gradient(180deg,var(--s1),var(--ac-s))}
+.rsel-sc.orange{border-color:#f5d5a0;background:linear-gradient(180deg,var(--s1),var(--wr-s))}
+.rsel-sc-label{font-family:var(--fb);font-size:12px;font-weight:560;text-transform:uppercase;letter-spacing:.05em;color:var(--t3)}
+.rsel-sc-value{font-family:var(--fd);font-size:22px;font-weight:820;letter-spacing:-.03em;margin-top:4px;color:var(--t1)}
+.rsel-sc-meta{font-family:var(--fb);font-size:12px;color:var(--t3);margin-top:2px;font-weight:520}
+@media(max-width:1100px){.rsel-summary{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.rsel-summary{grid-template-columns:1fr}}
+
 .rsel-cat{display:flex;flex-direction:column;gap:10px}
 .rsel-cat-head{display:flex;align-items:center;gap:10px}
-.rsel-cat-head h2{font-family:var(--fd);font-size:15px;font-weight:720;color:var(--t1);margin:0}
-.rsel-cat-count{font-family:var(--fd);font-size:11px;font-weight:700;color:var(--t3);background:var(--s2);padding:3px 9px;border-radius:999px}
-.rsel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
-`;
+.rsel-cat-head h2{font-family:var(--fd);font-size:14px;font-weight:700;color:var(--t1);margin:0}
+.rsel-cat-count{font-family:var(--fd);font-size:11px;font-weight:700;color:var(--t3);background:var(--s2);padding:2px 8px;border-radius:999px}
+.rsel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
 
-const DETAIL_STYLES = `
+.rsel-card{background:var(--s1);border:1px solid var(--s3);border-radius:18px;overflow:hidden;box-shadow:var(--shsm);cursor:pointer;transition:all .2s ease;text-align:left;padding:0;font-family:inherit;color:inherit;display:block;width:100%}
+.rsel-card:hover{box-shadow:var(--shmd);border-color:var(--s4);transform:translateY(-1px)}
+.rsel-card-visual{height:100px;padding:10px 14px;position:relative;display:flex;align-items:flex-end;overflow:hidden}
+.rsel-card-visual::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 40%,rgba(0,0,0,.06) 100%)}
+.rsel-card-sw-row{display:flex;gap:6px;position:relative;z-index:1}
+.rsel-sw{width:38px;height:38px;border-radius:10px;border:2px solid rgba(255,255,255,.85);box-shadow:0 2px 8px rgba(0,0,0,.12);display:block}
+.rsel-card-pill{position:absolute;top:10px;right:10px;z-index:1}
+.rsel-card-body{padding:14px 16px 16px}
+.rsel-card-body h3{font-family:var(--fd);font-size:15px;font-weight:700;color:var(--t1);letter-spacing:-.01em;margin:0}
+.rsel-card-body p{font-family:var(--fb);font-size:12px;font-weight:520;color:var(--t2);line-height:1.45;margin:4px 0 0}
+.rsel-card-foot{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+
 .rsel-detail{display:flex;flex-direction:column;gap:14px}
 .rsel-detail-crumbs{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t3);text-transform:uppercase;letter-spacing:.04em}
 .rsel-back{display:inline-flex;align-items:center;gap:6px;background:none;border:none;font-family:var(--fb);font-size:13px;font-weight:580;color:var(--t3);cursor:pointer;padding:0;align-self:flex-start}
@@ -1182,4 +1276,16 @@ const DETAIL_STYLES = `
 .rsel-unavail-reason{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);margin-top:2px}
 
 .rsel-err{font-family:var(--fb);font-size:12.5px;color:var(--dg-t);margin:0}
+
+.rsel-file-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--s2)}
+.rsel-file-row:last-child{border-bottom:none}
+.rsel-file-row h5{font-family:var(--fd);font-size:13px;font-weight:600;color:var(--t1);margin:0}
+.rsel-file-row p{font-family:var(--fb);font-size:12px;font-weight:520;color:var(--t2);margin:1px 0 0}
+.rsel-file-chip{font-family:var(--fd);font-size:11px;font-weight:700;color:var(--t3);padding:3px 8px;border-radius:6px;background:var(--s2);white-space:nowrap;flex-shrink:0}
+
+.rsel-comment-input{display:flex;gap:8px;margin-top:4px}
+.rsel-comment-input input{flex:1;height:36px;border-radius:10px;border:1px solid var(--s3);padding:0 12px;font-family:var(--fb);font-size:13px;font-weight:520;color:var(--t1);outline:none;background:var(--s2)}
+.rsel-comment-input input:focus{border-color:var(--ac);background:var(--s1)}
+.rsel-comment-btn{height:36px;padding:0 14px;border-radius:10px;border:none;background:var(--ac);color:#fff;font-family:var(--fb);font-size:12px;font-weight:650;cursor:pointer;transition:background 120ms ease;white-space:nowrap}
+.rsel-comment-btn:hover{background:var(--ac-h)}
 `;

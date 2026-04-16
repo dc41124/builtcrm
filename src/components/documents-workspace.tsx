@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type { DocumentRow } from "@/domain/loaders/project-home";
@@ -14,6 +14,7 @@ type Props = {
   projectName: string;
   currentUserId: string;
   canWrite: boolean;
+  canManageAnyDoc: boolean;
   documents: DocumentRow[];
   linkableItems: LinkableItem[];
 };
@@ -173,6 +174,8 @@ function Icon({ name }: { name: string }) {
       return <svg {...p}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>;
     case "check":
       return <svg {...p} strokeWidth={2.4}><polyline points="20 6 9 17 4 12" /></svg>;
+    case "dots":
+      return <svg {...p} strokeWidth={2.4}><circle cx="12" cy="12" r="1.2" /><circle cx="19" cy="12" r="1.2" /><circle cx="5" cy="12" r="1.2" /></svg>;
     default:
       return null;
   }
@@ -203,6 +206,7 @@ export function DocumentsWorkspace({
   projectName,
   currentUserId,
   canWrite,
+  canManageAnyDoc,
   documents,
   linkableItems,
 }: Props) {
@@ -214,6 +218,21 @@ export function DocumentsWorkspace({
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [presetFile, setPresetFile] = useState<File | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  // Close row overflow menu on outside click
+  useEffect(() => {
+    if (!openMenuId) return;
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".docws-row-menu") && !target.closest(".docws-row-btn")) {
+        setOpenMenuId(null);
+      }
+    };
+    window.addEventListener("click", onClick);
+    return () => window.removeEventListener("click", onClick);
+  }, [openMenuId]);
 
   // Supersession chains: map each current doc id → list of older doc ids.
   const supersedeChains = useMemo(() => {
@@ -318,9 +337,7 @@ export function DocumentsWorkspace({
     return order;
   }, []);
 
-  return (
-    <div className={`docws docws-${portal}`}>
-      <style>{`
+  const styleCss = `
         .docws {
           --ac: ${accent.ac};
           --ac-h: ${accent.ach};
@@ -437,7 +454,33 @@ export function DocumentsWorkspace({
         .docws-vi-lbl { font-size:12px;font-weight:640;color:var(--t1); }
         .docws-vi.cur .docws-vi-lbl { color:var(--ac-t); }
         .docws-vi-meta { font-size:11px;color:var(--t3);margin-top:2px; }
-      `}</style>
+
+        .docws-uz { background:var(--s1);border:2px dashed var(--s4);border-radius:var(--r-xl);padding:28px 24px;text-align:center;cursor:pointer;transition:all var(--df);display:flex;flex-direction:column;align-items:center;gap:6px; }
+        .docws-uz:hover, .docws-uz.drag { border-color:var(--ac);background:var(--ac-s); }
+        .docws-uz svg { width:40px;height:40px;color:var(--t3);margin-bottom:4px; }
+        .docws-uz:hover svg, .docws-uz.drag svg { color:var(--ac-t); }
+        .docws-uz h4 { font-family:var(--fd);font-size:14px;font-weight:680;margin:0;color:var(--t1);letter-spacing:-.01em; }
+        .docws-uz p { font-family:var(--fb);font-size:12.5px;color:var(--t3);margin:2px 0 0;max-width:560px; }
+        .docws-uz-types { font-family:var(--fb);font-size:11px;color:var(--t3);margin-top:8px; }
+
+        .docws-ftbl th.docws-th-acts { text-align:right;padding-right:16px; }
+        .docws-ftbl td.docws-td-acts { text-align:right;padding-right:16px;width:90px; }
+        .docws-row-acts { display:inline-flex;gap:4px;align-items:center;justify-content:flex-end; }
+        .docws-row-btn { width:30px;height:30px;border-radius:var(--r-s);border:1px solid var(--s3);background:var(--s1);color:var(--t3);display:grid;place-items:center;cursor:pointer;transition:all var(--df);padding:0; }
+        .docws-row-btn:hover { border-color:var(--ac);color:var(--ac-t);background:var(--ac-s); }
+        .docws-row-btn svg { width:14px;height:14px; }
+        .docws-row-menu { position:absolute;top:calc(100% + 4px);right:0;min-width:180px;background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-m);box-shadow:var(--shlg);z-index:20;padding:4px;display:flex;flex-direction:column; }
+        .docws-row-menu-item { display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--r-s);border:none;background:none;font-family:var(--fb);font-size:12.5px;font-weight:560;color:var(--t1);text-align:left;cursor:pointer;transition:background var(--df);white-space:nowrap; }
+        .docws-row-menu-item:hover { background:var(--sh); }
+        .docws-row-menu-item.danger { color:var(--dg-t); }
+        .docws-row-menu-item.danger:hover { background:var(--dg-s); }
+        .docws-row-menu-item svg { width:14px;height:14px;color:var(--t3);flex-shrink:0; }
+        .docws-row-menu-item.danger svg { color:var(--dg-t); }
+      `;
+
+  return (
+    <div className={`docws docws-${portal}`}>
+      <style dangerouslySetInnerHTML={{ __html: styleCss }} />
 
       <div className="docws-hdr">
         <div>
@@ -457,14 +500,28 @@ export function DocumentsWorkspace({
         )}
       </div>
 
+      {canWrite && !showUpload && (
+        <PermanentUploadZone
+          onFilePicked={(f) => {
+            setPresetFile(f);
+            setShowUpload(true);
+          }}
+        />
+      )}
+
       {showUpload && canWrite && (
         <UploadPanel
           portal={portal}
           projectId={projectId}
           linkableItems={linkableItems}
-          onClose={() => setShowUpload(false)}
+          presetFile={presetFile}
+          onClose={() => {
+            setShowUpload(false);
+            setPresetFile(null);
+          }}
           onDone={() => {
             setShowUpload(false);
+            setPresetFile(null);
             router.refresh();
           }}
         />
@@ -536,6 +593,7 @@ export function DocumentsWorkspace({
                     <th>Visibility</th>
                     <th>Linked</th>
                     <th>Uploaded</th>
+                    <th className="docws-th-acts">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -596,6 +654,98 @@ export function DocumentsWorkspace({
                           <div className="docws-f-dt">{formatDate(d.createdAt)}</div>
                           <div className="docws-f-by">{d.uploadedByName ?? "—"}</div>
                         </td>
+                        <td className="docws-td-acts">
+                          <div className="docws-row-acts">
+                            <button
+                              type="button"
+                              className="docws-row-btn"
+                              aria-label="Download"
+                              title="Download"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                downloadDoc(d.id);
+                              }}
+                            >
+                              <Icon name="download" />
+                            </button>
+                            <div style={{ position: "relative" }}>
+                              <button
+                                type="button"
+                                className="docws-row-btn"
+                                aria-label="More actions"
+                                title="More actions"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenMenuId(openMenuId === d.id ? null : d.id);
+                                }}
+                              >
+                                <Icon name="dots" />
+                              </button>
+                              {openMenuId === d.id ? (
+                                <div
+                                  className="docws-row-menu"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    type="button"
+                                    className="docws-row-menu-item"
+                                    onClick={() => {
+                                      setSelectedId(d.id);
+                                      setOpenMenuId(null);
+                                    }}
+                                  >
+                                    <Icon name="folder" /> View details
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="docws-row-menu-item"
+                                    onClick={() => {
+                                      downloadDoc(d.id);
+                                      setOpenMenuId(null);
+                                    }}
+                                  >
+                                    <Icon name="download" /> Download
+                                  </button>
+                                  {canWrite &&
+                                  !d.isSuperseded &&
+                                  (canManageAnyDoc ||
+                                    d.uploadedByUserId === currentUserId) ? (
+                                    <button
+                                      type="button"
+                                      className="docws-row-menu-item"
+                                      onClick={() => {
+                                        setSelectedId(d.id);
+                                        setOpenMenuId(null);
+                                      }}
+                                    >
+                                      <Icon name="upload" /> Supersede
+                                    </button>
+                                  ) : null}
+                                  {canWrite &&
+                                  d.uploadedByUserId === currentUserId &&
+                                  !d.isSuperseded ? (
+                                    <button
+                                      type="button"
+                                      className="docws-row-menu-item danger"
+                                      onClick={async () => {
+                                        setOpenMenuId(null);
+                                        if (!window.confirm("Archive this document?")) return;
+                                        const res = await fetch(`/api/documents/${d.id}`, {
+                                          method: "PATCH",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ documentStatus: "archived" }),
+                                        });
+                                        if (res.ok) router.refresh();
+                                      }}
+                                    >
+                                      <Icon name="x" /> Archive
+                                    </button>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -611,6 +761,11 @@ export function DocumentsWorkspace({
             doc={selected}
             versionChain={versionChain}
             canWrite={canWrite}
+            canSupersede={
+              canWrite &&
+              !selected.isSuperseded &&
+              (canManageAnyDoc || selected.uploadedByUserId === currentUserId)
+            }
             canEditThis={canWrite && !selected.isSuperseded && selected.uploadedByUserId === currentUserId}
             onClose={() => setSelectedId(null)}
             onDownload={() => downloadDoc(selected.id)}
@@ -627,6 +782,7 @@ function DetailPanel({
   doc,
   versionChain,
   canWrite,
+  canSupersede,
   canEditThis,
   onClose,
   onDownload,
@@ -636,6 +792,7 @@ function DetailPanel({
   doc: DocumentRow;
   versionChain: DocumentRow[];
   canWrite: boolean;
+  canSupersede: boolean;
   canEditThis: boolean;
   onClose: () => void;
   onDownload: () => void;
@@ -664,7 +821,7 @@ function DetailPanel({
           <button type="button" className="docws-btn primary" onClick={onDownload}>
             <Icon name="download" /> Download
           </button>
-          {canWrite && !doc.isSuperseded && (
+          {canSupersede && (
             <SupersedeButton docId={doc.id} projectId={projectId} onDone={onRefresh} />
           )}
         </div>
@@ -739,6 +896,63 @@ function DetailPanel({
         )}
       </div>
     </aside>
+  );
+}
+
+function PermanentUploadZone({
+  onFilePicked,
+}: {
+  onFilePicked: (file: File) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) onFilePicked(file);
+  }
+
+  return (
+    <div
+      className={`docws-uz${dragging ? " drag" : ""}`}
+      onClick={() => inputRef.current?.click()}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!dragging) setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={handleDrop}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          inputRef.current?.click();
+        }
+      }}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onFilePicked(f);
+          if (inputRef.current) inputRef.current.value = "";
+        }}
+      />
+      <Icon name="upload" />
+      <h4>Upload your documents</h4>
+      <p>
+        Drop files here or click to browse. Insurance certificates, signed
+        contracts, tax exemptions, and other owner-provided documents.
+      </p>
+      <div className="docws-uz-types">
+        Accepted: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG · Max 50 MB per file
+      </div>
+    </div>
   );
 }
 
@@ -870,16 +1084,18 @@ function UploadPanel({
   portal,
   projectId,
   linkableItems,
+  presetFile,
   onClose,
   onDone,
 }: {
   portal: PortalVariant;
   projectId: string;
   linkableItems: LinkableItem[];
+  presetFile?: File | null;
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [file, setFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(presetFile ?? null);
   const [title, setTitle] = useState("");
   const [documentType, setDocumentType] = useState<string>("drawings");
   const [visibilityScope, setVisibilityScope] = useState<string>(

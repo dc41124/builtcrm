@@ -578,7 +578,7 @@ function ClientApprovalDetail({
         .apd-p{font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t2);margin:0;line-height:1.55}
         .dec{border:2px solid var(--ac-m);border-radius:var(--r-l);padding:18px;background:var(--s1);display:flex;flex-direction:column;gap:10px}
         .dec h4{font-family:var(--fd);font-size:15px;font-weight:750;color:var(--t1);margin:0}
-        .dec>p{font-family:var(--fb);font-size:13px;color:var(--t2);margin:0;line-height:1.5}
+        .dec p{font-family:var(--fb);font-size:13px;color:var(--t2);margin:0;line-height:1.5}
         .dec-opts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px}
         .d-opt{text-align:center;border:2px solid var(--s3);border-radius:var(--r-m);padding:12px;cursor:pointer;transition:all var(--dn) var(--e);background:var(--s1)}
         .d-opt:hover{border-color:var(--s4)}

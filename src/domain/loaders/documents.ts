@@ -35,6 +35,7 @@ export type DocumentsView = {
   portal: DocumentsViewPortal;
   currentUserId: string;
   canWrite: boolean;
+  canManageAnyDoc: boolean;
   documents: DocumentRow[];
   linkableItems: LinkableItem[];
 };
@@ -127,12 +128,16 @@ export async function getDocumentsView(
     ];
   }
 
+  const isContractorManager =
+    context.role === "contractor_admin" || context.role === "contractor_pm";
+
   return {
     context,
     project: context.project,
     portal: expected,
     currentUserId: context.user.id,
     canWrite: context.permissions.can("document", "write"),
+    canManageAnyDoc: isContractorManager,
     documents: docs,
     linkableItems,
   };
