@@ -84,6 +84,18 @@ docs/            # Architecture specs and reference docs
 - **Schema draft notes:** `@docs/specs/schema_draft_v1.pdf` — design rules and ID strategy
 - **Design mockups:** `@docs/design/*.html` — 24 production HTML mockups (feature spec, not implementation target)
 - **JSX prototypes:** `@docs/prototypes/*.jsx` — 24 JSX prototypes showing exact visual design for every screen. These are the pixel-level reference. Match them exactly for layout, typography, spacing, and colors.
+- **Phase 4+ portfolio scope:** `@docs/specs/builtcrm_phase4_portfolio_scope.md` — **the active Phase 4+ plan, source of truth for what to build and in what order**
+- **Phase 4+ full implementation plan:** `@docs/specs/builtcrm_phase4_plus_implementation_plan.md` — full enterprise plan (reference only; do not build from this)
+- **2026 gap analysis:** `@docs/specs/builtcrm_2026_gap_analysis.md` — competitive research catalog (reference)
+- **Phase 4+ build guide:** `@docs/specs/phase_4plus_build_guide.md` — step-by-step execution guide for Phase 4+ (this guide)
+
+## Phase 4+ Execution Rules
+- Every Claude Code session for Phase 4+ must begin by re-reading the portfolio scope doc and this build guide.
+- Every item in the build guide is labeled either **Safe-to-autorun** or **Require-design-input**. For safe-to-autorun items, plan → implement → verify → report. For require-design-input items, draft 2–3 options and stop for decision.
+- **Universal stop-and-ask triggers** (override any autorun permission): any change to `db/schema/*.ts`, any change to `auth/` or `domain/policies/`, any new dependency in `package.json`, any file deletion, any change to `CLAUDE.md` or `docs/specs/builtcrm_phase4_portfolio_scope.md`.
+- After every item: run `npm run build && npm run lint`. Both must pass before moving to the next item. If an item adds a migration, also run `npm run db:migrate` on fresh seed.
+- **Do not write handoff documents unless explicitly asked.** Handoffs happen at the end of a session or on the user's request, not automatically after each task.
+- At approximately 50% context usage, warn the user. At wrap-up, produce: what to save, what to archive, and the next session's kickoff prompt.
 
 ## Phase 3 Frontend Rules
 - Every page component must read its corresponding JSX prototype for visual reference
@@ -103,3 +115,7 @@ A feature is complete when:
 3. Audit events are written for state-changing actions
 4. TypeScript compiles with zero errors
 5. The feature handles the empty state gracefully
+6. The feature works on mobile browser (responsive baseline already established in Phase 3)
+7. Any new table has a migration file checked in
+8. Any new API route has basic authorization tests (role-based — deny the wrong portal, deny the wrong org)
+9. Any new UI component has keyboard accessibility (Tab, Enter, Escape)
