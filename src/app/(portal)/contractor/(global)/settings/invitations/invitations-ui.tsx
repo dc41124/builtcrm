@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 type Project = { id: string; name: string; projectCode: string | null };
@@ -32,6 +33,33 @@ const ROLE_PRESETS: Record<PortalType, { value: string; label: string }[]> = {
     { value: "client_viewer", label: "Read-only viewer" },
   ],
 };
+
+const css = `
+.inv { display:grid;gap:24px;font-family:var(--fb);color:var(--t1); }
+.inv h2 { font-family:var(--fd);font-size:22px;font-weight:820;letter-spacing:-.02em;margin:0; }
+.inv-sub { font-family:var(--fb);font-size:13px;color:var(--t2);margin-top:4px;font-weight:520; }
+.inv-card { background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:20px; }
+.inv-card h3 { font-family:var(--fd);font-size:15px;font-weight:720;letter-spacing:-.01em;margin:0 0 16px; }
+.inv-form { display:grid;gap:12px; }
+.inv-row { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+.inv-field { display:flex;flex-direction:column;gap:4px; }
+.inv-label { font-family:var(--fb);font-size:12px;font-weight:640;color:var(--t2); }
+.inv-input { width:100%;height:38px;padding:0 12px;border:1px solid var(--s3);border-radius:var(--r-m);font-size:13px;font-family:var(--fb);background:var(--s1);color:var(--t1);outline:none; }
+.inv-input:focus { border-color:var(--ac);box-shadow:0 0 0 3px rgba(91,79,199,.15); }
+.inv-ta { height:auto;padding:10px 12px;resize:vertical;line-height:1.5; }
+.inv-submit { justify-self:start;background:var(--ac);color:#fff;border:none;border-radius:var(--r-m);padding:10px 18px;font-family:var(--fb);font-size:13px;font-weight:650;cursor:pointer; }
+.inv-submit:hover { background:var(--ac-h); }
+.inv-submit:disabled { opacity:.6;cursor:not-allowed; }
+.inv-alert { padding:10px 12px;border-radius:var(--r-m);font-size:13px;font-weight:520;font-family:var(--fb); }
+.inv-alert.error { background:var(--dg-s);color:var(--dg-t); }
+.inv-alert.success { background:var(--ok-s);color:var(--ok-t);word-break:break-all; }
+.inv-tbl { width:100%;border-collapse:collapse;background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-m);overflow:hidden;font-size:13px; }
+.inv-tbl thead { background:var(--s2);text-align:left; }
+.inv-tbl th { padding:10px 12px;font-family:var(--fd);font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.04em; }
+.inv-tbl td { padding:10px 12px;border-top:1px solid var(--s3);font-weight:520; }
+.inv-pill { padding:2px 8px;border-radius:999px;font-family:var(--fd);font-size:11px;font-weight:650;text-transform:capitalize;display:inline-block; }
+.inv-empty { color:var(--t2);font-size:13px;font-weight:520; }
+`;
 
 export function InvitationsView({
   organizationName,
@@ -91,91 +119,79 @@ export function InvitationsView({
     router.refresh();
   }
 
+  const pillColor = (status: string) => {
+    const map: Record<string, { bg: string; fg: string }> = {
+      pending: { bg: "var(--wr-s)", fg: "var(--wr-t)" },
+      accepted: { bg: "var(--ok-s)", fg: "var(--ok-t)" },
+      expired: { bg: "var(--s2)", fg: "var(--t2)" },
+      revoked: { bg: "var(--dg-s)", fg: "var(--dg-t)" },
+    };
+    return map[status] ?? map.expired;
+  };
+
   return (
-    <div style={{ display: "grid", gap: 24 }}>
+    <div className="inv">
+      <style dangerouslySetInnerHTML={{ __html: css }} />
+
       <header>
-        <h2 style={{ margin: 0 }}>Settings · Invitations</h2>
-        <p style={{ color: "var(--t2)", marginTop: 4 }}>
-          Invite collaborators to {organizationName}. Each invitation creates
-          a unique link that expires in 14 days.
+        <h2>Invitations</h2>
+        <p className="inv-sub">
+          Invite collaborators to {organizationName}. Each invitation creates a
+          unique link that expires in 14 days.
         </p>
       </header>
 
-      <section
-        style={{
-          background: "var(--s1)",
-          border: "1px solid var(--s3)",
-          borderRadius: 14,
-          padding: 20,
-        }}
-      >
-        <h3 style={{ marginTop: 0 }}>Send a new invitation</h3>
-        <form onSubmit={onSubmit} style={{ display: "grid", gap: 12 }}>
-          {error ? (
-            <div
-              style={{
-                background: "var(--dg-s)",
-                color: "var(--dg-t)",
-                padding: 10,
-                borderRadius: 8,
-                fontSize: 13,
-              }}
-            >
-              {error}
-            </div>
-          ) : null}
-          {lastInviteUrl ? (
-            <div
-              style={{
-                background: "var(--ok-s)",
-                color: "var(--ok-t)",
-                padding: 10,
-                borderRadius: 8,
-                fontSize: 13,
-                wordBreak: "break-all",
-              }}
-            >
+      <section className="inv-card">
+        <h3>Send a new invitation</h3>
+        <form onSubmit={onSubmit} className="inv-form">
+          {error && <div className="inv-alert error">{error}</div>}
+          {lastInviteUrl && (
+            <div className="inv-alert success">
               Invitation created. Share this link:{" "}
               <a href={lastInviteUrl}>{lastInviteUrl}</a>
             </div>
-          ) : null}
+          )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label="Email">
+          <div className="inv-row">
+            <div className="inv-field">
+              <label className="inv-label">Email</label>
               <input
+                className="inv-input"
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                style={inputStyle}
               />
-            </Field>
-            <Field label="Name (optional)">
+            </div>
+            <div className="inv-field">
+              <label className="inv-label">Name (optional)</label>
               <input
+                className="inv-input"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                style={inputStyle}
               />
-            </Field>
+            </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label="Portal">
+          <div className="inv-row">
+            <div className="inv-field">
+              <label className="inv-label">Portal</label>
               <select
+                className="inv-input"
                 value={portalType}
                 onChange={(e) => onPortalChange(e.target.value as PortalType)}
-                style={inputStyle}
               >
                 <option value="contractor">Contractor</option>
                 <option value="subcontractor">Subcontractor</option>
                 <option value="client">Client</option>
               </select>
-            </Field>
-            <Field label="Role">
+            </div>
+            <div className="inv-field">
+              <label className="inv-label">Role</label>
               <select
+                className="inv-input"
                 value={roleKey}
                 onChange={(e) => setRoleKey(e.target.value)}
-                style={inputStyle}
               >
                 {ROLE_PRESETS[portalType].map((r) => (
                   <option key={r.value} value={r.value}>
@@ -183,27 +199,29 @@ export function InvitationsView({
                   </option>
                 ))}
               </select>
-            </Field>
+            </div>
           </div>
 
-          {portalType === "client" ? (
-            <Field label="Client type">
+          {portalType === "client" && (
+            <div className="inv-field">
+              <label className="inv-label">Client type</label>
               <select
+                className="inv-input"
                 value={clientSubtype}
                 onChange={(e) => setClientSubtype(e.target.value as ClientSubtype)}
-                style={inputStyle}
               >
                 <option value="commercial">Commercial</option>
                 <option value="residential">Residential</option>
               </select>
-            </Field>
-          ) : null}
+            </div>
+          )}
 
-          <Field label="Project (optional)">
+          <div className="inv-field">
+            <label className="inv-label">Project (optional)</label>
             <select
+              className="inv-input"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
-              style={inputStyle}
             >
               <option value="">— Organization-wide —</option>
               {projects.map((p) => (
@@ -213,150 +231,70 @@ export function InvitationsView({
                 </option>
               ))}
             </select>
-          </Field>
+          </div>
 
-          <Field label="Personal message (optional)">
+          <div className="inv-field">
+            <label className="inv-label">Personal message (optional)</label>
             <textarea
+              className="inv-input inv-ta"
               value={personalMessage}
               onChange={(e) => setPersonalMessage(e.target.value)}
               rows={3}
-              style={{ ...inputStyle, height: "auto", padding: 10 }}
             />
-          </Field>
+          </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            style={{
-              justifySelf: "start",
-              background: "var(--ac)",
-              color: "#fff",
-              border: "none",
-              borderRadius: 10,
-              padding: "10px 18px",
-              fontWeight: 650,
-              cursor: submitting ? "not-allowed" : "pointer",
-              opacity: submitting ? 0.6 : 1,
-            }}
-          >
+          <button type="submit" className="inv-submit" disabled={submitting}>
             {submitting ? "Sending…" : "Send invitation"}
           </button>
         </form>
       </section>
 
       <section>
-        <h3>Sent invitations</h3>
+        <h3 style={{ fontFamily: "var(--fd)", fontSize: 15, fontWeight: 720, marginBottom: 12 }}>
+          Sent invitations
+        </h3>
         {invitations.length === 0 ? (
-          <p style={{ color: "var(--t2)" }}>No invitations sent yet.</p>
+          <p className="inv-empty">No invitations sent yet.</p>
         ) : (
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              background: "var(--s1)",
-              border: "1px solid var(--s3)",
-              borderRadius: 10,
-              overflow: "hidden",
-              fontSize: 13,
-            }}
-          >
-            <thead style={{ background: "var(--s2)", textAlign: "left" }}>
+          <table className="inv-tbl">
+            <thead>
               <tr>
-                <Th>Email</Th>
-                <Th>Portal / role</Th>
-                <Th>Project</Th>
-                <Th>Status</Th>
-                <Th>Expires</Th>
-                <Th>Link</Th>
+                <th>Email</th>
+                <th>Portal / role</th>
+                <th>Project</th>
+                <th>Status</th>
+                <th>Expires</th>
+                <th>Link</th>
               </tr>
             </thead>
             <tbody>
-              {invitations.map((inv) => (
-                <tr key={inv.id} style={{ borderTop: "1px solid var(--s3)" }}>
-                  <Td>{inv.invitedEmail}</Td>
-                  <Td>
-                    {inv.portalType} · {inv.roleKey}
-                  </Td>
-                  <Td>{inv.projectName ?? "—"}</Td>
-                  <Td>
-                    <StatusPill status={inv.status} />
-                  </Td>
-                  <Td>{new Date(inv.expiresAt).toLocaleDateString()}</Td>
-                  <Td>
-                    {inv.status === "pending" ? (
-                      <a href={`/invite/${inv.token}`}>Open</a>
-                    ) : (
-                      "—"
-                    )}
-                  </Td>
-                </tr>
-              ))}
+              {invitations.map((inv) => {
+                const pc = pillColor(inv.status);
+                return (
+                  <tr key={inv.id}>
+                    <td>{inv.invitedEmail}</td>
+                    <td>{inv.portalType} · {inv.roleKey}</td>
+                    <td>{inv.projectName ?? "—"}</td>
+                    <td>
+                      <span className="inv-pill" style={{ background: pc.bg, color: pc.fg }}>
+                        {inv.status}
+                      </span>
+                    </td>
+                    <td>{new Date(inv.expiresAt).toLocaleDateString()}</td>
+                    <td>
+                      {inv.status === "pending" ? (
+                        <Link href={`/invite/${inv.token}`}>Open</Link>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
       </section>
     </div>
-  );
-}
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  height: 38,
-  padding: "0 12px",
-  border: "1px solid var(--s3)",
-  borderRadius: 8,
-  fontSize: 14,
-  fontFamily: "inherit",
-  background: "var(--s1)",
-};
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label style={{ display: "block", fontSize: 13, fontWeight: 600 }}>
-      <span style={{ display: "block", marginBottom: 4 }}>{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function Th({ children }: { children: React.ReactNode }) {
-  return (
-    <th style={{ padding: "10px 12px", fontWeight: 650, fontSize: 12, color: "var(--t2)" }}>
-      {children}
-    </th>
-  );
-}
-function Td({ children }: { children: React.ReactNode }) {
-  return <td style={{ padding: "10px 12px" }}>{children}</td>;
-}
-
-function StatusPill({ status }: { status: string }) {
-  const palette: Record<string, { bg: string; fg: string }> = {
-    pending: { bg: "var(--wr-s)", fg: "var(--wr-t)" },
-    accepted: { bg: "var(--ok-s)", fg: "var(--ok-t)" },
-    expired: { bg: "var(--s2)", fg: "var(--t2)" },
-    revoked: { bg: "var(--dg-s)", fg: "var(--dg-t)" },
-  };
-  const p = palette[status] ?? palette.expired;
-  return (
-    <span
-      style={{
-        background: p.bg,
-        color: p.fg,
-        padding: "2px 8px",
-        borderRadius: 999,
-        fontSize: 11,
-        fontWeight: 650,
-        textTransform: "capitalize",
-      }}
-    >
-      {status}
-    </span>
   );
 }
