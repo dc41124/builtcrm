@@ -1,20 +1,24 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
-import { documents, uploadRequests } from "@/db/schema";
+import { documentLinks, documents, uploadRequests } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
 
 const BodySchema = z.object({
-  documentId: z.string().uuid(),
+  documentId: z.string().uuid().optional(),
+  documentIds: z.array(z.string().uuid()).optional(),
   responseNote: z.string().max(2000).optional(),
-});
+}).refine(
+  (d) => d.documentId || (d.documentIds && d.documentIds.length > 0),
+  { message: "At least one document is required" },
+);
 
 export async function POST(
   req: Request,
@@ -71,15 +75,22 @@ export async function POST(
       );
     }
 
-    const [doc] = await db
+    // Normalize to array of IDs
+    const allDocIds = parsed.data.documentIds ?? (parsed.data.documentId ? [parsed.data.documentId] : []);
+    if (allDocIds.length === 0) {
+      return NextResponse.json({ error: "no_documents" }, { status: 400 });
+    }
+
+    // Validate all documents exist in the same project
+    const docRows = await db
       .select({ id: documents.id, title: documents.title, projectId: documents.projectId })
       .from(documents)
-      .where(and(eq(documents.id, parsed.data.documentId), eq(documents.projectId, request.projectId)))
-      .limit(1);
-    if (!doc) {
+      .where(and(inArray(documents.id, allDocIds), eq(documents.projectId, request.projectId)));
+    if (docRows.length !== allDocIds.length) {
       return NextResponse.json({ error: "document_not_found" }, { status: 404 });
     }
 
+    const primaryDoc = docRows[0];
     const previousState = request.requestStatus;
 
     await db.transaction(async (tx) => {
@@ -87,12 +98,22 @@ export async function POST(
         .update(uploadRequests)
         .set({
           requestStatus: "submitted",
-          submittedDocumentId: doc.id,
+          submittedDocumentId: primaryDoc.id,
           submittedAt: new Date(),
           submittedByUserId: ctx.user.id,
           responseNote: parsed.data.responseNote?.trim() || null,
         })
         .where(eq(uploadRequests.id, request.id));
+
+      // Link all documents to the upload request
+      for (const doc of docRows) {
+        await tx.insert(documentLinks).values({
+          documentId: doc.id,
+          linkedObjectType: "upload_request",
+          linkedObjectId: request.id,
+          linkRole: "submission",
+        });
+      }
 
       await writeAuditEvent(
         ctx,
@@ -102,7 +123,11 @@ export async function POST(
           resourceId: request.id,
           details: {
             previousState: { status: previousState },
-            nextState: { status: "submitted", documentId: doc.id },
+            nextState: {
+              status: "submitted",
+              documentId: primaryDoc.id,
+              documentCount: docRows.length,
+            },
           },
         },
         tx,
@@ -113,7 +138,9 @@ export async function POST(
         {
           activityType: "file_uploaded",
           summary: `Upload submitted: ${request.title}`,
-          body: doc.title,
+          body: docRows.length === 1
+            ? primaryDoc.title
+            : `${docRows.length} files submitted`,
           relatedObjectType: "upload_request",
           relatedObjectId: request.id,
           visibilityScope: "subcontractor_scoped",
@@ -122,7 +149,7 @@ export async function POST(
       );
     });
 
-    return NextResponse.json({ id: request.id, status: "submitted" });
+    return NextResponse.json({ id: request.id, status: "submitted", documentCount: docRows.length });
   } catch (err) {
     if (err instanceof AuthorizationError) {
       const status =

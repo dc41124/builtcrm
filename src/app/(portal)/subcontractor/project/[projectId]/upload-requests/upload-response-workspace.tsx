@@ -369,55 +369,59 @@ function SubDetail({
     request.requestStatus === "revision_requested";
   const isSubmitted = request.requestStatus === "submitted";
 
-  async function handleFile(file: File) {
+  async function uploadSingleFile(file: File): Promise<string> {
+    const presignRes = await fetch("/api/upload/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        filename: file.name,
+        contentType: file.type || "application/octet-stream",
+        documentType: "upload_request",
+      }),
+    });
+    if (!presignRes.ok) throw new Error("presign_failed");
+    const presign = await presignRes.json();
+
+    const putRes = await fetch(presign.uploadUrl, {
+      method: "PUT",
+      headers: presign.headers,
+      body: file,
+    });
+    if (!putRes.ok) throw new Error("put_failed");
+
+    const finalizeRes = await fetch("/api/upload/finalize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        storageKey: presign.storageKey,
+        title: file.name,
+        documentType: "upload_request",
+        visibilityScope: "subcontractor_scoped",
+        audienceScope: "contractor",
+      }),
+    });
+    if (!finalizeRes.ok) throw new Error("finalize_failed");
+    const { documentId } = (await finalizeRes.json()) as { documentId: string };
+    return documentId;
+  }
+
+  async function handleFiles(files: File[]) {
     setPending(true);
     setError(null);
     try {
-      const presignRes = await fetch("/api/upload/request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId,
-          filename: file.name,
-          contentType: file.type || "application/octet-stream",
-          documentType: "upload_request",
-        }),
-      });
-      if (!presignRes.ok) throw new Error("presign_failed");
-      const presign = await presignRes.json();
-
-      const putRes = await fetch(presign.uploadUrl, {
-        method: "PUT",
-        headers: presign.headers,
-        body: file,
-      });
-      if (!putRes.ok) throw new Error("put_failed");
-
-      const finalizeRes = await fetch("/api/upload/finalize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId,
-          storageKey: presign.storageKey,
-          title: file.name,
-          documentType: "upload_request",
-          visibilityScope: "subcontractor_scoped",
-          audienceScope: "contractor",
-          sourceObject: {
-            type: "upload_request",
-            id: request.id,
-            linkRole: "submission",
-          },
-        }),
-      });
-      if (!finalizeRes.ok) throw new Error("finalize_failed");
-      const { documentId } = await finalizeRes.json();
+      const documentIds: string[] = [];
+      for (const file of files) {
+        const docId = await uploadSingleFile(file);
+        documentIds.push(docId);
+      }
 
       const submitRes = await fetch(`/api/upload-requests/${request.id}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          documentId,
+          documentIds,
           responseNote: responseNote.trim() || undefined,
         }),
       });
@@ -431,8 +435,8 @@ function SubDetail({
   }
 
   function onInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) void handleFile(file);
+    const files = e.target.files;
+    if (files && files.length > 0) void handleFiles(Array.from(files));
     e.target.value = "";
   }
 
@@ -578,6 +582,7 @@ function SubDetail({
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 onChange={onInputChange}
                 accept=".pdf,.jpg,.jpeg,.png,.dwg,.xlsx,.docx"
                 style={{ display: "none" }}
