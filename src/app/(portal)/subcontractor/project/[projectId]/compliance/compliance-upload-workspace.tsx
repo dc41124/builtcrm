@@ -327,7 +327,7 @@ export function SubcontractorComplianceWorkspace({
         </aside>
       </div>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .scmp{display:flex;flex-direction:column;gap:20px}
         .scmp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
         .scmp-head-main{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
@@ -389,7 +389,7 @@ export function SubcontractorComplianceWorkspace({
         .scmp-phb-ico{width:20px;height:20px;border-radius:50%;background:var(--wr-t);color:#fff;display:grid;place-items:center;font-family:var(--fd);font-size:12px;font-weight:800;flex-shrink:0}
         .scmp-phb-text{font-family:var(--fb);font-size:12px;color:var(--wr-t);font-weight:620}
         .scmp-phb-text span{display:block;font-weight:520;margin-top:1px;font-size:11px;color:var(--t2)}
-      `}</style>
+      ` }} />
     </div>
   );
 }
@@ -575,7 +575,7 @@ function SubComplianceDetail({
         </div>
       )}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .scmd{display:flex;flex-direction:column;gap:14px;min-width:0}
         .scmd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--s2)}
         .scmd-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
@@ -612,7 +612,7 @@ function SubComplianceDetail({
         .scmd-rp p{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--dg-t);margin:4px 0 0;line-height:1.5}
         .scmd-rp-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
         .scmd-mtag{height:22px;padding:0 9px;border-radius:999px;border:1px solid color-mix(in srgb,var(--dg) 30%,var(--s3));background:var(--s1);color:var(--dg-t);font-family:var(--fd);font-size:10px;font-weight:700;display:inline-flex;align-items:center;white-space:nowrap}
-      `}</style>
+      ` }} />
     </div>
   );
 }
@@ -716,7 +716,7 @@ function UploadZone({
         </button>
       </div>
       {error && <p className="scmd-uz-err">Error: {error}</p>}
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .scmd-uz{border:2px dashed var(--s3);border-radius:var(--r-l);padding:24px 20px;text-align:center;background:var(--s2);transition:all var(--dn) var(--e)}
         .scmd-uz:hover{border-color:var(--ac);background:var(--ac-s)}
         .scmd-uz h5{font-family:var(--fd);font-size:14px;font-weight:720;color:var(--t1);margin:0 0 4px;letter-spacing:-.01em}
@@ -728,7 +728,7 @@ function UploadZone({
         .scmd-uz-btn.pri{background:var(--ac);border-color:var(--ac);color:#fff}
         .scmd-uz-btn.pri:hover:not(.disabled){background:var(--ac-h);border-color:var(--ac-h)}
         .scmd-uz-err{font-family:var(--fb);font-size:12px;color:var(--dg-t);margin:8px 0 0}
-      `}</style>
+      ` }} />
     </div>
   );
 }

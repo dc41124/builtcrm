@@ -478,7 +478,7 @@ export function ContractorComplianceWorkspace({
         </aside>
       </div>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .cmp{display:flex;flex-direction:column;gap:20px}
         .cmp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
         .cmp-head-main{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
@@ -566,7 +566,7 @@ export function ContractorComplianceWorkspace({
         .cmp-fr h5{font-family:var(--fd);font-size:13px;font-weight:620;color:var(--t1);margin:0}
         .cmp-fr p{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);margin:2px 0 0}
         .cmp-fc{font-family:var(--fd);font-size:11px;font-weight:700;color:var(--t3);padding:3px 8px;border-radius:var(--r-s);background:var(--s2);white-space:nowrap}
-      `}</style>
+      ` }} />
     </div>
   );
 }
@@ -888,7 +888,7 @@ function ComplianceDetail({
 
       {error && <p className="cmd-err">Error: {error}</p>}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .cmd{display:flex;flex-direction:column;gap:14px;min-height:400px}
         .cmd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--s2)}
         .cmd-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
@@ -954,7 +954,7 @@ function ComplianceDetail({
         .cmd-ccell .m{font-family:var(--fb);font-size:11.5px;font-weight:540;color:var(--t2);margin-top:2px}
 
         .cmd-err{font-family:var(--fb);font-size:12.5px;color:var(--dg-t);margin:0}
-      `}</style>
+      ` }} />
     </div>
   );
 }

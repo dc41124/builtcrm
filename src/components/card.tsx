@@ -64,7 +64,7 @@ export function Card({
         )}
         <div className={padded ? "bc-card-body" : ""}>{children}</div>
       </div>
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .bc-card{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-xl);overflow:hidden;box-shadow:var(--shsm);transition:box-shadow var(--dn) var(--e)}
         .bc-card-alert{border-color:var(--wr);border-width:1.5px}
         .bc-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:16px 20px;border-bottom:1px solid var(--s3)}
@@ -77,7 +77,7 @@ export function Card({
         .bc-card-tab:hover{color:var(--t2)}
         .bc-card-tab-active{color:var(--t1);font-weight:720;border-bottom-color:var(--accent)}
         .bc-card-body{padding:16px 20px}
-      `}</style>
+      ` }} />
     </>
   );
 }

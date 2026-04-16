@@ -58,7 +58,7 @@ export function Modal({
           {footer && <div className="bc-modal-foot">{footer}</div>}
         </div>
       </div>
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .bc-modal-overlay{position:fixed;inset:0;background:rgba(17,19,24,.45);z-index:1000;display:flex;animation:bc-fade var(--dn) var(--e)}
         .bc-modal-center{align-items:center;justify-content:center;padding:32px}
         .bc-modal-side{align-items:stretch;justify-content:flex-end}
@@ -76,7 +76,7 @@ export function Modal({
         @keyframes bc-fade{from{opacity:0}to{opacity:1}}
         @keyframes bc-pop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
         @keyframes bc-slide{from{transform:translateX(100%)}to{transform:none}}
-      `}</style>
+      ` }} />
     </>
   );
 }

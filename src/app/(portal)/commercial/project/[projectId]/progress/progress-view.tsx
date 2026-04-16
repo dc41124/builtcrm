@@ -582,7 +582,7 @@ export function CommercialProgressView({
         </div>
       ) : null}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
 .ccp{display:flex;flex-direction:column}
 .ccp-head{margin-bottom:20px}
 .ccp-pt{font-family:var(--fd);font-size:24px;font-weight:820;letter-spacing:-.035em;line-height:1.15;color:var(--t1);margin:0}
@@ -649,7 +649,7 @@ export function CommercialProgressView({
 
 @media(max-width:1280px){.ccp-phase-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:720px){.ccp-phase-grid{grid-template-columns:1fr}.ccp-pt{font-size:22px}}
-      `}</style>
+      ` }} />
     </div>
   );
 }

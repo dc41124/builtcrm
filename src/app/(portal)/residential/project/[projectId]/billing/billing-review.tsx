@@ -552,7 +552,7 @@ function DecisionCard({ draw }: { draw: Draw }) {
 
 function ResidentialStyles() {
   return (
-    <style>{`
+    <style dangerouslySetInnerHTML={{ __html: `
       .rbr{display:flex;flex-direction:column;gap:20px}
       .rbr-head{display:flex;flex-direction:column;gap:6px}
       .rbr-title{font-family:var(--fd);font-size:24px;font-weight:820;letter-spacing:-.03em;color:var(--t1);line-height:1.15;margin:0}
@@ -674,6 +674,6 @@ function ResidentialStyles() {
       .rbr-file-info{min-width:0;flex:1}
       .rbr-file-name{font-family:var(--fb);font-size:13px;font-weight:620;color:var(--t1);word-break:break-all}
       .rbr-file-meta{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);margin-top:1px;text-transform:capitalize}
-    `}</style>
+    ` }} />
   );
 }

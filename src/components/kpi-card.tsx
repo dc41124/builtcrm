@@ -44,7 +44,7 @@ export function KpiCard({
           </div>
         )}
       </div>
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .bc-kpi{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:16px;transition:all var(--dn) var(--e)}
         .bc-kpi:hover{box-shadow:var(--shmd);border-color:var(--s4)}
         .bc-kpi-alert{border-color:var(--wr);border-width:1.5px}
@@ -62,7 +62,7 @@ export function KpiCard({
         .bc-kpi-trend-up{color:var(--ok-t)}
         .bc-kpi-trend-down{color:var(--dg-t)}
         .bc-kpi-trend-warn{color:var(--wr-t)}
-      `}</style>
+      ` }} />
     </>
   );
 }

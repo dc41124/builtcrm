@@ -116,7 +116,7 @@ export function DataTable<T>({
           </tbody>
         </table>
       </div>
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .bc-tbl-wrap{width:100%;overflow-x:auto}
         .bc-tbl{width:100%;border-collapse:collapse;font-size:13px}
         .bc-tbl thead{background:var(--sh)}
@@ -162,7 +162,7 @@ export function DataTable<T>({
           }
           .bc-td[data-label=""]::before,.bc-td:not([data-label])::before{content:""}
         }
-      `}</style>
+      ` }} />
     </>
   );
 }

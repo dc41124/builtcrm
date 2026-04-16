@@ -320,7 +320,7 @@ export function ContractorChangeOrderWorkspace({
         <CreatePanel projectId={projectId} onClose={() => setCreateOpen(false)} />
       )}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .cop{display:flex;flex-direction:column;gap:20px}
         .cop-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
         .cop-head-main{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
@@ -386,7 +386,7 @@ export function ContractorChangeOrderWorkspace({
         .cop-ir-v{font-family:var(--fd);font-size:14px;font-weight:750;color:var(--t1)}
         .cop-ir-v.warn{color:var(--wr-t)}
         .cop-ir-v.muted{color:var(--t3)}
-      `}</style>
+      ` }} />
     </div>
   );
 }
@@ -657,7 +657,7 @@ function ContractorChangeOrderDetail({ co }: { co: ChangeOrderRow }) {
         {error && <p className="cod-err">Error: {error}</p>}
       </div>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .cod{display:flex;flex-direction:column;gap:14px;min-height:400px}
         .cod-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--s2)}
         .cod-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
@@ -702,7 +702,7 @@ function ContractorChangeOrderDetail({ co }: { co: ChangeOrderRow }) {
 
         .cod-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
         .cod-err{font-family:var(--fb);font-size:12.5px;color:var(--dg-t);margin:0}
-      `}</style>
+      ` }} />
     </div>
   );
 }
@@ -829,7 +829,7 @@ function CreatePanel({
           </Button>
         </div>
       </form>
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .cop-cp{background:var(--s1);border:2px solid color-mix(in srgb,var(--ac) 35%,var(--s3));border-radius:var(--r-xl);box-shadow:var(--shsm);overflow:hidden}
         .cop-cp-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:18px 20px;border-bottom:1px solid var(--s3)}
         .cop-cp-head h3{font-family:var(--fd);font-size:15px;font-weight:740;color:var(--t1);margin:0;letter-spacing:-.01em}
@@ -846,7 +846,7 @@ function CreatePanel({
         .cop-cp-full{grid-column:1/-1}
         .cop-cp-err{font-family:var(--fb);font-size:12.5px;color:var(--dg-t);margin:0}
         .cop-cp-foot{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
-      `}</style>
+      ` }} />
     </div>
   );
 }

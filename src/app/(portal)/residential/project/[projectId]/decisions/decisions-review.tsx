@@ -183,7 +183,7 @@ export function ResidentialDecisionsReview({
         </div>
       )}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .dec{display:flex;flex-direction:column;gap:20px}
         .dec-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
         .dec-title{font-family:var(--fd);font-size:24px;font-weight:820;letter-spacing:-.03em;color:var(--t1);line-height:1.15;margin:0}
@@ -218,7 +218,7 @@ export function ResidentialDecisionsReview({
         .rac-meta strong{color:var(--t1);font-weight:650}
         .rac-meta strong.ok{color:var(--ok-t)}
         .rac-meta strong.warn{color:var(--wr-t)}
-      `}</style>
+      ` }} />
     </div>
   );
 }

@@ -674,7 +674,7 @@ function SovSection({ sov }: { sov: Sov }) {
 
 function WorkspaceStyles() {
   return (
-    <style>{`
+    <style dangerouslySetInnerHTML={{ __html: `
       .bl{display:flex;flex-direction:column;gap:20px}
       .bl-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
       .bl-head-main{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
@@ -782,6 +782,6 @@ function WorkspaceStyles() {
       .bl-sov-k{font-family:var(--fb);font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em}
       .bl-sov-v{font-family:var(--fd);font-size:15px;font-weight:740;color:var(--t1);letter-spacing:-.01em;margin-top:2px}
       .bl-sov-v-hl{color:var(--ac-t);font-weight:820}
-    `}</style>
+    ` }} />
   );
 }

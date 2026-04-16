@@ -36,7 +36,7 @@ export function Button({
         {children}
         {!loading && rightIcon && <span className="bc-btn-ico">{rightIcon}</span>}
       </button>
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .bc-btn{height:34px;padding:0 14px;border-radius:var(--r-m);border:1px solid var(--s3);background:var(--s1);font-family:var(--fd);font-size:13px;font-weight:620;color:var(--t1);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all var(--df) var(--e);white-space:nowrap;letter-spacing:-.005em}
         .bc-btn:hover:not(:disabled){background:var(--sh);border-color:var(--s4)}
         .bc-btn:disabled{opacity:.6;cursor:not-allowed}
@@ -49,7 +49,7 @@ export function Button({
         .bc-btn-ico{display:inline-flex;align-items:center}
         .bc-btn-spin{width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;animation:bc-spin .7s linear infinite}
         @keyframes bc-spin{to{transform:rotate(360deg)}}
-      `}</style>
+      ` }} />
     </>
   );
 }

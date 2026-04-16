@@ -388,7 +388,7 @@ export function ContractorRfiWorkspace({
         <CreatePanel projectId={projectId} onClose={() => setCreateOpen(false)} />
       )}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .rfp{display:flex;flex-direction:column;gap:20px}
         .rfp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
         .rfp-head-main{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
@@ -455,7 +455,7 @@ export function ContractorRfiWorkspace({
         .rfp-fr:last-child{border-bottom:none}
         .rfp-fr h5{font-family:var(--fd);font-size:12.5px;font-weight:680;color:var(--t1);margin:0}
         .rfp-fr p{font-family:var(--fb);font-size:11.5px;font-weight:540;color:var(--t2);margin:2px 0 0}
-      `}</style>
+      ` }} />
     </div>
   );
 }
@@ -630,7 +630,7 @@ function RfiDetail({ rfi, now }: { rfi: RfiRow; now: number }) {
         </div>
       </div>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .rfd{display:flex;flex-direction:column;gap:14px;min-height:500px}
         .rfd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--s2)}
         .rfd-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
@@ -667,7 +667,7 @@ function RfiDetail({ rfi, now }: { rfi: RfiRow; now: number }) {
         .rfd-reply-name{font-family:var(--fd);font-size:12.5px;font-weight:680;color:var(--t1)}
         .rfd-reply-time{font-family:var(--fb);font-size:11.5px;font-weight:540;color:var(--t3);margin-left:auto}
         .rfd-reply-body{font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t1);line-height:1.55;margin:0}
-      `}</style>
+      ` }} />
     </div>
   );
 }
@@ -794,7 +794,7 @@ function CreatePanel({
           </Button>
         </div>
       </form>
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .rfp-cp{background:var(--s1);border:2px solid color-mix(in srgb,var(--ac) 35%,var(--s3));border-radius:var(--r-xl);box-shadow:var(--shsm);overflow:hidden}
         .rfp-cp-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:18px 20px;border-bottom:1px solid var(--s3)}
         .rfp-cp-head h3{font-family:var(--fd);font-size:15px;font-weight:740;color:var(--t1);margin:0;letter-spacing:-.01em}
@@ -811,7 +811,7 @@ function CreatePanel({
         .rfp-cp-full{grid-column:1/-1}
         .rfp-cp-err{font-family:var(--fb);font-size:12.5px;color:var(--dg-t);margin:0}
         .rfp-cp-foot{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
-      `}</style>
+      ` }} />
     </div>
   );
 }

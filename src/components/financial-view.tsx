@@ -792,7 +792,7 @@ function Empty({ message }: { message: string }) {
 
 function FinancialStyles() {
   return (
-    <style>{`
+    <style dangerouslySetInnerHTML={{ __html: `
       .fv{font-family:var(--fb);color:var(--t1)}
       .fv-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:16px;flex-wrap:wrap}
       .fv-head-main{min-width:0;flex:1}
@@ -905,6 +905,6 @@ function FinancialStyles() {
       .fv-waiver-meta{font-size:11.5px;color:var(--t3);margin-top:2px;font-weight:520}
 
       .fv-empty{font-size:13px;color:var(--t3);padding:20px 20px;font-weight:520}
-    `}</style>
+    ` }} />
   );
 }

@@ -266,7 +266,7 @@ export function CommercialChangeOrderReview({
         </aside>
       </div>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .cor{display:flex;flex-direction:column;gap:20px}
         .cor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
         .cor-head-main{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
@@ -325,7 +325,7 @@ export function CommercialChangeOrderReview({
         .cor-ir.strong .cor-ir-l{color:var(--t1);font-weight:700}
         .cor-ir-v{font-family:var(--fd);font-size:14px;font-weight:750;color:var(--t1)}
         .cor-ir-v.warn{color:var(--wr-t)}
-      `}</style>
+      ` }} />
     </div>
   );
 }
@@ -557,7 +557,7 @@ function ClientChangeOrderDetail({ co }: { co: ChangeOrderRow }) {
 
       {error && <p className="ccd-err">Error: {error}</p>}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .ccd{display:flex;flex-direction:column;gap:14px;min-height:400px}
         .ccd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--s2)}
         .ccd-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
@@ -606,7 +606,7 @@ function ClientChangeOrderDetail({ co }: { co: ChangeOrderRow }) {
         .ccd-ta:focus{border-color:var(--ac)}
 
         .ccd-err{font-family:var(--fb);font-size:12.5px;color:var(--dg-t);margin:0}
-      `}</style>
+      ` }} />
     </div>
   );
 }

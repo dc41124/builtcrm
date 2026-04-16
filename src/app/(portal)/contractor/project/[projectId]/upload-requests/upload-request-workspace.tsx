@@ -301,7 +301,7 @@ export function ContractorUploadRequestsWorkspace({
         </div>
       )}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .urw{display:flex;flex-direction:column;gap:20px}
         .urw-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
         .urw-head-main{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
@@ -357,7 +357,7 @@ export function ContractorUploadRequestsWorkspace({
 
         .urw-d2{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start;min-width:0}
         @media(max-width:1400px){.urw-d2{grid-template-columns:1fr}}
-      `}</style>
+      ` }} />
     </div>
   );
 }
@@ -647,7 +647,7 @@ function ContractorDetail({
         </div>
       </div>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .urd-main{display:flex;flex-direction:column;gap:14px;min-width:0}
         .urd-rail{display:flex;flex-direction:column;gap:12px;min-width:0}
 
@@ -720,7 +720,7 @@ function ContractorDetail({
         .urd-atxt{flex:1;font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);line-height:1.45}
         .urd-atxt strong{color:var(--t1);font-weight:650}
         .urd-atime{font-family:var(--fb);font-size:11px;font-weight:540;color:var(--t3);white-space:nowrap;flex-shrink:0;padding-top:1px}
-      `}</style>
+      ` }} />
     </>
   );
 }
@@ -859,7 +859,7 @@ function CreateRequestPanel({
           Create Request
         </Button>
       </div>
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .urc{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-xl);box-shadow:var(--shsm);overflow:hidden}
         .urc-head{padding:16px 20px;border-bottom:1px solid var(--s2)}
         .urc-head h3{font-family:var(--fd);font-size:15px;font-weight:740;color:var(--t1);margin:0;letter-spacing:-.01em}
@@ -873,7 +873,7 @@ function CreateRequestPanel({
         .urc-ta{height:auto;padding:10px 12px;resize:vertical;line-height:1.5}
         .urc-err{font-family:var(--fb);font-size:12.5px;color:var(--dg-t);margin:0}
         .urc-foot{padding:12px 20px;border-top:1px solid var(--s2);background:var(--s2);display:flex;justify-content:flex-end;gap:8px}
-      `}</style>
+      ` }} />
     </form>
   );
 }

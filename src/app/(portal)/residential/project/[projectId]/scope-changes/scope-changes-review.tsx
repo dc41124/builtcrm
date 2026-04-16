@@ -84,7 +84,7 @@ export function ResidentialScopeChangesReview({
         </>
       )}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .rsc{display:flex;flex-direction:column;gap:16px}
         .rsc-head{display:flex;flex-direction:column;gap:6px}
         .rsc-title{font-family:var(--fd);font-size:26px;font-weight:820;letter-spacing:-.035em;color:var(--t1);line-height:1.15;margin:0}
@@ -98,7 +98,7 @@ export function ResidentialScopeChangesReview({
         .rsc-sc.danger .rsc-sc-v{color:var(--dg-t)}
         .rsc-sc-m{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);margin-top:3px}
         .rsc-section-title{font-family:var(--fd);font-size:15px;font-weight:740;color:var(--t1);margin:10px 0 0}
-      `}</style>
+      ` }} />
     </div>
   );
 }
@@ -237,7 +237,7 @@ function PendingScopeCard({ co }: { co: ChangeOrderRow }) {
       )}
       {error && <p className="rsc-err">Error: {error}</p>}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .rsc-card{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-xl);padding:20px 22px;box-shadow:var(--shsm);display:flex;flex-direction:column;gap:12px;margin-bottom:12px}
         .rsc-card-pending{border-color:var(--ac-m);border-width:2px}
         .rsc-card-top{display:flex;align-items:flex-start}
@@ -257,7 +257,7 @@ function PendingScopeCard({ co }: { co: ChangeOrderRow }) {
         .rsc-inp{width:100%;padding:10px 12px;border-radius:var(--r-m);border:1px solid var(--s3);background:var(--s1);font-family:var(--fb);font-size:13px;color:var(--t1);resize:vertical;line-height:1.5}
         .rsc-inp:focus{outline:none;border-color:var(--ac)}
         .rsc-err{font-family:var(--fb);font-size:12.5px;color:var(--dg-t);margin:0}
-      `}</style>
+      ` }} />
     </div>
   );
 }
@@ -287,13 +287,13 @@ function ApprovedScopeCard({ co }: { co: ChangeOrderRow }) {
           </span>
         )}
       </div>
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .rsa{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-xl);padding:16px 18px;opacity:.9;margin-bottom:10px}
         .rsa-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
         .rsa-top h3{font-family:var(--fd);font-size:15px;font-weight:720;color:var(--t1);margin:0}
         .rsa-desc{font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t2);line-height:1.5;margin:6px 0 0}
         .rsa-foot{display:flex;gap:18px;margin-top:10px;font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t2)}
-      `}</style>
+      ` }} />
     </div>
   );
 }

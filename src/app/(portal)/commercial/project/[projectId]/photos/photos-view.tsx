@@ -255,7 +255,7 @@ export function CommercialPhotosView({ data }: Props) {
         </div>
       ) : null}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
 .cpp{display:flex;flex-direction:column}
 .cpp-head{margin-bottom:20px}
 .cpp-title{font-family:var(--fd);font-size:24px;font-weight:820;letter-spacing:-.035em;line-height:1.15;color:var(--t1);margin:0}
@@ -307,7 +307,7 @@ export function CommercialPhotosView({ data }: Props) {
 
 @media(max-width:1280px){.cpp-pg-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:900px){.cpp-pg-grid{grid-template-columns:repeat(2,1fr)}}
-      `}</style>
+      ` }} />
     </div>
   );
 }

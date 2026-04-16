@@ -372,7 +372,7 @@ export function CommercialApprovalsReview({
         </aside>
       </div>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .apr{display:flex;flex-direction:column;gap:20px}
         .apr-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
         .apr-head-main{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
@@ -423,7 +423,7 @@ export function CommercialApprovalsReview({
         .apr-ir-l{font-family:var(--fb);font-size:12.5px;font-weight:560;color:var(--t2)}
         .apr-ir-v{font-family:var(--fd);font-size:14px;font-weight:750;color:var(--t1)}
         .apr-ir-v.warn{color:var(--wr-t)}
-      `}</style>
+      ` }} />
     </div>
   );
 }
@@ -555,7 +555,7 @@ function ClientApprovalDetail({
         </div>
       )}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .apd{display:flex;flex-direction:column;gap:14px;min-height:400px}
         .apd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--s2)}
         .apd-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:6px}
@@ -588,7 +588,7 @@ function ClientApprovalDetail({
         .dec textarea{width:100%;min-height:60px;border:1px solid var(--s3);border-radius:var(--r-m);padding:10px 12px;font-size:13px;font-family:var(--fb);resize:vertical;outline:none;background:var(--s1);color:var(--t1)}
         .dec textarea:focus{border-color:var(--ac-m)}
         .dec-acts{display:flex;gap:8px}
-      `}</style>
+      ` }} />
     </div>
   );
 }

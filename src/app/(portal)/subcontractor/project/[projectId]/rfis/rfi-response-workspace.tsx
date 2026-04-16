@@ -339,7 +339,7 @@ export function SubRfiResponseWorkspace({
         </aside>
       </div>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .srfp{display:flex;flex-direction:column;gap:20px}
         .srfp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
         .srfp-head-main{display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -400,7 +400,7 @@ export function SubRfiResponseWorkspace({
         .srfp-fr h5{font-family:var(--fd);font-size:12.5px;font-weight:680;color:var(--t1);margin:0}
         .srfp-fr p{font-family:var(--fb);font-size:11.5px;font-weight:540;color:var(--t2);margin:2px 0 0}
         .srfp-stat{font-family:var(--fd);font-size:14px;font-weight:720;color:var(--t1);white-space:nowrap}
-      `}</style>
+      ` }} />
     </div>
   );
 }
@@ -544,7 +544,7 @@ function SubRfiDetail({ rfi, now }: { rfi: RfiRow; now: number }) {
 
       {canRespond && <RespondForm rfiId={rfi.id} />}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .srfd{display:flex;flex-direction:column;gap:14px;min-height:500px}
         .srfd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--s2)}
         .srfd-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
@@ -579,7 +579,7 @@ function SubRfiDetail({ rfi, now }: { rfi: RfiRow; now: number }) {
         .srfd-reply-name{font-family:var(--fd);font-size:12.5px;font-weight:680;color:var(--t1)}
         .srfd-reply-time{font-family:var(--fb);font-size:11.5px;font-weight:540;color:var(--t3);margin-left:auto}
         .srfd-reply-body{font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t1);line-height:1.55;margin:0}
-      `}</style>
+      ` }} />
     </div>
   );
 }
@@ -669,7 +669,7 @@ function RespondForm({ rfiId }: { rfiId: string }) {
         </div>
         {error && <p className="resp-err">Error: {error}</p>}
       </form>
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .resp{border:1px solid var(--s3);border-radius:var(--r-l);background:var(--s1);overflow:hidden}
         .resp-top{padding:14px 16px;border-bottom:1px solid var(--s2);display:flex;justify-content:space-between;align-items:center}
         .resp-top h4{font-family:var(--fd);font-size:14px;font-weight:700;color:var(--t1);margin:0}
@@ -688,7 +688,7 @@ function RespondForm({ rfiId }: { rfiId: string }) {
         .resp-lbl{font-family:var(--fb);font-size:12px;color:var(--t2);margin-right:8px}
         .resp-btns{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
         .resp-err{font-family:var(--fb);font-size:12.5px;color:var(--dg-t);margin:0;padding:0 16px 12px}
-      `}</style>
+      ` }} />
     </div>
   );
 }

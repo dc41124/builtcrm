@@ -438,7 +438,7 @@ export function ContractorApprovalsWorkspace({
         </aside>
       </div>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .apw{display:flex;flex-direction:column;gap:20px}
         .apw-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
         .apw-head-main{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
@@ -495,7 +495,7 @@ export function ContractorApprovalsWorkspace({
         .apw-fr:last-child{border-bottom:none}
         .apw-fr h5{font-family:var(--fd);font-size:12.5px;font-weight:680;color:var(--t1);margin:0}
         .apw-fr p{font-family:var(--fb);font-size:11.5px;font-weight:540;color:var(--t2);margin:2px 0 0}
-      `}</style>
+      ` }} />
     </div>
   );
 }
@@ -666,7 +666,7 @@ function ApprovalDetail({ row, now }: { row: ApprovalRow; now: number }) {
         </div>
       </div>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .apd{display:flex;flex-direction:column;gap:14px;min-height:400px}
         .apd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--s2)}
         .apd-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:6px}
@@ -702,7 +702,7 @@ function ApprovalDetail({ row, now }: { row: ApprovalRow; now: number }) {
         .apd-at strong{color:var(--t1);font-weight:650}
         .apd-atm{font-family:var(--fb);font-size:11px;color:var(--t3);flex-shrink:0;padding-top:2px}
         .apd-note{font-family:var(--fb);font-size:12.5px;color:var(--t2);margin:0;line-height:1.55}
-      `}</style>
+      ` }} />
     </div>
   );
 }

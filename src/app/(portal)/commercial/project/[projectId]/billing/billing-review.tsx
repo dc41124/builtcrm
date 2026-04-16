@@ -820,7 +820,7 @@ function RightRail({
 
 function WorkspaceStyles() {
   return (
-    <style>{`
+    <style dangerouslySetInnerHTML={{ __html: `
       .bcr{display:flex;flex-direction:column;gap:20px;min-width:0}
 
       /* ═══ Page header ═══ */
@@ -1005,6 +1005,6 @@ function WorkspaceStyles() {
       .bcr-activity-text{flex:1;font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);line-height:1.4}
       .bcr-activity-text b{color:var(--t1);font-weight:650}
       .bcr-activity-time{font-family:var(--fb);font-size:10px;font-weight:540;color:var(--t3);flex-shrink:0;padding-top:2px;white-space:nowrap}
-    `}</style>
+    ` }} />
   );
 }

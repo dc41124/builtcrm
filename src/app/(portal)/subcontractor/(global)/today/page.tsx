@@ -234,7 +234,7 @@ export default async function SubcontractorTodayPage() {
         </div>
       </section>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
 .stb{display:flex;flex-direction:column;gap:20px}
 .stb-ph-hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
 .stb-pt{font-family:var(--fd);font-size:26px;font-weight:820;letter-spacing:-.035em;line-height:1.15;color:var(--t1);margin:0}
@@ -327,7 +327,7 @@ export default async function SubcontractorTodayPage() {
 
 @media(max-width:1280px){.stb-ss{grid-template-columns:repeat(2,1fr)}.stb-bg{grid-template-columns:1fr}.stb-ml{grid-template-columns:1fr}}
 @media(max-width:767px){.stb-pt{font-size:22px}.stb-ss{grid-template-columns:1fr}}
-      `}</style>
+      ` }} />
     </div>
   );
 }
