@@ -1,5 +1,10 @@
-import { ComingSoon } from "@/components/coming-soon";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return <ComingSoon title="Payments" />;
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ projectId: string }>;
+}) {
+  const { projectId } = await params;
+  redirect(`/contractor/project/${projectId}/financials`);
 }

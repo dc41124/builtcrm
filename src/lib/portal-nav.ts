@@ -36,18 +36,11 @@ export function buildNavSections(
             { label: "Approvals", href: `${base}/approvals` },
             { label: "Compliance", href: `${base}/compliance` },
             { label: "Billing", href: `${base}/billing` },
-            { label: "Payments", href: `${base}/payments` },
+            { label: "Financials", href: `${base}/financials` },
             { label: "Selections", href: `${base}/selections` },
             { label: "Upload Requests", href: `${base}/upload-requests` },
             { label: "Messages", href: `${base}/messages` },
             { label: "Documents", href: `${base}/documents` },
-          ]),
-        },
-        {
-          label: "Financials",
-          defaultOpen: true,
-          items: mark([
-            { label: "Financials", href: `${base}/financials` },
           ]),
         },
         {
@@ -128,7 +121,6 @@ export function buildNavSections(
             { label: "RFIs", href: `${base}/rfis` },
             { label: "Upload Requests", href: `${base}/upload-requests` },
             { label: "Compliance", href: `${base}/compliance` },
-            { label: "Payments", href: `${base}/payments` },
             { label: "Financials", href: `${base}/financials` },
             { label: "Messages", href: `${base}/messages` },
             { label: "Documents", href: `${base}/documents` },

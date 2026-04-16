@@ -1,5 +1,9 @@
-import { ComingSoon } from "@/components/shell/coming-soon";
+import { redirect } from "next/navigation";
+import { loadPortalShell } from "@/lib/portal-shell";
 
-export default function Page() {
-  return <ComingSoon title="Budget Overview" />;
+export default async function Page() {
+  const shell = await loadPortalShell("contractor");
+  const first = shell.projectShortcuts[0];
+  if (first) redirect(`/contractor/project/${first.projectId}/financials`);
+  return <p style={{ padding: 48, color: "var(--t3)", fontFamily: "var(--fb)" }}>No projects yet</p>;
 }

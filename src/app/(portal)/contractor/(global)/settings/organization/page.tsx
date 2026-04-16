@@ -1,5 +1,5 @@
-import { ComingSoon } from "@/components/shell/coming-soon";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <ComingSoon title="Organization Settings" />;
+  redirect("/contractor/settings");
 }
