@@ -13,8 +13,10 @@ import type { PgTable } from "drizzle-orm/pg-core";
 
 import { hashPassword } from "better-auth/crypto";
 import { randomBytes } from "node:crypto";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 
 import { db } from "./client";
+import { r2, R2_BUCKET } from "../lib/storage";
 import {
   users,
   authUser,
@@ -55,6 +57,57 @@ async function upsert<TTable extends PgTable, TValues extends Record<string, unk
   if (existing[0]) return existing[0];
   const [row] = await db.insert(table as any).values(values as any).returning();
   return row;
+}
+
+// -- Photo seeding helpers --------------------------------------------------
+// Generates a deterministic placeholder SVG for a seeded photo and uploads it
+// to R2 at the given key. Idempotent — re-running just overwrites.
+const PHOTO_PALETTE: Array<[string, string]> = [
+  ["#5b4fc7", "#7c6fe0"],
+  ["#3178b9", "#5fa0d8"],
+  ["#2d8a5e", "#4dc584"],
+  ["#c17a1a", "#e8a94b"],
+  ["#3d6b8e", "#5f8cae"],
+  ["#c93b3b", "#e65c5c"],
+  ["#8b5fbf", "#a784d4"],
+  ["#1a7f9e", "#3ba5c4"],
+];
+
+function placeholderSvgBytes(label: string, index: number): Buffer {
+  const [from, to] = PHOTO_PALETTE[index % PHOTO_PALETTE.length];
+  const safe = label
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${from}"/>
+      <stop offset="100%" stop-color="${to}"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#g)"/>
+  <g fill="rgba(255,255,255,0.22)">
+    <rect x="60" y="60" width="680" height="480" rx="20" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="3"/>
+    <circle cx="260" cy="230" r="48"/>
+    <path d="M680 420 L520 280 L360 420 L260 340 L120 460 L120 540 L680 540 Z"/>
+  </g>
+  <text x="50%" y="${safe.length > 32 ? "48%" : "52%"}" fill="#ffffff" font-family="'DM Sans',system-ui,sans-serif" font-size="34" font-weight="700" text-anchor="middle" letter-spacing="-1">${safe}</text>
+</svg>`;
+  return Buffer.from(svg, "utf8");
+}
+
+async function seedUploadSvg(key: string, bytes: Buffer): Promise<void> {
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: bytes,
+      ContentType: "image/svg+xml",
+      CacheControl: "public, max-age=3600",
+    }),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -582,6 +635,70 @@ async function seedProjectContent(ctx: ProjectContext) {
     docIds.push(doc.id);
   }
 
+  // ---- Progress photos (grouped across 3 days) -------------------------
+  const photoDefs = residential
+    ? [
+        { title: "Kitchen demo — before", daysAgo: 14 },
+        { title: "Kitchen demo — wall removal", daysAgo: 14 },
+        { title: "Kitchen demo — plumbing rough", daysAgo: 14 },
+        { title: "Electrical panel upgrade", daysAgo: 7 },
+        { title: "Cabinet delivery staging", daysAgo: 7 },
+        { title: "Countertop template check", daysAgo: 2 },
+        { title: "Backsplash tile layout", daysAgo: 2 },
+      ]
+    : [
+        { title: "Phase 2 slab pour — east wing", daysAgo: 21 },
+        { title: "Phase 2 slab pour — west wing", daysAgo: 21 },
+        { title: "Structural steel inspection", daysAgo: 14 },
+        { title: "Electrical panel room", daysAgo: 7 },
+        { title: "Mechanical duct rough-in", daysAgo: 7 },
+        { title: "Fire suppression rough-in", daysAgo: 7 },
+        { title: "Corridor framing — level 3", daysAgo: 2 },
+        { title: "Conduit run — level 3", daysAgo: 2 },
+      ];
+
+  for (let i = 0; i < photoDefs.length; i++) {
+    const p = photoDefs[i];
+    const storageKey = `seed/${project.id}/photos/${i + 1}-${p.title.replace(/[^a-z0-9]+/gi, "_").toLowerCase()}.svg`;
+    const createdAt = new Date(Date.now() - p.daysAgo * 86400000);
+    try {
+      await seedUploadSvg(storageKey, placeholderSvgBytes(p.title, i));
+    } catch (err) {
+      console.warn(
+        `[seed] failed to upload placeholder photo to R2 (${storageKey}):`,
+        (err as Error).message,
+      );
+      // Continue — DB row will still be created, view falls back to gradient.
+    }
+    const existingPhoto = await db
+      .select()
+      .from(documents)
+      .where(eq(documents.storageKey, storageKey))
+      .limit(1);
+    if (existingPhoto[0]) {
+      docIds.push(existingPhoto[0].id);
+      continue;
+    }
+    const [photoDoc] = await db
+      .insert(documents)
+      .values({
+        projectId: project.id,
+        documentType: "photo_log",
+        title: p.title,
+        storageKey,
+        uploadedByUserId: pmUserId,
+        visibilityScope: "project_wide" as const,
+        audienceScope: residential
+          ? ("residential_client" as const)
+          : ("commercial_client" as const),
+        documentStatus: "active" as const,
+        createdAt,
+        updatedAt: createdAt,
+      })
+      .returning();
+    if (photoDoc) docIds.push(photoDoc.id);
+  }
+
   // ---- Milestones (2) --------------------------------------------------
   const milestoneRows = residential
     ? [
@@ -1096,11 +1213,21 @@ async function seedProjectContent(ctx: ProjectContext) {
         { uid: pmUserId, body: "Progress photos from Phase 2 are up in the documents module." },
         { uid: clientUserId, body: "Thanks — forwarded to the ownership group." },
       ];
-    for (const m of msgBodies) {
+    // Stagger across the last ~10 days so the progress feed shows real
+    // temporal spread (oldest first → newest last).
+    const totalMsgs = msgBodies.length;
+    for (let i = 0; i < totalMsgs; i++) {
+      const m = msgBodies[i];
+      const daysAgo = Math.round(10 - (i * 10) / totalMsgs);
+      const hoursAgo = (i % 3) * 3;
+      const createdAt = new Date(
+        Date.now() - daysAgo * 86400000 - hoursAgo * 3600000,
+      );
       await db.insert(messages).values({
         conversationId: convo.id,
         senderUserId: m.uid,
         body: m.body,
+        createdAt,
       });
     }
     const last = msgBodies[msgBodies.length - 1];
@@ -1210,16 +1337,58 @@ async function seedProjectContent(ctx: ProjectContext) {
     {
       activityType: "approval_requested",
       title: residential ? "Approval requested: Weekend work for concrete pour" : "Approval requested: CO-014 mechanical reroute",
-      body: "Awaiting client decision.",
+      body: residential
+        ? "Crew wants to mobilize Saturday morning for the foundation pour. Awaiting your go-ahead."
+        : "The HVAC reroute (CO-14) needs your approval before we can proceed with mechanical work in the south corridor. Currently on the critical path.",
       actor: pmUserId,
       daysAgo: residential ? 1 : 5,
     },
     {
       activityType: "approval_completed",
       title: residential ? "Electrical panel upgrade approved" : "CO-013 electrical panel relocation approved",
-      body: "Decision recorded and scope released.",
+      body: "Decision recorded and scope released. Thanks for the quick turnaround.",
       actor: clientUserId,
       daysAgo: residential ? 28 : 8,
+    },
+    {
+      activityType: "milestone_update",
+      title: residential
+        ? "Demo complete — wall removal signed off"
+        : "East corridor rough-in closeout achieved",
+      body: residential
+        ? "All wall removal work is complete and the inspector signed off on the exposed framing. Ready to proceed with electrical rough-in."
+        : "Final device placement verified and photo submission uploaded. Moving to the west wing next week.",
+      actor: pmUserId,
+      daysAgo: residential ? 12 : 3,
+    },
+    {
+      activityType: "project_update",
+      title: residential
+        ? "Weekly report — Week of March 24"
+        : "Weekly report — Week of April 7",
+      body: residential
+        ? "Kitchen demo is complete and we're on schedule for cabinet delivery next Monday. Plumbing rough-in starts Friday. Photos from the week are in the Photos tab."
+        : "Good progress this week across electrical and mechanical rough-in. East corridor electrical distribution is complete and we've begun pulling wire for the west wing. Main panel room passed inspection Thursday. 12 progress photos added.",
+      actor: pmUserId,
+      daysAgo: 0,
+    },
+    {
+      activityType: "file_uploaded",
+      title: residential ? "Progress photos — demo day" : "Progress photos — Phase 2 structural",
+      body: residential
+        ? "7 photos from demo day are up in the Photos tab."
+        : "8 photos from the structural inspection and slab pours are up in the Photos tab.",
+      actor: pmUserId,
+      daysAgo: residential ? 14 : 14,
+    },
+    {
+      activityType: "milestone_update",
+      title: residential ? "Phase 1 complete — demo signed off" : "Phase 2 structural substantial completion",
+      body: residential
+        ? "Phase 1 wrapped on schedule. Moving into Phase 2 cabinetry and plumbing rough-in."
+        : "All concrete pours passed final inspection. Structural engineer has signed off on load tests. Formally transitioned to Phase 3 interior rough-in.",
+      actor: pmUserId,
+      daysAgo: residential ? 11 : 21,
     },
     {
       activityType: "comment_added",

@@ -33,6 +33,8 @@ import {
   users,
 } from "@/db/schema";
 
+import { presignDownloadUrl } from "@/lib/storage";
+
 import {
   getEffectiveContext,
   type EffectiveContext,
@@ -1933,6 +1935,37 @@ export type ClientProjectView = {
   selections: SelectionCategoryRow[];
   conversations: ConversationRow[];
   documents: DocumentRow[];
+  activityTrail: ClientActivityEvent[];
+  progressMetrics: ClientProgressMetrics;
+  phasePercentByPhase: Record<string, number>;
+  currentPhase: string;
+  contractorOrganizationName: string | null;
+};
+
+export type ClientActivityEvent = {
+  id: string;
+  title: string;
+  body: string | null;
+  activityType: string;
+  relatedObjectType: string | null;
+  relatedObjectId: string | null;
+  actorName: string | null;
+  createdAt: Date;
+  photoAttachments: ClientActivityPhoto[];
+};
+
+export type ClientActivityPhoto = {
+  id: string;
+  title: string;
+  documentType: string;
+  createdAt: Date;
+  url: string | null;
+};
+
+export type ClientProgressMetrics = {
+  milestonesCompletedLast7d: number;
+  photosAddedLast7d: number;
+  scheduleStatus: "on_track" | "at_risk";
 };
 
 export async function getClientProjectView(
@@ -1957,6 +1990,7 @@ export async function getClientProjectView(
         title: milestones.title,
         milestoneStatus: milestones.milestoneStatus,
         scheduledDate: milestones.scheduledDate,
+        phase: milestones.phase,
         visibilityScope: milestones.visibilityScope,
       })
       .from(milestones)
@@ -2167,6 +2201,256 @@ export async function getClientProjectView(
   );
   const clientDocuments = await loadDocumentsForProject(projectId, "client");
 
+  const PHOTO_DOC_TYPES = ["photo", "photo_log", "progress_photo"];
+  const [activityRows, projectMetaRow, projectPhotos, messageRows] = await Promise.all([
+    db
+      .select({
+        id: activityFeedItems.id,
+        title: activityFeedItems.title,
+        body: activityFeedItems.body,
+        activityType: activityFeedItems.activityType,
+        relatedObjectType: activityFeedItems.relatedObjectType,
+        relatedObjectId: activityFeedItems.relatedObjectId,
+        createdAt: activityFeedItems.createdAt,
+        actorName: users.displayName,
+      })
+      .from(activityFeedItems)
+      .leftJoin(users, eq(users.id, activityFeedItems.actorUserId))
+      .where(eq(activityFeedItems.projectId, projectId))
+      .orderBy(desc(activityFeedItems.createdAt))
+      .limit(24),
+    db
+      .select({
+        currentPhase: projects.currentPhase,
+        contractorOrganizationId: projects.contractorOrganizationId,
+      })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1),
+    db
+      .select({
+        id: documents.id,
+        title: documents.title,
+        documentType: documents.documentType,
+        storageKey: documents.storageKey,
+        createdAt: documents.createdAt,
+      })
+      .from(documents)
+      .where(
+        and(
+          eq(documents.projectId, projectId),
+          inArray(documents.documentType, PHOTO_DOC_TYPES),
+          eq(documents.documentStatus, "active"),
+        ),
+      )
+      .orderBy(desc(documents.createdAt))
+      .limit(100),
+    // Recent project messages to merge into the progress feed
+    db
+      .select({
+        id: messages.id,
+        body: messages.body,
+        createdAt: messages.createdAt,
+        conversationId: conversations.id,
+        conversationTitle: conversations.title,
+        conversationType: conversations.conversationType,
+        senderName: users.displayName,
+      })
+      .from(messages)
+      .innerJoin(conversations, eq(conversations.id, messages.conversationId))
+      .leftJoin(users, eq(users.id, messages.senderUserId))
+      .where(eq(conversations.projectId, projectId))
+      .orderBy(desc(messages.createdAt))
+      .limit(24),
+  ]);
+
+  // Correlate photos to activity rows via document_links (primary match)
+  const activityTargets = activityRows
+    .filter(
+      (a): a is typeof a & { relatedObjectId: string; relatedObjectType: string } =>
+        a.relatedObjectId != null && a.relatedObjectType != null,
+    )
+    .map((a) => ({ id: a.relatedObjectId, type: a.relatedObjectType }));
+  const photoIdSet = new Set(projectPhotos.map((p) => p.id));
+  const docLinkRows =
+    activityTargets.length > 0 && photoIdSet.size > 0
+      ? await db
+          .select({
+            documentId: documentLinks.documentId,
+            linkedObjectId: documentLinks.linkedObjectId,
+            linkedObjectType: documentLinks.linkedObjectType,
+          })
+          .from(documentLinks)
+          .where(
+            and(
+              inArray(
+                documentLinks.documentId,
+                Array.from(photoIdSet),
+              ),
+              inArray(
+                documentLinks.linkedObjectId,
+                activityTargets.map((t) => t.id),
+              ),
+            ),
+          )
+      : ([] as Array<{
+          documentId: string;
+          linkedObjectId: string;
+          linkedObjectType: string;
+        }>);
+
+  // Presign every photo in parallel so lightbox + thumbnails can show real
+  // images. If presign fails for any row, the view falls back to the
+  // gradient placeholder.
+  const photoUrlById = new Map<string, string>();
+  await Promise.all(
+    projectPhotos.map(async (p) => {
+      try {
+        const url = await presignDownloadUrl({
+          key: p.storageKey,
+          expiresInSeconds: 60 * 10,
+        });
+        photoUrlById.set(p.id, url);
+      } catch {
+        // ignore — leave url null
+      }
+    }),
+  );
+
+  const photoById = new Map(projectPhotos.map((p) => [p.id, p]));
+  const linkedPhotosByObject = new Map<string, string[]>();
+  for (const link of docLinkRows) {
+    const key = `${link.linkedObjectType}:${link.linkedObjectId}`;
+    const arr = linkedPhotosByObject.get(key) ?? [];
+    arr.push(link.documentId);
+    linkedPhotosByObject.set(key, arr);
+  }
+
+  const currentPhase = projectMetaRow[0]?.currentPhase ?? "preconstruction";
+  const contractorOrgId = projectMetaRow[0]?.contractorOrganizationId ?? null;
+  const [contractorOrgRow] = contractorOrgId
+    ? await db
+        .select({ name: organizations.name })
+        .from(organizations)
+        .where(eq(organizations.id, contractorOrgId))
+        .limit(1)
+    : [];
+  const contractorOrganizationName = contractorOrgRow?.name ?? null;
+
+  const FALLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
+  const MAX_PHOTOS_PER_UPDATE = 8;
+
+  const activityEventsFromFeed: ClientActivityEvent[] = activityRows.map((a) => {
+    const linkKey =
+      a.relatedObjectType && a.relatedObjectId
+        ? `${a.relatedObjectType}:${a.relatedObjectId}`
+        : null;
+    const primaryIds = linkKey ? (linkedPhotosByObject.get(linkKey) ?? []) : [];
+    const primary = primaryIds
+      .map((id) => photoById.get(id))
+      .filter((p): p is (typeof projectPhotos)[number] => p != null);
+
+    let fallback: typeof primary = [];
+    if (primary.length === 0) {
+      const activityTime = a.createdAt.getTime();
+      fallback = projectPhotos.filter((p) => {
+        const diff = Math.abs(p.createdAt.getTime() - activityTime);
+        return diff <= FALLBACK_WINDOW_MS;
+      });
+    }
+    const merged = (primary.length > 0 ? primary : fallback).slice(
+      0,
+      MAX_PHOTOS_PER_UPDATE,
+    );
+
+    return {
+      id: a.id,
+      title: a.title,
+      body: a.body,
+      activityType: a.activityType,
+      relatedObjectType: a.relatedObjectType,
+      relatedObjectId: a.relatedObjectId,
+      actorName: a.actorName,
+      createdAt: a.createdAt,
+      photoAttachments: merged.map((p) => ({
+        id: p.id,
+        title: p.title,
+        documentType: p.documentType,
+        createdAt: p.createdAt,
+        url: photoUrlById.get(p.id) ?? null,
+      })),
+    };
+  });
+
+  // Map recent project messages into the same ClientActivityEvent shape so
+  // the progress feed surfaces direct conversations alongside feed items.
+  const activityEventsFromMessages: ClientActivityEvent[] = messageRows.map(
+    (m) => {
+      const convoLabel =
+        m.conversationTitle ??
+        (m.conversationType === "project_general"
+          ? "project thread"
+          : m.conversationType.replace(/_/g, " "));
+      const bodyPreview =
+        m.body.length > 240 ? `${m.body.slice(0, 237)}…` : m.body;
+      return {
+        id: `msg-${m.id}`,
+        title: `New message in ${convoLabel}`,
+        body: bodyPreview,
+        activityType: "message_posted",
+        relatedObjectType: "conversation",
+        relatedObjectId: m.conversationId,
+        actorName: m.senderName,
+        createdAt: m.createdAt,
+        photoAttachments: [],
+      };
+    },
+  );
+
+  const activityTrail: ClientActivityEvent[] = [
+    ...activityEventsFromFeed,
+    ...activityEventsFromMessages,
+  ]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, 24);
+
+  // Rolling 7-day metrics for the "top card" on the progress page
+  const nowMs = Date.now();
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+  const windowStart = nowMs - SEVEN_DAYS_MS;
+  const milestonesCompletedLast7d = milestoneRows.filter(
+    (m) =>
+      m.milestoneStatus === "completed" &&
+      new Date(m.scheduledDate).getTime() >= windowStart,
+  ).length;
+  const photosAddedLast7d = projectPhotos.filter(
+    (p) => p.createdAt.getTime() >= windowStart,
+  ).length;
+  const anyAtRisk = milestoneRows.some(
+    (m) =>
+      (m.milestoneStatus === "missed" || m.milestoneStatus === "scheduled") &&
+      new Date(m.scheduledDate).getTime() < nowMs,
+  );
+  const progressMetrics: ClientProgressMetrics = {
+    milestonesCompletedLast7d,
+    photosAddedLast7d,
+    scheduleStatus: anyAtRisk ? "at_risk" : "on_track",
+  };
+
+  const phasePercentByPhase: Record<string, number> = {};
+  const phaseGroups = new Map<string, { total: number; completed: number }>();
+  for (const m of milestoneRows) {
+    const phaseKey = m.phase ?? "unspecified";
+    const g = phaseGroups.get(phaseKey) ?? { total: 0, completed: 0 };
+    g.total += 1;
+    if (m.milestoneStatus === "completed") g.completed += 1;
+    phaseGroups.set(phaseKey, g);
+  }
+  for (const [phaseKey, g] of phaseGroups.entries()) {
+    phasePercentByPhase[phaseKey] =
+      g.total === 0 ? 0 : Math.round((g.completed / g.total) * 100);
+  }
+
   return {
     context,
     project: context.project,
@@ -2174,7 +2458,14 @@ export async function getClientProjectView(
     selections,
     conversations: clientConversations,
     documents: clientDocuments,
-    milestones: milestoneRows.map(({ visibilityScope: _v, ...rest }) => rest),
+    milestones: milestoneRows.map(
+      ({ visibilityScope: _v, phase: _p, ...rest }) => rest,
+    ),
+    activityTrail,
+    progressMetrics,
+    phasePercentByPhase,
+    currentPhase,
+    contractorOrganizationName,
     decisions: coRows,
     openRequests: rfiRows,
     approvals: approvalRows,
