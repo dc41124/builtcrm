@@ -227,7 +227,7 @@ Read `CLAUDE.md` at the repo root for tech stack + conventions.
 - `const now = Date.now()` hydration sweep (ongoing)
 - `>` child combinator sweep (done for all known files)
 - Use `dangerouslySetInnerHTML` for any `<style>` block with special CSS chars
-- Residential nav `/decisions` link
+- ~~Residential nav `/decisions` link~~ (done — added to nav)
 - Contractor approvals cross-project page (ComingSoon)
 - Contractor cross-project payment-tracking page (ComingSoon)
 - Billing workspace: Package Documents buttons (UI-only)

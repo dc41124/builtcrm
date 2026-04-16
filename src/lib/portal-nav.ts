@@ -260,6 +260,7 @@ export function buildNavSections(
       label: "Decisions",
       defaultOpen: true,
       items: mark([
+        { label: "Decisions", href: `${base}/decisions` },
         { label: "Scope changes", href: `${base}/scope-changes` },
         { label: "Confirmed choices", href: `${base}/confirmed-choices` },
       ]),
