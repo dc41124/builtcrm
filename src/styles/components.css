@@ -697,3 +697,91 @@
     content: "";
   }
 }
+
+
+/* ══════════════════════════════════════════════════════════
+   Responsive — tablet and mobile adjustments
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Tablet (≤1279px) ── */
+@media (max-width: 1279px) {
+  .bc-card-head {
+    padding: 14px 16px;
+  }
+  .bc-card-body {
+    padding: 14px 16px;
+  }
+  .bc-modal-side-panel {
+    width: 420px;
+  }
+}
+
+/* ── Mobile (≤767px) ── */
+@media (max-width: 767px) {
+  /* Cards: tighter padding */
+  .bc-card {
+    border-radius: var(--r-l);
+  }
+  .bc-card-head {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+  .bc-card-body {
+    padding: 12px 14px;
+  }
+  .bc-card-title {
+    font-size: 14px;
+  }
+  .bc-card-tabs {
+    padding: 0 14px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .bc-card-tab {
+    font-size: 12px;
+    padding: 9px 10px;
+  }
+
+  /* KPI cards: slightly smaller */
+  .bc-kpi {
+    padding: 12px;
+  }
+  .bc-kpi-value {
+    font-size: 18px;
+  }
+  .bc-kpi-label {
+    font-size: 11px;
+  }
+
+  /* Modals: full-width side panel, tighter center modal */
+  .bc-modal-center {
+    padding: 16px;
+  }
+  .bc-modal-center-panel {
+    width: 100%;
+    max-height: 92vh;
+  }
+  .bc-modal-side-panel {
+    width: 100%;
+  }
+  .bc-modal-head {
+    padding: 14px 16px;
+  }
+  .bc-modal-body {
+    padding: 16px;
+  }
+  .bc-modal-foot {
+    padding: 12px 16px;
+  }
+
+  /* Buttons: touch-friendly height */
+  .bc-btn {
+    height: 38px;
+    font-size: 13px;
+  }
+
+  /* Empty state: less top/bottom padding */
+  .bc-empty {
+    padding: 32px 16px;
+  }
+}
