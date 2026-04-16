@@ -116,7 +116,67 @@ async function loadRfisWithResponses(
     grouped.set(r.rfiId, arr);
   }
 
-  return rfiRows.map((r) => ({ ...r, responses: grouped.get(r.id) ?? [] }));
+  // Enrichment: reference files + activity trail
+  const rfiIds = rfiRows.map((r) => r.id);
+  const [refFileRows, rfiActivityRows] = await Promise.all([
+    db
+      .select({
+        linkedObjectId: documentLinks.linkedObjectId,
+        documentId: documents.id,
+        title: documents.title,
+        documentType: documents.documentType,
+        linkRole: documentLinks.linkRole,
+      })
+      .from(documentLinks)
+      .innerJoin(documents, eq(documents.id, documentLinks.documentId))
+      .where(
+        and(
+          eq(documentLinks.linkedObjectType, "rfi"),
+          inArray(documentLinks.linkedObjectId, rfiIds),
+        ),
+      ),
+    db
+      .select({
+        id: activityFeedItems.id,
+        relatedObjectId: activityFeedItems.relatedObjectId,
+        title: activityFeedItems.title,
+        body: activityFeedItems.body,
+        activityType: activityFeedItems.activityType,
+        createdAt: activityFeedItems.createdAt,
+        actorName: users.displayName,
+      })
+      .from(activityFeedItems)
+      .leftJoin(users, eq(users.id, activityFeedItems.actorUserId))
+      .where(
+        and(
+          eq(activityFeedItems.relatedObjectType, "rfi"),
+          inArray(activityFeedItems.relatedObjectId, rfiIds),
+        ),
+      )
+      .orderBy(desc(activityFeedItems.createdAt)),
+  ]);
+
+  const refFilesById = new Map<string, RfiReferenceFile[]>();
+  for (const d of refFileRows) {
+    const arr = refFilesById.get(d.linkedObjectId) ?? [];
+    arr.push({ id: d.documentId, title: d.title, documentType: d.documentType, linkRole: d.linkRole });
+    refFilesById.set(d.linkedObjectId, arr);
+  }
+
+  const rfiActivityById = new Map<string, RfiActivityEvent[]>();
+  for (const a of rfiActivityRows) {
+    if (!a.relatedObjectId) continue;
+    const arr = rfiActivityById.get(a.relatedObjectId) ?? [];
+    arr.push({ id: a.id, title: a.title, body: a.body, activityType: a.activityType, actorName: a.actorName, createdAt: a.createdAt });
+    rfiActivityById.set(a.relatedObjectId, arr);
+  }
+
+  return rfiRows.map((r) => ({
+    ...r,
+    responses: grouped.get(r.id) ?? [],
+    referenceFiles: refFilesById.get(r.id) ?? [],
+    activityTrail: rfiActivityById.get(r.id) ?? [],
+  }));
 }
 
 export type RfiResponseRow = {
@@ -125,6 +185,22 @@ export type RfiResponseRow = {
   respondedByUserId: string;
   respondedByName: string | null;
   isOfficialResponse: boolean;
+  createdAt: Date;
+};
+
+export type RfiReferenceFile = {
+  id: string;
+  title: string;
+  documentType: string;
+  linkRole: string;
+};
+
+export type RfiActivityEvent = {
+  id: string;
+  title: string;
+  body: string | null;
+  activityType: string;
+  actorName: string | null;
   createdAt: Date;
 };
 
@@ -146,6 +222,8 @@ export type RfiRow = {
   locationDescription: string | null;
   createdAt: Date;
   responses: RfiResponseRow[];
+  referenceFiles: RfiReferenceFile[];
+  activityTrail: RfiActivityEvent[];
 };
 
 export type LienWaiverRow = {

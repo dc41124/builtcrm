@@ -566,28 +566,34 @@ function RfiDetail({ rfi, now }: { rfi: RfiRow; now: number }) {
           </div>
         </div>
         <div className="rfd-section-body">
-          {rfi.drawingReference || rfi.specificationReference ? (
-            <>
-              {rfi.drawingReference && (
-                <div className="rfd-fr">
-                  <div>
-                    <h5>{rfi.drawingReference}</h5>
-                    <p>Drawing reference</p>
-                  </div>
-                  <span className="rfd-fc">DWG</span>
-                </div>
-              )}
-              {rfi.specificationReference && (
-                <div className="rfd-fr">
-                  <div>
-                    <h5>{rfi.specificationReference}</h5>
-                    <p>Specification reference</p>
-                  </div>
-                  <span className="rfd-fc">SPEC</span>
-                </div>
-              )}
-            </>
-          ) : (
+          {rfi.drawingReference && (
+            <div className="rfd-fr">
+              <div>
+                <h5>{rfi.drawingReference}</h5>
+                <p>Drawing reference</p>
+              </div>
+              <span className="rfd-fc">DWG</span>
+            </div>
+          )}
+          {rfi.specificationReference && (
+            <div className="rfd-fr">
+              <div>
+                <h5>{rfi.specificationReference}</h5>
+                <p>Specification reference</p>
+              </div>
+              <span className="rfd-fc">SPEC</span>
+            </div>
+          )}
+          {rfi.referenceFiles.map((f) => (
+            <div key={f.id} className="rfd-fr">
+              <div>
+                <h5>{f.title}</h5>
+                <p>{f.documentType} · {f.linkRole}</p>
+              </div>
+              <span className="rfd-fc">FILE</span>
+            </div>
+          ))}
+          {!rfi.drawingReference && !rfi.specificationReference && rfi.referenceFiles.length === 0 && (
             <p className="rfd-p">
               No drawings or specs linked yet. Attach supporting files to help
               the reviewer.
@@ -595,6 +601,28 @@ function RfiDetail({ rfi, now }: { rfi: RfiRow; now: number }) {
           )}
         </div>
       </div>
+
+      {rfi.activityTrail.length > 0 && (
+        <div className="rfd-section">
+          <div className="rfd-section-head">
+            <h4>Recent activity</h4>
+          </div>
+          <div className="rfd-section-body">
+            <div className="rfd-activity">
+              {rfi.activityTrail.map((a) => (
+                <div key={a.id} className="rfd-ai">
+                  <div className="rfd-ai-dot" />
+                  <div className="rfd-ai-text">
+                    {a.actorName && <strong>{a.actorName}</strong>}
+                    {a.actorName ? " " : ""}{a.title}
+                  </div>
+                  <div className="rfd-ai-time">{formatDate(a.createdAt)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="rfd-section">
         <div className="rfd-section-head">
@@ -652,6 +680,13 @@ function RfiDetail({ rfi, now }: { rfi: RfiRow; now: number }) {
         .rfd-btn:hover{border-color:var(--s4);background:var(--sh)}
         .rfd-section-body{padding:14px 16px}
         .rfd-p{font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t2);margin:0;line-height:1.55}
+        .rfd-activity{display:flex;flex-direction:column;gap:0}
+        .rfd-ai{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--s2)}
+        .rfd-ai:last-child{border-bottom:none}
+        .rfd-ai-dot{width:8px;height:8px;border-radius:50%;background:var(--ac);flex-shrink:0;margin-top:5px}
+        .rfd-ai-text{flex:1;font-family:var(--fb);font-size:12.5px;color:var(--t2);line-height:1.45;font-weight:520}
+        .rfd-ai-text strong{font-weight:650;color:var(--t1)}
+        .rfd-ai-time{font-family:var(--fb);font-size:11px;color:var(--t3);white-space:nowrap;flex-shrink:0;font-weight:520}
         .rfd-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 
         .rfd-fr{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--s2)}
