@@ -339,68 +339,7 @@ export function SubRfiResponseWorkspace({
         </aside>
       </div>
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        .srfp{display:flex;flex-direction:column;gap:20px}
-        .srfp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
-        .srfp-head-main{display:flex;flex-direction:column;gap:6px;min-width:0}
-        .srfp-title{font-family:var(--fd);font-size:26px;font-weight:820;letter-spacing:-.03em;color:var(--t1);line-height:1.15;margin:0}
-        .srfp-desc{font-family:var(--fb);font-size:13.5px;font-weight:540;color:var(--t2);line-height:1.5;max-width:720px;margin:0}
-
-        .srfp-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-        @media(max-width:1000px){.srfp-kpis{grid-template-columns:repeat(2,1fr)}}
-
-        .srfp-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
-        @media(max-width:1200px){.srfp-grid{grid-template-columns:1fr}}
-
-        .srfp-ws{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-xl);box-shadow:var(--shsm);overflow:hidden;min-width:0}
-        .srfp-ws-head{padding:18px 20px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
-        .srfp-ws-head h3{font-family:var(--fd);font-size:15px;font-weight:740;color:var(--t1);margin:0;letter-spacing:-.01em}
-        .srfp-ws-head .sub{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);margin-top:4px;max-width:560px}
-
-        .srfp-ws-tabs{display:flex;gap:6px;padding:12px 20px 0;flex-wrap:wrap}
-        .srfp-wtab{height:32px;padding:0 14px;border-radius:999px;border:1px solid var(--s3);background:var(--s1);color:var(--t2);font-family:var(--fb);font-size:12px;font-weight:650;display:inline-flex;align-items:center;cursor:pointer;transition:all var(--df) var(--e)}
-        .srfp-wtab:hover{border-color:var(--s4);color:var(--t1)}
-        .srfp-wtab.on{background:var(--ac-s);color:var(--ac-t);border-color:color-mix(in srgb,var(--ac) 30%,var(--s3))}
-
-        .srfp-split{display:grid;grid-template-columns:340px minmax(0,1fr);padding:16px 20px 20px;gap:14px;align-items:start}
-        @media(max-width:900px){.srfp-split{grid-template-columns:1fr}}
-
-        .srfp-queue{display:flex;flex-direction:column;gap:6px;max-height:640px;overflow-y:auto;min-width:0}
-        .srfp-queue::-webkit-scrollbar{width:4px}
-        .srfp-queue::-webkit-scrollbar-track{background:transparent}
-        .srfp-queue::-webkit-scrollbar-thumb{background:var(--s4);border-radius:2px}
-        .srfp-tc{text-align:left;background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:12px 14px;cursor:pointer;transition:all var(--dn) var(--e);display:flex;flex-direction:column;gap:6px}
-        .srfp-tc:hover{border-color:var(--s4);box-shadow:var(--shsm)}
-        .srfp-tc.on{border-color:color-mix(in srgb,var(--ac) 40%,var(--s3));background:color-mix(in srgb,var(--ac-s) 30%,var(--s1));box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 15%,transparent)}
-        .srfp-tc.hot{border-color:color-mix(in srgb,var(--dg) 35%,var(--s3))}
-        .srfp-tc.hot.on{border-color:var(--dg-t);box-shadow:0 0 0 3px color-mix(in srgb,var(--dg) 15%,transparent)}
-        .srfp-tc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
-        .srfp-tc-id{font-family:var(--fm);font-size:11px;font-weight:520;color:var(--t3);letter-spacing:.02em}
-        .srfp-tc-title{font-family:var(--fd);font-size:13px;font-weight:700;color:var(--t1);margin-top:2px;letter-spacing:-.005em}
-        .srfp-tc-desc{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);margin-top:2px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-        .srfp-tc-tags{display:flex;gap:4px;flex-wrap:wrap}
-        .srfp-mt{height:20px;padding:0 7px;border-radius:999px;border:1px solid var(--s3);background:var(--s2);color:var(--t3);font-family:var(--fd);font-size:10px;font-weight:700;display:inline-flex;align-items:center;white-space:nowrap}
-        .srfp-mt.dg{background:var(--dg-s);border-color:color-mix(in srgb,var(--dg) 35%,var(--s3));color:var(--dg-t)}
-        .srfp-tc-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:var(--fb);font-size:11px;font-weight:540;color:var(--t3);margin-top:2px}
-
-        .srfp-detail{min-width:0}
-
-        .srfp-rail{display:flex;flex-direction:column;gap:12px;min-width:0}
-        .srfp-rc{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-xl);box-shadow:var(--shsm);overflow:hidden}
-        .srfp-rc.danger{border-color:color-mix(in srgb,var(--dg) 30%,var(--s3))}
-        .srfp-rc-h{padding:14px 16px 0}
-        .srfp-rc-h h3{font-family:var(--fd);font-size:14px;font-weight:720;color:var(--t1);margin:0;letter-spacing:-.01em}
-        .srfp-rc-h .sub{font-family:var(--fb);font-size:11.5px;font-weight:540;color:var(--t3);margin-top:3px;display:block}
-        .srfp-rc-b{padding:10px 16px 16px}
-        .srfp-rc-n{font-family:var(--fd);font-size:13px;font-weight:700;color:var(--t1)}
-        .srfp-rc-p{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);margin:4px 0 0;line-height:1.5}
-
-        .srfp-fr{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--s2)}
-        .srfp-fr:last-child{border-bottom:none}
-        .srfp-fr h5{font-family:var(--fd);font-size:12.5px;font-weight:680;color:var(--t1);margin:0}
-        .srfp-fr p{font-family:var(--fb);font-size:11.5px;font-weight:540;color:var(--t2);margin:2px 0 0}
-        .srfp-stat{font-family:var(--fd);font-size:14px;font-weight:720;color:var(--t1);white-space:nowrap}
-      ` }} />
+      
     </div>
   );
 }
@@ -546,42 +485,7 @@ function SubRfiDetail({ rfi, now }: { rfi: RfiRow; now: number }) {
 
       {canRespond && <RespondForm rfiId={rfi.id} />}
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        .srfd{display:flex;flex-direction:column;gap:14px;min-height:500px}
-        .srfd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--s2)}
-        .srfd-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
-        .srfd-id{font-family:var(--fm);font-size:12px;font-weight:520;color:var(--t3);letter-spacing:.02em}
-        .srfd-title{font-family:var(--fd);font-size:18px;font-weight:750;letter-spacing:-.02em;color:var(--t1);margin:0}
-        .srfd-desc{font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t2);line-height:1.5;margin:4px 0 0;max-width:480px}
-        .srfd-pills{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0;padding-top:2px}
-
-        .srfd-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-        .srfd-cell{background:var(--s2);border:1px solid var(--s3);border-radius:var(--r-m);padding:10px 12px}
-        .srfd-k{font-family:var(--fd);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--t3)}
-        .srfd-v{font-family:var(--fd);font-size:14px;font-weight:700;margin-top:3px;color:var(--t1)}
-        .srfd-v.danger{color:var(--dg-t)}
-        .srfd-m{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);margin-top:2px}
-
-        .srfd-section{border:1px solid var(--s3);border-radius:var(--r-l);overflow:hidden}
-        .srfd-section-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 16px;background:var(--s2);border-bottom:1px solid var(--s3)}
-        .srfd-section-head h4{font-family:var(--fd);font-size:13px;font-weight:700;color:var(--t1);margin:0}
-        .srfd-section-body{padding:14px 16px}
-        .srfd-p{font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t2);margin:0;line-height:1.55}
-        .srfd-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-
-        .srfd-fr{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--s2)}
-        .srfd-fr:last-child{border-bottom:none}
-        .srfd-fr h5{font-family:var(--fd);font-size:13px;font-weight:620;color:var(--t1);margin:0}
-        .srfd-fr p{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t2);margin:2px 0 0}
-        .srfd-fc{font-family:var(--fd);font-size:11px;font-weight:700;color:var(--t3);padding:3px 8px;border-radius:var(--r-s);background:var(--s2);white-space:nowrap}
-
-        .srfd-thread{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
-        .srfd-reply{border:1px solid var(--s3);border-radius:var(--r-m);padding:12px 14px}
-        .srfd-reply-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-        .srfd-reply-name{font-family:var(--fd);font-size:12.5px;font-weight:680;color:var(--t1)}
-        .srfd-reply-time{font-family:var(--fb);font-size:11.5px;font-weight:540;color:var(--t3);margin-left:auto}
-        .srfd-reply-body{font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t1);line-height:1.55;margin:0}
-      ` }} />
+      
     </div>
   );
 }
@@ -671,26 +575,7 @@ function RespondForm({ rfiId }: { rfiId: string }) {
         </div>
         {error && <p className="resp-err">Error: {error}</p>}
       </form>
-      <style dangerouslySetInnerHTML={{ __html: `
-        .resp{border:1px solid var(--s3);border-radius:var(--r-l);background:var(--s1);overflow:hidden}
-        .resp-top{padding:14px 16px;border-bottom:1px solid var(--s2);display:flex;justify-content:space-between;align-items:center}
-        .resp-top h4{font-family:var(--fd);font-size:14px;font-weight:700;color:var(--t1);margin:0}
-        .resp-form{display:flex;flex-direction:column}
-        .resp-ta{width:100%;min-height:110px;border:none;padding:14px 16px;font-family:var(--fb);font-size:13px;color:var(--t1);resize:vertical;outline:none;background:transparent;line-height:1.55}
-        .resp-ta::placeholder{color:var(--t3)}
-        .resp-att{padding:10px 16px;border-top:1px solid var(--s2);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-        .resp-file{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:var(--r-m);border:1px solid var(--s3);background:var(--s2);font-family:var(--fb);font-size:12px;font-weight:560;color:var(--t2);cursor:pointer}
-        .resp-file:hover{border-color:var(--s4);color:var(--t1)}
-        .resp-official{display:inline-flex;align-items:center;gap:6px;font-family:var(--fb);font-size:12.5px;font-weight:560;color:var(--t2);cursor:pointer}
-        .resp-foot{padding:12px 16px;border-top:1px solid var(--s2);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-        .resp-comp{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-        .resp-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-        .resp-dot.done{background:var(--ok)}
-        .resp-dot.pend{background:var(--s4)}
-        .resp-lbl{font-family:var(--fb);font-size:12px;color:var(--t2);margin-right:8px}
-        .resp-btns{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-        .resp-err{font-family:var(--fb);font-size:12.5px;color:var(--dg-t);margin:0;padding:0 16px 12px}
-      ` }} />
+      
     </div>
   );
 }

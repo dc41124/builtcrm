@@ -29,7 +29,9 @@ import {
   projectUserMemberships,
   milestones,
   documents,
+  documentLinks,
   rfis,
+  rfiResponses,
   changeOrders,
   approvals,
   uploadRequests,
@@ -38,10 +40,15 @@ import {
   sovLineItems,
   drawRequests,
   drawLineItems,
+  lienWaivers,
   conversations,
   conversationParticipants,
   messages,
   activityFeedItems,
+  selectionCategories,
+  selectionItems,
+  selectionOptions,
+  selectionDecisions,
 } from "./schema";
 
 // ---------------------------------------------------------------------------
@@ -500,6 +507,8 @@ async function seed() {
     clientUserId: meridianUser.id,
     subUserId: northlineUser.id,
     subOrgId: northlineOrg.id,
+    sub2UserId: pacificUser.id,
+    sub2OrgId: pacificOrg.id,
     residential: false,
   });
 
@@ -522,6 +531,8 @@ async function seed() {
     clientUserId: meridianUser.id,
     subUserId: northlineUser.id,
     subOrgId: northlineOrg.id,
+    sub2UserId: pacificUser.id,
+    sub2OrgId: pacificOrg.id,
     residential: false,
   });
 
@@ -594,43 +605,69 @@ interface ProjectContext {
   clientUserId: string;
   subUserId: string;
   subOrgId: string;
+  sub2UserId?: string;
+  sub2OrgId?: string;
   residential: boolean;
 }
 
 async function seedProjectContent(ctx: ProjectContext) {
   const { project, contractorOrgId, pmUserId, clientUserId, subUserId, subOrgId, residential } = ctx;
   const contractCents = project.contractValueCents ?? 0;
+  const day = 86400000;
 
-  // ---- Documents (5) ---------------------------------------------------
-  const docTitles = residential
+  // ---- Documents (12-15) -----------------------------------------------
+  type DocSeed = { title: string; type: string; vis?: "internal_only" | "client_visible" | "subcontractor_scoped" | "project_wide"; aud?: "internal" | "contractor" | "subcontractor" | "client" | "commercial_client" | "residential_client" | "mixed"; daysAgo?: number };
+  const docTitles: DocSeed[] = residential
     ? [
         { title: "Kitchen design drawings rev C", type: "drawing" },
+        { title: "Kitchen design drawings rev B (superseded)", type: "drawing", vis: "project_wide" },
         { title: "Appliance specification package", type: "specification" },
-        { title: "Signed fixed-price agreement", type: "contract" },
+        { title: "Signed fixed-price agreement", type: "contract", vis: "internal_only", aud: "internal" },
         { title: "Cabinetry shop drawings", type: "submittal" },
         { title: "Pre-demo walkthrough photos", type: "photo_log" },
+        { title: "Plumbing rough-in inspection report", type: "submittal", daysAgo: 5 },
+        { title: "Countertop fabrication template", type: "drawing", daysAgo: 3 },
+        { title: "Electrical permit — City of Vancouver", type: "specification", vis: "internal_only", aud: "contractor" },
+        { title: "Tile supplier cut sheets — Centura", type: "specification", daysAgo: 8 },
+        { title: "Weekly safety checklist — Week 4", type: "submittal", vis: "internal_only", aud: "contractor", daysAgo: 7 },
+        { title: "Change order backup — quartzite pricing", type: "specification", vis: "client_visible", daysAgo: 12 },
       ]
     : [
         { title: "Architectural drawing set rev 4", type: "drawing" },
-        { title: "Division 26 specifications", type: "specification" },
-        { title: "Signed master services agreement", type: "contract" },
+        { title: "Architectural drawing set rev 3 (superseded)", type: "drawing", vis: "project_wide" },
+        { title: "Division 26 electrical specifications", type: "specification" },
+        { title: "Division 22 mechanical specifications", type: "specification", daysAgo: 18 },
+        { title: "Signed master services agreement", type: "contract", vis: "internal_only", aud: "internal" },
         { title: "Mechanical submittal package 03", type: "submittal" },
+        { title: "Electrical panel shop drawings", type: "submittal", daysAgo: 10 },
         { title: "Phase 2 progress photo set", type: "photo_log" },
+        { title: "Structural engineer sign-off letter", type: "specification", vis: "project_wide", daysAgo: 21 },
+        { title: "Fire stopping inspection report — Level 15", type: "submittal", vis: "internal_only", aud: "contractor", daysAgo: 6 },
+        { title: "Building permit — City of Vancouver", type: "specification", vis: "internal_only", aud: "contractor" },
+        { title: "Weekly safety checklist — Week 12", type: "submittal", vis: "internal_only", aud: "contractor", daysAgo: 3 },
+        { title: "Tenant improvement allowance schedule", type: "contract", vis: "client_visible", aud: "commercial_client", daysAgo: 25 },
+        { title: "Lobby signage mockup — fabrication release", type: "drawing", vis: "client_visible", daysAgo: 4 },
+        { title: "Meeting minutes — OAC #8", type: "submittal", vis: "project_wide", daysAgo: 7 },
       ];
 
   const docIds: string[] = [];
   for (let i = 0; i < docTitles.length; i++) {
     const d = docTitles[i];
-    const storageKey = `seed/${project.id}/documents/${i + 1}-${d.type}.pdf`;
+    const slug = d.title.replace(/[^a-z0-9]+/gi, "_").toLowerCase().slice(0, 60);
+    const storageKey = `seed/${project.id}/documents/${i + 1}-${slug}.pdf`;
+    const isSuperseded = d.title.includes("superseded");
+    const createdAt = d.daysAgo ? new Date(Date.now() - d.daysAgo * day) : undefined;
     const doc = await upsert(documents, eq(documents.storageKey, storageKey), {
       projectId: project.id,
       documentType: d.type,
       title: d.title,
       storageKey,
       uploadedByUserId: pmUserId,
-      visibilityScope: "project_wide" as const,
-      audienceScope: residential ? ("residential_client" as const) : ("commercial_client" as const),
-      documentStatus: "active" as const,
+      visibilityScope: (d.vis ?? "project_wide") as any,
+      audienceScope: (d.aud ?? (residential ? "residential_client" : "commercial_client")) as any,
+      documentStatus: isSuperseded ? ("superseded" as const) : ("active" as const),
+      isSuperseded,
+      ...(createdAt ? { createdAt, updatedAt: createdAt } : {}),
     });
     docIds.push(doc.id);
   }
@@ -781,18 +818,37 @@ async function seedProjectContent(ctx: ProjectContext) {
     }
   }
 
-  // ---- RFIs (3) --------------------------------------------------------
-  const rfiRows = residential
+  // ---- RFIs (6-8) -------------------------------------------------------
+  type RfiSeed = {
+    subject: string; body: string;
+    status: "draft" | "open" | "pending_response" | "answered" | "closed";
+    rfiType?: "formal" | "issue";
+    daysAgoCreated: number; dueDaysOut: number;
+    createdBy?: "sub" | "pm";
+    response?: string; // if answered/closed, the official response text
+    drawingRef?: string; locationDesc?: string;
+  };
+  const rfiRows: RfiSeed[] = residential
     ? [
-        { subject: "Confirm island waste line routing", body: "Existing slab has unknown obstructions — need confirmation on preferred routing before cutting." },
-        { subject: "Undercabinet lighting wattage", body: "Homeowner selected LED tape exceeds spec draw. Confirm transformer sizing." },
-        { subject: "Countertop seam location", body: "Requesting approval to relocate seam 6 inches left of original layout." },
+        { subject: "Confirm island waste line routing", body: "Existing slab has unknown obstructions — need confirmation on preferred routing before cutting.", status: "answered", rfiType: "formal", daysAgoCreated: 18, dueDaysOut: -3, response: "Route waste line 12 inches north of original plan to avoid the post-tension cables. Confirmed with structural engineer." },
+        { subject: "Undercabinet lighting wattage", body: "Homeowner selected LED tape exceeds spec draw. Confirm transformer sizing.", status: "open", daysAgoCreated: 8, dueDaysOut: 5 },
+        { subject: "Countertop seam location", body: "Requesting approval to relocate seam 6 inches left of original layout to align with the cabinet joint below.", status: "pending_response", rfiType: "formal", daysAgoCreated: 4, dueDaysOut: 8, drawingRef: "Kitchen plan rev C — Sheet K-201" },
+        { subject: "Backsplash tile pattern at window returns", body: "Tile layout at the window returns requires a cut pattern that differs from the main field. Need direction on whether to use mitered bullnose or a metal edge trim.", status: "open", daysAgoCreated: 3, dueDaysOut: 10, locationDesc: "Kitchen east wall — window above sink" },
+        { subject: "Gas line routing for range", body: "Gas stub-out location conflicts with the island vent duct. Requesting revised routing.", status: "closed", daysAgoCreated: 22, dueDaysOut: -8, response: "Re-routed gas line through the floor cavity. Inspector signed off on revised routing March 28.", createdBy: "pm" },
+        { subject: "Pantry door swing clearance", body: "As-built framing leaves only 28 inches for the pantry door swing. Spec calls for 32-inch clear opening.", status: "draft", daysAgoCreated: 1, dueDaysOut: 14 },
       ]
     : [
-        { subject: "Slab penetration coordination - Level 15", body: "Mechanical and electrical both require core drilling in grid D/4. Need coordinated layout." },
-        { subject: "Fire-rated ceiling assembly substitution", body: "Submitted product does not match spec assembly. Requesting approval for equivalent." },
-        { subject: "Existing conduit routing discrepancy", body: "Record drawings show 2\" EMT that is not present. Confirm new routing." },
+        { subject: "Slab penetration coordination — Level 15", body: "Mechanical and electrical both require core drilling in grid D/4. Need coordinated layout before either trade proceeds.", status: "answered", rfiType: "formal", daysAgoCreated: 25, dueDaysOut: -10, response: "Coordinated layout issued — see attached markup. Mechanical takes priority at grid D/4; electrical shifted 18 inches east to grid D/5.", drawingRef: "S-401 Structural slab plan — Level 15" },
+        { subject: "Fire-rated ceiling assembly substitution", body: "Submitted product (USG Sheetrock Brand Firecode C) does not match spec assembly UL D916. Requesting approval for equivalent.", status: "pending_response", rfiType: "formal", daysAgoCreated: 12, dueDaysOut: 3 },
+        { subject: "Existing conduit routing discrepancy", body: "Record drawings show 2\" EMT at grid line B between levels 14-15 that is not present. Need confirmation on new routing to avoid delays.", status: "open", daysAgoCreated: 7, dueDaysOut: 7, locationDesc: "Electrical riser — grid B, Levels 14-15" },
+        { subject: "Elevator lobby finish tile layout", body: "GC requesting confirmation on tile orientation in the elevator lobbies — herringbone pattern or running bond per the original intent drawings.", status: "open", daysAgoCreated: 5, dueDaysOut: 12, drawingRef: "A-301 Finish plan — typical lobby" },
+        { subject: "Mechanical room ventilation louver sizing", body: "Louver schedule calls for 48x36 but rough opening is framed at 42x30. Confirm whether to enlarge opening or substitute smaller louver.", status: "answered", rfiType: "formal", daysAgoCreated: 20, dueDaysOut: -5, response: "Enlarge rough opening to 48x36 per spec. Framing contractor to patch and re-header. No structural impact confirmed by engineer." },
+        { subject: "Sprinkler head placement — open office area Level 16", body: "Reflected ceiling plan conflicts with the revised furniture layout. 3 heads need repositioning to maintain coverage.", status: "closed", daysAgoCreated: 30, dueDaysOut: -15, response: "Heads repositioned per fire protection engineer's revised layout. Inspector approved final placement.", createdBy: "pm" },
+        { subject: "Stairwell B handrail bracket spacing", body: "Code requires brackets at 48\" o.c. max but the concrete wall anchors land on a cold joint at two locations. Requesting alternative anchor detail.", status: "draft", daysAgoCreated: 2, dueDaysOut: 14, locationDesc: "Stairwell B — Levels 14-17" },
+        { subject: "Demising wall sound rating — Suite 1604", body: "Adjacent tenant has requested STC 55 at the shared wall. Current assembly is rated STC 50. Confirm if upgrade is required.", status: "open", daysAgoCreated: 4, dueDaysOut: 10, rfiType: "formal" },
       ];
+
+  const seededRfiIds: string[] = [];
   for (let i = 0; i < rfiRows.length; i++) {
     const r = rfiRows[i];
     const seq = i + 1;
@@ -801,30 +857,67 @@ async function seedProjectContent(ctx: ProjectContext) {
       .from(rfis)
       .where(and(eq(rfis.projectId, project.id), eq(rfis.sequentialNumber, seq))!)
       .limit(1);
-    if (!existing[0]) {
-      await db.insert(rfis).values({
+    let rfiRow = existing[0];
+    if (!rfiRow) {
+      const createdAt = new Date(Date.now() - r.daysAgoCreated * day);
+      const dueAt = new Date(Date.now() + r.dueDaysOut * day);
+      [rfiRow] = await db.insert(rfis).values({
         projectId: project.id,
         sequentialNumber: seq,
         subject: r.subject,
         body: r.body,
-        rfiStatus: i === 0 ? "answered" : "open",
-        createdByUserId: subUserId,
-        assignedToUserId: pmUserId,
-        assignedToOrganizationId: contractorOrgId,
-        dueAt: new Date(Date.now() + (5 + i * 3) * 86400000),
-      });
+        rfiStatus: r.status,
+        rfiType: r.rfiType ?? "issue",
+        createdByUserId: r.createdBy === "pm" ? pmUserId : subUserId,
+        assignedToUserId: r.createdBy === "pm" ? subUserId : pmUserId,
+        assignedToOrganizationId: r.createdBy === "pm" ? subOrgId : contractorOrgId,
+        dueAt,
+        respondedAt: (r.status === "answered" || r.status === "closed") ? new Date(Date.now() - (r.daysAgoCreated - 3) * day) : null,
+        closedAt: r.status === "closed" ? new Date(Date.now() - (r.daysAgoCreated - 5) * day) : null,
+        drawingReference: r.drawingRef ?? null,
+        locationDescription: r.locationDesc ?? null,
+        createdAt,
+        updatedAt: createdAt,
+      }).returning();
+    }
+    seededRfiIds.push(rfiRow.id);
+
+    // Add official response for answered/closed RFIs
+    if (r.response && rfiRow) {
+      const existingResp = await db.select().from(rfiResponses).where(eq(rfiResponses.rfiId, rfiRow.id)).limit(1);
+      if (!existingResp[0]) {
+        await db.insert(rfiResponses).values({
+          rfiId: rfiRow.id,
+          respondedByUserId: r.createdBy === "pm" ? subUserId : pmUserId,
+          body: r.response,
+          isOfficialResponse: true,
+        });
+      }
     }
   }
 
-  // ---- Change orders (2) -----------------------------------------------
-  const coRows = residential
+  // ---- Change orders (4-5) ---------------------------------------------
+  type CoSeed = {
+    title: string; amount: number; reason: string; scheduleDays: number;
+    status: "draft" | "pending_review" | "pending_client_approval" | "approved" | "rejected" | "voided";
+    submittedDaysAgo: number | null;
+    decidedDaysAgo: number | null;
+    originatesFromRfi?: number; // 1-based index into seededRfiIds
+  };
+  const coRows: CoSeed[] = residential
     ? [
-        { title: "Upgrade to quartzite countertops", amount: 420_000, reason: "Homeowner selection change from original quartz spec." },
-        { title: "Add pot filler and rough-in", amount: 185_000, reason: "New scope addition requested during demo." },
+        { title: "Upgrade to quartzite countertops", amount: 420_000, reason: "Homeowner selection change from original quartz spec.", scheduleDays: 5, status: "approved", submittedDaysAgo: 18, decidedDaysAgo: 14 },
+        { title: "Add pot filler and rough-in", amount: 185_000, reason: "New scope addition requested during demo.", scheduleDays: 2, status: "pending_client_approval", submittedDaysAgo: 10, decidedDaysAgo: null },
+        { title: "Re-route gas line for range relocation", amount: 95_000, reason: "Gas stub-out conflicts with island vent duct per RFI-005.", scheduleDays: 1, status: "approved", submittedDaysAgo: 20, decidedDaysAgo: 17, originatesFromRfi: 5 },
+        { title: "Pantry shelving upgrade — pull-out drawers", amount: 68_000, reason: "Homeowner requested pull-out drawer organizers in lieu of fixed shelves.", scheduleDays: 0, status: "draft", submittedDaysAgo: null, decidedDaysAgo: null },
+        { title: "Remove soffit above peninsula", amount: -32_000, reason: "Soffit removal reveals usable space — credit for reduced drywall and framing.", scheduleDays: -1, status: "rejected", submittedDaysAgo: 22, decidedDaysAgo: 19 },
       ]
     : [
-        { title: "Additional demising wall - Level 16", amount: 4_850_000, reason: "Tenant layout revision requires new partition." },
-        { title: "Upgrade panel to 400A service", amount: 3_120_000, reason: "Load calculation revision after tenant equipment review." },
+        { title: "Additional demising wall — Level 16", amount: 4_850_000, reason: "Tenant layout revision requires new partition between suites 1604 and 1605.", scheduleDays: 5, status: "approved", submittedDaysAgo: 25, decidedDaysAgo: 18 },
+        { title: "Upgrade panel to 400A service", amount: 3_120_000, reason: "Load calculation revision after tenant equipment review.", scheduleDays: 3, status: "pending_client_approval", submittedDaysAgo: 10, decidedDaysAgo: null },
+        { title: "Mechanical reroute — south corridor Level 15", amount: 1_840_000, reason: "HVAC duct reroute caused by structural conflict. Blocks procurement release.", scheduleDays: 3, status: "pending_review", submittedDaysAgo: 5, decidedDaysAgo: null },
+        { title: "Lobby reception desk millwork upgrade", amount: 2_200_000, reason: "Client-requested upgrade from laminate to walnut veneer with integrated LED accent lighting.", scheduleDays: 8, status: "draft", submittedDaysAgo: null, decidedDaysAgo: null },
+        { title: "Delete corridor wallcovering at Level 14", amount: -680_000, reason: "Tenant elected painted finish in lieu of vinyl wallcovering. Credit to owner.", scheduleDays: 0, status: "rejected", submittedDaysAgo: 15, decidedDaysAgo: 12 },
       ];
   for (let i = 0; i < coRows.length; i++) {
     const c = coRows[i];
@@ -842,17 +935,20 @@ async function seedProjectContent(ctx: ProjectContext) {
         description: c.reason,
         reason: c.reason,
         amountCents: c.amount,
-        changeOrderStatus: i === 0 ? "approved" : "pending_client_approval",
+        scheduleImpactDays: c.scheduleDays,
+        changeOrderStatus: c.status,
         requestedByUserId: pmUserId,
-        approvedByUserId: i === 0 ? clientUserId : null,
-        approvedAt: i === 0 ? new Date(Date.now() - 7 * 86400000) : null,
-        submittedAt: new Date(Date.now() - 10 * 86400000),
+        approvedByUserId: c.decidedDaysAgo != null ? clientUserId : null,
+        approvedAt: c.status === "approved" && c.decidedDaysAgo != null ? new Date(Date.now() - c.decidedDaysAgo * day) : null,
+        rejectedAt: c.status === "rejected" && c.decidedDaysAgo != null ? new Date(Date.now() - c.decidedDaysAgo * day) : null,
+        rejectionReason: c.status === "rejected" ? "Not aligned with project scope at this time." : null,
+        submittedAt: c.submittedDaysAgo != null ? new Date(Date.now() - c.submittedDaysAgo * day) : null,
+        originatingRfiId: c.originatesFromRfi ? seededRfiIds[c.originatesFromRfi - 1] ?? null : null,
       });
     }
   }
 
   // ---- Approvals (cross-type queue) ------------------------------------
-  const day = 86400000;
   type ApprovalSeed = {
     category: "general" | "design" | "procurement" | "change_order" | "other";
     title: string;
@@ -998,26 +1094,41 @@ async function seedProjectContent(ctx: ProjectContext) {
     }
   }
 
-  // ---- Upload request (1) ----------------------------------------------
-  const urTitle = residential ? "Upload appliance warranty cards" : "Upload updated WCB clearance";
-  const urExisting = await db
-    .select()
-    .from(uploadRequests)
-    .where(and(eq(uploadRequests.projectId, project.id), eq(uploadRequests.title, urTitle))!)
-    .limit(1);
-  if (!urExisting[0]) {
-    await db.insert(uploadRequests).values({
-      projectId: project.id,
-      title: urTitle,
-      description: residential
-        ? "Please upload warranty documentation for all installed appliances."
-        : "Latest WCB clearance letter required before next draw release.",
-      requestStatus: "open",
-      requestedFromUserId: subUserId,
-      requestedFromOrganizationId: subOrgId,
-      dueAt: new Date(Date.now() + 7 * 86400000),
-      visibilityScope: "project_wide",
-    });
+  // ---- Upload requests (3-4) --------------------------------------------
+  type UrSeed = { title: string; description: string; status: "open" | "submitted" | "revision_requested" | "completed" | "cancelled"; dueDaysOut: number; fromSub?: boolean };
+  const urSeeds: UrSeed[] = residential
+    ? [
+        { title: "Upload appliance warranty cards", description: "Please upload warranty documentation for all installed appliances.", status: "open", dueDaysOut: 7 },
+        { title: "Countertop fabrication sign-off", description: "Template measurements require your sign-off before fabrication proceeds.", status: "submitted", dueDaysOut: -2 },
+        { title: "Updated plumbing rough-in photos", description: "Inspector requires rough-in photos with visible pressure test gauge.", status: "revision_requested", dueDaysOut: 3 },
+      ]
+    : [
+        { title: "Upload updated WCB clearance", description: "Latest WCB clearance letter required before next draw release.", status: "open", dueDaysOut: 7 },
+        { title: "Fire stopping inspection photos — Level 15", description: "Upload photos showing fire stopping at all penetrations per inspector's request.", status: "submitted", dueDaysOut: -3 },
+        { title: "Elevator shaft as-built measurements", description: "As-built dimensions needed for cab manufacturer. Due before procurement release.", status: "open", dueDaysOut: 12 },
+        { title: "Electrical panel nameplate data", description: "Panel nameplates and circuit directories for closeout package.", status: "completed", dueDaysOut: -10 },
+      ];
+  for (const ur of urSeeds) {
+    const existing = await db
+      .select()
+      .from(uploadRequests)
+      .where(and(eq(uploadRequests.projectId, project.id), eq(uploadRequests.title, ur.title))!)
+      .limit(1);
+    if (!existing[0]) {
+      await db.insert(uploadRequests).values({
+        projectId: project.id,
+        title: ur.title,
+        description: ur.description,
+        requestStatus: ur.status,
+        requestedFromUserId: subUserId,
+        requestedFromOrganizationId: subOrgId,
+        dueAt: new Date(Date.now() + ur.dueDaysOut * day),
+        completedAt: ur.status === "completed" ? new Date(Date.now() - 5 * day) : null,
+        submittedAt: ur.status === "submitted" || ur.status === "completed" ? new Date(Date.now() - 4 * day) : null,
+        revisionNote: ur.status === "revision_requested" ? "Photos too dark — retake with flash in adequate lighting." : null,
+        visibilityScope: "project_wide",
+      });
+    }
   }
 
   // ---- SOV + Draw request ---------------------------------------------
@@ -1082,26 +1193,23 @@ async function seedProjectContent(ctx: ProjectContext) {
     sovLines.push({ id: line.id, scheduledValueCents: line.scheduledValueCents });
   }
 
-  // Draw #1 — partial completion across first 3 lines
-  const drawExisting = await db
-    .select()
-    .from(drawRequests)
-    .where(and(eq(drawRequests.projectId, project.id), eq(drawRequests.drawNumber, 1))!)
-    .limit(1);
-  if (!drawExisting[0]) {
-    // Per-line "this period" completion: 30%/20%/15% for first 3, zero after.
-    const pcts = [0.3, 0.2, 0.15, 0, 0];
-    const lineRows = sovLines.map((ln, i) => {
-      const thisPeriod = Math.round(ln.scheduledValueCents * pcts[i]);
-      const total = thisPeriod;
+  // ---- Draw requests (3) — paid → under_review → draft ------------------
+  // Helper: build draw line items for a given completion profile
+  function buildDrawLines(
+    lines: Array<{ id: string; scheduledValueCents: number }>,
+    prevPcts: number[],
+    thisPcts: number[],
+  ) {
+    return lines.map((ln, i) => {
+      const prev = Math.round(ln.scheduledValueCents * (prevPcts[i] ?? 0));
+      const thisPeriod = Math.round(ln.scheduledValueCents * (thisPcts[i] ?? 0));
+      const total = prev + thisPeriod;
       const retainage = Math.round(total * 0.1);
       const balance = ln.scheduledValueCents - total;
-      const pctBp = ln.scheduledValueCents
-        ? Math.round((total / ln.scheduledValueCents) * 10_000)
-        : 0;
+      const pctBp = ln.scheduledValueCents ? Math.round((total / ln.scheduledValueCents) * 10_000) : 0;
       return {
         sovLineItemId: ln.id,
-        workCompletedPreviousCents: 0,
+        workCompletedPreviousCents: prev,
         workCompletedThisPeriodCents: thisPeriod,
         materialsPresentlyStoredCents: 0,
         totalCompletedStoredToDateCents: total,
@@ -1111,23 +1219,74 @@ async function seedProjectContent(ctx: ProjectContext) {
         balanceToFinishCents: balance,
       };
     });
+  }
 
+  type DrawSeed = {
+    drawNumber: number;
+    status: "draft" | "ready_for_review" | "submitted" | "under_review" | "approved" | "approved_with_note" | "returned" | "revised" | "paid" | "closed";
+    prevPcts: number[];
+    thisPcts: number[];
+    periodDaysAgo: [number, number]; // [from, to]
+    paidDaysAgo?: number;
+    reviewNote?: string;
+  };
+  const drawSeeds: DrawSeed[] = [
+    {
+      drawNumber: 1,
+      status: "paid",
+      prevPcts: [0, 0, 0, 0, 0],
+      thisPcts: [0.30, 0.20, 0.15, 0.10, 0],
+      periodDaysAgo: [60, 30],
+      paidDaysAgo: 22,
+    },
+    {
+      drawNumber: 2,
+      status: "under_review",
+      prevPcts: [0.30, 0.20, 0.15, 0.10, 0],
+      thisPcts: [0.25, 0.15, 0.20, 0.15, 0.10],
+      periodDaysAgo: [30, 5],
+      reviewNote: "Line item 03 seems high relative to field observation — requesting backup.",
+    },
+    {
+      drawNumber: 3,
+      status: "draft",
+      prevPcts: [0.55, 0.35, 0.35, 0.25, 0.10],
+      thisPcts: [0.15, 0.10, 0.10, 0.12, 0.08],
+      periodDaysAgo: [5, 0],
+    },
+  ];
+
+  let cumulativePreviousCerts = 0;
+  for (const ds of drawSeeds) {
+    const drawExisting = await db
+      .select()
+      .from(drawRequests)
+      .where(and(eq(drawRequests.projectId, project.id), eq(drawRequests.drawNumber, ds.drawNumber))!)
+      .limit(1);
+    if (drawExisting[0]) {
+      // Accumulate for next draw
+      cumulativePreviousCerts += drawExisting[0].totalEarnedLessRetainageCents ?? 0;
+      continue;
+    }
+
+    const lineRows = buildDrawLines(sovLines, ds.prevPcts, ds.thisPcts);
     const totalCompleted = lineRows.reduce((a, r) => a + r.totalCompletedStoredToDateCents, 0);
     const totalRetainage = lineRows.reduce((a, r) => a + r.retainageCents, 0);
     const earnedLessRet = totalCompleted - totalRetainage;
+    const currentPaymentDue = earnedLessRet - cumulativePreviousCerts;
     const balanceToFinish = contractCents - earnedLessRet;
-    const now = new Date();
-    const periodFrom = new Date(now.getTime() - 30 * 86400000);
+    const periodFrom = new Date(Date.now() - ds.periodDaysAgo[0] * day);
+    const periodTo = new Date(Date.now() - ds.periodDaysAgo[1] * day);
 
     const [draw] = await db
       .insert(drawRequests)
       .values({
         projectId: project.id,
         sovId: sov.id,
-        drawNumber: 1,
+        drawNumber: ds.drawNumber,
         periodFrom,
-        periodTo: now,
-        drawRequestStatus: "submitted",
+        periodTo,
+        drawRequestStatus: ds.status,
         originalContractSumCents: contractCents,
         netChangeOrdersCents: 0,
         contractSumToDateCents: contractCents,
@@ -1136,282 +1295,294 @@ async function seedProjectContent(ctx: ProjectContext) {
         retainageOnStoredCents: 0,
         totalRetainageCents: totalRetainage,
         totalEarnedLessRetainageCents: earnedLessRet,
-        previousCertificatesCents: 0,
-        currentPaymentDueCents: earnedLessRet,
+        previousCertificatesCents: cumulativePreviousCerts,
+        currentPaymentDueCents: currentPaymentDue,
         balanceToFinishCents: balanceToFinish,
         createdByUserId: pmUserId,
-        submittedAt: now,
+        submittedAt: ds.status !== "draft" ? periodTo : null,
+        reviewedAt: ds.reviewNote ? new Date(Date.now() - 2 * day) : null,
+        reviewNote: ds.reviewNote ?? null,
+        paidAt: ds.paidDaysAgo ? new Date(Date.now() - ds.paidDaysAgo * day) : null,
+        paymentReferenceName: ds.paidDaysAgo ? `EFT-${project.id.slice(0, 6).toUpperCase()}-${ds.drawNumber}` : null,
       })
       .returning();
 
     for (const lr of lineRows) {
       await db.insert(drawLineItems).values({ drawRequestId: draw.id, ...lr });
     }
-  }
 
-  // ---- Conversation + 3 messages ---------------------------------------
-  let convo = (
-    await db
-      .select()
-      .from(conversations)
-      .where(
-        and(
-          eq(conversations.projectId, project.id),
-          eq(conversations.conversationType, "project_general"),
-        )!,
-      )
-      .limit(1)
-  )[0];
-  if (!convo) {
-    [convo] = await db
-      .insert(conversations)
-      .values({
-        projectId: project.id,
-        title: `${project.name} — general`,
-        conversationType: "project_general",
-        messageCount: 0,
-        visibilityScope: "project_wide",
-      })
-      .returning();
-  }
-
-  const convParticipantIds = [pmUserId, clientUserId, subUserId];
-  if (ctx.adminUserId && ctx.adminUserId !== pmUserId) convParticipantIds.push(ctx.adminUserId);
-  for (const uid of convParticipantIds) {
-    await upsert(
-      conversationParticipants,
-      and(
-        eq(conversationParticipants.conversationId, convo.id),
-        eq(conversationParticipants.userId, uid),
-      )!,
-      { conversationId: convo.id, userId: uid },
-    );
-  }
-
-  const existingMessages = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.conversationId, convo.id))
-    .limit(1);
-  if (!existingMessages[0]) {
-    const msgBodies = residential
-      ? [
-        { uid: pmUserId, body: "Hi Emily — demo wraps Thursday. Cabinets arrive the following Monday." },
-        { uid: clientUserId, body: "Sounds great. Should I be off-site during demo day?" },
-        { uid: pmUserId, body: "Yes, we recommend it for dust and noise. Crew will be done by 4pm." },
-        { uid: clientUserId, body: "Perfect. I'll take the kids to my sister's place." },
-        { uid: subUserId, body: "Plumbing rough-in will follow demo on Friday morning." },
-        { uid: pmUserId, body: "We'll need to confirm the island waste routing before then — see the open RFI." },
-        { uid: clientUserId, body: "Let me know if there's anything I need to decide on my end." },
-        { uid: pmUserId, body: "Will do. Photos from demo day will be uploaded end of day Thursday." },
-      ]
-      : [
-        { uid: pmUserId, body: "Priya — mechanical rough-in inspection is booked for next Tuesday." },
-        { uid: clientUserId, body: "Confirmed. I'll notify the tenant rep and forward the schedule." },
-        { uid: subUserId, body: "Northline crew will have access Monday afternoon to prep Level 15." },
-        { uid: pmUserId, body: "Reminder: CO-014 needs decision before end of week — it's gating procurement." },
-        { uid: clientUserId, body: "Reviewing it today. Should have a response by EOD." },
-        { uid: subUserId, body: "We'll hold the panel order until we hear back." },
-        { uid: pmUserId, body: "Progress photos from Phase 2 are up in the documents module." },
-        { uid: clientUserId, body: "Thanks — forwarded to the ownership group." },
-      ];
-    // Stagger across the last ~10 days so the progress feed shows real
-    // temporal spread (oldest first → newest last).
-    const totalMsgs = msgBodies.length;
-    for (let i = 0; i < totalMsgs; i++) {
-      const m = msgBodies[i];
-      const daysAgo = Math.round(10 - (i * 10) / totalMsgs);
-      const hoursAgo = (i % 3) * 3;
-      const createdAt = new Date(
-        Date.now() - daysAgo * 86400000 - hoursAgo * 3600000,
-      );
-      await db.insert(messages).values({
-        conversationId: convo.id,
-        senderUserId: m.uid,
-        body: m.body,
-        createdAt,
-      });
+    // Lien waivers for paid draws
+    if (ds.status === "paid" && draw) {
+      const waiverOrgs = [{ orgId: subOrgId, amount: Math.round(currentPaymentDue * 0.6) }];
+      if (ctx.sub2OrgId) waiverOrgs.push({ orgId: ctx.sub2OrgId, amount: Math.round(currentPaymentDue * 0.4) });
+      for (const wo of waiverOrgs) {
+        const existing = await db
+          .select()
+          .from(lienWaivers)
+          .where(and(eq(lienWaivers.drawRequestId, draw.id), eq(lienWaivers.organizationId, wo.orgId))!)
+          .limit(1);
+        if (!existing[0]) {
+          await db.insert(lienWaivers).values({
+            projectId: project.id,
+            drawRequestId: draw.id,
+            organizationId: wo.orgId,
+            lienWaiverType: "conditional_progress",
+            lienWaiverStatus: "accepted",
+            amountCents: wo.amount,
+            requestedAt: periodTo,
+            submittedAt: new Date(periodTo.getTime() + 2 * day),
+            acceptedAt: new Date(periodTo.getTime() + 4 * day),
+            acceptedByUserId: pmUserId,
+          });
+        }
+      }
     }
-    const last = msgBodies[msgBodies.length - 1];
-    await db
-      .update(conversations)
-      .set({
-        messageCount: msgBodies.length,
-        lastMessageAt: new Date(),
-        lastMessagePreview: last.body.slice(0, 255),
-      })
-      .where(eq(conversations.id, convo.id));
-  }
 
-  // ---- Second conversation (RFI thread) --------------------------------
-  let rfiConvo = (
-    await db
-      .select()
-      .from(conversations)
-      .where(
-        and(
-          eq(conversations.projectId, project.id),
-          eq(conversations.conversationType, "rfi_thread"),
-        )!,
-      )
-      .limit(1)
-  )[0];
-  if (!rfiConvo) {
-    [rfiConvo] = await db
-      .insert(conversations)
-      .values({
-        projectId: project.id,
-        title: residential ? "RFI-001 · Island waste routing" : "RFI-001 · Slab penetration coordination",
-        conversationType: "rfi_thread",
-        messageCount: 0,
-        visibilityScope: "project_wide",
-      })
-      .returning();
-  }
-
-  const rfiConvParticipantIds = [pmUserId, subUserId];
-  if (ctx.adminUserId && ctx.adminUserId !== pmUserId) rfiConvParticipantIds.push(ctx.adminUserId);
-  for (const uid of rfiConvParticipantIds) {
-    await upsert(
-      conversationParticipants,
-      and(
-        eq(conversationParticipants.conversationId, rfiConvo.id),
-        eq(conversationParticipants.userId, uid),
-      )!,
-      { conversationId: rfiConvo.id, userId: uid },
-    );
-  }
-
-  const existingRfiMsgs = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.conversationId, rfiConvo.id))
-    .limit(1);
-  if (!existingRfiMsgs[0]) {
-    const rfiBodies = residential
-      ? [
-          { uid: subUserId, body: "Opened an RFI on island waste routing — slab obstructions are unknown." },
-          { uid: pmUserId, body: "Can you send a photo of the current slab condition?" },
-          { uid: subUserId, body: "Photos attached in the RFI record. Requesting response by Friday." },
-        ]
-      : [
-          { uid: subUserId, body: "RFI opened for grid D/4 core drilling coordination." },
-          { uid: pmUserId, body: "Pulled the drawings — will circulate a revised coordination plan tomorrow." },
-          { uid: subUserId, body: "Thanks. We can hold the drilling until the revised plan is confirmed." },
-        ];
-    for (const m of rfiBodies) {
-      await db.insert(messages).values({
-        conversationId: rfiConvo.id,
-        senderUserId: m.uid,
-        body: m.body,
-      });
+    // Lien waivers for under_review draws (requested but not yet accepted)
+    if (ds.status === "under_review" && draw) {
+      const waiverOrgs2 = [subOrgId];
+      if (ctx.sub2OrgId) waiverOrgs2.push(ctx.sub2OrgId);
+      for (const orgId of waiverOrgs2) {
+        const existing = await db
+          .select()
+          .from(lienWaivers)
+          .where(and(eq(lienWaivers.drawRequestId, draw.id), eq(lienWaivers.organizationId, orgId))!)
+          .limit(1);
+        if (!existing[0]) {
+          await db.insert(lienWaivers).values({
+            projectId: project.id,
+            drawRequestId: draw.id,
+            organizationId: orgId,
+            lienWaiverType: "conditional_progress",
+            lienWaiverStatus: orgId === subOrgId ? "submitted" : "requested",
+            amountCents: Math.round(currentPaymentDue * (orgId === subOrgId ? 0.6 : 0.4)),
+            requestedAt: periodTo,
+            submittedAt: orgId === subOrgId ? new Date(Date.now() - 3 * day) : null,
+          });
+        }
+      }
     }
-    const lastRfi = rfiBodies[rfiBodies.length - 1];
-    await db
-      .update(conversations)
-      .set({
-        messageCount: rfiBodies.length,
-        lastMessageAt: new Date(),
-        lastMessagePreview: lastRfi.body.slice(0, 255),
-      })
-      .where(eq(conversations.id, rfiConvo.id));
+
+    cumulativePreviousCerts = earnedLessRet;
   }
 
-  // ---- Activity feed items ---------------------------------------------
-  const feedSeeds: Array<{
-    activityType:
-      | "project_update"
-      | "milestone_update"
-      | "approval_requested"
-      | "approval_completed"
-      | "file_uploaded"
-      | "comment_added";
+  // ---- Conversations (4-5 threads, 15-20 messages total) ----------------
+  type ConvoSeed = {
     title: string;
-    body: string;
-    actor: string;
-    daysAgo: number;
-  }> = [
-    {
-      activityType: "file_uploaded",
-      title: residential ? "Kitchen design drawings rev C uploaded" : "Architectural drawing set rev 4 uploaded",
-      body: "New drawing set available in Documents.",
-      actor: pmUserId,
-      daysAgo: 6,
-    },
-    {
-      activityType: "approval_requested",
-      title: residential ? "Approval requested: Weekend work for concrete pour" : "Approval requested: CO-014 mechanical reroute",
-      body: residential
-        ? "Crew wants to mobilize Saturday morning for the foundation pour. Awaiting your go-ahead."
-        : "The HVAC reroute (CO-14) needs your approval before we can proceed with mechanical work in the south corridor. Currently on the critical path.",
-      actor: pmUserId,
-      daysAgo: residential ? 1 : 5,
-    },
-    {
-      activityType: "approval_completed",
-      title: residential ? "Electrical panel upgrade approved" : "CO-013 electrical panel relocation approved",
-      body: "Decision recorded and scope released. Thanks for the quick turnaround.",
-      actor: clientUserId,
-      daysAgo: residential ? 28 : 8,
-    },
-    {
-      activityType: "milestone_update",
-      title: residential
-        ? "Demo complete — wall removal signed off"
-        : "East corridor rough-in closeout achieved",
-      body: residential
-        ? "All wall removal work is complete and the inspector signed off on the exposed framing. Ready to proceed with electrical rough-in."
-        : "Final device placement verified and photo submission uploaded. Moving to the west wing next week.",
-      actor: pmUserId,
-      daysAgo: residential ? 12 : 3,
-    },
-    {
-      activityType: "project_update",
-      title: residential
-        ? "Weekly report — Week of March 24"
-        : "Weekly report — Week of April 7",
-      body: residential
-        ? "Kitchen demo is complete and we're on schedule for cabinet delivery next Monday. Plumbing rough-in starts Friday. Photos from the week are in the Photos tab."
-        : "Good progress this week across electrical and mechanical rough-in. East corridor electrical distribution is complete and we've begun pulling wire for the west wing. Main panel room passed inspection Thursday. 12 progress photos added.",
-      actor: pmUserId,
-      daysAgo: 0,
-    },
-    {
-      activityType: "file_uploaded",
-      title: residential ? "Progress photos — demo day" : "Progress photos — Phase 2 structural",
-      body: residential
-        ? "7 photos from demo day are up in the Photos tab."
-        : "8 photos from the structural inspection and slab pours are up in the Photos tab.",
-      actor: pmUserId,
-      daysAgo: residential ? 14 : 14,
-    },
-    {
-      activityType: "milestone_update",
-      title: residential ? "Phase 1 complete — demo signed off" : "Phase 2 structural substantial completion",
-      body: residential
-        ? "Phase 1 wrapped on schedule. Moving into Phase 2 cabinetry and plumbing rough-in."
-        : "All concrete pours passed final inspection. Structural engineer has signed off on load tests. Formally transitioned to Phase 3 interior rough-in.",
-      actor: pmUserId,
-      daysAgo: residential ? 11 : 21,
-    },
-    {
-      activityType: "comment_added",
-      title: "New message in project thread",
-      body: "Latest update posted in the general conversation.",
-      actor: pmUserId,
-      daysAgo: 0,
-    },
-  ];
+    type: "project_general" | "rfi_thread" | "change_order_thread" | "approval_thread" | "direct";
+    participants: string[];
+    msgs: Array<{ uid: string; body: string; daysAgo: number }>;
+  };
+  const allParticipants = [pmUserId, clientUserId, subUserId];
+  if (ctx.adminUserId && ctx.adminUserId !== pmUserId) allParticipants.push(ctx.adminUserId);
+
+  const convoSeeds: ConvoSeed[] = residential
+    ? [
+        {
+          title: `${project.name} — general`,
+          type: "project_general",
+          participants: allParticipants,
+          msgs: [
+            { uid: pmUserId, body: "Hi Emily — demo wraps Thursday. Cabinets arrive the following Monday.", daysAgo: 10 },
+            { uid: clientUserId, body: "Sounds great. Should I be off-site during demo day?", daysAgo: 9 },
+            { uid: pmUserId, body: "Yes, we recommend it for dust and noise. Crew will be done by 4pm.", daysAgo: 9 },
+            { uid: clientUserId, body: "Perfect. I'll take the kids to my sister's place.", daysAgo: 8 },
+            { uid: subUserId, body: "Plumbing rough-in will follow demo on Friday morning.", daysAgo: 7 },
+            { uid: pmUserId, body: "We'll need to confirm the island waste routing before then — see the open RFI.", daysAgo: 6 },
+            { uid: clientUserId, body: "Let me know if there's anything I need to decide on my end.", daysAgo: 4 },
+            { uid: pmUserId, body: "Will do. Photos from demo day will be uploaded end of day Thursday.", daysAgo: 2 },
+          ],
+        },
+        {
+          title: "RFI-001 · Island waste routing",
+          type: "rfi_thread",
+          participants: [pmUserId, subUserId, ...(ctx.adminUserId !== pmUserId ? [ctx.adminUserId] : [])],
+          msgs: [
+            { uid: subUserId, body: "Opened an RFI on island waste routing — slab obstructions are unknown.", daysAgo: 18 },
+            { uid: pmUserId, body: "Can you send a photo of the current slab condition?", daysAgo: 17 },
+            { uid: subUserId, body: "Photos attached in the RFI record. Requesting response by Friday.", daysAgo: 16 },
+            { uid: pmUserId, body: "Route confirmed 12 inches north. Marking the slab tomorrow.", daysAgo: 15 },
+          ],
+        },
+        {
+          title: "CO-001 · Quartzite countertop upgrade",
+          type: "change_order_thread",
+          participants: [pmUserId, clientUserId],
+          msgs: [
+            { uid: pmUserId, body: "Emily — the quartzite slab pricing came in. See the change order for the full breakdown.", daysAgo: 20 },
+            { uid: clientUserId, body: "That's within what we discussed. Go ahead and order it.", daysAgo: 19 },
+            { uid: pmUserId, body: "Approved and locked in. Lead time is 3 weeks from the fabricator.", daysAgo: 18 },
+          ],
+        },
+        {
+          title: "Tile selection discussion",
+          type: "direct",
+          participants: [pmUserId, clientUserId],
+          msgs: [
+            { uid: clientUserId, body: "I've been looking at the Centura Calacatta hex tile for the backsplash. What do you think?", daysAgo: 5 },
+            { uid: pmUserId, body: "Great choice. Just make sure it's the 2-inch hex — the 3-inch needs a different setting pattern and costs more to install.", daysAgo: 4 },
+            { uid: clientUserId, body: "Good to know. I'll confirm the 2-inch. Can you add it to the selections board?", daysAgo: 3 },
+            { uid: pmUserId, body: "Done — it's under the Backsplash category with the other options.", daysAgo: 2 },
+          ],
+        },
+      ]
+    : [
+        {
+          title: `${project.name} — general`,
+          type: "project_general",
+          participants: allParticipants,
+          msgs: [
+            { uid: pmUserId, body: "Priya — mechanical rough-in inspection is booked for next Tuesday.", daysAgo: 10 },
+            { uid: clientUserId, body: "Confirmed. I'll notify the tenant rep and forward the schedule.", daysAgo: 9 },
+            { uid: subUserId, body: "Northline crew will have access Monday afternoon to prep Level 15.", daysAgo: 8 },
+            { uid: pmUserId, body: "Reminder: the mechanical reroute CO needs decision before end of week — it's gating procurement.", daysAgo: 6 },
+            { uid: clientUserId, body: "Reviewing it today. Should have a response by EOD.", daysAgo: 5 },
+            { uid: subUserId, body: "We'll hold the panel order until we hear back.", daysAgo: 4 },
+            { uid: pmUserId, body: "Progress photos from Phase 2 are up in the documents module.", daysAgo: 2 },
+            { uid: clientUserId, body: "Thanks — forwarded to the ownership group.", daysAgo: 1 },
+          ],
+        },
+        {
+          title: "RFI-001 · Slab penetration coordination",
+          type: "rfi_thread",
+          participants: [pmUserId, subUserId, ...(ctx.adminUserId !== pmUserId ? [ctx.adminUserId] : [])],
+          msgs: [
+            { uid: subUserId, body: "RFI opened for grid D/4 core drilling coordination.", daysAgo: 25 },
+            { uid: pmUserId, body: "Pulled the drawings — will circulate a revised coordination plan tomorrow.", daysAgo: 24 },
+            { uid: subUserId, body: "Thanks. We can hold the drilling until the revised plan is confirmed.", daysAgo: 23 },
+            { uid: pmUserId, body: "Revised coordination plan attached. Mechanical gets priority at D/4, electrical shifts to D/5.", daysAgo: 22 },
+          ],
+        },
+        {
+          title: "CO-001 · Demising wall Level 16",
+          type: "change_order_thread",
+          participants: [pmUserId, clientUserId],
+          msgs: [
+            { uid: pmUserId, body: "The demising wall CO has been priced and submitted. See the breakdown in the CO detail.", daysAgo: 26 },
+            { uid: clientUserId, body: "Reviewed with ownership. Approved — please proceed.", daysAgo: 24 },
+            { uid: pmUserId, body: "Locked in. Framing crew starts next Monday.", daysAgo: 23 },
+          ],
+        },
+        {
+          title: "Lobby finishes — design review",
+          type: "approval_thread",
+          participants: [pmUserId, clientUserId],
+          msgs: [
+            { uid: pmUserId, body: "Priya — the reception area finish selections are up for your review. Samples are in the sample room at Level 14.", daysAgo: 4 },
+            { uid: clientUserId, body: "I'll visit the sample room Thursday morning. Can the designer be available for questions?", daysAgo: 3 },
+            { uid: pmUserId, body: "Yes — I've asked them to be on-site between 10 and 12. Ring the site office when you arrive.", daysAgo: 2 },
+          ],
+        },
+        {
+          title: "Electrical coordination — Northline",
+          type: "direct",
+          participants: [pmUserId, subUserId],
+          msgs: [
+            { uid: subUserId, body: "Devon — we have a wire pull scheduled for Thursday on Level 16. Need confirmation the ceiling grid is clear.", daysAgo: 3 },
+            { uid: pmUserId, body: "Ceiling grid is clear through Level 16 west wing. East wing still has mechanical hangers going in — avoid that zone until Monday.", daysAgo: 2 },
+            { uid: subUserId, body: "Copy. We'll stage west wing first and shift east on Monday.", daysAgo: 1 },
+          ],
+        },
+      ];
+
+  for (const cs of convoSeeds) {
+    let convo = (
+      await db
+        .select()
+        .from(conversations)
+        .where(and(eq(conversations.projectId, project.id), eq(conversations.title, cs.title))!)
+        .limit(1)
+    )[0];
+    if (!convo) {
+      [convo] = await db
+        .insert(conversations)
+        .values({
+          projectId: project.id,
+          title: cs.title,
+          conversationType: cs.type,
+          messageCount: 0,
+          visibilityScope: "project_wide",
+        })
+        .returning();
+    }
+
+    for (const uid of cs.participants) {
+      await upsert(
+        conversationParticipants,
+        and(eq(conversationParticipants.conversationId, convo.id), eq(conversationParticipants.userId, uid))!,
+        { conversationId: convo.id, userId: uid },
+      );
+    }
+
+    const existingMsgs = await db.select().from(messages).where(eq(messages.conversationId, convo.id)).limit(1);
+    if (!existingMsgs[0]) {
+      for (const m of cs.msgs) {
+        const createdAt = new Date(Date.now() - m.daysAgo * day - ((cs.msgs.indexOf(m) % 3) * 3 * 3600000));
+        await db.insert(messages).values({ conversationId: convo.id, senderUserId: m.uid, body: m.body, createdAt });
+      }
+      const last = cs.msgs[cs.msgs.length - 1];
+      await db
+        .update(conversations)
+        .set({ messageCount: cs.msgs.length, lastMessageAt: new Date(Date.now() - last.daysAgo * day), lastMessagePreview: last.body.slice(0, 255) })
+        .where(eq(conversations.id, convo.id));
+    }
+  }
+
+  // ---- Activity feed items (20+ over 30 days) ---------------------------
+  type FeedType = "project_update" | "milestone_update" | "approval_requested" | "approval_completed" | "file_uploaded" | "selection_ready" | "payment_update" | "comment_added";
+  type FeedSeed = { activityType: FeedType; title: string; body: string; actor: string; daysAgo: number; vis?: "internal_only" | "client_visible" | "project_wide" };
+  const feedSeeds: FeedSeed[] = residential
+    ? [
+        { activityType: "project_update", title: "Weekly report — Week of April 7", body: "Plumbing rough-in complete. Cabinets are being installed this week. Tile work starts next Monday.", actor: pmUserId, daysAgo: 0 },
+        { activityType: "comment_added", title: "New message in project thread", body: "Latest update posted in the general conversation.", actor: pmUserId, daysAgo: 0 },
+        { activityType: "file_uploaded", title: "Countertop fabrication template uploaded", body: "Template measurements from the fabricator are now in Documents.", actor: pmUserId, daysAgo: 3 },
+        { activityType: "approval_requested", title: "Decision needed: Weekend work for concrete pour", body: "Crew wants to mobilize Saturday morning. Awaiting your go-ahead.", actor: pmUserId, daysAgo: 1 },
+        { activityType: "selection_ready", title: "Backsplash tile options published", body: "3 tile options are ready for your review in the Selections board.", actor: pmUserId, daysAgo: 5, vis: "client_visible" },
+        { activityType: "file_uploaded", title: "Kitchen design drawings rev C uploaded", body: "New drawing set available in Documents.", actor: pmUserId, daysAgo: 6 },
+        { activityType: "milestone_update", title: "Plumbing rough-in inspection passed", body: "Inspector signed off on all rough-in work. Clear to close walls.", actor: pmUserId, daysAgo: 5 },
+        { activityType: "payment_update", title: "Draw #1 payment received", body: "Payment of $14,985.00 received via EFT.", actor: pmUserId, daysAgo: 8 },
+        { activityType: "approval_completed", title: "Quartzite countertop upgrade approved", body: "Emily approved the upgrade. Fabrication order placed.", actor: clientUserId, daysAgo: 14 },
+        { activityType: "milestone_update", title: "Demo complete — wall removal signed off", body: "All wall removal work is complete and the inspector signed off on the exposed framing.", actor: pmUserId, daysAgo: 12 },
+        { activityType: "file_uploaded", title: "Progress photos — demo day", body: "7 photos from demo day are up in the Photos tab.", actor: pmUserId, daysAgo: 14 },
+        { activityType: "milestone_update", title: "Phase 1 complete — demo signed off", body: "Phase 1 wrapped on schedule. Moving into Phase 2 cabinetry and plumbing rough-in.", actor: pmUserId, daysAgo: 11 },
+        { activityType: "project_update", title: "Weekly report — Week of March 24", body: "Kitchen demo is complete and we're on schedule for cabinet delivery next Monday.", actor: pmUserId, daysAgo: 7 },
+        { activityType: "file_uploaded", title: "Plumbing rough-in inspection report uploaded", body: "Inspection report with photos added to Documents.", actor: subUserId, daysAgo: 5, vis: "internal_only" },
+        { activityType: "approval_completed", title: "Gas line reroute approved", body: "Decision recorded — crew can proceed with revised gas routing.", actor: clientUserId, daysAgo: 17 },
+        { activityType: "project_update", title: "Weekly report — Week of March 17", body: "Demo started Monday, on track for completion Thursday. Plumbing crew mobilizing Friday.", actor: pmUserId, daysAgo: 14 },
+        { activityType: "comment_added", title: "Tile selection discussion", body: "New messages in the tile selection thread.", actor: clientUserId, daysAgo: 3 },
+        { activityType: "file_uploaded", title: "Tile supplier cut sheets uploaded", body: "Centura Calacatta hex tile spec sheets available in Documents.", actor: pmUserId, daysAgo: 8 },
+        { activityType: "approval_requested", title: "Decision needed: Pot filler addition", body: "New scope addition — pot filler rough-in and fixture. See change order for pricing.", actor: pmUserId, daysAgo: 10, vis: "client_visible" },
+        { activityType: "project_update", title: "Weekly report — Week of March 10", body: "Pre-demo prep complete. All utilities disconnected and hazmat clearance received.", actor: pmUserId, daysAgo: 21 },
+      ]
+    : [
+        { activityType: "project_update", title: "Weekly report — Week of April 7", body: "Good progress across electrical and mechanical rough-in. East corridor complete, west wing wire pull started. Main panel room passed inspection.", actor: pmUserId, daysAgo: 0 },
+        { activityType: "comment_added", title: "New message in project thread", body: "Latest update posted in the general conversation.", actor: pmUserId, daysAgo: 0 },
+        { activityType: "milestone_update", title: "East corridor rough-in closeout", body: "Final device placement verified and photo submission uploaded. Moving to the west wing.", actor: pmUserId, daysAgo: 3 },
+        { activityType: "approval_requested", title: "Approval requested: CO-003 mechanical reroute", body: "The HVAC reroute needs your approval before we can proceed. Currently on the critical path.", actor: pmUserId, daysAgo: 5, vis: "client_visible" },
+        { activityType: "file_uploaded", title: "Lobby signage mockup uploaded", body: "Fabrication mockup ready for client review in Documents.", actor: pmUserId, daysAgo: 4 },
+        { activityType: "file_uploaded", title: "Architectural drawing set rev 4 uploaded", body: "New drawing set available in Documents.", actor: pmUserId, daysAgo: 6 },
+        { activityType: "payment_update", title: "Draw #1 payment received", body: "Payment received via EFT. Lien waivers on file.", actor: pmUserId, daysAgo: 22 },
+        { activityType: "approval_completed", title: "CO-001 demising wall approved", body: "Client approved the demising wall addition. Framing crew scheduled for next week.", actor: clientUserId, daysAgo: 18 },
+        { activityType: "payment_update", title: "Draw #2 submitted for review", body: "Second progress billing submitted covering the last 30 days of work.", actor: pmUserId, daysAgo: 5 },
+        { activityType: "file_uploaded", title: "Fire stopping inspection report uploaded", body: "Level 15 fire stopping photos and inspection report in Documents.", actor: pmUserId, daysAgo: 6, vis: "internal_only" },
+        { activityType: "approval_requested", title: "Approval requested: Lobby signage fabrication release", body: "Final confirmation needed before fabrication begins. Affects lobby handover.", actor: pmUserId, daysAgo: 2, vis: "client_visible" },
+        { activityType: "file_uploaded", title: "Progress photos — Phase 2 structural", body: "8 photos from the structural inspection and slab pours.", actor: pmUserId, daysAgo: 14 },
+        { activityType: "milestone_update", title: "Phase 2 structural substantial completion", body: "All concrete pours passed inspection. Structural engineer signed off. Transitioned to Phase 3 interior rough-in.", actor: pmUserId, daysAgo: 21 },
+        { activityType: "approval_completed", title: "CO-005 corridor wallcovering credit rejected", body: "Client declined the credit — proceeding with original wallcovering spec.", actor: clientUserId, daysAgo: 12 },
+        { activityType: "project_update", title: "Weekly report — Week of March 31", body: "Mechanical rough-in on Level 15 progressing well. Electrical conduit runs 60% complete. Fire stopping inspection scheduled for Thursday.", actor: pmUserId, daysAgo: 7 },
+        { activityType: "file_uploaded", title: "Meeting minutes — OAC #8 uploaded", body: "Minutes from the latest OAC meeting available in Documents.", actor: pmUserId, daysAgo: 7 },
+        { activityType: "project_update", title: "Weekly report — Week of March 24", body: "Structural handover complete. Interior rough-in mobilization underway. First electrical crews deployed to Level 14.", actor: pmUserId, daysAgo: 14 },
+        { activityType: "file_uploaded", title: "Structural engineer sign-off letter uploaded", body: "Formal sign-off on load tests and concrete pours.", actor: pmUserId, daysAgo: 21, vis: "project_wide" },
+        { activityType: "project_update", title: "Weekly report — Week of March 17", body: "Final slab pours completed. Curing in progress. Structural inspections scheduled for next week.", actor: pmUserId, daysAgo: 21 },
+        { activityType: "approval_requested", title: "Approval requested: Reception area finish package", body: "Material selections for main reception are ready for your review.", actor: pmUserId, daysAgo: 3, vis: "client_visible" },
+        { activityType: "comment_added", title: "Electrical coordination update", body: "New messages in the Northline coordination thread.", actor: subUserId, daysAgo: 1 },
+      ];
+
   for (const f of feedSeeds) {
     const existing = await db
       .select()
       .from(activityFeedItems)
-      .where(
-        and(
-          eq(activityFeedItems.projectId, project.id),
-          eq(activityFeedItems.title, f.title),
-        )!,
-      )
+      .where(and(eq(activityFeedItems.projectId, project.id), eq(activityFeedItems.title, f.title))!)
       .limit(1);
     if (!existing[0]) {
       await db.insert(activityFeedItems).values({
@@ -1421,9 +1592,257 @@ async function seedProjectContent(ctx: ProjectContext) {
         surfaceType: "feed_item",
         title: f.title,
         body: f.body,
-        visibilityScope: "project_wide",
-        createdAt: new Date(Date.now() - f.daysAgo * 86400000),
+        visibilityScope: f.vis ?? "project_wide",
+        createdAt: new Date(Date.now() - f.daysAgo * day),
       });
+    }
+  }
+
+  // ---- Selections (residential projects only, 8-10 items) ---------------
+  if (residential) {
+    type SelCatSeed = {
+      name: string; description: string;
+      items: Array<{
+        title: string; description: string;
+        status: "not_started" | "exploring" | "provisional" | "confirmed" | "revision_open" | "locked";
+        allowanceCents: number;
+        deadlineDaysOut?: number;
+        affectsSchedule?: boolean;
+        scheduleImpactNote?: string;
+        urgencyNote?: string;
+        options: Array<{
+          name: string; tier: "included" | "upgrade" | "premium_upgrade";
+          priceCents: number; leadTimeDays?: number;
+          supplierName?: string; productSku?: string;
+          swatchColor?: string;
+        }>;
+        decision?: { optionIndex: number; isConfirmed: boolean; isProvisional: boolean; priceDeltaCents: number };
+      }>;
+    };
+    const selSeeds: SelCatSeed[] = [
+      {
+        name: "Countertops",
+        description: "Kitchen countertop material and edge profile selections",
+        items: [
+          {
+            title: "Kitchen countertop material",
+            description: "Primary countertop surface for island and perimeter",
+            status: "confirmed",
+            allowanceCents: 350_000,
+            options: [
+              { name: "Caesarstone Calacatta Nuvo", tier: "included", priceCents: 340_000, supplierName: "Caesarstone", productSku: "CS-5131" },
+              { name: "Quartzite Taj Mahal", tier: "upgrade", priceCents: 480_000, supplierName: "Levantina", productSku: "LV-TMH-3CM", leadTimeDays: 21 },
+              { name: "Dekton Aura 15", tier: "premium_upgrade", priceCents: 620_000, supplierName: "Cosentino", productSku: "DK-AUR15", leadTimeDays: 28 },
+            ],
+            decision: { optionIndex: 1, isConfirmed: true, isProvisional: false, priceDeltaCents: 130_000 },
+          },
+          {
+            title: "Countertop edge profile",
+            description: "Edge detail for all exposed countertop edges",
+            status: "provisional",
+            allowanceCents: 0,
+            options: [
+              { name: "Eased edge (standard)", tier: "included", priceCents: 0 },
+              { name: "Mitered edge", tier: "upgrade", priceCents: 45_000, leadTimeDays: 3 },
+              { name: "Waterfall end panel", tier: "premium_upgrade", priceCents: 85_000, leadTimeDays: 5 },
+            ],
+            decision: { optionIndex: 2, isConfirmed: false, isProvisional: true, priceDeltaCents: 85_000 },
+            deadlineDaysOut: 5,
+            urgencyNote: "Fabrication template already measured — edge profile must be locked before cutting.",
+          },
+        ],
+      },
+      {
+        name: "Backsplash",
+        description: "Kitchen backsplash tile and installation pattern",
+        items: [
+          {
+            title: "Backsplash tile",
+            description: "Tile material for the kitchen backsplash between countertop and upper cabinets",
+            status: "exploring",
+            allowanceCents: 80_000,
+            deadlineDaysOut: 14,
+            options: [
+              { name: "Centura Calacatta hex 2\"", tier: "included", priceCents: 75_000, supplierName: "Centura", productSku: "CT-HEX2-CAL", swatchColor: "#e8e4df" },
+              { name: "Zellige handmade 4x4 — white", tier: "upgrade", priceCents: 120_000, supplierName: "Cle Tile", productSku: "CLE-ZLG-WHT", leadTimeDays: 14, swatchColor: "#f5f0e8" },
+              { name: "Slab-matched quartzite", tier: "premium_upgrade", priceCents: 210_000, supplierName: "Levantina", leadTimeDays: 21 },
+            ],
+          },
+        ],
+      },
+      {
+        name: "Cabinetry Hardware",
+        description: "Pulls, knobs, and hinges for all kitchen cabinetry",
+        items: [
+          {
+            title: "Cabinet pulls — upper and lower",
+            description: "Handle style for all kitchen drawers and doors",
+            status: "confirmed",
+            allowanceCents: 25_000,
+            options: [
+              { name: "Brushed brass bar pull 6\"", tier: "included", priceCents: 22_000, supplierName: "Richelieu", productSku: "RCH-BP6-BB", swatchColor: "#c9a84c" },
+              { name: "Matte black edge pull", tier: "included", priceCents: 18_000, supplierName: "Richelieu", productSku: "RCH-EP-MB", swatchColor: "#2a2a2a" },
+              { name: "Unlacquered brass knurled pull", tier: "upgrade", priceCents: 48_000, supplierName: "Schoolhouse", productSku: "SH-KP-ULB", leadTimeDays: 18, swatchColor: "#b8942e" },
+            ],
+            decision: { optionIndex: 0, isConfirmed: true, isProvisional: false, priceDeltaCents: 0 },
+          },
+        ],
+      },
+      {
+        name: "Flooring",
+        description: "Kitchen floor finish material",
+        items: [
+          {
+            title: "Kitchen floor tile",
+            description: "Floor finish for the entire kitchen footprint including pantry",
+            status: "not_started",
+            allowanceCents: 120_000,
+            deadlineDaysOut: 21,
+            affectsSchedule: true,
+            scheduleImpactNote: "Floor tile must be selected before cabinet installation — base trim depends on tile thickness.",
+            options: [
+              { name: "Porcelain large format 24x24 — Grigio", tier: "included", priceCents: 110_000, supplierName: "Atlas Concorde", productSku: "AC-LF24-GR" },
+              { name: "Engineered white oak herringbone", tier: "upgrade", priceCents: 180_000, supplierName: "Lauzon", productSku: "LZ-HB-WO", leadTimeDays: 10 },
+            ],
+          },
+        ],
+      },
+      {
+        name: "Plumbing Fixtures",
+        description: "Sink, faucet, and related plumbing fixture selections",
+        items: [
+          {
+            title: "Kitchen sink",
+            description: "Primary kitchen sink — undermount into countertop",
+            status: "confirmed",
+            allowanceCents: 60_000,
+            options: [
+              { name: "Blanco Quatrus R15 32\" single bowl", tier: "included", priceCents: 55_000, supplierName: "Blanco", productSku: "BL-QR15-32" },
+              { name: "Kohler Prolific 33\" undermount", tier: "upgrade", priceCents: 95_000, supplierName: "Kohler", productSku: "KH-5540-NA", leadTimeDays: 7 },
+            ],
+            decision: { optionIndex: 0, isConfirmed: true, isProvisional: false, priceDeltaCents: 0 },
+          },
+          {
+            title: "Kitchen faucet",
+            description: "Primary kitchen faucet with pull-down sprayer",
+            status: "locked",
+            allowanceCents: 40_000,
+            options: [
+              { name: "Brizo Litze pull-down — polished nickel", tier: "included", priceCents: 38_000, supplierName: "Brizo", productSku: "BZ-63064LF-PN", swatchColor: "#c0c0c0" },
+              { name: "Waterstone Towson — unlacquered brass", tier: "premium_upgrade", priceCents: 125_000, supplierName: "Waterstone", productSku: "WS-5600-ULB", leadTimeDays: 28, swatchColor: "#b8942e" },
+            ],
+            decision: { optionIndex: 0, isConfirmed: true, isProvisional: false, priceDeltaCents: 0 },
+          },
+        ],
+      },
+      {
+        name: "Lighting",
+        description: "Kitchen pendant, recessed, and undercabinet lighting selections",
+        items: [
+          {
+            title: "Island pendant lights",
+            description: "3 pendants above the kitchen island — decorative fixture selection",
+            status: "exploring",
+            allowanceCents: 90_000,
+            deadlineDaysOut: 18,
+            affectsSchedule: true,
+            scheduleImpactNote: "Electrical rough-in junction box placement depends on pendant dimensions.",
+            options: [
+              { name: "Schoolhouse Isaac 12\" — brushed brass", tier: "included", priceCents: 85_000, supplierName: "Schoolhouse", productSku: "SH-ISC12-BB" },
+              { name: "Apparatus Studio Lantern — bronze", tier: "premium_upgrade", priceCents: 240_000, supplierName: "Apparatus Studio", productSku: "AP-LTRN-BZ", leadTimeDays: 42 },
+            ],
+          },
+        ],
+      },
+    ];
+
+    for (let ci = 0; ci < selSeeds.length; ci++) {
+      const catSeed = selSeeds[ci];
+      let cat = (
+        await db.select().from(selectionCategories).where(and(eq(selectionCategories.projectId, project.id), eq(selectionCategories.name, catSeed.name))!).limit(1)
+      )[0];
+      if (!cat) {
+        [cat] = await db.insert(selectionCategories).values({
+          projectId: project.id,
+          name: catSeed.name,
+          description: catSeed.description,
+          sortOrder: ci,
+        }).returning();
+      }
+
+      for (let ii = 0; ii < catSeed.items.length; ii++) {
+        const itemSeed = catSeed.items[ii];
+        let item = (
+          await db.select().from(selectionItems).where(and(eq(selectionItems.categoryId, cat.id), eq(selectionItems.title, itemSeed.title))!).limit(1)
+        )[0];
+        if (!item) {
+          const isPublished = itemSeed.status !== "not_started";
+          [item] = await db.insert(selectionItems).values({
+            categoryId: cat.id,
+            projectId: project.id,
+            title: itemSeed.title,
+            description: itemSeed.description,
+            selectionItemStatus: itemSeed.status,
+            allowanceCents: itemSeed.allowanceCents,
+            decisionDeadline: itemSeed.deadlineDaysOut ? new Date(Date.now() + itemSeed.deadlineDaysOut * day) : null,
+            affectsSchedule: itemSeed.affectsSchedule ?? false,
+            scheduleImpactNote: itemSeed.scheduleImpactNote ?? null,
+            urgencyNote: itemSeed.urgencyNote ?? null,
+            isPublished,
+            publishedAt: isPublished ? new Date(Date.now() - 20 * day) : null,
+            publishedByUserId: isPublished ? pmUserId : null,
+            sortOrder: ii,
+          }).returning();
+        }
+
+        const optionIds: string[] = [];
+        for (let oi = 0; oi < itemSeed.options.length; oi++) {
+          const optSeed = itemSeed.options[oi];
+          let opt = (
+            await db.select().from(selectionOptions).where(and(eq(selectionOptions.selectionItemId, item.id), eq(selectionOptions.name, optSeed.name))!).limit(1)
+          )[0];
+          if (!opt) {
+            [opt] = await db.insert(selectionOptions).values({
+              selectionItemId: item.id,
+              name: optSeed.name,
+              optionTier: optSeed.tier,
+              priceCents: optSeed.priceCents,
+              leadTimeDays: optSeed.leadTimeDays ?? null,
+              supplierName: optSeed.supplierName ?? null,
+              productSku: optSeed.productSku ?? null,
+              swatchColor: optSeed.swatchColor ?? null,
+              sortOrder: oi,
+            }).returning();
+          }
+          optionIds.push(opt.id);
+        }
+
+        // Seed the decision if specified
+        if (itemSeed.decision && optionIds[itemSeed.decision.optionIndex]) {
+          const selectedOptId = optionIds[itemSeed.decision.optionIndex];
+          const existingDec = await db.select().from(selectionDecisions).where(eq(selectionDecisions.selectionItemId, item.id)).limit(1);
+          if (!existingDec[0]) {
+            await db.insert(selectionDecisions).values({
+              selectionItemId: item.id,
+              projectId: project.id,
+              selectedOptionId: selectedOptId,
+              decidedByUserId: clientUserId,
+              isProvisional: itemSeed.decision.isProvisional,
+              isConfirmed: itemSeed.decision.isConfirmed,
+              isLocked: itemSeed.status === "locked",
+              confirmedAt: itemSeed.decision.isConfirmed ? new Date(Date.now() - 10 * day) : null,
+              lockedAt: itemSeed.status === "locked" ? new Date(Date.now() - 7 * day) : null,
+              revisionExpiresAt: itemSeed.decision.isProvisional ? new Date(Date.now() + 2 * day) : null,
+              priceDeltaCents: itemSeed.decision.priceDeltaCents,
+            });
+          }
+
+          // Set recommendedOptionId on the item if the first option is included tier
+          if (itemSeed.options[0]?.tier === "included" && optionIds[0]) {
+            await db.update(selectionItems).set({ recommendedOptionId: optionIds[0] }).where(eq(selectionItems.id, item.id));
+          }
+        }
+      }
     }
   }
 }

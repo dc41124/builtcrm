@@ -287,32 +287,7 @@ export default function MarketingPage() {
 
   return (
     <div className="mkt" style={{ fontFamily: F.body, background: "#faf9f7", color: "#1a1714", WebkitFontSmoothing: "antialiased", lineHeight: 1.6, fontSize: 15, minHeight: "100vh" }}>
-      <style dangerouslySetInnerHTML={{ __html: `
-        @media (max-width:1023px){
-          .mkt [style*="grid-template-columns: repeat(4"],
-          .mkt [style*="gridTemplateColumns: repeat(4"]{grid-template-columns:repeat(2,1fr)!important}
-          .mkt [style*="grid-template-columns: repeat(3"],
-          .mkt [style*="gridTemplateColumns: repeat(3"]{grid-template-columns:repeat(2,1fr)!important}
-        }
-        @media (max-width:767px){
-          .mkt nav{padding:0 14px!important}
-          .mkt nav > div{height:58px!important;gap:8px!important}
-          .mkt nav > div > div:nth-child(2){display:none!important}
-          .mkt nav > div > div:last-child{gap:6px!important}
-          .mkt .mkt-nav-login{display:none!important}
-          .mkt .mkt-nav-signup{display:none!important}
-          .mkt .mkt-hamburger{display:inline-flex!important}
-          .mkt [style*="grid-template-columns"]{grid-template-columns:1fr!important;gap:16px!important}
-          .mkt section{padding:56px 18px!important}
-          .mkt footer{padding:56px 18px 32px!important}
-          .mkt h1{font-size:38px!important;line-height:1.1!important}
-          .mkt h2{font-size:28px!important;line-height:1.15!important}
-          .mkt article{padding:32px 18px 60px!important}
-          .mkt article h2{font-size:24px!important}
-          .mkt .faq-ml{grid-template-columns:1fr!important;min-height:auto!important}
-          .mkt .faq-ml > div:first-child{max-height:280px}
-        }
-      ` }} />
+      
 
       {/* ── STICKY NAV ── */}
       <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(250,249,247,.85)", backdropFilter: "blur(16px)", borderBottom: "1px solid #eeece8", padding: "0 32px" }}>
@@ -378,7 +353,7 @@ export default function MarketingPage() {
               </div>
             </div>
           </section>
-          <style dangerouslySetInnerHTML={{ __html: `@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}` }} />
+          
 
           {/* Trust Bar */}
           <div style={{ padding: "40px 32px 60px", textAlign: "center" }}>

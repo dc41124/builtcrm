@@ -183,42 +183,7 @@ export function ResidentialDecisionsReview({
         </div>
       )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        .dec{display:flex;flex-direction:column;gap:20px}
-        .dec-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
-        .dec-title{font-family:var(--fd);font-size:24px;font-weight:820;letter-spacing:-.03em;color:var(--t1);line-height:1.15;margin:0}
-        .dec-desc{font-family:var(--fb);font-size:13.5px;font-weight:540;color:var(--t2);line-height:1.5;max-width:720px;margin:0}
-        .dec-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-        @media(max-width:900px){.dec-sum{grid-template-columns:1fr}}
-        .dec-sc{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:14px 16px;box-shadow:var(--shsm)}
-        .dec-sc.danger{border-color:color-mix(in srgb,var(--dg) 25%,var(--s3))}
-        .dec-sc-l{font-family:var(--fd);font-size:11px;font-weight:720;text-transform:uppercase;letter-spacing:.05em;color:var(--t3)}
-        .dec-sc-v{font-family:var(--fd);font-size:22px;font-weight:820;letter-spacing:-.03em;margin-top:4px;color:var(--t1)}
-        .dec-sc.danger .dec-sc-v{color:var(--dg-t)}
-        .dec-sc-m{font-family:var(--fb);font-size:12px;font-weight:520;color:var(--t2);margin-top:3px}
-        .dec-section-title{font-family:var(--fd);font-size:14px;font-weight:700;color:var(--t1);margin:8px 0 0}
-        .rac{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-xl);padding:18px 20px;box-shadow:var(--shsm);display:flex;flex-direction:column;gap:8px}
-        .rac.pending{border-color:var(--ac-m);border-width:2px}
-        .rac.dim{opacity:.88}
-        .rac h3{font-family:var(--fd);font-size:16px;font-weight:720;color:var(--t1);margin:0;letter-spacing:-.01em}
-        .rac-desc{font-family:var(--fb);font-size:13px;font-weight:540;color:var(--t2);line-height:1.5}
-        .rac-row-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-        .rac-why{margin-top:4px;padding:12px 14px;background:var(--ac-s);border:1px solid var(--ac-m);border-radius:var(--r-m)}
-        .rac-why h5{font-family:var(--fd);font-size:13px;font-weight:720;color:var(--ac-t);margin:0}
-        .rac-why p{font-family:var(--fb);font-size:13px;color:var(--t2);margin-top:3px;line-height:1.5}
-        .rac-impact{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
-        @media(max-width:700px){.rac-impact{grid-template-columns:1fr}}
-        .rac-i{background:var(--s2);border-radius:var(--r-m);padding:10px 12px}
-        .rac-k{font-family:var(--fd);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--t3)}
-        .rac-v{font-family:var(--fd);font-size:16px;font-weight:750;margin-top:3px;color:var(--t1)}
-        .rac-v.ok{color:var(--ok-t)}
-        .rac-v.warn{color:var(--wr-t)}
-        .rac-acts{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
-        .rac-meta{display:flex;gap:16px;margin-top:4px;font-family:var(--fb);font-size:13px;color:var(--t2);flex-wrap:wrap}
-        .rac-meta strong{color:var(--t1);font-weight:650}
-        .rac-meta strong.ok{color:var(--ok-t)}
-        .rac-meta strong.warn{color:var(--wr-t)}
-      ` }} />
+      
     </div>
   );
 }

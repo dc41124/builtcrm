@@ -6,8 +6,12 @@ import { usePathname } from "next/navigation";
 import { signOut } from "@/auth/client";
 import "./app-shell.css";
 
+import { PORTAL_ACCENTS, type PortalType } from "@/lib/portal-colors";
+
+// Re-export so existing consumers that import PortalType from AppShell still work.
+export type { PortalType } from "@/lib/portal-colors";
+
 // ── Types ─────────────────────────────────────────────────────────
-export type PortalType = "contractor" | "subcontractor" | "commercial" | "residential";
 
 export type NavItem = {
   label: string;
@@ -131,13 +135,8 @@ function deriveBreadcrumbs(
   return crumbs;
 }
 
-// Portal accent palette — exact hex from CLAUDE.md
-const ACCENTS: Record<PortalType, { base: string; light: string; hover: string; tint: string; tintText: string }> = {
-  contractor:    { base: "#5b4fc7", light: "#7c6fe0", hover: "#4f44b3", tint: "#eeedfb", tintText: "#4a3fb0" },
-  subcontractor: { base: "#3d6b8e", light: "#5c8bae", hover: "#335a78", tint: "#e8eff6", tintText: "#335a78" },
-  commercial:    { base: "#3178b9", light: "#5a94cc", hover: "#276299", tint: "#e8f1fa", tintText: "#276299" },
-  residential:   { base: "#2a7f6f", light: "#4aa291", hover: "#226456", tint: "#e6f2ef", tintText: "#226456" },
-};
+// Portal accent palette — sourced from shared module
+const ACCENTS = PORTAL_ACCENTS;
 
 // ── Inline SVG Icons (from prototype) ─────────────────────────────
 const ChevronRight = (
@@ -313,11 +312,11 @@ export default function AppShell({
       className={`bcrm ${mobileOpen ? "mobile-open" : ""}`}
       style={
         {
-          ["--accent" as string]: accent.base,
-          ["--accent-l" as string]: accent.light,
-          ["--accent-h" as string]: accent.hover,
-          ["--accent-s" as string]: accent.tint,
-          ["--accent-t" as string]: accent.tintText,
+          ["--accent" as string]: accent.ac,
+          ["--accent-l" as string]: accent.acl,
+          ["--accent-h" as string]: accent.ach,
+          ["--accent-s" as string]: accent.acs,
+          ["--accent-t" as string]: accent.act,
         } as React.CSSProperties
       }
     >

@@ -25,7 +25,9 @@ type ScheduleRole =
   | "commercial_client"
   | "residential_client";
 
-type PortalVariant = "contractor" | "subcontractor" | "commercial" | "residential";
+import { type PortalType } from "@/lib/portal-colors";
+
+type PortalVariant = PortalType;
 
 type ScheduleViewProps = {
   projectId: string;
@@ -45,16 +47,6 @@ const ROLE_TO_PORTAL: Record<ScheduleRole, PortalVariant> = {
   subcontractor_user: "subcontractor",
   commercial_client: "commercial",
   residential_client: "residential",
-};
-
-const PORTAL_ACCENT: Record<
-  PortalVariant,
-  { ac: string; ach: string; acs: string; act: string; acm: string; ri: string }
-> = {
-  contractor: { ac: "#5b4fc7", ach: "#4f44b3", acs: "#eeedfb", act: "#4a3fb0", acm: "#c7c2ea", ri: "rgba(91,79,199,.15)" },
-  subcontractor: { ac: "#3d6b8e", ach: "#345d7c", acs: "#e8f0f6", act: "#2e5a78", acm: "#b3cede", ri: "rgba(61,107,142,.15)" },
-  commercial: { ac: "#3178b9", ach: "#296aa6", acs: "#e8f1fa", act: "#276299", acm: "#b0cfe8", ri: "rgba(49,120,185,.15)" },
-  residential: { ac: "#2a7f6f", ach: "#237060", acs: "#e6f5f1", act: "#1f6b5d", acm: "#a8d5ca", ri: "rgba(42,127,111,.15)" },
 };
 
 // ---- Icons --------------------------------------------------------------
@@ -110,122 +102,9 @@ const STATUS_VISUAL: Record<
 
 export function ScheduleView(props: ScheduleViewProps) {
   const portal = ROLE_TO_PORTAL[props.role];
-  const accent = PORTAL_ACCENT[portal];
 
   return (
     <div className={`sch sch-${portal}`}>
-      <style dangerouslySetInnerHTML={{ __html: `
-.sch {
-  --sch-ac: ${accent.ac};
-  --sch-ach: ${accent.ach};
-  --sch-acs: ${accent.acs};
-  --sch-act: ${accent.act};
-  --sch-acm: ${accent.acm};
-  --sch-ri: 0 0 0 3px ${accent.ri};
-          font-family: var(--fb);
-          color: var(--t1);
-          display: flex;
-          flex-direction: column;
-          gap: 20px;
-          min-width: 0;
-        }
-        .sch-hdr { display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap; }
-        .sch-hdr h1 { font-family:var(--fd);font-size:26px;font-weight:820;letter-spacing:-.035em;margin:0;color:var(--t1); }
-        .sch-hdr.client h1 { font-size:24px; }
-        .sch-sub { font-size:13px;color:var(--t2);margin-top:4px;font-weight:520; }
-        .sch-hdr-act { display:flex;gap:8px; }
-        .sch-btn { height:38px;padding:0 16px;border-radius:var(--r-m);font-size:13px;font-weight:650;display:inline-flex;align-items:center;gap:7px;border:none;cursor:pointer;font-family:var(--fb);transition:all var(--dn) var(--e); }
-        .sch-btn.primary { background:var(--sch-ac);color:#fff; }
-        .sch-btn.primary:hover { background:var(--sch-ach);box-shadow:var(--shmd); }
-        .sch-btn.ghost { background:var(--s1);border:1px solid var(--s3);color:var(--t2); }
-        .sch-btn.ghost:hover { background:var(--sh);border-color:var(--s4);color:var(--t1); }
-        .sch-btn:disabled { opacity:.55;cursor:not-allowed; }
-
-        .sch-stats { display:flex;gap:12px;flex-wrap:wrap; }
-        .sch-stat { background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:14px 18px;flex:1;min-width:180px;display:flex;align-items:center;gap:12px; }
-        .sch-stat-ic { width:36px;height:36px;border-radius:var(--r-m);display:grid;place-items:center;flex-shrink:0; }
-        .sch-stat-v { font-family:var(--fd);font-size:20px;font-weight:820;letter-spacing:-.02em; }
-        .sch-stat-l { font-size:11.5px;color:var(--t3);font-weight:560;margin-top:1px; }
-
-        .sch-pb { background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:18px 20px; }
-        .sch-pb-top { display:flex;justify-content:space-between;align-items:center;margin-bottom:10px; }
-        .sch-pb-title { font-family:var(--fd);font-size:14px;font-weight:700;letter-spacing:-.01em; }
-        .sch-pb-pct { font-family:var(--fd);font-size:20px;font-weight:820;color:var(--sch-act); }
-        .sch-pb-track { width:100%;height:10px;background:var(--s2);border-radius:999px;overflow:hidden; }
-        .sch-pb-fill { height:100%;border-radius:999px;background:linear-gradient(90deg,var(--sch-ac),var(--sch-ach));transition:width .6s var(--e); }
-        .sch-pb-legend { display:flex;justify-content:space-between;gap:8px;margin-top:10px;flex-wrap:wrap; }
-        .sch-pb-leg { font-size:10.5px;font-weight:600;color:var(--t3); }
-        .sch-pb-leg.done { color:var(--ok-t); }
-        .sch-pb-leg.current { color:var(--sch-act);font-weight:700; }
-
-        .sch-tabs { display:inline-flex;gap:2px;background:var(--s2);border-radius:var(--r-m);padding:3px;width:fit-content; }
-        .sch-tab { height:30px;padding:0 12px;border-radius:6px;font-size:12px;font-weight:620;color:var(--t3);background:transparent;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-family:var(--fb);transition:all var(--df); }
-        .sch-tab.on { background:var(--s1);color:var(--t1);box-shadow:var(--shsm); }
-        .sch-tab-ct { font-family:var(--fd);font-size:10px;font-weight:700;color:var(--sch-act);background:var(--sch-acs);min-width:16px;height:16px;padding:0 5px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center; }
-
-        .sch-phase { display:flex;flex-direction:column;gap:6px; }
-        .sch-phase-hdr { display:flex;align-items:center;gap:10px;padding-bottom:8px;margin-bottom:6px;border-bottom:1px solid var(--s3); }
-        .sch-phase-dot { width:10px;height:10px;border-radius:50%;background:var(--s4);flex-shrink:0; }
-        .sch-phase-dot.done { background:var(--ok); }
-        .sch-phase-dot.active { background:var(--sch-ac);box-shadow:0 0 0 3px var(--sch-acs); }
-        .sch-phase-name { font-family:var(--fd);font-size:15px;font-weight:720;letter-spacing:-.02em; }
-        .sch-phase-dates { font-size:12px;color:var(--t3);font-weight:530; }
-        .sch-phase-prog { margin-left:auto;font-family:var(--fd);font-size:12px;font-weight:700;color:var(--t3); }
-        .sch-phase-prog.done { color:var(--ok-t); }
-        .sch-phases { display:flex;flex-direction:column;gap:24px; }
-
-        .sch-card { background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:14px 18px;display:flex;align-items:center;gap:14px;transition:all var(--df);cursor:default; }
-        .sch-card:hover { border-color:var(--s4);box-shadow:var(--shsm); }
-        .sch-card.missed { border-left:3px solid var(--dg); }
-        .sch-card.in_progress { border-left:3px solid var(--sch-ac); }
-        .sch-card.completed { opacity:.7; }
-        .sch-card.completed:hover { opacity:1; }
-        .sch-card-ic { width:28px;height:28px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;border:2px solid var(--s4); }
-        .sch-card-body { flex:1;min-width:0; }
-        .sch-card-title { font-size:13.5px;font-weight:640;color:var(--t1); }
-        .sch-card.completed .sch-card-title { color:var(--t3);text-decoration:line-through; }
-        .sch-card-desc { font-size:12px;color:var(--t2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:520; }
-        .sch-pill { font-family:var(--fd);font-size:10px;font-weight:650;padding:3px 8px;border-radius:999px;white-space:nowrap;flex-shrink:0;text-transform:capitalize; }
-        .sch-assignee { display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--t3);font-weight:560;white-space:nowrap;flex-shrink:0; }
-        .sch-assignee-av { width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-family:var(--fd);font-size:8px;font-weight:700;color:#fff;background:var(--sch-ac); }
-        .sch-assignee-nm { font-family:var(--fd);font-size:11px;font-weight:620; }
-        .sch-card-date { text-align:right;flex-shrink:0;min-width:92px; }
-        .sch-card-d1 { font-size:12.5px;font-weight:600;color:var(--t1);font-family:var(--fb); }
-        .sch-card-d2 { font-size:10.5px;margin-top:1px;font-weight:520;color:var(--t3); }
-        .sch-card-d2.overdue { color:var(--dg-t);font-weight:650; }
-        .sch-card-d2.soon { color:var(--wr-t);font-weight:600; }
-        .sch-card-d2.done { color:var(--ok-t); }
-        .sch-edit-btn { font-size:11px;font-weight:620;border:1px solid var(--s3);background:var(--s1);color:var(--t2);border-radius:var(--r-s);padding:4px 10px;cursor:pointer;font-family:var(--fb); }
-        .sch-edit-btn:hover { background:var(--sh);color:var(--t1); }
-
-        .sch-empty { padding:48px 24px;text-align:center;color:var(--t3);font-size:13px;font-weight:540;background:var(--s1);border:1px dashed var(--s4);border-radius:var(--r-l); }
-
-        .sch-tl { position:relative;padding-left:32px; }
-        .sch-tl-line { position:absolute;left:9px;top:4px;bottom:4px;width:2px;background:var(--s3); }
-        .sch-tl-item { position:relative;margin-bottom:18px; }
-        .sch-tl-dot { position:absolute;left:-28px;top:4px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;z-index:1;background:var(--s1);border:2px solid var(--s4);color:var(--t3); }
-        .sch-tl-dot.done { background:var(--ok);border-color:var(--ok);color:#fff; }
-        .sch-tl-dot.active { background:var(--sch-ac);border-color:var(--sch-ac);color:#fff;box-shadow:0 0 0 4px var(--sch-acs); }
-        .sch-tl-dot.missed { background:var(--dg);border-color:var(--dg);color:#fff; }
-        .sch-tl-card { background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:14px 18px; }
-        .sch-tl-card.active { background:linear-gradient(135deg,var(--s1),var(--sch-acs));border-color:var(--sch-acm); }
-        .sch-tl-top { display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:4px; }
-        .sch-tl-title { font-size:14px;font-weight:650;color:var(--t1); }
-        .sch-tl-date { font-size:12px;color:var(--t3);font-weight:560;white-space:nowrap; }
-        .sch-tl-desc { font-size:12.5px;color:var(--t2);line-height:1.5;font-weight:520; }
-        .sch-tl-meta { font-size:11px;color:var(--t3);margin-top:8px;font-weight:560;display:flex;align-items:center;gap:8px;flex-wrap:wrap; }
-        .sch-tl-meta .sch-pill { font-size:10.5px;padding:3px 8px; }
-
-        .sch-form { background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:18px 20px;display:grid;gap:10px;max-width:560px; }
-        .sch-form h2 { font-family:var(--fd);font-size:15px;font-weight:720;letter-spacing:-.02em;margin:0 0 4px; }
-        .sch-form label { font-size:12px;font-weight:640;color:var(--t2);display:grid;gap:4px;font-family:var(--fb); }
-        .sch-inp, .sch-sel, .sch-txt { width:100%;border-radius:var(--r-m);border:1px solid var(--s3);background:var(--s2);padding:8px 12px;font-size:13px;color:var(--t1);outline:none;font-family:var(--fb); }
-        .sch-inp:focus, .sch-sel:focus, .sch-txt:focus { border-color:var(--sch-ac);box-shadow:var(--sch-ri);background:var(--s1); }
-        .sch-form-row { display:grid;grid-template-columns:1fr 1fr;gap:10px; }
-        .sch-form-acts { display:flex;gap:8px;justify-content:flex-end;margin-top:6px; }
-        .sch-err { font-size:12px;color:var(--dg-t);font-weight:540; }
-      ` }} />
-
       {portal === "residential" ? (
         <ResidentialTimeline {...props} />
       ) : portal === "commercial" ? (

@@ -121,7 +121,6 @@ export async function POST(req: Request) {
       `/invite/${row.token}`,
       process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
     ).toString();
-    console.log(`[invitations] Sent invite for ${row.invitedEmail}: ${inviteUrl}`);
 
     return NextResponse.json({
       id: row.id,

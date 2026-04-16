@@ -67,102 +67,53 @@ export function DataTable<T>({
   }
 
   return (
-    <>
-      <div className={`bc-tbl-wrap ${className}`}>
-        <table className="bc-tbl">
-          <thead>
-            <tr>
-              {columns.map((col) => {
-                const isSorted = sort?.id === col.id;
-                return (
-                  <th
-                    key={col.id}
-                    className={`bc-th bc-al-${col.align ?? "left"} ${col.sortable ? "bc-th-sortable" : ""}`}
-                    style={col.width ? { width: col.width } : undefined}
-                    onClick={() => toggleSort(col)}
-                    aria-sort={isSorted ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"}
-                  >
-                    <span className="bc-th-inner">
-                      {col.header}
-                      {col.sortable && (
-                        <span className={`bc-sort ${isSorted ? `bc-sort-${sort!.dir}` : ""}`} aria-hidden>
-                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 4 2-2 2 2"/><path d="m3 6 2 2 2-2"/></svg>
-                        </span>
-                      )}
-                    </span>
-                  </th>
-                );
-              })}
+    <div className={`bc-tbl-wrap ${className}`}>
+      <table className="bc-tbl">
+        <thead>
+          <tr>
+            {columns.map((col) => {
+              const isSorted = sort?.id === col.id;
+              return (
+                <th
+                  key={col.id}
+                  className={`bc-th bc-al-${col.align ?? "left"} ${col.sortable ? "bc-th-sortable" : ""}`}
+                  style={col.width ? { width: col.width } : undefined}
+                  onClick={() => toggleSort(col)}
+                  aria-sort={isSorted ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"}
+                >
+                  <span className="bc-th-inner">
+                    {col.header}
+                    {col.sortable && (
+                      <span className={`bc-sort ${isSorted ? `bc-sort-${sort!.dir}` : ""}`} aria-hidden>
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 4 2-2 2 2"/><path d="m3 6 2 2 2-2"/></svg>
+                      </span>
+                    )}
+                  </span>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {sortedRows.map((row, idx) => (
+            <tr
+              key={rowKey(row, idx)}
+              className={onRowClick ? "bc-tr-clickable" : ""}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
+            >
+              {columns.map((col) => (
+                <td
+                  key={col.id}
+                  className={`bc-td bc-al-${col.align ?? "left"} bc-ct-${col.cellType ?? "text"}`}
+                  data-label={typeof col.header === "string" ? col.header : undefined}
+                >
+                  {col.accessor(row)}
+                </td>
+              ))}
             </tr>
-          </thead>
-          <tbody>
-            {sortedRows.map((row, idx) => (
-              <tr
-                key={rowKey(row, idx)}
-                className={onRowClick ? "bc-tr-clickable" : ""}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-              >
-                {columns.map((col) => (
-                  <td
-                    key={col.id}
-                    className={`bc-td bc-al-${col.align ?? "left"} bc-ct-${col.cellType ?? "text"}`}
-                    data-label={typeof col.header === "string" ? col.header : undefined}
-                  >
-                    {col.accessor(row)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <style dangerouslySetInnerHTML={{ __html: `
-        .bc-tbl-wrap{width:100%;overflow-x:auto}
-        .bc-tbl{width:100%;border-collapse:collapse;font-size:13px}
-        .bc-tbl thead{background:var(--sh)}
-        .bc-th{padding:10px 14px;text-align:left;font-family:var(--fd);font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--s3);white-space:nowrap;user-select:none}
-        .bc-th-sortable{cursor:pointer}
-        .bc-th-sortable:hover{color:var(--t2)}
-        .bc-th-inner{display:inline-flex;align-items:center;gap:6px}
-        .bc-sort{opacity:.5;display:inline-flex;align-items:center;line-height:0}
-        .bc-sort-asc,.bc-sort-desc{opacity:1;color:var(--t1)}
-        .bc-sort-desc svg{transform:rotate(180deg)}
-        .bc-tbl tbody tr{border-bottom:1px solid var(--s3);transition:background var(--df) var(--e)}
-        .bc-tbl tbody tr:last-child{border-bottom:none}
-        .bc-tbl tbody tr:hover{background:var(--sh)}
-        .bc-tr-clickable{cursor:pointer}
-        .bc-td{padding:12px 14px;font-family:var(--fb);font-size:13px;font-weight:520;color:var(--t1);vertical-align:middle}
-        .bc-ct-id{font-family:var(--fm);font-size:12.5px;font-weight:580;color:var(--t2)}
-        .bc-ct-currency{font-family:var(--fd);font-size:13px;font-weight:680;letter-spacing:-.01em;color:var(--t1)}
-        .bc-al-left{text-align:left}
-        .bc-al-right{text-align:right}
-        .bc-al-center{text-align:center}
-
-        /* ── Mobile: card-based list view ── */
-        @media (max-width:767px){
-          .bc-tbl-wrap{overflow-x:visible}
-          .bc-tbl,.bc-tbl tbody,.bc-tbl tr,.bc-tbl td{display:block;width:100%}
-          .bc-tbl thead{display:none}
-          .bc-tbl tbody tr{
-            border:1px solid var(--s3);border-radius:var(--r-m);
-            background:var(--s1);padding:10px 12px;margin-bottom:10px;
-          }
-          .bc-tbl tbody tr:hover{background:var(--s1)}
-          .bc-tbl tbody tr:last-child{border-bottom:1px solid var(--s3)}
-          .bc-td{
-            padding:6px 0!important;border:none;
-            display:flex;justify-content:space-between;align-items:center;gap:12px;
-            text-align:right!important;
-          }
-          .bc-td::before{
-            content:attr(data-label);
-            font-family:var(--fd);font-size:10.5px;font-weight:700;
-            color:var(--t3);text-transform:uppercase;letter-spacing:.05em;
-            text-align:left;flex-shrink:0;
-          }
-          .bc-td[data-label=""]::before,.bc-td:not([data-label])::before{content:""}
-        }
-      ` }} />
-    </>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

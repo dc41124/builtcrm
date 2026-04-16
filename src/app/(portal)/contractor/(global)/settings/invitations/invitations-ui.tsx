@@ -34,33 +34,6 @@ const ROLE_PRESETS: Record<PortalType, { value: string; label: string }[]> = {
   ],
 };
 
-const css = `
-.inv { display:grid;gap:24px;font-family:var(--fb);color:var(--t1); }
-.inv h2 { font-family:var(--fd);font-size:22px;font-weight:820;letter-spacing:-.02em;margin:0; }
-.inv-sub { font-family:var(--fb);font-size:13px;color:var(--t2);margin-top:4px;font-weight:520; }
-.inv-card { background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:20px; }
-.inv-card h3 { font-family:var(--fd);font-size:15px;font-weight:720;letter-spacing:-.01em;margin:0 0 16px; }
-.inv-form { display:grid;gap:12px; }
-.inv-row { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
-.inv-field { display:flex;flex-direction:column;gap:4px; }
-.inv-label { font-family:var(--fb);font-size:12px;font-weight:640;color:var(--t2); }
-.inv-input { width:100%;height:38px;padding:0 12px;border:1px solid var(--s3);border-radius:var(--r-m);font-size:13px;font-family:var(--fb);background:var(--s1);color:var(--t1);outline:none; }
-.inv-input:focus { border-color:var(--ac);box-shadow:0 0 0 3px rgba(91,79,199,.15); }
-.inv-ta { height:auto;padding:10px 12px;resize:vertical;line-height:1.5; }
-.inv-submit { justify-self:start;background:var(--ac);color:#fff;border:none;border-radius:var(--r-m);padding:10px 18px;font-family:var(--fb);font-size:13px;font-weight:650;cursor:pointer; }
-.inv-submit:hover { background:var(--ac-h); }
-.inv-submit:disabled { opacity:.6;cursor:not-allowed; }
-.inv-alert { padding:10px 12px;border-radius:var(--r-m);font-size:13px;font-weight:520;font-family:var(--fb); }
-.inv-alert.error { background:var(--dg-s);color:var(--dg-t); }
-.inv-alert.success { background:var(--ok-s);color:var(--ok-t);word-break:break-all; }
-.inv-tbl { width:100%;border-collapse:collapse;background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-m);overflow:hidden;font-size:13px; }
-.inv-tbl thead { background:var(--s2);text-align:left; }
-.inv-tbl th { padding:10px 12px;font-family:var(--fd);font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.04em; }
-.inv-tbl td { padding:10px 12px;border-top:1px solid var(--s3);font-weight:520; }
-.inv-pill { padding:2px 8px;border-radius:999px;font-family:var(--fd);font-size:11px;font-weight:650;text-transform:capitalize;display:inline-block; }
-.inv-empty { color:var(--t2);font-size:13px;font-weight:520; }
-`;
-
 export function InvitationsView({
   organizationName,
   projects,
@@ -131,7 +104,7 @@ export function InvitationsView({
 
   return (
     <div className="inv">
-      <style dangerouslySetInnerHTML={{ __html: css }} />
+      
 
       <header>
         <h2>Invitations</h2>

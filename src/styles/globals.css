@@ -4,6 +4,7 @@
 @config '../../tailwind.config.ts';
 
 @import './tokens.css';
+@import './components.css';
 
 /* ── reset ─────────────────────────────────────────────────────── */
 *,

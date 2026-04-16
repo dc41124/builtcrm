@@ -6,7 +6,7 @@
   --sb-bg:#fafbfc;--sb-h:#eff0f4;--sb-a:#e8e9f0;
   --sb-bdr:#e4e6eb;--sb-mbg:#fff;--sb-mbdr:#e0e3e8;
   --t1:#111318;--t2:#4a4f5c;--t3:#7d8290;
-  --ac:var(--accent);--ac-h:var(--accent-h);--ac-s:var(--accent-s);--ac-t:var(--accent-t);
+  --ac:var(--accent);--ac-h:var(--accent-h);--ac-s:var(--accent-s);--ac-t:var(--accent-t);--ac-m:color-mix(in srgb, var(--accent) 35%, var(--s3));
   --ok:#2d8a5e;--ok-s:#edf7f1;--ok-t:#1e6b46;
   --wr:#c17a1a;--wr-s:#fdf4e6;--wr-t:#96600f;
   --dg:#c93b3b;--dg-s:#fdeaea;--dg-t:#a52e2e;
