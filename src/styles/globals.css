@@ -50,3 +50,26 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
+
+/* ── Focus states (keyboard navigation) ── */
+:focus-visible {
+  outline: 2px solid var(--ac, #5b4fc7);
+  outline-offset: 2px;
+}
+
+/* Buttons and interactive elements: use a box-shadow ring instead for rounded elements */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--s1, #fff), 0 0 0 4px var(--ac, #5b4fc7);
+}
+
+/* Remove inner focus ring for inputs that already have focus border styles */
+.b-srch input:focus-visible,
+.inv-input:focus-visible {
+  box-shadow: var(--shri);
+}

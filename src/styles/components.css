@@ -785,3 +785,45 @@
     padding: 32px 16px;
   }
 }
+
+/* ── Loading Skeleton ── */
+.bc-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.bc-skel {
+  background: var(--s2);
+  border-radius: var(--r-m);
+  animation: bc-skel-pulse 1.8s ease-in-out infinite;
+}
+.bc-skel-title {
+  height: 28px;
+  width: 240px;
+  border-radius: var(--r-s);
+}
+.bc-skel-desc {
+  height: 16px;
+  width: 320px;
+  border-radius: var(--r-s);
+}
+.bc-skel-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+.bc-skel-kpi {
+  height: 88px;
+  border-radius: var(--r-l);
+}
+.bc-skel-card {
+  height: 180px;
+  border-radius: var(--r-xl);
+}
+.bc-skel-card-tall {
+  height: 320px;
+}
+@keyframes bc-skel-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
