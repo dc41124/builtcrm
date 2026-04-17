@@ -1234,6 +1234,9 @@
 .bl-btn.pri{background:var(--ac);border-color:var(--ac);color:#fff}
 .bl-btn.pri:hover{background:var(--ac-h);border-color:var(--ac-h)}
 .bl-btn.sm{height:30px;padding:0 12px;font-size:12px}
+.bl-btn:disabled{opacity:.5;cursor:not-allowed}
+.bl-btn:disabled:hover{border-color:var(--s3);background:var(--s1)}
+.bl-pkg-err{margin-top:10px;padding:8px 12px;font-family:var(--fb);font-size:12.5px;color:#b32a2a;background:#fdecec;border:1px solid #f3c4c4;border-radius:var(--r-m)}
 
 .bl-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 @media(max-width:1000px){.bl-kpis{grid-template-columns:repeat(2,1fr)}}

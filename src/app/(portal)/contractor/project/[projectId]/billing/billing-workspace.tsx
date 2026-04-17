@@ -277,6 +277,37 @@ function PageHeader({
 }
 
 function DrawDetail({ draw, sov }: { draw: DrawRow; sov: Sov }) {
+  const [packageDownloading, setPackageDownloading] = useState(false);
+  const [packageError, setPackageError] = useState<string | null>(null);
+
+  async function handlePackageDownload() {
+    setPackageDownloading(true);
+    setPackageError(null);
+    try {
+      const res = await fetch(`/api/draw-requests/${draw.id}/package`);
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message || `Download failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get("Content-Disposition") || "";
+      const match = cd.match(/filename="([^"]+)"/);
+      const filename = match ? match[1] : `draw-${draw.drawNumber}.zip`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setPackageError(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setPackageDownloading(false);
+    }
+  }
+
   const pill = drawPill(draw.drawRequestStatus);
   const retainageOnCompleted = draw.lineItems.reduce(
     (acc, l) =>
@@ -568,6 +599,19 @@ function DrawDetail({ draw, sov }: { draw: DrawRow; sov: Sov }) {
               </div>
             )}
             <div className="bl-pkg-acts">
+              <button
+                type="button"
+                className="bl-btn sm"
+                disabled={draw.drawRequestStatus === "draft" || packageDownloading}
+                title={
+                  draw.drawRequestStatus === "draft"
+                    ? "Package available after draw is submitted"
+                    : undefined
+                }
+                onClick={handlePackageDownload}
+              >
+                {packageDownloading ? "Packaging…" : "Download package"}
+              </button>
               <button type="button" className="bl-btn sm">
                 Attach file
               </button>
@@ -575,6 +619,11 @@ function DrawDetail({ draw, sov }: { draw: DrawRow; sov: Sov }) {
                 Submit for review
               </button>
             </div>
+            {packageError && (
+              <div className="bl-pkg-err" role="alert">
+                {packageError}
+              </div>
+            )}
           </div>
         </section>
       </div>
