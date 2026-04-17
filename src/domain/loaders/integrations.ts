@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -191,6 +191,13 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
 
 // ---- Loader -------------------------------------------------------------
 
+export type ProjectMapping = {
+  projectId: string;
+  externalCustomerId: string | null;
+  externalCustomerName: string | null;
+  externalJobId: string | null;
+};
+
 export type IntegrationConnectionRow = {
   id: string;
   provider: IntegrationProviderKey;
@@ -200,6 +207,7 @@ export type IntegrationConnectionRow = {
     | "needs_reauth"
     | "error"
     | "disconnected";
+  externalAccountId: string | null;
   externalAccountName: string | null;
   connectedAt: Date | null;
   lastSyncAt: Date | null;
@@ -207,6 +215,11 @@ export type IntegrationConnectionRow = {
   lastErrorMessage: string | null;
   consecutiveErrors: number;
   syncPreferences: Record<string, unknown> | null;
+  mappingConfig: Record<string, unknown> | null;
+  projectMappings: ProjectMapping[];
+  pushCount: number;
+  pullCount: number;
+  errorCount: number;
 };
 
 export type IntegrationCardRow = ProviderCatalogEntry & {
@@ -216,6 +229,7 @@ export type IntegrationCardRow = ProviderCatalogEntry & {
 export type SyncEventRow = {
   id: string;
   provider: IntegrationProviderKey | null;
+  connectionId: string;
   syncDirection: "push" | "pull" | "reconciliation";
   syncEventStatus: string;
   entityType: string | null;
@@ -224,11 +238,20 @@ export type SyncEventRow = {
   createdAt: Date;
 };
 
+export type OrgProject = {
+  id: string;
+  projectCode: string | null;
+  name: string;
+  clientSubtype: string | null;
+  contractValueCents: number | null;
+};
+
 export type ContractorIntegrationsView = {
   context: ContractorOrgContext;
   cards: IntegrationCardRow[];
   recentSyncEvents: SyncEventRow[];
   exportableEntities: { key: string; label: string }[];
+  projects: OrgProject[];
 };
 
 export async function getContractorIntegrationsView(input: {
@@ -241,6 +264,7 @@ export async function getContractorIntegrationsView(input: {
       id: integrationConnections.id,
       provider: integrationConnections.provider,
       status: integrationConnections.connectionStatus,
+      externalAccountId: integrationConnections.externalAccountId,
       externalAccountName: integrationConnections.externalAccountName,
       connectedAt: integrationConnections.connectedAt,
       lastSyncAt: integrationConnections.lastSyncAt,
@@ -248,9 +272,44 @@ export async function getContractorIntegrationsView(input: {
       lastErrorMessage: integrationConnections.lastErrorMessage,
       consecutiveErrors: integrationConnections.consecutiveErrors,
       syncPreferences: integrationConnections.syncPreferences,
+      mappingConfig: integrationConnections.mappingConfig,
     })
     .from(integrationConnections)
     .where(eq(integrationConnections.organizationId, context.organization.id));
+
+  // Aggregate sync-event counts per connection (pushes, pulls, errors).
+  const countRows = await db
+    .select({
+      connectionId: syncEvents.integrationConnectionId,
+      direction: syncEvents.syncDirection,
+      status: syncEvents.syncEventStatus,
+      total: sql<number>`count(*)::int`,
+    })
+    .from(syncEvents)
+    .where(eq(syncEvents.organizationId, context.organization.id))
+    .groupBy(
+      syncEvents.integrationConnectionId,
+      syncEvents.syncDirection,
+      syncEvents.syncEventStatus,
+    );
+
+  const countsByConnection = new Map<
+    string,
+    { push: number; pull: number; errors: number }
+  >();
+  for (const r of countRows) {
+    const bucket = countsByConnection.get(r.connectionId) ?? {
+      push: 0,
+      pull: 0,
+      errors: 0,
+    };
+    if (r.direction === "push") bucket.push += r.total;
+    if (r.direction === "pull") bucket.pull += r.total;
+    if (r.status === "failed" || r.status === "mapping_error") {
+      bucket.errors += r.total;
+    }
+    countsByConnection.set(r.connectionId, bucket);
+  }
 
   const byProvider = new Map<IntegrationProviderKey, IntegrationConnectionRow>();
   for (const c of connectionRows) {
@@ -261,10 +320,17 @@ export async function getContractorIntegrationsView(input: {
       !existing ||
       (existing.status === "disconnected" && c.status !== "disconnected")
     ) {
+      const counts = countsByConnection.get(c.id) ?? {
+        push: 0,
+        pull: 0,
+        errors: 0,
+      };
+      const projectMappings = extractProjectMappings(c.mappingConfig);
       byProvider.set(c.provider as IntegrationProviderKey, {
         id: c.id,
         provider: c.provider as IntegrationProviderKey,
         status: c.status,
+        externalAccountId: c.externalAccountId,
         externalAccountName: c.externalAccountName,
         connectedAt: c.connectedAt,
         lastSyncAt: c.lastSyncAt,
@@ -272,6 +338,11 @@ export async function getContractorIntegrationsView(input: {
         lastErrorMessage: c.lastErrorMessage,
         consecutiveErrors: c.consecutiveErrors,
         syncPreferences: c.syncPreferences,
+        mappingConfig: c.mappingConfig,
+        projectMappings,
+        pushCount: counts.push,
+        pullCount: counts.pull,
+        errorCount: counts.errors,
       });
     }
   }
@@ -285,6 +356,7 @@ export async function getContractorIntegrationsView(input: {
     .select({
       id: syncEvents.id,
       provider: integrationConnections.provider,
+      connectionId: syncEvents.integrationConnectionId,
       syncDirection: syncEvents.syncDirection,
       syncEventStatus: syncEvents.syncEventStatus,
       entityType: syncEvents.entityType,
@@ -299,7 +371,19 @@ export async function getContractorIntegrationsView(input: {
     )
     .where(eq(syncEvents.organizationId, context.organization.id))
     .orderBy(desc(syncEvents.createdAt))
-    .limit(25);
+    .limit(50);
+
+  const projectRows = await db
+    .select({
+      id: projects.id,
+      projectCode: projects.projectCode,
+      name: projects.name,
+      clientSubtype: projects.clientSubtype,
+      contractValueCents: projects.contractValueCents,
+    })
+    .from(projects)
+    .where(eq(projects.contractorOrganizationId, context.organization.id))
+    .orderBy(projects.name);
 
   return {
     context,
@@ -307,6 +391,7 @@ export async function getContractorIntegrationsView(input: {
     recentSyncEvents: eventRows.map((r) => ({
       id: r.id,
       provider: r.provider as IntegrationProviderKey | null,
+      connectionId: r.connectionId,
       syncDirection: r.syncDirection,
       syncEventStatus: r.syncEventStatus,
       entityType: r.entityType,
@@ -320,7 +405,39 @@ export async function getContractorIntegrationsView(input: {
       { key: "rfis", label: "RFIs" },
       { key: "change_orders", label: "Change Orders" },
     ],
+    projects: projectRows,
   };
+}
+
+function extractProjectMappings(
+  mappingConfig: Record<string, unknown> | null,
+): ProjectMapping[] {
+  if (!mappingConfig) return [];
+  const raw = mappingConfig["project_mappings"];
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const obj = item as Record<string, unknown>;
+      const projectId = typeof obj.project_id === "string" ? obj.project_id : null;
+      if (!projectId) return null;
+      return {
+        projectId,
+        externalCustomerId:
+          typeof obj.external_customer_id === "string"
+            ? obj.external_customer_id
+            : null,
+        externalCustomerName:
+          typeof obj.external_customer_name === "string"
+            ? obj.external_customer_name
+            : null,
+        externalJobId:
+          typeof obj.external_job_id === "string"
+            ? obj.external_job_id
+            : null,
+      };
+    })
+    .filter((m): m is ProjectMapping => m !== null);
 }
 
 // ---- CSV export helpers -------------------------------------------------

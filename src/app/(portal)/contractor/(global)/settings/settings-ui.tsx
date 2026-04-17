@@ -1,12 +1,16 @@
 "use client";
 
 import { useState, type CSSProperties, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import type {
   ContractorIntegrationsView,
   IntegrationCardRow,
   IntegrationProviderKey,
+  OrgProject,
+  ProjectMapping,
+  SyncEventRow,
 } from "@/domain/loaders/integrations";
 
 const F = {
@@ -201,21 +205,6 @@ export function SettingsView({
   team: TeamMember[];
   nowMs: number;
 }) {
-  const [selectedProvider, setSelectedProvider] =
-    useState<IntegrationProviderKey | null>(null);
-
-  const selectedCard =
-    selectedProvider != null
-      ? view.cards.find((c) => c.provider === selectedProvider) ?? null
-      : null;
-
-  const connectedCount = view.cards.filter(
-    (c) =>
-      c.connection != null &&
-      c.connection.status !== "disconnected" &&
-      c.connection.status !== "error",
-  ).length;
-
   const canManage = view.context.role === "contractor_admin";
 
   return (
@@ -236,60 +225,208 @@ export function SettingsView({
           subtitle={`Manage your organization, team, and integrations for ${view.context.organization.name}.`}
         />
 
-        <OrganizationSection
-          orgName={view.context.organization.name}
-          canManage={canManage}
-        />
+        <OrganizationSection />
 
         <TeamSection team={team} canManage={canManage} />
 
-        <section style={{ marginTop: 32 }}>
-          <SectionHeader
-            title="Integrations"
-            subtitle="Connect your accounting, payment, and productivity tools. Integrations sync automatically — no manual data entry required."
-            rightNode={
-              <span style={pillStyle("purple")}>{connectedCount} connected</span>
-            }
-          />
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))",
-              gap: 14,
-              marginTop: 20,
-            }}
-          >
-            {view.cards.map((card) => (
-              <IntegrationCard
-                key={card.provider}
-                card={card}
-                canManage={canManage}
-                selected={selectedProvider === card.provider}
-                onSelect={() =>
-                  setSelectedProvider(
-                    selectedProvider === card.provider ? null : card.provider,
-                  )
-                }
-                nowMs={nowMs}
-              />
-            ))}
-          </div>
-
-          {selectedCard && (
-            <ConfigurationPanel
-              card={selectedCard}
-              recentEvents={view.recentSyncEvents.filter(
-                (e) => e.provider === selectedCard.provider,
-              )}
-              canManage={canManage}
-              onClose={() => setSelectedProvider(null)}
-              nowMs={nowMs}
-            />
-          )}
-        </section>
+        <IntegrationsSection view={view} canManage={canManage} nowMs={nowMs} />
       </div>
     </main>
+  );
+}
+
+// ── Integrations section ─────────────────────────────────────────────────
+function IntegrationsSection({
+  view,
+  canManage,
+  nowMs,
+}: {
+  view: ContractorIntegrationsView;
+  canManage: boolean;
+  nowMs: number;
+}) {
+  const isCardConnected = (c: IntegrationCardRow) =>
+    c.connection != null &&
+    c.connection.status !== "disconnected" &&
+    c.connection.status !== "error";
+
+  const connectedCards = view.cards.filter(isCardConnected);
+  const connectedCount = connectedCards.length;
+
+  // Default selected: first connected card (QuickBooks-style) if any,
+  // otherwise no panel until the user clicks a card.
+  const [selectedProvider, setSelectedProvider] =
+    useState<IntegrationProviderKey | null>(
+      connectedCards[0]?.provider ?? null,
+    );
+  const [filter, setFilter] = useState<"all" | "connected" | "available">(
+    "all",
+  );
+
+  const filteredCards = view.cards.filter((c) => {
+    if (filter === "all") return true;
+    const connected = isCardConnected(c);
+    if (filter === "connected") return connected;
+    return !connected;
+  });
+
+  const selectedCard =
+    selectedProvider != null
+      ? view.cards.find((c) => c.provider === selectedProvider) ?? null
+      : null;
+
+  return (
+    <section style={{ marginTop: 32 }}>
+      <SectionHeader
+        title="Integrations"
+        subtitle="Connect your accounting, payment, and productivity tools. Integrations sync automatically — no manual data entry required."
+        rightNode={
+          <span style={pillStyle("purple")}>{connectedCount} connected</span>
+        }
+      />
+
+      <FilterTabs
+        filter={filter}
+        setFilter={setFilter}
+        connectedCount={connectedCount}
+      />
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))",
+          gap: 14,
+          marginTop: 8,
+        }}
+      >
+        {filteredCards.map((card) => (
+          <IntegrationCard
+            key={card.provider}
+            card={card}
+            canManage={canManage}
+            selected={selectedProvider === card.provider}
+            onSelect={() =>
+              setSelectedProvider(
+                selectedProvider === card.provider ? null : card.provider,
+              )
+            }
+            nowMs={nowMs}
+          />
+        ))}
+        {filteredCards.length === 0 && (
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              padding: 32,
+              textAlign: "center",
+              color: C.textTertiary,
+              fontSize: 13,
+              fontWeight: 520,
+              border: `1px dashed ${C.surface3}`,
+              borderRadius: 14,
+            }}
+          >
+            {filter === "connected"
+              ? "No integrations connected yet."
+              : "No integrations available."}
+          </div>
+        )}
+      </div>
+
+      {selectedCard && selectedCard.connection && (
+        <IntegrationDetailPanel
+          card={selectedCard}
+          view={view}
+          canManage={canManage}
+          nowMs={nowMs}
+          onClose={() => setSelectedProvider(null)}
+        />
+      )}
+    </section>
+  );
+}
+
+function FilterTabs({
+  filter,
+  setFilter,
+  connectedCount,
+}: {
+  filter: "all" | "connected" | "available";
+  setFilter: (f: "all" | "connected" | "available") => void;
+  connectedCount: number;
+}) {
+  const tabs: Array<{
+    key: "all" | "connected" | "available";
+    label: string;
+  }> = [
+    { key: "all", label: "All integrations" },
+    { key: "connected", label: "Connected" },
+    { key: "available", label: "Available" },
+  ];
+  return (
+    <div
+      role="tablist"
+      aria-label="Filter integrations"
+      style={{
+        display: "inline-flex",
+        gap: 4,
+        background: C.surface2,
+        borderRadius: 14,
+        padding: 4,
+        marginTop: 20,
+      }}
+    >
+      {tabs.map((t) => {
+        const active = filter === t.key;
+        return (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={active}
+            onClick={() => setFilter(t.key)}
+            style={{
+              height: 34,
+              padding: "0 14px",
+              borderRadius: 10,
+              fontSize: 12,
+              fontWeight: active ? 650 : 620,
+              fontFamily: F.display,
+              color: active ? C.textPrimary : C.textSecondary,
+              background: active ? C.surface1 : "transparent",
+              boxShadow: active ? "0 1px 3px rgba(26,23,20,.06)" : "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              border: "none",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {t.label}
+            {t.key === "connected" && (
+              <span
+                style={{
+                  minWidth: 18,
+                  height: 16,
+                  padding: "0 5px",
+                  borderRadius: 999,
+                  background: C.accentSoft,
+                  color: C.accentText,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontFamily: F.display,
+                }}
+              >
+                {connectedCount}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -397,167 +534,106 @@ function SectionHeader({
   );
 }
 
-function OrganizationSection({
-  orgName,
-  canManage,
-}: {
-  orgName: string;
-  canManage: boolean;
-}) {
-  const [name, setName] = useState(orgName);
-  const [address, setAddress] = useState("");
-
+function OrganizationSection() {
   return (
     <section style={{ marginTop: 8 }}>
       <SectionHeader
         title="Organization"
         subtitle="Your company identity — appears on draws, invoices, and client-facing documents."
       />
-      <div
-        style={{
-          marginTop: 20,
-          background: C.surface1,
-          border: `1px solid ${C.surface3}`,
-          borderRadius: 18,
-          padding: 24,
-          display: "grid",
-          gridTemplateColumns: "160px 1fr",
-          gap: 24,
-          alignItems: "flex-start",
-        }}
-      >
-        <LogoUpload disabled={!canManage} />
-
-        <div style={{ display: "grid", gap: 14 }}>
-          <Field label="Organization name">
-            <input
-              value={name}
-              disabled={!canManage}
-              onChange={(e) => setName(e.target.value)}
-              style={inputStyle()}
-            />
-          </Field>
-          <Field label="Business address">
-            <textarea
-              value={address}
-              disabled={!canManage}
-              placeholder="Street, city, state, postal code"
-              onChange={(e) => setAddress(e.target.value)}
-              rows={3}
-              style={{ ...inputStyle(), resize: "vertical" }}
-            />
-          </Field>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 8,
-              marginTop: 4,
-            }}
-          >
-            <button
-              disabled={!canManage}
-              style={btnPrimary(canManage)}
-              onClick={() => {
-                /* Org settings persistence lands in Phase 2 */
-              }}
-            >
-              Save changes
-            </button>
-          </div>
-        </div>
-      </div>
+      <PlaceholderPanel
+        message="Organization name, address, and logo are configured on the Organization page."
+        linkHref="/contractor/settings/organization"
+        linkLabel="Open Organization"
+      />
     </section>
   );
 }
 
-function LogoUpload({ disabled }: { disabled: boolean }) {
+function PlaceholderPanel({
+  message,
+  linkHref,
+  linkLabel,
+}: {
+  message: string;
+  linkHref: string;
+  linkLabel: string;
+}) {
   return (
     <div
       style={{
-        width: 160,
-        height: 160,
-        borderRadius: 18,
-        background: C.surface2,
+        marginTop: 20,
+        background: C.surface1,
         border: `1px dashed ${C.surface4}`,
-        display: "grid",
-        placeItems: "center",
-        color: C.textTertiary,
-        cursor: disabled ? "not-allowed" : "pointer",
+        borderRadius: 18,
+        padding: 24,
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        justifyContent: "space-between",
+        flexWrap: "wrap",
       }}
     >
-      <div style={{ textAlign: "center", padding: 12 }}>
-        <svg
-          width="28"
-          height="28"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <rect x="3" y="3" width="18" height="18" rx="2" />
-          <circle cx="9" cy="9" r="2" />
-          <path d="m21 15-5-5L5 21" />
-        </svg>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 240 }}>
         <div
+          aria-hidden
           style={{
-            fontSize: 11,
-            fontFamily: F.display,
-            fontWeight: 650,
-            marginTop: 8,
+            width: 40,
+            height: 40,
+            borderRadius: 12,
+            background: C.accentSoft,
+            color: C.accentText,
+            display: "grid",
+            placeItems: "center",
+            flexShrink: 0,
           }}
         >
-          Upload logo
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            <polyline points="15 3 21 3 21 9" />
+            <line x1="10" y1="14" x2="21" y2="3" />
+          </svg>
         </div>
-        <div style={{ fontSize: 10, marginTop: 2, fontWeight: 520 }}>
-          PNG, SVG · 2MB max
+        <div
+          style={{
+            fontSize: 13,
+            color: C.textSecondary,
+            fontWeight: 520,
+            lineHeight: 1.5,
+          }}
+        >
+          {message}
         </div>
       </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <label style={{ display: "grid", gap: 6 }}>
-      <span
+      <Link
+        href={linkHref}
         style={{
-          fontSize: 11,
+          height: 34,
+          padding: "0 14px",
+          borderRadius: 10,
+          background: C.accent,
+          color: "white",
           fontFamily: F.display,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: ".06em",
-          color: C.textTertiary,
+          fontSize: 12.5,
+          fontWeight: 650,
+          display: "inline-flex",
+          alignItems: "center",
+          textDecoration: "none",
         }}
       >
-        {label}
-      </span>
-      {children}
-    </label>
+        {linkLabel} →
+      </Link>
+    </div>
   );
-}
-
-function inputStyle(): CSSProperties {
-  return {
-    height: 38,
-    padding: "0 12px",
-    borderRadius: 10,
-    border: `1px solid ${C.surface3}`,
-    background: C.surface1,
-    color: C.textPrimary,
-    fontFamily: F.body,
-    fontSize: 13,
-    fontWeight: 520,
-    outline: "none",
-  };
 }
 
 function TeamSection({
@@ -573,9 +649,23 @@ function TeamSection({
         title="Team members"
         subtitle="People in your organization with access to projects, draws, and documents."
         rightNode={
-          <button disabled={!canManage} style={btnPrimary(canManage)}>
-            Invite member
-          </button>
+          canManage ? (
+            <Link
+              href="/contractor/settings/invitations"
+              style={{
+                ...btnPrimary(true),
+                display: "inline-flex",
+                alignItems: "center",
+                textDecoration: "none",
+              }}
+            >
+              Invite member
+            </Link>
+          ) : (
+            <button disabled style={btnPrimary(false)}>
+              Invite member
+            </button>
+          )
         }
       />
       <div
@@ -694,9 +784,23 @@ function TeamSection({
                       textAlign: "right",
                     }}
                   >
-                    <button disabled={!canManage} style={smBtnStyle(false)}>
-                      Manage
-                    </button>
+                    {canManage ? (
+                      <Link
+                        href="/contractor/settings/team"
+                        style={{
+                          ...smBtnStyle(false),
+                          display: "inline-flex",
+                          alignItems: "center",
+                          textDecoration: "none",
+                        }}
+                      >
+                        Manage
+                      </Link>
+                    ) : (
+                      <button disabled style={smBtnStyle(false)}>
+                        Manage
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -986,22 +1090,69 @@ function formatRelative(d: Date | string, now: number): string {
   return `${days}d ago`;
 }
 
-// ── Slide-out configuration panel ───────────────────────────────────────
-function ConfigurationPanel({
+// ── Integration detail panel (4-tab) ────────────────────────────────────
+type DetailTab = "overview" | "mapping" | "activity" | "settings";
+
+function IntegrationDetailPanel({
   card,
-  recentEvents,
+  view,
   canManage,
   onClose,
   nowMs,
 }: {
   card: IntegrationCardRow;
-  recentEvents: ContractorIntegrationsView["recentSyncEvents"];
+  view: ContractorIntegrationsView;
   canManage: boolean;
   onClose: () => void;
   nowMs: number;
 }) {
   const presentation = PROVIDER_LOGOS[card.provider];
   const connection = card.connection;
+  const router = useRouter();
+  const [tab, setTab] = useState<DetailTab>("overview");
+  const [syncPending, setSyncPending] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  if (!connection) return null;
+
+  const events = view.recentSyncEvents.filter(
+    (e) => e.connectionId === connection.id,
+  );
+
+  async function syncNow() {
+    if (!connection) return;
+    setSyncPending(true);
+    setActionError(null);
+    const res = await fetch(`/api/integrations/${connection.id}/sync-now`, {
+      method: "POST",
+    });
+    setSyncPending(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setActionError(body.message ?? body.error ?? "sync_failed");
+      return;
+    }
+    router.refresh();
+  }
+
+  async function disconnect() {
+    if (!connection) return;
+    setSyncPending(true);
+    setActionError(null);
+    const res = await fetch(
+      `/api/integrations/${connection.id}/disconnect`,
+      { method: "POST" },
+    );
+    setSyncPending(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setActionError(body.message ?? body.error ?? "disconnect_failed");
+      return;
+    }
+    router.refresh();
+  }
+
+  const accountIdLabel = providerAccountLabel(card.provider);
 
   return (
     <div
@@ -1012,7 +1163,6 @@ function ConfigurationPanel({
         borderRadius: 18,
         overflow: "hidden",
         boxShadow: "0 4px 16px rgba(26,23,20,.06)",
-        animation: "slideDown 240ms ease-out",
       }}
     >
       <div
@@ -1023,13 +1173,14 @@ function ConfigurationPanel({
           justifyContent: "space-between",
           alignItems: "flex-start",
           gap: 16,
+          flexWrap: "wrap",
         }}
       >
         <div
-          style={{ display: "flex", alignItems: "center", gap: 14, flex: 1 }}
+          style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 260 }}
         >
           {presentation.logo}
-          <div>
+          <div style={{ minWidth: 0 }}>
             <h3
               style={{
                 fontFamily: F.display,
@@ -1049,159 +1200,89 @@ function ConfigurationPanel({
                 fontWeight: 520,
               }}
             >
-              {presentation.provider}
+              {connection.externalAccountName ? (
+                <>
+                  Connected to &quot;{connection.externalAccountName}&quot;
+                  {connection.externalAccountId && (
+                    <>
+                      {" "}· {accountIdLabel}:{" "}
+                      <span style={{ fontFamily: F.mono, fontSize: 11 }}>
+                        {connection.externalAccountId}
+                      </span>
+                    </>
+                  )}
+                </>
+              ) : (
+                presentation.provider
+              )}
             </div>
           </div>
         </div>
-        <button onClick={onClose} style={smBtnStyle(false)}>
-          Close
-        </button>
+        <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+          <button
+            onClick={syncNow}
+            disabled={!canManage || syncPending}
+            style={smBtnStyle(false)}
+          >
+            {syncPending ? "Syncing…" : "Sync now"}
+          </button>
+          <button
+            onClick={() => setTab("mapping")}
+            disabled={!canManage}
+            style={smBtnStyle(false)}
+          >
+            Edit mapping
+          </button>
+          <button
+            onClick={disconnect}
+            disabled={!canManage || syncPending}
+            style={smBtnStyle(true)}
+          >
+            Disconnect
+          </button>
+          <button onClick={onClose} style={smBtnStyle(false)}>
+            Close
+          </button>
+        </div>
+      </div>
+
+      <div style={{ padding: "16px 20px 0" }}>
+        <DetailTabBar tab={tab} setTab={setTab} />
       </div>
 
       <div style={{ padding: 20 }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3,1fr)",
-            gap: 10,
-            marginBottom: 20,
-          }}
-        >
-          <StatCard
-            label="Status"
-            value={statusLabel(card)}
-            meta={
-              connection?.lastErrorMessage ?? "Healthy in the last 7 days"
-            }
-            tone={
-              connection?.status === "connected"
-                ? "success"
-                : connection?.status === "error"
-                  ? "danger"
-                  : "neutral"
-            }
-          />
-          <StatCard
-            label="Last sync"
-            value={
-              connection?.lastSyncAt
-                ? formatRelative(connection.lastSyncAt, nowMs)
-                : "Never"
-            }
-            meta={
-              connection?.connectedAt
-                ? `Connected ${formatRelative(connection.connectedAt, nowMs)}`
-                : "Not yet connected"
-            }
-          />
-          <StatCard
-            label="External account"
-            value={connection?.externalAccountName ?? "—"}
-            meta={`Plan tier: ${card.minTier}`}
-          />
-        </div>
-
-        <h4
-          style={{
-            fontFamily: F.display,
-            fontSize: 13,
-            fontWeight: 720,
-            margin: "0 0 10px",
-          }}
-        >
-          Recent sync activity
-        </h4>
-        {recentEvents.length === 0 ? (
+        {actionError && (
           <div
             style={{
-              padding: 20,
-              border: `1px dashed ${C.surface3}`,
-              borderRadius: 12,
-              textAlign: "center",
-              color: C.textTertiary,
-              fontSize: 12.5,
+              marginBottom: 14,
+              padding: "10px 14px",
+              background: C.dangerSoft,
+              border: `1px solid ${C.danger}33`,
+              borderRadius: 10,
+              fontSize: 12,
+              color: C.dangerText,
               fontWeight: 520,
             }}
           >
-            No sync events recorded for this integration yet.
+            {actionError}
           </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {recentEvents.slice(0, 5).map((e) => {
-              const sym =
-                e.syncDirection === "push"
-                  ? "↑"
-                  : e.syncDirection === "pull"
-                    ? "↓"
-                    : "✓";
-              const ok = /success|ok|completed/i.test(e.syncEventStatus);
-              return (
-                <div
-                  key={e.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 12,
-                    padding: "10px 12px",
-                    border: `1px solid ${C.surface3}`,
-                    borderRadius: 10,
-                    background: C.surface1,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 6,
-                      display: "grid",
-                      placeItems: "center",
-                      flexShrink: 0,
-                      fontSize: 13,
-                      fontWeight: 700,
-                      background: ok ? C.successSoft : C.dangerSoft,
-                      color: ok ? C.successText : C.dangerText,
-                    }}
-                  >
-                    {sym}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontFamily: F.display,
-                        fontSize: 13,
-                        fontWeight: 650,
-                      }}
-                    >
-                      {e.entityType ?? e.syncDirection} ·{" "}
-                      {e.syncEventStatus}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: C.textSecondary,
-                        lineHeight: 1.45,
-                        marginTop: 2,
-                        fontWeight: 520,
-                      }}
-                    >
-                      {e.summary ?? e.errorMessage ?? "—"}
-                    </div>
-                  </div>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: C.textTertiary,
-                      fontFamily: F.display,
-                      fontWeight: 600,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {formatRelative(e.createdAt, nowMs)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+        )}
+
+        {tab === "overview" && (
+          <OverviewTab card={card} nowMs={nowMs} />
+        )}
+        {tab === "mapping" && (
+          <ProjectMappingTab
+            card={card}
+            projects={view.projects}
+            canManage={canManage}
+          />
+        )}
+        {tab === "activity" && (
+          <SyncActivityTab events={events} nowMs={nowMs} />
+        )}
+        {tab === "settings" && (
+          <SettingsTab card={card} canManage={canManage} />
         )}
 
         {!card.phase1 && (
@@ -1234,8 +1315,1106 @@ function ConfigurationPanel({
           </div>
         )}
       </div>
+    </div>
+  );
+}
 
-      
+function DetailTabBar({
+  tab,
+  setTab,
+}: {
+  tab: DetailTab;
+  setTab: (t: DetailTab) => void;
+}) {
+  const tabs: Array<{ key: DetailTab; label: string }> = [
+    { key: "overview", label: "Overview" },
+    { key: "mapping", label: "Project mapping" },
+    { key: "activity", label: "Sync activity" },
+    { key: "settings", label: "Settings" },
+  ];
+  return (
+    <div
+      role="tablist"
+      aria-label="Integration sections"
+      style={{
+        display: "inline-flex",
+        gap: 4,
+        background: C.surface2,
+        borderRadius: 14,
+        padding: 4,
+      }}
+    >
+      {tabs.map((t) => {
+        const active = tab === t.key;
+        return (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={active}
+            onClick={() => setTab(t.key)}
+            style={{
+              height: 32,
+              padding: "0 12px",
+              borderRadius: 10,
+              fontSize: 12,
+              fontWeight: active ? 650 : 620,
+              fontFamily: F.display,
+              color: active ? C.textPrimary : C.textSecondary,
+              background: active ? C.surface1 : "transparent",
+              boxShadow: active ? "0 1px 3px rgba(26,23,20,.06)" : "none",
+              border: "none",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function providerAccountLabel(provider: IntegrationProviderKey): string {
+  switch (provider) {
+    case "quickbooks_online":
+      return "Realm ID";
+    case "xero":
+      return "Tenant ID";
+    case "stripe":
+      return "Account ID";
+    case "google_calendar":
+    case "outlook_365":
+      return "Calendar ID";
+    default:
+      return "External ID";
+  }
+}
+
+// ── Overview tab ────────────────────────────────────────────────────────
+function OverviewTab({
+  card,
+  nowMs,
+}: {
+  card: IntegrationCardRow;
+  nowMs: number;
+}) {
+  const connection = card.connection!;
+  const healthy =
+    connection.status === "connected" && connection.consecutiveErrors === 0;
+  const statusMeta =
+    connection.lastErrorMessage ??
+    (connection.consecutiveErrors > 0
+      ? `${connection.consecutiveErrors} consecutive error(s)`
+      : healthy
+        ? "0 errors in last 7 days"
+        : "Awaiting next sync");
+
+  const { pushLabel, pullLabel } = countLabels(card.provider);
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
+        gap: 10,
+      }}
+    >
+      <StatCard
+        label="Status"
+        value={healthy ? "Healthy" : statusLabel(card)}
+        meta={statusMeta}
+        tone={
+          connection.status === "connected"
+            ? "success"
+            : connection.status === "error"
+              ? "danger"
+              : "neutral"
+        }
+      />
+      <StatCard
+        label="Last sync"
+        value={
+          connection.lastSyncAt
+            ? formatRelative(connection.lastSyncAt, nowMs)
+            : "Never"
+        }
+        meta={
+          connection.connectedAt
+            ? `Connected ${formatRelative(connection.connectedAt, nowMs)}`
+            : "Not yet connected"
+        }
+      />
+      <StatCard
+        label={pushLabel.label}
+        value={String(connection.pushCount)}
+        meta={pushLabel.meta}
+      />
+      <StatCard
+        label={pullLabel.label}
+        value={String(connection.pullCount)}
+        meta={pullLabel.meta}
+      />
+    </div>
+  );
+}
+
+function countLabels(provider: IntegrationProviderKey) {
+  switch (provider) {
+    case "quickbooks_online":
+    case "xero":
+    case "sage_business_cloud":
+      return {
+        pushLabel: { label: "Invoices pushed", meta: "Draws sent to accounting" },
+        pullLabel: {
+          label: "Payments pulled",
+          meta: "Payment confirmations received",
+        },
+      };
+    case "stripe":
+      return {
+        pushLabel: { label: "Charges initiated", meta: "Payment intents created" },
+        pullLabel: {
+          label: "Webhooks received",
+          meta: "Payment status updates",
+        },
+      };
+    case "google_calendar":
+    case "outlook_365":
+      return {
+        pushLabel: { label: "Events pushed", meta: "Milestones + inspections" },
+        pullLabel: {
+          label: "Calendar updates",
+          meta: "External edits detected",
+        },
+      };
+    case "postmark":
+    case "sendgrid":
+      return {
+        pushLabel: { label: "Emails sent", meta: "Transactional notifications" },
+        pullLabel: {
+          label: "Replies processed",
+          meta: "Reply-by-email ingests",
+        },
+      };
+    default:
+      return {
+        pushLabel: { label: "Outbound syncs", meta: "BuiltCRM → external" },
+        pullLabel: { label: "Inbound syncs", meta: "External → BuiltCRM" },
+      };
+  }
+}
+
+// ── Project mapping tab ─────────────────────────────────────────────────
+function ProjectMappingTab({
+  card,
+  projects,
+  canManage,
+}: {
+  card: IntegrationCardRow;
+  projects: OrgProject[];
+  canManage: boolean;
+}) {
+  const router = useRouter();
+  const connection = card.connection!;
+  const [mappings, setMappings] = useState<ProjectMapping[]>(
+    connection.projectMappings,
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const mappedProjectIds = new Set(mappings.map((m) => m.projectId));
+  const unmappedProjects = projects.filter(
+    (p) => !mappedProjectIds.has(p.id),
+  );
+
+  function updateRow(index: number, patch: Partial<ProjectMapping>) {
+    setSaved(false);
+    setMappings((prev) =>
+      prev.map((m, i) => (i === index ? { ...m, ...patch } : m)),
+    );
+  }
+
+  function addRow(projectId: string) {
+    setSaved(false);
+    setMappings((prev) => [
+      ...prev,
+      {
+        projectId,
+        externalCustomerId: null,
+        externalCustomerName: null,
+        externalJobId: null,
+      },
+    ]);
+  }
+
+  function removeRow(index: number) {
+    setSaved(false);
+    setMappings((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    const serialised = mappings.map((m) => ({
+      project_id: m.projectId,
+      external_customer_id: m.externalCustomerId ?? null,
+      external_customer_name: m.externalCustomerName ?? null,
+      external_job_id: m.externalJobId ?? null,
+    }));
+    const res = await fetch(`/api/integrations/${connection.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mappingConfig: {
+          ...(connection.mappingConfig ?? {}),
+          project_mappings: serialised,
+        },
+      }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.message ?? body.error ?? "save_failed");
+      return;
+    }
+    setSaved(true);
+    router.refresh();
+  }
+
+  const customerHeader = providerCustomerHeader(card.provider);
+
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 14,
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <h3
+            style={{
+              fontFamily: F.display,
+              fontSize: 15,
+              fontWeight: 720,
+              letterSpacing: "-.01em",
+              margin: 0,
+            }}
+          >
+            Project mapping
+          </h3>
+          <div
+            style={{
+              fontSize: 12,
+              color: C.textSecondary,
+              marginTop: 2,
+              fontWeight: 520,
+            }}
+          >
+            BuiltCRM projects matched to {card.name} {customerHeader.toLowerCase()}.
+          </div>
+        </div>
+        <AddMappingControl
+          unmappedProjects={unmappedProjects}
+          onAdd={addRow}
+          disabled={!canManage || unmappedProjects.length === 0}
+        />
+      </div>
+
+      <div
+        style={{
+          overflow: "hidden",
+          border: `1px solid ${C.surface3}`,
+          borderRadius: 14,
+          marginBottom: 14,
+        }}
+      >
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              {[
+                "BuiltCRM Project",
+                "",
+                customerHeader,
+                "External job ID",
+                "",
+              ].map((h, i) => (
+                <th
+                  key={i}
+                  style={{
+                    textAlign: "left",
+                    fontFamily: F.display,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: C.textTertiary,
+                    textTransform: "uppercase",
+                    letterSpacing: ".06em",
+                    padding: "8px 12px",
+                    borderBottom: `2px solid ${C.surface3}`,
+                    background: C.surface2,
+                  }}
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {mappings.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={5}
+                  style={{
+                    padding: 24,
+                    textAlign: "center",
+                    color: C.textTertiary,
+                    fontSize: 12.5,
+                    fontWeight: 520,
+                  }}
+                >
+                  No project mappings yet. Add one to start syncing.
+                </td>
+              </tr>
+            ) : (
+              mappings.map((m, i) => {
+                const project = projects.find((p) => p.id === m.projectId);
+                return (
+                  <tr key={`${m.projectId}-${i}`}>
+                    <td
+                      style={{
+                        padding: "10px 12px",
+                        borderBottom: `1px solid ${C.surface3}`,
+                        fontSize: 13,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: F.display,
+                          fontWeight: 650,
+                        }}
+                      >
+                        {project?.name ?? "Unknown project"}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: C.textTertiary,
+                          marginTop: 2,
+                          fontWeight: 520,
+                        }}
+                      >
+                        {project?.clientSubtype
+                          ? `${project.clientSubtype} · ${formatMoney(project.contractValueCents)}`
+                          : formatMoney(project?.contractValueCents ?? null)}
+                      </div>
+                    </td>
+                    <td
+                      style={{
+                        padding: "10px 12px",
+                        borderBottom: `1px solid ${C.surface3}`,
+                        color: C.textTertiary,
+                        fontSize: 12,
+                        textAlign: "center",
+                      }}
+                    >
+                      →
+                    </td>
+                    <td
+                      style={{
+                        padding: "10px 12px",
+                        borderBottom: `1px solid ${C.surface3}`,
+                      }}
+                    >
+                      <input
+                        value={m.externalCustomerName ?? ""}
+                        disabled={!canManage}
+                        placeholder="e.g. Riverside Holdings LLC"
+                        onChange={(e) =>
+                          updateRow(i, {
+                            externalCustomerName: e.target.value || null,
+                          })
+                        }
+                        style={mappingInputStyle()}
+                      />
+                    </td>
+                    <td
+                      style={{
+                        padding: "10px 12px",
+                        borderBottom: `1px solid ${C.surface3}`,
+                      }}
+                    >
+                      <input
+                        value={m.externalJobId ?? ""}
+                        disabled={!canManage}
+                        placeholder="Job ID"
+                        onChange={(e) =>
+                          updateRow(i, {
+                            externalJobId: e.target.value || null,
+                          })
+                        }
+                        style={{
+                          ...mappingInputStyle(),
+                          fontFamily: F.mono,
+                          fontSize: 12,
+                        }}
+                      />
+                    </td>
+                    <td
+                      style={{
+                        padding: "10px 12px",
+                        borderBottom: `1px solid ${C.surface3}`,
+                        textAlign: "right",
+                      }}
+                    >
+                      <button
+                        disabled={!canManage}
+                        onClick={() => removeRow(i)}
+                        style={smBtnStyle(true)}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          justifyContent: "flex-end",
+          flexWrap: "wrap",
+        }}
+      >
+        {error && (
+          <span
+            style={{
+              fontSize: 12,
+              color: C.dangerText,
+              fontWeight: 520,
+              marginRight: "auto",
+            }}
+          >
+            {error}
+          </span>
+        )}
+        {saved && !error && (
+          <span
+            style={{
+              fontSize: 12,
+              color: C.successText,
+              fontWeight: 620,
+              fontFamily: F.display,
+              marginRight: "auto",
+            }}
+          >
+            Mapping saved
+          </span>
+        )}
+        <button
+          disabled={!canManage || saving}
+          onClick={save}
+          style={btnPrimary(canManage && !saving)}
+        >
+          {saving ? "Saving…" : "Save mapping"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function providerCustomerHeader(provider: IntegrationProviderKey): string {
+  switch (provider) {
+    case "quickbooks_online":
+      return "QuickBooks Customer";
+    case "xero":
+      return "Xero Contact";
+    case "sage_business_cloud":
+      return "Sage Customer";
+    case "stripe":
+      return "Stripe Customer";
+    case "google_calendar":
+    case "outlook_365":
+      return "External Calendar";
+    default:
+      return "External Account";
+  }
+}
+
+function AddMappingControl({
+  unmappedProjects,
+  onAdd,
+  disabled,
+}: {
+  unmappedProjects: OrgProject[];
+  onAdd: (projectId: string) => void;
+  disabled: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        disabled={disabled}
+        onClick={() => setOpen((o) => !o)}
+        style={smBtnStyle(false)}
+      >
+        Add mapping {unmappedProjects.length > 0 && `· ${unmappedProjects.length}`}
+      </button>
+      {open && unmappedProjects.length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            right: 0,
+            top: "calc(100% + 6px)",
+            minWidth: 260,
+            background: C.surface1,
+            border: `1px solid ${C.surface3}`,
+            borderRadius: 12,
+            boxShadow: "0 8px 24px rgba(26,23,20,.1)",
+            padding: 6,
+            zIndex: 10,
+            maxHeight: 280,
+            overflow: "auto",
+          }}
+        >
+          {unmappedProjects.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => {
+                onAdd(p.id);
+                setOpen(false);
+              }}
+              style={{
+                display: "block",
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 10px",
+                border: "none",
+                background: "transparent",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 520,
+                cursor: "pointer",
+                color: C.textPrimary,
+                fontFamily: F.body,
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = C.surfaceHover)
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "transparent")
+              }
+            >
+              <div style={{ fontFamily: F.display, fontWeight: 620 }}>
+                {p.name}
+              </div>
+              {p.projectCode && (
+                <div
+                  style={{
+                    fontFamily: F.mono,
+                    fontSize: 11,
+                    color: C.textTertiary,
+                    marginTop: 2,
+                  }}
+                >
+                  {p.projectCode}
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function mappingInputStyle(): CSSProperties {
+  return {
+    height: 32,
+    width: "100%",
+    padding: "0 10px",
+    borderRadius: 8,
+    border: `1px solid ${C.surface3}`,
+    background: C.surface1,
+    color: C.textPrimary,
+    fontFamily: F.body,
+    fontSize: 13,
+    fontWeight: 520,
+    outline: "none",
+  };
+}
+
+function formatMoney(cents: number | null): string {
+  if (cents === null || cents === undefined) return "—";
+  const dollars = cents / 100;
+  if (dollars >= 1_000_000) return `$${(dollars / 1_000_000).toFixed(1)}M`;
+  if (dollars >= 1_000) return `$${Math.round(dollars / 1_000)}K`;
+  return `$${dollars.toFixed(0)}`;
+}
+
+// ── Sync activity tab ───────────────────────────────────────────────────
+function SyncActivityTab({
+  events,
+  nowMs,
+}: {
+  events: SyncEventRow[];
+  nowMs: number;
+}) {
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 14,
+        }}
+      >
+        <div>
+          <h3
+            style={{
+              fontFamily: F.display,
+              fontSize: 15,
+              fontWeight: 720,
+              letterSpacing: "-.01em",
+              margin: 0,
+            }}
+          >
+            Recent sync activity
+          </h3>
+          <div
+            style={{
+              fontSize: 12,
+              color: C.textSecondary,
+              marginTop: 2,
+              fontWeight: 520,
+            }}
+          >
+            Last {Math.min(events.length, 25)} sync operations for this connection
+          </div>
+        </div>
+      </div>
+
+      {events.length === 0 ? (
+        <div
+          style={{
+            padding: 24,
+            border: `1px dashed ${C.surface3}`,
+            borderRadius: 12,
+            textAlign: "center",
+            color: C.textTertiary,
+            fontSize: 12.5,
+            fontWeight: 520,
+          }}
+        >
+          No sync events recorded for this connection yet.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {events.slice(0, 25).map((e) => {
+            const sym =
+              e.syncDirection === "push"
+                ? "↑"
+                : e.syncDirection === "pull"
+                  ? "↓"
+                  : "✓";
+            const ok = /success|ok|completed|succeeded/i.test(
+              e.syncEventStatus,
+            );
+            const iconBg = ok ? C.successSoft : C.dangerSoft;
+            const iconColor = ok ? C.successText : C.dangerText;
+            return (
+              <div
+                key={e.id}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 12,
+                  padding: "10px 12px",
+                  border: `1px solid ${C.surface3}`,
+                  borderRadius: 10,
+                  background: C.surface1,
+                }}
+              >
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 6,
+                    display: "grid",
+                    placeItems: "center",
+                    flexShrink: 0,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    background: iconBg,
+                    color: iconColor,
+                  }}
+                >
+                  {sym}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontFamily: F.display,
+                      fontSize: 13,
+                      fontWeight: 650,
+                    }}
+                  >
+                    {e.entityType ?? e.syncDirection} · {e.syncEventStatus}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: C.textSecondary,
+                      lineHeight: 1.45,
+                      marginTop: 2,
+                      fontWeight: 520,
+                    }}
+                  >
+                    {e.summary ?? e.errorMessage ?? "—"}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-end",
+                    gap: 4,
+                    flexShrink: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: C.textTertiary,
+                      fontFamily: F.display,
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {formatRelative(e.createdAt, nowMs)}
+                  </span>
+                  <span
+                    style={pillStyle(ok ? "green" : "orange")}
+                  >
+                    {ok ? "Success" : e.syncEventStatus}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Settings tab ────────────────────────────────────────────────────────
+type SyncPrefs = {
+  syncFrequency: "realtime" | "hourly" | "daily" | "manual";
+  syncOnApproval: boolean;
+  autoCreateCustomers: boolean;
+  includeRetainage: boolean;
+};
+
+function readPrefs(prefs: Record<string, unknown> | null): SyncPrefs {
+  const freq = prefs?.sync_frequency;
+  const syncFrequency: SyncPrefs["syncFrequency"] =
+    freq === "hourly" || freq === "daily" || freq === "manual"
+      ? freq
+      : "realtime";
+  return {
+    syncFrequency,
+    syncOnApproval: prefs?.sync_on_approval !== false,
+    autoCreateCustomers: prefs?.auto_create_customers === true,
+    includeRetainage: prefs?.include_retainage_entries !== false,
+  };
+}
+
+function SettingsTab({
+  card,
+  canManage,
+}: {
+  card: IntegrationCardRow;
+  canManage: boolean;
+}) {
+  const router = useRouter();
+  const connection = card.connection!;
+  const [prefs, setPrefs] = useState<SyncPrefs>(
+    readPrefs(connection.syncPreferences),
+  );
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function update<K extends keyof SyncPrefs>(key: K, value: SyncPrefs[K]) {
+    setSaved(false);
+    setPrefs((p) => ({ ...p, [key]: value }));
+  }
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    const res = await fetch(`/api/integrations/${connection.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        syncPreferences: {
+          sync_frequency: prefs.syncFrequency,
+          sync_on_approval: prefs.syncOnApproval,
+          auto_create_customers: prefs.autoCreateCustomers,
+          include_retainage_entries: prefs.includeRetainage,
+        },
+      }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.message ?? body.error ?? "save_failed");
+      return;
+    }
+    setSaved(true);
+    router.refresh();
+  }
+
+  return (
+    <div>
+      <h3
+        style={{
+          fontFamily: F.display,
+          fontSize: 15,
+          fontWeight: 720,
+          letterSpacing: "-.01em",
+          margin: "0 0 4px",
+        }}
+      >
+        Sync preferences
+      </h3>
+      <div
+        style={{
+          fontSize: 12,
+          color: C.textSecondary,
+          fontWeight: 520,
+          marginBottom: 16,
+        }}
+      >
+        Control how often BuiltCRM exchanges data with {card.name} and what
+        gets synced.
+      </div>
+
+      <div style={{ display: "grid", gap: 12, maxWidth: 620 }}>
+        <SettingRow label="Sync frequency">
+          <select
+            value={prefs.syncFrequency}
+            disabled={!canManage}
+            onChange={(e) =>
+              update(
+                "syncFrequency",
+                e.target.value as SyncPrefs["syncFrequency"],
+              )
+            }
+            style={mappingInputStyle()}
+          >
+            <option value="realtime">Realtime (on every change)</option>
+            <option value="hourly">Hourly</option>
+            <option value="daily">Daily reconciliation</option>
+            <option value="manual">Manual only</option>
+          </select>
+        </SettingRow>
+        <ToggleRow
+          label="Push on approval"
+          description="Automatically push draws, change orders, and invoices when approved."
+          checked={prefs.syncOnApproval}
+          onChange={(v) => update("syncOnApproval", v)}
+          disabled={!canManage}
+        />
+        <ToggleRow
+          label="Auto-create missing customers"
+          description="Create a new customer/contact record if no mapping exists for a project."
+          checked={prefs.autoCreateCustomers}
+          onChange={(v) => update("autoCreateCustomers", v)}
+          disabled={!canManage}
+        />
+        <ToggleRow
+          label="Include retainage entries"
+          description="Post retainage holdback and release entries as separate journal lines."
+          checked={prefs.includeRetainage}
+          onChange={(v) => update("includeRetainage", v)}
+          disabled={!canManage}
+        />
+      </div>
+
+      <div
+        style={{
+          marginTop: 20,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          justifyContent: "flex-end",
+          flexWrap: "wrap",
+        }}
+      >
+        {error && (
+          <span
+            style={{
+              fontSize: 12,
+              color: C.dangerText,
+              fontWeight: 520,
+              marginRight: "auto",
+            }}
+          >
+            {error}
+          </span>
+        )}
+        {saved && !error && (
+          <span
+            style={{
+              fontSize: 12,
+              color: C.successText,
+              fontWeight: 620,
+              fontFamily: F.display,
+              marginRight: "auto",
+            }}
+          >
+            Preferences saved
+          </span>
+        )}
+        <button
+          disabled={!canManage || saving}
+          onClick={save}
+          style={btnPrimary(canManage && !saving)}
+        >
+          {saving ? "Saving…" : "Save preferences"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SettingRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "220px 1fr",
+        gap: 16,
+        alignItems: "center",
+      }}
+    >
+      <span
+        style={{
+          fontSize: 12,
+          fontFamily: F.display,
+          fontWeight: 650,
+          color: C.textPrimary,
+        }}
+      >
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+function ToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr auto",
+        gap: 16,
+        alignItems: "center",
+        padding: "12px 14px",
+        border: `1px solid ${C.surface3}`,
+        borderRadius: 12,
+        background: C.surface1,
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontSize: 13,
+            fontFamily: F.display,
+            fontWeight: 650,
+            color: C.textPrimary,
+          }}
+        >
+          {label}
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            color: C.textSecondary,
+            fontWeight: 520,
+            marginTop: 2,
+            lineHeight: 1.45,
+          }}
+        >
+          {description}
+        </div>
+      </div>
+      <button
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        style={{
+          width: 40,
+          height: 22,
+          borderRadius: 999,
+          border: "none",
+          background: checked ? C.accent : C.surface4,
+          position: "relative",
+          cursor: disabled ? "not-allowed" : "pointer",
+          transition: "background 150ms",
+          opacity: disabled ? 0.6 : 1,
+          padding: 0,
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            top: 2,
+            left: checked ? 20 : 2,
+            width: 18,
+            height: 18,
+            borderRadius: "50%",
+            background: "white",
+            boxShadow: "0 1px 3px rgba(0,0,0,.2)",
+            transition: "left 150ms",
+          }}
+        />
+      </button>
     </div>
   );
 }

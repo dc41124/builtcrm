@@ -64,6 +64,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
             { label: "Organization", href: "/contractor/settings/organization" },
             { label: "Team & Roles", href: "/contractor/settings/team" },
             { label: "Integrations", href: "/contractor/settings/integrations" },
+            { label: "Payments", href: "/contractor/settings/payments" },
           ]),
         },
       ];

@@ -2,18 +2,18 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth/config";
-import { getContractorIntegrationsView } from "@/domain/loaders/integrations";
+import { getContractorPaymentsView } from "@/domain/loaders/payments";
 import { AuthorizationError } from "@/domain/permissions";
 
-import { IntegrationsView } from "./integrations-ui";
+import { PaymentsView } from "./payments-ui";
 
-export default async function ContractorIntegrationsPage() {
+export default async function ContractorPaymentsPage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
 
   let view;
   try {
-    view = await getContractorIntegrationsView({
+    view = await getContractorPaymentsView({
       session: session.session as unknown as { appUserId?: string | null },
     });
   } catch (err) {
@@ -24,5 +24,5 @@ export default async function ContractorIntegrationsPage() {
     throw err;
   }
 
-  return <IntegrationsView view={view} nowMs={Date.now()} />;
+  return <PaymentsView view={view} nowMs={Date.now()} />;
 }
