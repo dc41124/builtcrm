@@ -238,54 +238,9 @@ git commit -m "Step 0: Update CLAUDE.md for Phase 4+ execution rules"
 
 **Rule:** These items compound. Every one of them affects demo quality and daily-driver feel. Do not skip any to get to features faster.
 
-**Total:** 14 items across 5 subgroups (4A.1 quick wiring, 4A.2 dark mode, 4A.3 settings pages, 4A.4 exports, 4A.5 nav).
+**Total:** 13 items across 5 subgroups (4A.1 quick wiring, 4A.2 dark mode, 4A.3 settings pages, 4A.4 exports, 4A.5 nav).
 
 **Acceptance for Phase 4A as a whole:** `npm run build` and `npm run lint` pass clean, no hydration warnings in browser console, every portal sidebar shows accurate badge counts and a working sign-out, all "Package Documents" buttons either work or show a proper Coming Soon state, dark mode is controlled by a single user-preference toggle, and exports for payment PDF, photo ZIP, and receipt links all resolve.
-
----
-
-## Step 1 — Fix `portalHref()` Stale Paths
-
-**Mode:** Safe-to-autorun
-**Item:** 4A.1 #1
-**Effort:** S
-**Priority:** P1
-
-### What this does
-
-Fixes the nav helper that builds portal-aware URLs. Phase 3 handoffs confirmed this is broken — in some conditions it resolves to the wrong portal (e.g., a contractor route rendered from a subcontractor context, or vice versa). Every broken nav link in the app today traces back to this helper.
-
-### Tell Claude Code:
-
-> Read `src/lib/portalHref.ts` and `src/components/shell/AppShell.tsx`. Grep the codebase for every call site of `portalHref(` so we know the contract.
->
-> First, tell me in plain English:
-> 1. What does `portalHref()` currently take as input and return?
-> 2. Where are the stale-path cases? Specifically, in what conditions does it return a URL that resolves to the wrong portal?
-> 3. Is the bug in the helper itself, in how callers pass context, or both?
->
-> Do not write any code yet. I want the diagnosis first. After I confirm the diagnosis, propose the fix — minimal, surgical, no rewrite of the routing system.
->
-> When you implement the fix:
-> - Preserve the function signature unless the diagnosis requires changing it (if it does, stop and ask)
-> - Update all call sites if the signature changes
-> - Add a brief comment on the helper explaining the contract (what portal it assumes, what context it needs)
-> - Write a tiny unit test covering the three cases: correct portal, cross-portal navigation, fallback when context is missing
-
-### What to check
-
-- Every portal nav link in every portal resolves to the correct URL
-- Crossing portals via the top bar switches context cleanly (no stale paths)
-- No 404s or wrong-portal redirects when clicking any nav item in any portal
-- `npm run build && npm run lint` clean
-- The unit test passes
-
-### Commit:
-
-```bash
-git add .
-git commit -m "Step 1 (4A.1 #1): Fix portalHref() stale paths"
-```
 
 ---
 
@@ -352,7 +307,7 @@ Sidebar nav badges are currently hardcoded or empty. This wires them to a loader
 
 > Read `src/components/shell/AppShell.tsx` and the four portal `layout.tsx` files under `src/app/(portal)/`. Each portal has its own nav items; each nav item has an optional badge count.
 >
-> Create a loader `getPortalNavCounts(context)` in `src/lib/getPortalNavCounts.ts` (or an existing nav-related file if one is there — check first). It should return a keyed object: `{ rfis: 3, approvals: 2, messages: 5, ... }` where keys map to the nav item's `key` or `href`.
+> Create a loader `getPortalNavCounts(context)` — the nav structure already lives in `src/lib/portal-nav.ts` (the `buildNavSections` function). Add the counts loader as a new file `src/lib/portal-nav-counts.ts` adjacent to it, or as an export from `portal-nav.ts` itself. It should return a keyed object: `{ rfis: 3, approvals: 2, messages: 5, ... }` where keys map to the nav item's `key` or `href`.
 >
 > What counts to include, per portal:
 >
@@ -487,7 +442,7 @@ Flagged in a Phase 3 handoff and then forgotten. The sidebar footer shows the us
 
 ### Tell Claude Code:
 
-> Read `src/components/shell/AppShell.tsx` — specifically the sidebar footer / user avatar area. Also read `src/auth/signOut.ts` (or wherever Better Auth's sign-out action lives).
+> Read `src/components/shell/AppShell.tsx` — specifically the sidebar footer / user avatar area (lines ~391-409). Sign-out is already wired: `signOut` is imported from `@/auth/client` (defined at `src/auth/client.ts`, re-exported from Better Auth) and called in the footer button's `onClick`. **This step is a verification, not a rebuild.**
 >
 > Add a sign-out button to the sidebar footer. UX:
 > - A small menu opens when the user clicks their avatar area (or a dedicated caret next to it). The menu has "Sign out" and optionally "Settings".
@@ -565,11 +520,11 @@ git commit -m "Step 7 (4A.1 #7): Root URL redirects to /products"
 
 ### What this does
 
-Phase 3 shipped with per-page dark mode toggles as a shortcut. This step consolidates to a single user-preference setting in the user Settings page, removes all per-page toggles, and makes the choice persist across sessions and devices.
+Phase 3 removed the topbar dark mode toggle; the theme logic is currently dead code in `src/components/shell/AppShell.tsx` (the `toggleTheme` helper at ~line 224, and a pre-hydration script in `src/app/layout.tsx` that reads `localStorage['builtcrm-theme']`). **No per-page toggles exist** — there is nothing to remove. This step adds a visible theme control in the user Settings page (Light/Dark/System radio), re-wires the topbar toggle, and persists the choice to the user record so it syncs across devices instead of living only in `localStorage`.
 
 ### Tell Claude Code:
 
-> Grep for every dark-mode toggle across the app. Start with `src/components/shell/AppShell.tsx` (the topbar toggle), then search for `dark` class toggles, `prefers-color-scheme`, and `theme-toggle` across `src/`.
+> Read the current theme plumbing: the dead `toggleTheme` helper in `src/components/shell/AppShell.tsx` (~line 224) and the pre-hydration script in `src/app/layout.tsx` that reads `localStorage['builtcrm-theme']`. There is **no visible toggle UI** currently and **no per-page toggles exist** — don't waste time grepping for either.
 >
 > Consolidate to one source of truth:
 >
@@ -577,11 +532,11 @@ Phase 3 shipped with per-page dark mode toggles as a shortcut. This step consoli
 >
 > 2. In the user Settings page, add a Theme section with three radio buttons: Light, Dark, System. Selecting one persists to the user record via a server action and re-renders the shell.
 >
-> 3. The topbar sun/moon toggle stays as a convenience — it toggles between light and dark but writes to the same user preference (so it syncs with the settings page).
+> 3. Re-add a visible topbar sun/moon toggle. The existing `toggleTheme` helper in `AppShell.tsx:224` is the starting point (wired imperatively to avoid SSR/hydration issues) — surface it as a real button in the topbar. Click toggles between light and dark and writes to the same user preference so it syncs with the settings radio.
 >
 > 4. On page load, the shell reads the user's preference server-side and sets the `.dark` class on `<html>` before hydration, so there's no flash-of-wrong-theme. If preference is `'system'`, fall back to `prefers-color-scheme` on the client.
 >
-> 5. Remove any per-page dark mode toggles that Phase 3 left behind. There should be exactly two controls: the user settings radio and the topbar toggle.
+> 5. Final state: exactly two theme controls — the Settings radio and the topbar toggle. Both write to the same user-preference field and reflect its current value. No per-page toggles should be created.
 
 ### What to check
 
@@ -590,7 +545,7 @@ Phase 3 shipped with per-page dark mode toggles as a shortcut. This step consoli
 - Topbar toggle and settings radio stay in sync
 - No flash-of-wrong-theme on page load (try a hard reload in both modes)
 - All four portals respect the theme; marketing site also respects it
-- No per-page toggles remain
+- No per-page toggles were introduced
 - `npm run build && npm run lint` clean
 
 ### Commit:
@@ -668,7 +623,7 @@ Permissions have been flagged as a gap since Phase 2. Today the app has role con
 
 ### Tell Claude Code:
 
-> Read `src/domain/policies/` (or wherever the permission model lives) to understand the current role set for contractor orgs. Also read `docs/prototypes/builtcrm_contractor_settings_integrations.jsx` if the prototype includes a Team section; if not, we design from scratch.
+> There is no `src/domain/policies/` directory — authorization lives in `src/domain/permissions.ts` (the `POLICY` map + `EffectiveRole` set) and `src/domain/context.ts` (the `getEffectiveContext` gate every loader/action calls). Read both to understand the current role set for contractor orgs. Also read `docs/prototypes/builtcrm_contractor_settings_integrations.jsx` if the prototype includes a Team section; if not, we design from scratch.
 >
 > Before writing code:
 >
@@ -724,7 +679,7 @@ Subcontractor orgs also need a Team page. There is **no prototype** for this —
 
 > **No prototype exists for this page.** Do not invent one and proceed silently. Instead:
 >
-> 1. Read `src/domain/policies/` to understand the subcontractor role set (likely just Admin / Field / Viewer, but verify).
+> 1. Read `src/domain/permissions.ts` and `src/domain/context.ts` (there is no `src/domain/policies/` directory) to understand the subcontractor role set (likely just Admin / Field / Viewer, but verify).
 > 2. Propose a design that mirrors the contractor Team page from Step 10 but adapted for subcontractor needs:
 >    - Same table-of-members pattern
 >    - Role set specific to subcontractor (whatever the policies actually support)
@@ -889,7 +844,7 @@ Users currently have to go back to the dashboard or sidebar project list to swit
 
 ### Tell Claude Code:
 
-> Read `src/components/shell/AppShell.tsx` — specifically the topbar. Also read `src/lib/getAccessibleProjects.ts` (if it exists) or search for the loader that returns the user's accessible projects.
+> Read `src/components/shell/AppShell.tsx` — specifically the topbar. The user's accessible projects are built by `loadUserPortalContext` in `src/domain/loaders/portals.ts` (returns `projectShortcuts`); there is no standalone `getAccessibleProjects` helper. If this step needs one, extract from `loadUserPortalContext`.
 >
 > Add a project dropdown to the topbar, positioned between the breadcrumbs and the right-side icons. UX:
 >
