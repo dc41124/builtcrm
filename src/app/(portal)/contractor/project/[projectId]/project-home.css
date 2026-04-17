@@ -96,6 +96,8 @@
 .cph-blk.alert h4{color:var(--wr-t)}
 
 /* LIST ROWS */
+.cph-tab-body{display:flex;flex-direction:column;gap:14px}
+.cph-tab-foot{display:flex;justify-content:flex-end;padding-top:2px}
 .cph-lst{display:flex;flex-direction:column;gap:8px}
 .cph-lr{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-m);padding:10px 12px;display:flex;justify-content:space-between;gap:12px;align-items:flex-start;transition:border-color var(--df) var(--e);text-decoration:none}
 .cph-lr:hover{border-color:var(--s4)}

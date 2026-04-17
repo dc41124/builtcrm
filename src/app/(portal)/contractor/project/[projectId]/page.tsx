@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import type { ReactNode } from "react";
 
 import { auth } from "@/auth/config";
 import {
@@ -11,6 +12,16 @@ import { AuthorizationError } from "@/domain/permissions";
 
 import "./project-home.css";
 import { WorkspaceCard, type WorkspaceTab } from "./workspace-card";
+
+type PillKind = "red" | "orange" | "blue" | "green" | "purple" | "gray";
+type TabRow = {
+  key: string;
+  title: string;
+  desc?: string;
+  pill?: { label: string; kind: PillKind };
+  meta?: string;
+  href: string;
+};
 
 const OPEN_RFI_STATUSES = new Set(["draft", "open", "answered"]);
 const OPEN_CO_STATUSES = new Set(["draft", "submitted", "under_review"]);
@@ -365,6 +376,111 @@ export default async function ContractorProjectHomePage({
     });
   }
 
+  // ── Per-tab recent-items lists ────────────────────────────────
+  // Each tab shows up to 5 items from the already-loaded view data — no new
+  // queries. Status-first sort surfaces what the contractor most likely wants
+  // to act on, then recency breaks ties.
+  const rfiRows: TabRow[] = [...view.rfis]
+    .sort((a, b) => rfiSortRank(a.rfiStatus) - rfiSortRank(b.rfiStatus))
+    .slice(0, 5)
+    .map((r) => ({
+      key: r.id,
+      title: `RFI-${r.sequentialNumber} · ${r.subject}`,
+      desc: truncate(r.body ?? "", 100),
+      pill: rfiPill(r.rfiStatus, r.dueAt),
+      meta: r.dueAt ? `Due ${formatDate(r.dueAt)}` : undefined,
+      href: `${basePath}/rfis`,
+    }));
+
+  const coRows: TabRow[] = [...view.changeOrders]
+    .sort((a, b) => coSortRank(a.changeOrderStatus) - coSortRank(b.changeOrderStatus))
+    .slice(0, 5)
+    .map((c) => ({
+      key: c.id,
+      title: c.title,
+      pill: coPill(c.changeOrderStatus),
+      href: `${basePath}/change-orders`,
+    }));
+
+  const approvalRows: TabRow[] = [...view.approvals]
+    .sort((a, b) => approvalSortRank(a.approvalStatus) - approvalSortRank(b.approvalStatus))
+    .slice(0, 5)
+    .map((a) => ({
+      key: a.id,
+      title: `#${a.approvalNumber} · ${a.title}`,
+      desc:
+        a.decisionNote ??
+        `${formatStatus(a.category)}${a.impactCostCents > 0 ? ` · ${formatCurrency(a.impactCostCents)}` : ""}`,
+      pill: approvalPill(a.approvalStatus),
+      href: `${basePath}/approvals`,
+    }));
+
+  const complianceRows: TabRow[] = [...view.complianceRecords]
+    .sort((a, b) => compSortRank(a.complianceStatus, a.expiresAt) - compSortRank(b.complianceStatus, b.expiresAt))
+    .slice(0, 5)
+    .map((c) => ({
+      key: c.id,
+      title: formatStatus(c.complianceType),
+      desc: c.organizationName ?? undefined,
+      pill: compPill(c.complianceStatus, c.expiresAt),
+      meta: c.expiresAt ? complianceMeta(c.expiresAt) : undefined,
+      href: `${basePath}/compliance`,
+    }));
+
+  const selectionRows: TabRow[] = view.selections.slice(0, 5).map((cat) => {
+    const total = cat.items.length;
+    const confirmed = cat.items.filter(
+      (i) => i.selectionItemStatus === "confirmed" || i.selectionItemStatus === "locked",
+    ).length;
+    return {
+      key: cat.id,
+      title: cat.name,
+      desc: total === 0 ? "No items yet" : `${confirmed} of ${total} confirmed`,
+      pill:
+        total === 0
+          ? { label: "Empty", kind: "gray" }
+          : confirmed === total
+            ? { label: "Complete", kind: "green" }
+            : { label: "In progress", kind: "blue" },
+      href: `${basePath}/selections`,
+    };
+  });
+
+  const documentRows: TabRow[] = [...view.documents]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, 5)
+    .map((d) => ({
+      key: d.id,
+      title: d.title,
+      desc: formatStatus(d.documentType),
+      meta: relativeTime(d.createdAt),
+      href: `${basePath}/documents`,
+    }));
+
+  const billingRows: TabRow[] = [...view.drawRequests]
+    .sort((a, b) => b.drawNumber - a.drawNumber)
+    .slice(0, 5)
+    .map((d) => ({
+      key: d.id,
+      title: `Draw #${d.drawNumber}`,
+      desc: formatCurrency(d.currentPaymentDueCents),
+      pill: drawPill(d.drawRequestStatus),
+      meta: `${formatDate(d.periodFrom)} – ${formatDate(d.periodTo)}`,
+      href: `${basePath}/billing`,
+    }));
+
+  const scheduleRows: TabRow[] = [...view.milestones]
+    .filter((m) => m.scheduledDate.getTime() >= Date.now() - 1000 * 60 * 60 * 24)
+    .sort((a, b) => a.scheduledDate.getTime() - b.scheduledDate.getTime())
+    .slice(0, 5)
+    .map((m) => ({
+      key: m.id,
+      title: m.title,
+      pill: { label: formatStatus(m.milestoneStatus), kind: "blue" },
+      meta: formatDate(m.scheduledDate),
+      href: `${basePath}/schedule`,
+    }));
+
   // ── Workspace tabs config ─────────────────────────────────────
   const workspaceTabs: WorkspaceTab[] = [
     { id: "today", label: "Today", href: `${basePath}` },
@@ -401,6 +517,73 @@ export default async function ContractorProjectHomePage({
     { id: "billing", label: "Billing", href: `${basePath}/billing` },
     { id: "schedule", label: "Schedule", href: `${basePath}/schedule` },
   ];
+
+  const tabContent: Record<string, ReactNode> = {
+    rfis: (
+      <WorkspaceTabList
+        rows={rfiRows}
+        emptyMessage="No RFIs yet."
+        viewAllHref={`${basePath}/rfis`}
+        viewAllLabel="RFIs"
+      />
+    ),
+    cos: (
+      <WorkspaceTabList
+        rows={coRows}
+        emptyMessage="No change orders yet."
+        viewAllHref={`${basePath}/change-orders`}
+        viewAllLabel="Change Orders"
+      />
+    ),
+    approvals: (
+      <WorkspaceTabList
+        rows={approvalRows}
+        emptyMessage="No approvals yet."
+        viewAllHref={`${basePath}/approvals`}
+        viewAllLabel="Approvals"
+      />
+    ),
+    compliance: (
+      <WorkspaceTabList
+        rows={complianceRows}
+        emptyMessage="No compliance records yet."
+        viewAllHref={`${basePath}/compliance`}
+        viewAllLabel="Compliance"
+      />
+    ),
+    selections: (
+      <WorkspaceTabList
+        rows={selectionRows}
+        emptyMessage="No selection categories yet."
+        viewAllHref={`${basePath}/selections`}
+        viewAllLabel="Selections"
+      />
+    ),
+    documents: (
+      <WorkspaceTabList
+        rows={documentRows}
+        emptyMessage="No documents uploaded yet."
+        viewAllHref={`${basePath}/documents`}
+        viewAllLabel="Documents"
+      />
+    ),
+    billing: (
+      <WorkspaceTabList
+        rows={billingRows}
+        emptyMessage="No draws submitted yet."
+        viewAllHref={`${basePath}/billing`}
+        viewAllLabel="Billing"
+      />
+    ),
+    schedule: (
+      <WorkspaceTabList
+        rows={scheduleRows}
+        emptyMessage="No upcoming milestones."
+        viewAllHref={`${basePath}/schedule`}
+        viewAllLabel="Schedule"
+      />
+    ),
+  };
 
   // ── Right rail: blockers ──────────────────────────────────────
   const blockers = blockedApprovals.slice(0, 3).map((a) => ({
@@ -551,6 +734,7 @@ export default async function ContractorProjectHomePage({
       <section className="cph-pg">
         <WorkspaceCard
           tabs={workspaceTabs}
+          tabContent={tabContent}
           todayContent={
             <div className="cph-ml">
               <div className="cph-stk">
@@ -754,6 +938,166 @@ export default async function ContractorProjectHomePage({
       </section>
     </div>
   );
+}
+
+// Renders a compact "recent 5 items" list for a workspace tab, with a
+// "View all →" footer linking to the dedicated page.
+function WorkspaceTabList({
+  rows,
+  emptyMessage,
+  viewAllHref,
+  viewAllLabel,
+}: {
+  rows: TabRow[];
+  emptyMessage: string;
+  viewAllHref: string;
+  viewAllLabel: string;
+}) {
+  return (
+    <div className="cph-tab-body">
+      <div className="cph-lst">
+        {rows.length === 0 ? (
+          <EmptyInlineMessage message={emptyMessage} />
+        ) : (
+          rows.map((r) => (
+            <Link key={r.key} href={r.href} className="cph-lr">
+              <div className="cph-lr-main">
+                <h5>{r.title}</h5>
+                {r.desc && <p>{r.desc}</p>}
+              </div>
+              <div className="cph-lr-side">
+                {r.pill && (
+                  <span className={`cph-pl ${r.pill.kind}`}>{r.pill.label}</span>
+                )}
+                {r.meta && <span className="cph-tm">{r.meta}</span>}
+              </div>
+            </Link>
+          ))
+        )}
+      </div>
+      <div className="cph-tab-foot">
+        <Link className="cph-btn" href={viewAllHref}>
+          {rows.length === 0 ? `Open ${viewAllLabel}` : `View all ${viewAllLabel}`}{" "}
+          →
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// Lower rank = sort earlier. For each resource the "needs-attention" states
+// come first so a tab with mixed items surfaces the hot ones at the top.
+function rfiSortRank(status: string): number {
+  if (status === "pending_response") return 0;
+  if (status === "open") return 1;
+  if (status === "answered") return 2;
+  if (status === "draft") return 3;
+  return 4; // closed
+}
+function coSortRank(status: string): number {
+  if (status === "pending_review") return 0;
+  if (status === "pending_client_approval") return 1;
+  if (status === "draft") return 2;
+  if (status === "approved") return 3;
+  return 4; // rejected, voided
+}
+function approvalSortRank(status: string): number {
+  if (status === "needs_revision") return 0;
+  if (status === "pending_review") return 1;
+  if (status === "draft") return 2;
+  if (status === "approved") return 3;
+  return 4; // rejected
+}
+function compSortRank(status: string, expiresAt: Date | null): number {
+  if (status === "expired" || status === "rejected") return 0;
+  if (status === "pending") return 1;
+  if (
+    status === "active" &&
+    expiresAt &&
+    expiresAt.getTime() - Date.now() < 1000 * 60 * 60 * 24 * 30
+  ) {
+    return 2; // expiring soon
+  }
+  if (status === "active") return 3;
+  return 4; // waived
+}
+
+function rfiPill(
+  status: string,
+  dueAt: Date | null,
+): { label: string; kind: PillKind } {
+  if (status === "pending_response") {
+    const overdue = dueAt && dueAt.getTime() < Date.now();
+    return overdue
+      ? { label: "Overdue", kind: "red" }
+      : { label: "Pending response", kind: "orange" };
+  }
+  if (status === "open") return { label: "Open", kind: "purple" };
+  if (status === "answered") return { label: "Answered", kind: "blue" };
+  if (status === "closed") return { label: "Closed", kind: "gray" };
+  return { label: "Draft", kind: "gray" };
+}
+function coPill(status: string): { label: string; kind: PillKind } {
+  if (status === "pending_review") return { label: "In review", kind: "orange" };
+  if (status === "pending_client_approval")
+    return { label: "Client review", kind: "orange" };
+  if (status === "approved") return { label: "Approved", kind: "green" };
+  if (status === "rejected") return { label: "Rejected", kind: "gray" };
+  if (status === "voided") return { label: "Voided", kind: "gray" };
+  return { label: "Draft", kind: "gray" };
+}
+function approvalPill(status: string): { label: string; kind: PillKind } {
+  if (status === "needs_revision")
+    return { label: "Needs revision", kind: "red" };
+  if (status === "pending_review") return { label: "Pending", kind: "orange" };
+  if (status === "approved") return { label: "Approved", kind: "green" };
+  if (status === "rejected") return { label: "Rejected", kind: "gray" };
+  return { label: "Draft", kind: "gray" };
+}
+function compPill(
+  status: string,
+  expiresAt: Date | null,
+): { label: string; kind: PillKind } {
+  if (status === "expired") return { label: "Expired", kind: "red" };
+  if (status === "rejected") return { label: "Rejected", kind: "red" };
+  if (status === "pending") return { label: "Pending", kind: "orange" };
+  if (status === "waived") return { label: "Waived", kind: "gray" };
+  if (status === "active") {
+    if (
+      expiresAt &&
+      expiresAt.getTime() - Date.now() < 1000 * 60 * 60 * 24 * 30
+    ) {
+      return { label: "Expiring soon", kind: "orange" };
+    }
+    return { label: "Active", kind: "green" };
+  }
+  return { label: formatStatus(status), kind: "gray" };
+}
+function complianceMeta(expiresAt: Date): string {
+  const days = Math.round(
+    (expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+  );
+  if (days < 0) return `Expired ${-days}d ago`;
+  if (days === 0) return "Expires today";
+  if (days === 1) return "Expires tomorrow";
+  if (days < 30) return `${days}d left`;
+  return `Expires ${formatDate(expiresAt)}`;
+}
+function drawPill(status: string): { label: string; kind: PillKind } {
+  if (status === "draft") return { label: "Draft", kind: "orange" };
+  if (status === "submitted") return { label: "Submitted", kind: "blue" };
+  if (status === "under_review") return { label: "Under review", kind: "blue" };
+  if (status === "returned" || status === "revise")
+    return { label: "Revise", kind: "red" };
+  if (status === "approved" || status === "approved_with_note")
+    return { label: "Approved", kind: "green" };
+  if (status === "paid") return { label: "Paid", kind: "green" };
+  return { label: formatStatus(status), kind: "gray" };
+}
+
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1) + "…";
 }
 
 function EmptyInlineMessage({ message }: { message: string }) {

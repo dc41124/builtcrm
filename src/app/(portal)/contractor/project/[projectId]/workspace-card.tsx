@@ -14,9 +14,19 @@ export type WorkspaceTab = {
 export type WorkspaceCardProps = {
   tabs: WorkspaceTab[];
   todayContent: ReactNode;
+  /**
+   * Per-tab content keyed by tab id. When a tab has content here, it renders
+   * that; when missing, falls back to an EmptyState + "open dedicated page"
+   * CTA. "today" is served by `todayContent` and ignored in this map.
+   */
+  tabContent?: Record<string, ReactNode>;
 };
 
-export function WorkspaceCard({ tabs, todayContent }: WorkspaceCardProps) {
+export function WorkspaceCard({
+  tabs,
+  todayContent,
+  tabContent,
+}: WorkspaceCardProps) {
   const [active, setActive] = useState<string>("today");
   const activeTab = tabs.find((t) => t.id === active);
 
@@ -58,6 +68,8 @@ export function WorkspaceCard({ tabs, todayContent }: WorkspaceCardProps) {
       <div className="cph-ws-body">
         {active === "today" ? (
           todayContent
+        ) : tabContent?.[active] ? (
+          tabContent[active]
         ) : (
           <EmptyState
             title={`${activeTab?.label ?? "Workflow"} overview`}
