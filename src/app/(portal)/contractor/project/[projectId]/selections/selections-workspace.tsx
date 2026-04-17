@@ -49,26 +49,26 @@ function formatShortDate(d: Date | null): string {
   return `${months[d.getUTCMonth()]} ${d.getUTCDate()}`;
 }
 
-function isOverdue(item: SelectionItemRow): boolean {
+function isOverdue(item: SelectionItemRow, now: number): boolean {
   if (!item.decisionDeadline) return false;
   if (item.selectionItemStatus === "confirmed" || item.selectionItemStatus === "locked") return false;
-  return item.decisionDeadline.getTime() < Date.now();
+  return item.decisionDeadline.getTime() < now;
 }
 
 function isDecided(item: SelectionItemRow): boolean {
   return item.selectionItemStatus === "confirmed" || item.selectionItemStatus === "locked";
 }
 
-function overdueDays(item: SelectionItemRow): number {
+function overdueDays(item: SelectionItemRow, now: number): number {
   if (!item.decisionDeadline) return 0;
-  return Math.max(0, Math.ceil((Date.now() - item.decisionDeadline.getTime()) / (24 * 60 * 60 * 1000)));
+  return Math.max(0, Math.ceil((now - item.decisionDeadline.getTime()) / (24 * 60 * 60 * 1000)));
 }
 
-function statusPillInfo(item: SelectionItemRow): { label: string; cls: string } {
+function statusPillInfo(item: SelectionItemRow, now: number): { label: string; cls: string } {
   if (!item.isPublished) return { label: "Draft", cls: "" };
   if (item.selectionItemStatus === "revision_open") return { label: "Revision", cls: "red" };
   if (isDecided(item)) return { label: "Confirmed", cls: "green" };
-  if (isOverdue(item)) return { label: "Overdue", cls: "orange" };
+  if (isOverdue(item, now)) return { label: "Overdue", cls: "orange" };
   if (item.selectionItemStatus === "exploring") return { label: "Exploring", cls: "teal" };
   return { label: "Published", cls: "blue" };
 }
@@ -244,11 +244,13 @@ export function ContractorSelectionsWorkspace({
   projectName,
   categories,
   totals,
+  nowMs: now,
 }: {
   projectId: string;
   projectName: string;
   categories: SelectionCategoryRow[];
   totals: Totals;
+  nowMs: number;
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("all");
@@ -612,7 +614,7 @@ export function ContractorSelectionsWorkspace({
                         <span className="sw-qcc">{its.length}</span>
                       </div>
                       {its.map((i) => {
-                        const pill = statusPillInfo(i);
+                        const pill = statusPillInfo(i, now);
                         const swatchColors = i.options.slice(0, 4).map(o => o.swatchColor);
                         while (swatchColors.length < 4) swatchColors.push(null);
                         const isActive = selected?.id === i.id;
@@ -647,6 +649,7 @@ export function ContractorSelectionsWorkspace({
                 <SelectionItemDetail
                   key={selected.id}
                   item={selected}
+                  now={now}
                 />
               ) : (
                 <div className="sw-empty">
@@ -668,8 +671,10 @@ export function ContractorSelectionsWorkspace({
 
 function SelectionItemDetail({
   item,
+  now,
 }: {
   item: FlatItem;
+  now: number;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -686,8 +691,8 @@ function SelectionItemDetail({
   const timeline = item.isPublished ? buildTimeline(item) : null;
   const progress = decisionProgress(item);
   const activity = buildActivity(item);
-  const od = isOverdue(item);
-  const odDays = overdueDays(item);
+  const od = isOverdue(item, now);
+  const odDays = overdueDays(item, now);
 
   async function publish() {
     setPending(true);

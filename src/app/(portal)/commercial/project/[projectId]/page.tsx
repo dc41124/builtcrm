@@ -39,6 +39,7 @@ export default async function CommercialProjectHomePage({
 
   return (
     <CommercialProjectHome
+      nowMs={Date.now()}
       projectId={projectId}
       projectName={view.project.name}
       contractorName={view.contractorOrganizationName ?? "Your contractor"}

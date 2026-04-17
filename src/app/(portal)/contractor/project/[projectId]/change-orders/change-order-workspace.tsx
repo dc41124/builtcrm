@@ -67,11 +67,13 @@ export function ContractorChangeOrderWorkspace({
   projectId,
   rows,
   totals,
+  nowMs: now,
 }: {
   projectId: string;
   projectName: string;
   rows: ChangeOrderRow[];
   totals: ChangeOrderTotals;
+  nowMs: number;
 }) {
   const [activeTab, setActiveTab] = useState<TabId>("all");
   const [selectedId, setSelectedId] = useState<string | null>(rows[0]?.id ?? null);
@@ -234,7 +236,7 @@ export function ContractorChangeOrderWorkspace({
               </div>
               <div className="cop-detail">
                 {selected ? (
-                  <ContractorChangeOrderDetail key={selected.id} co={selected} />
+                  <ContractorChangeOrderDetail key={selected.id} co={selected} now={now} />
                 ) : (
                   <EmptyState
                     title="Select a change order"
@@ -259,7 +261,7 @@ export function ContractorChangeOrderWorkspace({
                 pendingRows.map((r) => {
                   const days = r.submittedAt
                     ? Math.floor(
-                        (Date.now() - r.submittedAt.getTime()) / 86400000,
+                        (now - r.submittedAt.getTime()) / 86400000,
                       )
                     : 0;
                   return (
@@ -325,7 +327,7 @@ export function ContractorChangeOrderWorkspace({
   );
 }
 
-function ContractorChangeOrderDetail({ co }: { co: ChangeOrderRow }) {
+function ContractorChangeOrderDetail({ co, now }: { co: ChangeOrderRow; now: number }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -361,7 +363,7 @@ function ContractorChangeOrderDetail({ co }: { co: ChangeOrderRow }) {
   }
 
   const daysWaiting = co.submittedAt
-    ? Math.floor((Date.now() - co.submittedAt.getTime()) / 86400000)
+    ? Math.floor((now - co.submittedAt.getTime()) / 86400000)
     : null;
 
   return (

@@ -103,12 +103,13 @@ function verifyItemsFor(
 export function ContractorComplianceWorkspace({
   projectId,
   records,
+  nowMs: now,
 }: {
   projectId: string;
   projectName: string;
   records: ComplianceRow[];
+  nowMs: number;
 }) {
-  const [now] = useState(() => Date.now());
 
   const tagged = useMemo(
     () => records.map((r) => ({ ...r, _tab: tabOf(r, now) })),

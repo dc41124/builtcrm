@@ -91,7 +91,7 @@ function titleMatchesFilter(title: string, filter: FilterId): boolean {
   }
 }
 
-export function CommercialPhotosView({ data }: Props) {
+export function CommercialPhotosView({ data, nowMs }: Props & { nowMs: number }) {
   const [filter, setFilter] = useState<FilterId>("all");
   const [lightbox, setLightbox] = useState<PhotoRow | null>(null);
 
@@ -118,7 +118,7 @@ export function CommercialPhotosView({ data }: Props) {
     if (!data.lastUploadedAt) return "—";
     const d = data.lastUploadedAt;
     const diffDays = Math.floor(
-      (Date.now() - d.getTime()) / (24 * 60 * 60 * 1000),
+      (nowMs - d.getTime()) / (24 * 60 * 60 * 1000),
     );
     if (diffDays <= 0) return "Today";
     if (diffDays === 1) return "Yesterday";

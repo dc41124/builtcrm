@@ -85,12 +85,13 @@ function dotClassFor(activityType: string): string {
 export function SubUploadResponseWorkspace({
   projectId,
   requests,
+  nowMs: now,
 }: {
   projectId: string;
   projectName: string;
   requests: UploadRequestRow[];
+  nowMs: number;
 }) {
-  const [now] = useState(() => Date.now());
   const [activeTab, setActiveTab] = useState<TabId>("all");
   const [selectedId, setSelectedId] = useState<string | null>(
     requests[0]?.id ?? null,

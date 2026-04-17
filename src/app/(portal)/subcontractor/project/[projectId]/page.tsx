@@ -275,6 +275,7 @@ export default async function SubcontractorProjectHomePage({
 
       <section className="stb-bg">
         <SubProjectHomeWorkspace
+          nowMs={Date.now()}
           projectName={view.project.name}
           scopeLabel={scopeLabel}
           activeTasks={activeTasks}

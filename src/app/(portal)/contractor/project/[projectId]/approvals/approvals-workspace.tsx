@@ -140,11 +140,12 @@ function tabOf(r: ApprovalRow): Exclude<TabId, "all"> {
 export function ContractorApprovalsWorkspace({
   rows,
   totals,
+  nowMs: now,
 }: {
   rows: ApprovalRow[];
   totals: ApprovalTotals;
+  nowMs: number;
 }) {
-  const [now] = useState(() => Date.now());
 
   const counts = useMemo(() => {
     const c = { pending: 0, approved: 0, returned: 0 };

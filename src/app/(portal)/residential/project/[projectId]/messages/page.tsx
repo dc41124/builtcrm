@@ -25,6 +25,7 @@ export default async function Page({
     );
     return (
       <MessagesWorkspace
+        nowMs={Date.now()}
         portal="residential"
         projectId={view.project.id}
         currentUserId={view.currentUserId}

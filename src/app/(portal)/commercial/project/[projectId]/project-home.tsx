@@ -65,9 +65,9 @@ export function CommercialProjectHome({
   activityTrail,
   gcContacts,
   conversations,
-}: Props) {
+  nowMs: now,
+}: Props & { nowMs: number }) {
   const base = `/commercial/project/${projectId}`;
-  const [now] = useState(() => Date.now());
 
   const latestDraw = useMemo(
     () => drawRequests.reduce<(typeof drawRequests)[number] | null>((a, d) => (a && a.drawNumber > d.drawNumber ? a : d), null),

@@ -33,5 +33,5 @@ export default async function CommercialPhotosPage({
 
   const data = await loadCommercialProjectPhotos(projectId);
 
-  return <CommercialPhotosView projectId={projectId} data={data} />;
+  return <CommercialPhotosView projectId={projectId} data={data} nowMs={Date.now()} />;
 }

@@ -63,9 +63,9 @@ export function ResidentialProjectHome({
   activityTrail,
   gcContacts,
   conversations,
-}: Props) {
+  nowMs: now,
+}: Props & { nowMs: number }) {
   const base = `/residential/project/${projectId}`;
-  const [now] = useState(() => Date.now());
 
   // Rollups
   const latest = drawRequests.reduce<(typeof drawRequests)[number] | null>((a, d) => (a && a.drawNumber > d.drawNumber ? a : d), null);

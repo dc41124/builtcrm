@@ -196,11 +196,12 @@ function dotClassFor(activityType: string): string {
 
 export function CommercialBillingReview({
   draws,
+  nowMs: now,
 }: {
   projectName: string;
   draws: Draw[];
+  nowMs: number;
 }) {
-  const [now] = useState(() => Date.now());
 
   const counts = useMemo(() => {
     const c = { pending: 0, approved: 0, returned: 0 };

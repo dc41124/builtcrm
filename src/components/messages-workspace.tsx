@@ -20,6 +20,7 @@ type Props = {
   currentUserId: string;
   conversations: ConversationRow[];
   participantOptions: MessagesParticipantOption[];
+  nowMs: number;
 };
 
 type ConvTypeKey = "general" | "rfi" | "co" | "approval" | "system";
@@ -98,10 +99,9 @@ function linkedChipLabel(
   return "View linked item →";
 }
 
-function relativeTime(d: Date | null): string {
+function relativeTime(d: Date | null, now: number): string {
   if (!d) return "";
   const then = new Date(d).getTime();
-  const now = Date.now();
   const diff = Math.max(0, now - then);
   const min = Math.floor(diff / 60000);
   if (min < 1) return "just now";
@@ -151,6 +151,7 @@ export function MessagesWorkspace({
   currentUserId,
   conversations,
   participantOptions,
+  nowMs,
 }: Props) {
   const router = useRouter();
 
@@ -309,7 +310,7 @@ export function MessagesWorkspace({
                       <div className="msgws-cc-top">
                         <span className="msgws-cc-title">{title}</span>
                         <span className="msgws-cc-time">
-                          {relativeTime(c.lastMessageAt ?? c.createdAt)}
+                          {relativeTime(c.lastMessageAt ?? c.createdAt, nowMs)}
                         </span>
                       </div>
                       {preview && (

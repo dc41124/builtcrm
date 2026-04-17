@@ -36,6 +36,7 @@ export default async function SubcontractorUploadRequestsPage({
 
   return (
     <SubUploadResponseWorkspace
+      nowMs={Date.now()}
       projectId={view.project.id}
       projectName={view.project.name}
       requests={view.allUploadRequests}

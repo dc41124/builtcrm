@@ -90,9 +90,9 @@ export function SubProjectHomeWorkspace({
   conversations,
   milestones,
   tabCounts,
-}: ProjectHomeWorkspaceProps) {
+  nowMs: now,
+}: ProjectHomeWorkspaceProps & { nowMs: number }) {
   const [tab, setTab] = useState("work");
-  const [now] = useState(() => Date.now());
 
   const tabs: Array<{
     id: string;

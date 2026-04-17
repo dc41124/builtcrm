@@ -36,6 +36,7 @@ export default async function CommercialApprovalsPage({
 
   return (
     <CommercialApprovalsReview
+      nowMs={Date.now()}
       rows={view.rows}
       totals={view.totals}
       originalContractCents={view.originalContractCents}

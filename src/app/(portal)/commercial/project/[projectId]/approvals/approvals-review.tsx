@@ -128,12 +128,13 @@ export function CommercialApprovalsReview({
   rows,
   totals,
   originalContractCents,
+  nowMs: now,
 }: {
   rows: ApprovalRow[];
   totals: ApprovalTotals;
   originalContractCents: number;
+  nowMs: number;
 }) {
-  const [now] = useState(() => Date.now());
 
   const counts = useMemo(() => {
     const c = { pending: 0, approved: 0, returned: 0 };

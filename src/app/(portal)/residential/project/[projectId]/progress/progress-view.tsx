@@ -73,9 +73,8 @@ function weekMondayOf(d: Date): Date {
   return dt;
 }
 
-function fmtWeekRange(d: Date): string {
-  const now = new Date();
-  const thisMonday = weekMondayOf(now);
+function fmtWeekRange(d: Date, now: number): string {
+  const thisMonday = weekMondayOf(new Date(now));
   const itemMonday = weekMondayOf(d);
 
   const monFmt = (dt: Date) =>
@@ -96,16 +95,17 @@ function fmtWeekRange(d: Date): string {
   return `${monFmt(itemMonday)} – ${monFmt(friday)}`;
 }
 
-function fmtFeedDate(d: Date, isSingleDay: boolean): string {
+function fmtFeedDate(d: Date, isSingleDay: boolean, now: number): string {
   if (isSingleDay) {
     return d.toLocaleDateString("en-US", { month: "long", day: "numeric" });
   }
-  return fmtWeekRange(d);
+  return fmtWeekRange(d, now);
 }
 
 function buildFeed(
   activityTrail: ClientActivityEvent[],
   contractorName: string,
+  now: number,
 ): UpdateItem[] {
   if (activityTrail.length === 0) return [];
   return activityTrail.map((a) => {
@@ -113,7 +113,7 @@ function buildFeed(
     const isSingleDay = cat.type === "Milestone reached";
     return {
       id: a.id,
-      date: fmtFeedDate(a.createdAt, isSingleDay),
+      date: fmtFeedDate(a.createdAt, isSingleDay, now),
       type: cat.type,
       typePill: cat.pill,
       title: a.title,
@@ -174,9 +174,10 @@ export function ResidentialProgressView({
   activityTrail,
   milestones,
   photoData,
-}: Props) {
+  nowMs: now,
+}: Props & { nowMs: number }) {
   const feed = useMemo(
-    () => buildFeed(activityTrail, contractorName),
+    () => buildFeed(activityTrail, contractorName, now),
     [activityTrail, contractorName],
   );
 
@@ -213,7 +214,7 @@ export function ResidentialProgressView({
     return Array.from(grouped.values())
       .sort((a, b) => b.monday.getTime() - a.monday.getTime())
       .map((g) => ({
-        header: fmtWeekRange(g.monday),
+        header: fmtWeekRange(g.monday, now),
         count: g.photos.length,
         photos: g.photos,
       }));

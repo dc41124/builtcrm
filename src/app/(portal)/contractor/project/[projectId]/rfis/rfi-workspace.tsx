@@ -53,15 +53,16 @@ const AlertTriangleIcon = (
 export function ContractorRfiWorkspace({
   projectId,
   rfis,
+  nowMs: now,
 }: {
   projectId: string;
   projectName: string;
   rfis: RfiRow[];
+  nowMs: number;
 }) {
   const [activeTab, setActiveTab] = useState<TabId>("open");
   const [selectedId, setSelectedId] = useState<string | null>(rfis[0]?.id ?? null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [now] = useState(() => Date.now());
 
   const summary = useMemo(() => {
     const open = rfis.filter((r) => r.rfiStatus !== "closed").length;

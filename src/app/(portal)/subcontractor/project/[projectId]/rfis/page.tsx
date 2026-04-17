@@ -36,6 +36,7 @@ export default async function SubcontractorRfisPage({
 
   return (
     <SubRfiResponseWorkspace
+      nowMs={Date.now()}
       projectName={view.project.name}
       rfis={view.assignedRfis}
     />

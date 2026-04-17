@@ -36,6 +36,7 @@ export default async function ContractorApprovalsPage({
 
   return (
     <ContractorApprovalsWorkspace
+      nowMs={Date.now()}
       rows={view.rows}
       totals={view.totals}
     />

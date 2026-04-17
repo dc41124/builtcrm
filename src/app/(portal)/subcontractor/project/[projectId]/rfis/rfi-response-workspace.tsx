@@ -52,13 +52,14 @@ const CheckCircleIcon = (
 
 export function SubRfiResponseWorkspace({
   rfis,
+  nowMs: now,
 }: {
   projectName: string;
   rfis: RfiRow[];
+  nowMs: number;
 }) {
   const [activeTab, setActiveTab] = useState<TabId>("needs_reply");
   const [selectedId, setSelectedId] = useState<string | null>(rfis[0]?.id ?? null);
-  const [now] = useState(() => Date.now());
 
   const summary = useMemo(() => {
     const needsReply = rfis.filter(

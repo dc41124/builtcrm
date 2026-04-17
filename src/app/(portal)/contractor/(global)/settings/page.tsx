@@ -49,5 +49,5 @@ export default async function ContractorSettingsPage() {
       isPrimary: r.isPrimary,
     }));
 
-  return <SettingsView view={view} team={team} />;
+  return <SettingsView view={view} team={team} nowMs={Date.now()} />;
 }

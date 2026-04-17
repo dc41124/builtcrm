@@ -36,6 +36,7 @@ export default async function ContractorRfisPage({
 
   return (
     <ContractorRfiWorkspace
+      nowMs={Date.now()}
       projectId={view.project.id}
       projectName={view.project.name}
       rfis={view.rfis}

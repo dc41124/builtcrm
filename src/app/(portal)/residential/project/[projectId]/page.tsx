@@ -36,6 +36,7 @@ export default async function ResidentialProjectHomePage({
 
   return (
     <ResidentialProjectHome
+      nowMs={Date.now()}
       projectId={projectId}
       projectName={view.project.name}
       contractorName={view.contractorOrganizationName ?? "Your builder"}

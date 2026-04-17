@@ -36,6 +36,7 @@ export default async function ContractorChangeOrdersPage({
 
   return (
     <ContractorChangeOrderWorkspace
+      nowMs={Date.now()}
       projectId={view.project.id}
       projectName={view.project.name}
       rows={view.rows}

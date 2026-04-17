@@ -37,6 +37,7 @@ type ScheduleViewProps = {
   phases: PhaseGroup[];
   stats: ScheduleStats;
   overallProgressPct: number;
+  nowMs: number;
 };
 
 type FilterKey = "all" | "upcoming" | "in_progress" | "completed" | "missed";
@@ -126,11 +127,15 @@ function StandardSchedule({
   stats,
   overallProgressPct,
   portal,
+  nowMs,
 }: ScheduleViewProps & { portal: PortalVariant }) {
   const [filter, setFilter] = useState<FilterKey>("all");
   const [showCreate, setShowCreate] = useState(false);
 
-  const filteredPhases = useMemo(() => applyFilter(phases, filter), [phases, filter]);
+  const filteredPhases = useMemo(
+    () => applyFilter(phases, filter, nowMs),
+    [phases, filter, nowMs],
+  );
 
   const isContractor = portal === "contractor";
   const subtitleDetail = isContractor
@@ -326,7 +331,11 @@ function FilterTabs({
   );
 }
 
-function applyFilter(phases: PhaseGroup[], filter: FilterKey): PhaseGroup[] {
+function applyFilter(
+  phases: PhaseGroup[],
+  filter: FilterKey,
+  now: number,
+): PhaseGroup[] {
   if (filter === "all") return phases;
   const keep = (m: MilestoneRow) => {
     if (filter === "completed") return m.milestoneStatus === "completed";
@@ -334,7 +343,7 @@ function applyFilter(phases: PhaseGroup[], filter: FilterKey): PhaseGroup[] {
     if (filter === "missed") return m.milestoneStatus === "missed";
     if (filter === "upcoming") {
       if (m.milestoneStatus !== "scheduled") return false;
-      const days = (m.scheduledDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000);
+      const days = (m.scheduledDate.getTime() - now) / (24 * 60 * 60 * 1000);
       return days >= 0 && days <= 14;
     }
     return true;
@@ -467,6 +476,7 @@ function CommercialTimeline({
   projectName,
   phases,
   overallProgressPct,
+  nowMs,
 }: ScheduleViewProps) {
   // Curated subset: completed (recent), in-progress, and the next handful
   // of upcoming items. Commercial clients see the narrative, not the
@@ -479,7 +489,7 @@ function CommercialTimeline({
         <div>
           <h1>Project Schedule</h1>
           <div className="sch-sub">
-            {projectName} · Updated {formatShortDate(new Date())}
+            {projectName} · Updated {formatShortDate(new Date(nowMs))}
           </div>
         </div>
       </header>
@@ -501,6 +511,7 @@ function ResidentialTimeline({
   projectName,
   phases,
   overallProgressPct,
+  nowMs,
 }: ScheduleViewProps) {
   const items = useMemo(() => curatedTimelineItems(phases), [phases]);
 
@@ -510,7 +521,7 @@ function ResidentialTimeline({
         <div>
           <h1>Your Project Timeline</h1>
           <div className="sch-sub">
-            {projectName} · Last updated {formatShortDate(new Date())}
+            {projectName} · Last updated {formatShortDate(new Date(nowMs))}
           </div>
         </div>
       </header>

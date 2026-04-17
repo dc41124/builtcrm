@@ -36,6 +36,7 @@ export default async function CommercialBillingPage({
 
   return (
     <CommercialBillingReview
+      nowMs={Date.now()}
       projectName={view.project.name}
       draws={view.drawRequests}
     />

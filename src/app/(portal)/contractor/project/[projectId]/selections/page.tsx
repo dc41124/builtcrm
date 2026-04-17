@@ -36,6 +36,7 @@ export default async function ContractorSelectionsPage({
 
   return (
     <ContractorSelectionsWorkspace
+      nowMs={Date.now()}
       projectId={view.project.id}
       projectName={view.project.name}
       categories={view.categories}

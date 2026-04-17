@@ -36,6 +36,7 @@ export default async function ConfirmedChoicesPage({
 
   return (
     <ResidentialSelectionsReview
+      nowMs={Date.now()}
       projectName={view.project.name}
       categories={view.categories}
       totals={view.totals}

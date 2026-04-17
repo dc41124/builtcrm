@@ -33,6 +33,7 @@ export default async function CommercialSchedulePage({
   return (
     <main style={{ padding: 24 }}>
       <ScheduleView
+        nowMs={Date.now()}
         projectId={view.project.id}
         projectName={view.project.name}
         role={view.role}

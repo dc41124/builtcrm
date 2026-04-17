@@ -44,6 +44,7 @@ export default async function ContractorUploadRequestsPage({
 
   return (
     <ContractorUploadRequestsWorkspace
+      nowMs={Date.now()}
       projectId={view.project.id}
       projectName={view.project.name}
       requests={view.uploadRequests}

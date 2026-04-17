@@ -89,13 +89,14 @@ export function ContractorUploadRequestsWorkspace({
   projectId,
   requests,
   subcontractorOrgs,
+  nowMs: now,
 }: {
   projectId: string;
   projectName: string;
   requests: UploadRequestRow[];
   subcontractorOrgs: OrgOption[];
+  nowMs: number;
 }) {
-  const [now] = useState(() => Date.now());
   const [activeTab, setActiveTab] = useState<TabId>("all");
   const [selectedId, setSelectedId] = useState<string | null>(
     requests[0]?.id ?? null,

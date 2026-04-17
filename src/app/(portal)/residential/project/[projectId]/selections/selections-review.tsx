@@ -42,7 +42,10 @@ function itemView(item: SelectionItemRow): ItemView {
   return "exploring";
 }
 
-function itemStatusPill(item: SelectionItemRow): {
+function itemStatusPill(
+  item: SelectionItemRow,
+  now: number,
+): {
   label: string;
   color: PillColor;
 } {
@@ -53,7 +56,7 @@ function itemStatusPill(item: SelectionItemRow): {
     return { label: "Provisional choice", color: "blue" };
   if (item.decisionDeadline) {
     const days = Math.ceil(
-      (item.decisionDeadline.getTime() - Date.now()) / (24 * 60 * 60 * 1000),
+      (item.decisionDeadline.getTime() - now) / (24 * 60 * 60 * 1000),
     );
     if (days <= 7) return { label: "Decide this week", color: "red" };
   }
@@ -184,11 +187,13 @@ export function ResidentialSelectionsReview({
   categories,
   totals,
   initialTab = "overview",
+  nowMs: now,
 }: {
   projectName: string;
   categories: SelectionCategoryRow[];
   totals: ResidentialSelectionsTotals;
   initialTab?: "overview" | "exploring" | "provisional" | "confirmed" | "revision";
+  nowMs: number;
 }) {
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const allItems = useMemo<FlatItem[]>(() => {
@@ -210,6 +215,7 @@ export function ResidentialSelectionsReview({
         item={openItem}
         projectName={projectName}
         onBack={() => setOpenId(null)}
+        now={now}
       />
     );
   }
@@ -307,6 +313,7 @@ export function ResidentialSelectionsReview({
                     key={item.id}
                     item={item}
                     onOpen={() => setOpenId(item.id)}
+                    now={now}
                   />
                 ))}
               </div>
@@ -322,11 +329,13 @@ export function ResidentialSelectionsReview({
 function OverviewCard({
   item,
   onOpen,
+  now,
 }: {
   item: SelectionItemRow;
   onOpen: () => void;
+  now: number;
 }) {
-  const pill = itemStatusPill(item);
+  const pill = itemStatusPill(item, now);
   const view = itemView(item);
   const optionCount = item.options.filter((o) => o.isAvailable).length;
 
@@ -393,10 +402,12 @@ function ItemDetail({
   item,
   projectName,
   onBack,
+  now,
 }: {
   item: SelectionItemRow;
   projectName: string;
   onBack: () => void;
+  now: number;
 }) {
   const view = itemView(item);
   return (
@@ -408,8 +419,8 @@ function ItemDetail({
         <BackArrow /> Back to all selections
       </button>
 
-      {view === "exploring" && <ExploringView item={item} />}
-      {view === "provisional" && <ProvisionalView item={item} onBack={onBack} />}
+      {view === "exploring" && <ExploringView item={item} now={now} />}
+      {view === "provisional" && <ProvisionalView item={item} onBack={onBack} now={now} />}
       {view === "confirmed" && <ConfirmedView item={item} />}
       {view === "revision" && <RevisionView item={item} />}
 
@@ -544,7 +555,7 @@ function OptionCard({
   );
 }
 
-function ExploringView({ item }: { item: SelectionItemRow }) {
+function ExploringView({ item, now }: { item: SelectionItemRow; now: number }) {
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -573,7 +584,7 @@ function ExploringView({ item }: { item: SelectionItemRow }) {
   }
 
   const recommended = item.options.find((o) => o.id === item.recommendedOptionId);
-  const pill = itemStatusPill(item);
+  const pill = itemStatusPill(item, now);
 
   return (
     <div className="rsel-layout">
@@ -764,9 +775,11 @@ function CompareTable({
 function ProvisionalView({
   item,
   onBack,
+  now,
 }: {
   item: SelectionItemRow;
   onBack: () => void;
+  now: number;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -794,7 +807,7 @@ function ProvisionalView({
   }
 
   if (!decision || !selectedOption) {
-    return <ExploringView item={item} />;
+    return <ExploringView item={item} now={now} />;
   }
 
   const price = optionPriceInfo(selectedOption, item.allowanceCents);

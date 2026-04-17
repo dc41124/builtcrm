@@ -36,6 +36,7 @@ export default async function ContractorCompliancePage({
 
   return (
     <ContractorComplianceWorkspace
+      nowMs={Date.now()}
       projectId={view.project.id}
       projectName={view.project.name}
       records={view.complianceRecords}

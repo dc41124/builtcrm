@@ -195,9 +195,11 @@ function logoText(size: number): CSSProperties {
 export function SettingsView({
   view,
   team,
+  nowMs,
 }: {
   view: ContractorIntegrationsView;
   team: TeamMember[];
+  nowMs: number;
 }) {
   const [selectedProvider, setSelectedProvider] =
     useState<IntegrationProviderKey | null>(null);
@@ -269,6 +271,7 @@ export function SettingsView({
                     selectedProvider === card.provider ? null : card.provider,
                   )
                 }
+                nowMs={nowMs}
               />
             ))}
           </div>
@@ -281,6 +284,7 @@ export function SettingsView({
               )}
               canManage={canManage}
               onClose={() => setSelectedProvider(null)}
+              nowMs={nowMs}
             />
           )}
         </section>
@@ -743,11 +747,13 @@ function IntegrationCard({
   canManage,
   selected,
   onSelect,
+  nowMs,
 }: {
   card: IntegrationCardRow;
   canManage: boolean;
   selected: boolean;
   onSelect: () => void;
+  nowMs: number;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -907,7 +913,7 @@ function IntegrationCard({
               fontWeight: 520,
             }}
           >
-            Last sync {formatRelative(connection.lastSyncAt)}
+            Last sync {formatRelative(connection.lastSyncAt, nowMs)}
           </span>
         )}
       </div>
@@ -969,9 +975,9 @@ function statusLabel(card: IntegrationCardRow): string {
   return "Not connected";
 }
 
-function formatRelative(d: Date | string): string {
+function formatRelative(d: Date | string, now: number): string {
   const when = typeof d === "string" ? new Date(d) : d;
-  const mins = Math.round((Date.now() - when.getTime()) / 60000);
+  const mins = Math.round((now - when.getTime()) / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.round(mins / 60);
@@ -986,11 +992,13 @@ function ConfigurationPanel({
   recentEvents,
   canManage,
   onClose,
+  nowMs,
 }: {
   card: IntegrationCardRow;
   recentEvents: ContractorIntegrationsView["recentSyncEvents"];
   canManage: boolean;
   onClose: () => void;
+  nowMs: number;
 }) {
   const presentation = PROVIDER_LOGOS[card.provider];
   const connection = card.connection;
@@ -1077,12 +1085,12 @@ function ConfigurationPanel({
             label="Last sync"
             value={
               connection?.lastSyncAt
-                ? formatRelative(connection.lastSyncAt)
+                ? formatRelative(connection.lastSyncAt, nowMs)
                 : "Never"
             }
             meta={
               connection?.connectedAt
-                ? `Connected ${formatRelative(connection.connectedAt)}`
+                ? `Connected ${formatRelative(connection.connectedAt, nowMs)}`
                 : "Not yet connected"
             }
           />
@@ -1188,7 +1196,7 @@ function ConfigurationPanel({
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {formatRelative(e.createdAt)}
+                    {formatRelative(e.createdAt, nowMs)}
                   </span>
                 </div>
               );
