@@ -42,6 +42,18 @@ export type OrganizationProfile = {
   // Org-security (commit 5). Null = unrestricted / no preference set.
   allowedEmailDomains: string[] | null;
   sessionTimeoutMinutes: number | null;
+  // Commercial-client-specific (commit 8). Null on other portals.
+  industry: string | null;
+  companySize: string | null;
+  invoiceDelivery: string | null;
+  // Residential-client-specific (commit 8). Null on other portals.
+  projectName: string | null;
+  preferredName: string | null;
+  preferredChannel: string | null;
+  preferredTime: string | null;
+  emergencyName: string | null;
+  emergencyRelation: string | null;
+  emergencyPhone: string | null;
 };
 
 export async function getOrganizationProfile(
@@ -76,6 +88,16 @@ export async function getOrganizationProfile(
       regions: organizations.regions,
       allowedEmailDomains: organizations.allowedEmailDomains,
       sessionTimeoutMinutes: organizations.sessionTimeoutMinutes,
+      industry: organizations.industry,
+      companySize: organizations.companySize,
+      invoiceDelivery: organizations.invoiceDelivery,
+      projectName: organizations.projectName,
+      preferredName: organizations.preferredName,
+      preferredChannel: organizations.preferredChannel,
+      preferredTime: organizations.preferredTime,
+      emergencyName: organizations.emergencyName,
+      emergencyRelation: organizations.emergencyRelation,
+      emergencyPhone: organizations.emergencyPhone,
     })
     .from(organizations)
     .where(eq(organizations.id, organizationId))
@@ -123,6 +145,16 @@ export async function getOrganizationProfile(
     regions: row.regions,
     allowedEmailDomains: row.allowedEmailDomains,
     sessionTimeoutMinutes: row.sessionTimeoutMinutes,
+    industry: row.industry,
+    companySize: row.companySize,
+    invoiceDelivery: row.invoiceDelivery,
+    projectName: row.projectName,
+    preferredName: row.preferredName,
+    preferredChannel: row.preferredChannel,
+    preferredTime: row.preferredTime,
+    emergencyName: row.emergencyName,
+    emergencyRelation: row.emergencyRelation,
+    emergencyPhone: row.emergencyPhone,
   };
 }
 

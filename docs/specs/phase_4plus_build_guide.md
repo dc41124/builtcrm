@@ -251,6 +251,8 @@ git commit -m "Step 0: Update CLAUDE.md for Phase 4+ execution rules"
 **Effort:** S
 **Priority:** P1
 
+> **Status: ✅ Done** — committed at `68212aa` ("Step 2 (commit 4/4): Polish — populate client-org + download icon").
+
 ### What this does
 
 The billing workspace has "Package Documents" buttons next to draw requests. They're UI-only placeholders today — clicking does nothing. This step wires them to the real endpoint that bundles draw-related documents (G702, G703, lien waivers, backup) into a downloadable ZIP.
@@ -293,6 +295,8 @@ git commit -m "Step 2 (4A.1 #2): Wire Package Documents buttons to real ZIP endp
 ---
 
 ## Step 3 — Nav Badge Counts per Portal
+
+> **Status: ✅ Done** — committed at `eb6b507` ("Step 3 (4A.1 #3): Nav badge counts per portal").
 
 **Mode:** Safe-to-autorun
 **Item:** 4A.1 #3
@@ -339,6 +343,8 @@ git commit -m "Step 3 (4A.1 #3): Real-time nav badge counts per portal"
 
 ## Step 4 — `const now = Date.now()` Hydration Sweep
 
+> **Status: ✅ Done** — committed at `4e8018e` ("Step 4 (4A.1 #4): Date.now() hydration sweep").
+
 **Mode:** Safe-to-autorun
 **Item:** 4A.1 #4
 **Effort:** S
@@ -381,6 +387,8 @@ git commit -m "Step 4 (4A.1 #4): Hydration sweep — fix Date.now() at render ti
 ---
 
 ## Step 5 — Contractor Settings Prototype Audit
+
+> **Status: ✅ Done** — committed at `6d84840` ("Step 5 (4A.1 #5): Contractor settings audit + small fixes, rest punted to Step 10/11"). Audit-flagged items subsequently shipped in the settings wire-up session (Steps 9/10/12 + new migrations 0001-0003).
 
 **Mode:** Require-design-input
 **Item:** 4A.1 #5
@@ -431,6 +439,8 @@ git commit -m "Step 5 (4A.1 #5): Contractor settings audit + small fixes, rest p
 
 ## Step 6 — Sign-Out Button in Sidebar Footer
 
+> **Status: ✅ Done** — sign-out control shipped with the AppShell refactor prior to the settings wire-up session. Sidebar footer now carries the user avatar + name + sign-out affordance across all four portals.
+
 **Mode:** Safe-to-autorun
 **Item:** 4A.1 #6
 **Effort:** S
@@ -472,6 +482,8 @@ git commit -m "Step 6 (4A.1 #6): Sidebar sign-out button"
 
 ## Step 7 — Root URL → Products Page Redirect
 
+> **Status: ✅ Done** — root redirect wired prior to the settings wire-up session.
+
 **Mode:** Safe-to-autorun
 **Item:** 4A.1 #7
 **Effort:** S
@@ -512,6 +524,8 @@ git commit -m "Step 7 (4A.1 #7): Root URL redirects to /products"
 ---
 
 ## Step 8 — Consolidate Dark Mode Toggle
+
+> **Status: ✅ Done** — theme preference + topbar toggle shipped in the session that preceded the settings wire-up. `html.dark .bcrm` selector in `src/components/shell/app-shell.css` makes the shell follow the HTML-level dark class.
 
 **Mode:** Safe-to-autorun
 **Item:** 4A.2 #8
@@ -564,7 +578,7 @@ git commit -m "Step 8 (4A.2 #8): Consolidate dark mode to user preference"
 **Effort:** S–M
 **Priority:** P1
 
-> **Status as of 2026-04-17:** UI built as an "Organization" tab inside the shared `SettingsShell` rather than a dedicated route (per-portal settings JSX specs arrived Apr 17 and consolidated the layout). Fields render on static sample data. What remains is schema + loader + action wiring — tracked in the **Settings Wiring Backlog** section at the end of this guide.
+> **Status: ✅ Done** (2026-04-17) — shipped as the "Organization" tab inside the shared `SettingsShell` (not as a standalone route). Schema migration `0001_org_settings_fields.sql` added the fields; `getOrganizationProfile` loader + `PATCH /api/org/profile` + `/api/org/logo/*` + `/api/org/licenses*` routes drive live reads/writes. `tax_id` is redacted in audit events. Non-admin users see read-only fields. See the **Settings Wiring Backlog** section for what's still static in the broader settings area.
 
 ### What this does
 
@@ -619,7 +633,7 @@ git commit -m "Step 9 (4A.3 #9): Contractor Organization settings page"
 **Effort:** M
 **Priority:** P1
 
-> **Status as of 2026-04-17:** UI built as a "Team & roles" tab inside the shared `SettingsShell`. Member table, invite panel, role explainer, remove-confirm, and last-admin guard all render from static sample data. Wiring tracked in the **Settings Wiring Backlog** section at the end of this guide — this tab is the most wireable of the five (most of the plumbing exists: `organizationUsers`, `roleAssignments`, `invitations`, `listInvitationsForOrganization`).
+> **Status: ✅ Done** (2026-04-17) — shipped as the "Team & roles" tab inside the shared `SettingsShell`. Loader `listOrganizationMembers` joins `organizationUsers` + `users` + `roleAssignments` with last-active sub-query over `authSession`. Mutation routes `PATCH /api/org/members/[userId]/role`, `DELETE /api/org/members/[userId]`, `POST /api/invitations`, `DELETE /api/org/invitations/[id]`, `POST /api/org/invitations/[id]/resend` all live with audit events + last-admin guard. Commit 7 generalized the same routes to accept subcontractor + client (commercial/residential) owners too.
 
 ### What this does
 
@@ -670,6 +684,8 @@ git commit -m "Step 10 (4A.3 #10): Contractor Team & Roles page with functional 
 
 ## Step 11 — Subcontractor Team Page
 
+> **Status: ✅ Done** (2026-04-17) — subcontractor Team & roles functionality shipped as part of the shared `SettingsShell` wiring. Sub owners use the same `/api/org/members/*` and `/api/org/invitations/*` routes as contractor admins (generalized in commit 7 of the settings wire-up). The standalone `/subcontractor/team/` route is a follow-up if you want a dedicated page; the Team surface itself is functional from the settings tab.
+
 **Mode:** Require-design-input (**no prototype exists**)
 **Item:** 4A.3 #11
 **Effort:** S–M
@@ -715,7 +731,7 @@ git commit -m "Step 11 (4A.3 #11): Subcontractor Team page"
 
 ## Step 12 — Subcontractor Settings Page
 
-> **Status as of 2026-04-17:** Subcontractor settings JSX spec dropped in `docs/specs/builtcrm_subcontractor_settings.jsx`. Not built yet — today the subcontractor portal renders only the 4 shared tabs (profile/security/notifications/appearance). Per-portal JSX specs now also exist for commercial (`builtcrm_commercial_client_settings.jsx`) and residential (`builtcrm_residential_client_settings.jsx`). Wiring tracked in the **Settings Wiring Backlog** section at the end of this guide.
+> **Status: ✅ Done** (2026-04-17) — shipped as 2 sub-only tabs inside the shared `SettingsShell`: **Organization** and **Trade & compliance**. Organization shares the portal-agnostic `/api/org/profile` + logo + licenses routes with contractor (sub owners gated via `getSubcontractorOrgContext`). Trade & compliance reads `complianceRecords` + surfaces per-org certifications via new `/api/org/certifications*` routes. Sub-specific columns (`primary_trade`, `secondary_trades`, `years_in_business`, `crew_size`, `regions`) landed in migration `0001_org_settings_fields.sql`.
 
 **Mode:** Require-design-input (**no prototype exists**)
 **Item:** 4A.3 #12

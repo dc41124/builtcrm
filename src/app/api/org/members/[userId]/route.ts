@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { auditEvents, organizationUsers, roleAssignments } from "@/db/schema";
-import { getContractorOrgContext } from "@/domain/loaders/integrations";
+import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
 import { countAdminsInOrganization } from "@/domain/loaders/organization-members";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -27,23 +27,16 @@ export async function DELETE(
   const { userId: targetUserId } = await params;
 
   try {
-    const ctx = await getContractorOrgContext(
+    const ctx = await requireOrgAdminContext(
       session.session as unknown as { appUserId?: string | null },
     );
 
-    if (ctx.role !== "contractor_admin") {
-      throw new AuthorizationError(
-        "Only organization admins can remove members",
-        "forbidden",
-      );
-    }
-
-    if (targetUserId === ctx.user.id) {
+    if (targetUserId === ctx.userId) {
       return NextResponse.json(
         {
           error: "self_remove",
           message:
-            "You can't remove yourself. Ask another Admin or leave via account settings.",
+            "You can't remove yourself. Ask another Owner/Admin or leave via account settings.",
         },
         { status: 409 },
       );
@@ -58,7 +51,7 @@ export async function DELETE(
       .where(
         and(
           eq(organizationUsers.userId, targetUserId),
-          eq(organizationUsers.organizationId, ctx.organization.id),
+          eq(organizationUsers.organizationId, ctx.orgId),
         ),
       )
       .limit(1);
@@ -72,26 +65,33 @@ export async function DELETE(
       return NextResponse.json({ ok: true, unchanged: true });
     }
 
-    // If target is an admin, make sure we won't leave the org admin-less.
+    const portalFilter =
+      ctx.portal === "contractor"
+        ? eq(roleAssignments.portalType, "contractor")
+        : ctx.portal === "subcontractor"
+          ? eq(roleAssignments.portalType, "subcontractor")
+          : eq(roleAssignments.portalType, "client");
+
+    // If target is an owner/admin, make sure we won't leave the org admin-less.
     const [targetRole] = await db
       .select({ roleKey: roleAssignments.roleKey })
       .from(roleAssignments)
       .where(
         and(
           eq(roleAssignments.userId, targetUserId),
-          eq(roleAssignments.organizationId, ctx.organization.id),
-          eq(roleAssignments.portalType, "contractor"),
+          eq(roleAssignments.organizationId, ctx.orgId),
+          portalFilter,
         ),
       )
       .limit(1);
     if (targetRole && isAdminRole(targetRole.roleKey)) {
-      const adminCount = await countAdminsInOrganization(ctx.organization.id);
+      const adminCount = await countAdminsInOrganization(ctx.orgId, ctx.portal);
       if (adminCount <= 1) {
         return NextResponse.json(
           {
             error: "last_admin",
             message:
-              "You can't remove the only Admin. Promote someone else first.",
+              "You can't remove the only Owner/Admin. Promote someone else first.",
           },
           { status: 409 },
         );
@@ -105,14 +105,14 @@ export async function DELETE(
         .where(eq(organizationUsers.id, membership.id));
 
       await tx.insert(auditEvents).values({
-        actorUserId: ctx.user.id,
-        organizationId: ctx.organization.id,
+        actorUserId: ctx.userId,
+        organizationId: ctx.orgId,
         objectType: "membership",
         objectId: membership.id,
         actionName: "removed",
         previousState: { membershipStatus: membership.status },
         nextState: { membershipStatus: "removed" },
-        metadataJson: { targetUserId },
+        metadataJson: { targetUserId, portal: ctx.portal },
       });
     });
 

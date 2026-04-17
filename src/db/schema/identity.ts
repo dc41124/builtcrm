@@ -196,6 +196,23 @@ export const organizations = pgTable(
     // lifecycle hook.
     sessionTimeoutMinutes: integer("session_timeout_minutes"),
 
+    // Commercial-client-specific fields (commit 8). Null on other portals.
+    industry: varchar("industry", { length: 120 }),
+    companySize: varchar("company_size", { length: 40 }),
+    invoiceDelivery: varchar("invoice_delivery", { length: 40 }),
+
+    // Residential-client-specific fields (commit 8). Null on other portals.
+    // `projectName` is the household's display label in the portal
+    // ("Chen Residence"); distinct from `name` which holds the legal/display
+    // name of the client org entity.
+    projectName: varchar("project_name", { length: 255 }),
+    preferredName: varchar("preferred_name", { length: 120 }),
+    preferredChannel: varchar("preferred_channel", { length: 40 }),
+    preferredTime: varchar("preferred_time", { length: 40 }),
+    emergencyName: varchar("emergency_name", { length: 200 }),
+    emergencyRelation: varchar("emergency_relation", { length: 80 }),
+    emergencyPhone: varchar("emergency_phone", { length: 40 }),
+
     ...timestamps,
   },
   (table) => ({

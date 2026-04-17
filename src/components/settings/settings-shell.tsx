@@ -66,6 +66,30 @@ export type SubcontractorSettingsBundle = {
   orgCertifications?: OrganizationCertification[];
 };
 
+// Client-portal bundles (commercial + residential). Share the same shape
+// since both surface the same live team panel and wire to the same routes.
+export type ClientSettingsBundle = {
+  orgId: string;
+  orgName: string;
+  role: "owner" | "member";
+  currentUserId: string;
+  members: OrganizationMember[];
+  invitations: Array<{
+    id: string;
+    invitedEmail: string;
+    invitedName: string | null;
+    portalType: string;
+    roleKey: string;
+    status: string;
+    expiresAt: Date;
+    createdAt: Date;
+    projectId: string | null;
+    projectName: string | null;
+    token: string;
+  }>;
+  orgProfile?: OrganizationProfile | null;
+};
+
 // ── Icons (inline SVGs — prototype spec) ────────────────────────────────
 const I = {
   sun: (
@@ -245,7 +269,11 @@ type TabId =
   | "orgsec"
   | "integrations"
   | "payments"
-  | "compliance";
+  | "compliance"
+  | "company"
+  | "household"
+  | "access"
+  | "payment";
 type TabDescriptor = { id: TabId; label: string; desc: string; icon: ReactNode };
 const BASE_TABS: TabDescriptor[] = [
   { id: "profile", label: "Profile", icon: I.user, desc: "Name, contact info, and how you appear to others" },
@@ -265,6 +293,16 @@ const CONTRACTOR_TABS: TabDescriptor[] = [
 const SUBCONTRACTOR_TABS: TabDescriptor[] = [
   { id: "organization", label: "Organization", icon: I.building, desc: "Company profile, trade, and licensing" },
   { id: "compliance", label: "Trade & compliance", icon: I.shield, desc: "Insurance, W-9, bonding, and certifications" },
+];
+const COMMERCIAL_TABS: TabDescriptor[] = [
+  { id: "company", label: "Company", icon: I.building, desc: "Your organization's profile and address" },
+  { id: "team", label: "Team members", icon: I.users, desc: "Colleagues who access this project" },
+  { id: "payment", label: "Payment methods", icon: I.card, desc: "Cards and bank accounts for paying draws" },
+];
+const RESIDENTIAL_TABS: TabDescriptor[] = [
+  { id: "household", label: "Household profile", icon: I.building, desc: "Your home, your details, and how we reach you" },
+  { id: "access", label: "Co-owner access", icon: I.users, desc: "Who else in your household can see and decide" },
+  { id: "payment", label: "Payment methods", icon: I.card, desc: "Cards and bank accounts for paying draws" },
 ];
 
 // Friendly role label per portal (matches the sidebar footer role).
@@ -287,11 +325,15 @@ export function SettingsShell({
   showDangerZone = false,
   contractor,
   subcontractor,
+  commercial,
+  residential,
 }: {
   view: UserSettingsView;
   showDangerZone?: boolean;
   contractor?: ContractorSettingsBundle;
   subcontractor?: SubcontractorSettingsBundle;
+  commercial?: ClientSettingsBundle;
+  residential?: ClientSettingsBundle;
 }) {
   const [tab, setTab] = useState<TabId>("profile");
   const tabs: TabDescriptor[] =
@@ -299,7 +341,11 @@ export function SettingsShell({
       ? [...BASE_TABS, ...CONTRACTOR_TABS]
       : view.portalType === "subcontractor"
         ? [...BASE_TABS, ...SUBCONTRACTOR_TABS]
-        : BASE_TABS;
+        : view.portalType === "commercial"
+          ? [...BASE_TABS, ...COMMERCIAL_TABS]
+          : view.portalType === "residential"
+            ? [...BASE_TABS, ...RESIDENTIAL_TABS]
+            : BASE_TABS;
 
   return (
     <div
@@ -331,7 +377,9 @@ export function SettingsShell({
         {tab === "organization" && view.portalType === "subcontractor" && (
           <SubcontractorOrganizationTab subcontractor={subcontractor} />
         )}
-        {tab === "team" && <ContractorTeamRolesTab contractor={contractor} />}
+        {tab === "team" && view.portalType === "contractor" && (
+          <ContractorTeamRolesTab contractor={contractor} />
+        )}
         {tab === "billing" && <ContractorPlanBillingTab />}
         {tab === "data" && <ContractorDataTab />}
         {tab === "orgsec" && <ContractorOrgSecurityTab contractor={contractor} />}
@@ -339,6 +387,22 @@ export function SettingsShell({
         {tab === "payments" && <ContractorPaymentsTab contractor={contractor} />}
         {tab === "compliance" && (
           <SubcontractorComplianceTab subcontractor={subcontractor} />
+        )}
+        {tab === "company" && <CommercialCompanyTab commercial={commercial} />}
+        {tab === "household" && (
+          <ResidentialHouseholdTab residential={residential} />
+        )}
+        {tab === "team" && view.portalType === "commercial" && (
+          <CommercialTeamTab commercial={commercial} />
+        )}
+        {tab === "access" && (
+          <ResidentialCoOwnerAccessTab residential={residential} />
+        )}
+        {tab === "payment" && view.portalType === "commercial" && (
+          <ClientPaymentMethodsTab variant="commercial" />
+        )}
+        {tab === "payment" && view.portalType === "residential" && (
+          <ClientPaymentMethodsTab variant="residential" />
         )}
       </div>
       <style>{`
@@ -8949,6 +9013,3014 @@ function SummaryItem({
         {value}
       </div>
     </div>
+  );
+}
+
+// ═══════ COMMERCIAL CLIENT: COMPANY TAB ════════════════════════════════
+type CommercialCompanyForm = {
+  displayName: string;
+  legalName: string;
+  taxId: string;
+  industry: string;
+  companySize: string;
+  website: string;
+  phone: string;
+  addr1: string;
+  addr2: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  billingContactName: string;
+  billingContactTitle: string;
+  billingContactEmail: string;
+  billingContactPhone: string;
+  invoiceDelivery: string;
+};
+const COMMERCIAL_COMPANY_DEFAULTS: CommercialCompanyForm = {
+  displayName: "Riverside Dev Co",
+  legalName: "Riverside Development Company, LLC",
+  taxId: "94-3871450",
+  industry: "Commercial Real Estate Development",
+  companySize: "25–50 employees",
+  website: "https://riversidedevco.com",
+  phone: "+1 (415) 555-0240",
+  addr1: "2180 Embarcadero",
+  addr2: "Floor 4",
+  city: "San Francisco",
+  state: "CA",
+  zip: "94111",
+  country: "United States",
+  billingContactName: "Marcus Blake",
+  billingContactTitle: "Director of Finance",
+  billingContactEmail: "ap@riversidedevco.com",
+  billingContactPhone: "+1 (415) 555-0244",
+  invoiceDelivery: "email+portal",
+};
+const COMMERCIAL_INDUSTRIES = [
+  "Commercial Real Estate Development",
+  "Corporate Owner / Occupier",
+  "Healthcare / Institutional",
+  "Hospitality",
+  "Retail / Mixed-Use",
+  "Industrial / Logistics",
+  "Education",
+  "Other",
+] as const;
+const COMMERCIAL_COMPANY_SIZES = [
+  "1–10 employees",
+  "11–25 employees",
+  "25–50 employees",
+  "50–250 employees",
+  "250+ employees",
+] as const;
+
+function CommercialCompanyTab({
+  commercial,
+}: {
+  commercial?: ClientSettingsBundle;
+}) {
+  if (commercial?.orgProfile) {
+    return <CommercialCompanyLiveTab commercial={commercial} />;
+  }
+  return <CommercialCompanySampleTab />;
+}
+
+function CommercialCompanySampleTab() {
+  const [company, setCompany] = useState<CommercialCompanyForm>(
+    COMMERCIAL_COMPANY_DEFAULTS,
+  );
+  const [dirty, setDirty] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  function update<K extends keyof CommercialCompanyForm>(
+    k: K,
+    v: CommercialCompanyForm[K],
+  ) {
+    setCompany((p) => ({ ...p, [k]: v }));
+    setDirty(true);
+    setSaved(false);
+  }
+  const initials = company.displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((s) => s[0]?.toUpperCase() ?? "")
+    .join("");
+
+  return (
+    <>
+      <Panel
+        title="Company logo"
+        subtitle="Shown in your team's portal and on your side of project correspondence."
+      >
+        <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+          <div
+            style={{
+              width: 88,
+              height: 88,
+              borderRadius: 14,
+              background: "linear-gradient(135deg,var(--ac),var(--ac-m))",
+              color: "white",
+              display: "grid",
+              placeItems: "center",
+              fontFamily: "'DM Sans',system-ui,sans-serif",
+              fontSize: 30,
+              fontWeight: 800,
+              letterSpacing: "-.04em",
+              flexShrink: 0,
+            }}
+          >
+            {initials}
+          </div>
+          <div>
+            <div style={{ fontSize: 11.5, color: "var(--t3)", marginBottom: 8, fontWeight: 500 }}>
+              PNG or SVG · square, up to 2 MB · 512×512 recommended
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button style={btnGhostSm()}>
+                <span style={{ marginRight: 6 }}>{I.upload}</span>Upload logo
+              </button>
+              <button style={btnGhostSm()}>Remove</button>
+            </div>
+          </div>
+        </div>
+      </Panel>
+
+      <Panel
+        title="Company information"
+        subtitle="Your organization's details as they appear on contracts, invoices, and payment records."
+      >
+        <FieldRow>
+          <Field label="Display name" help="What your team sees across the portal">
+            <input style={fieldStyle()} value={company.displayName} onChange={(e) => update("displayName", e.target.value)} />
+          </Field>
+          <Field label="Legal name" help="Used on contracts and payment receipts">
+            <input style={fieldStyle()} value={company.legalName} onChange={(e) => update("legalName", e.target.value)} />
+          </Field>
+        </FieldRow>
+        <FieldRow>
+          <Field label="Tax ID / EIN">
+            <input
+              style={{ ...fieldStyle(), fontFamily: "'JetBrains Mono',monospace", letterSpacing: ".02em" }}
+              value={company.taxId}
+              onChange={(e) => update("taxId", e.target.value)}
+            />
+          </Field>
+          <Field label="Website">
+            <input type="url" style={fieldStyle()} value={company.website} onChange={(e) => update("website", e.target.value)} />
+          </Field>
+        </FieldRow>
+        <FieldRow>
+          <Field label="Industry">
+            <select style={fieldStyle()} value={company.industry} onChange={(e) => update("industry", e.target.value)}>
+              {COMMERCIAL_INDUSTRIES.map((i) => (
+                <option key={i} value={i}>
+                  {i}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Company size">
+            <select style={fieldStyle()} value={company.companySize} onChange={(e) => update("companySize", e.target.value)}>
+              {COMMERCIAL_COMPANY_SIZES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </FieldRow>
+        <Field label="Main phone">
+          <input type="tel" style={fieldStyle()} value={company.phone} onChange={(e) => update("phone", e.target.value)} />
+        </Field>
+      </Panel>
+
+      <Panel
+        title="Business address"
+        subtitle="Used on invoices, payment receipts, and project documentation."
+      >
+        <Field label="Street address">
+          <input style={fieldStyle()} value={company.addr1} onChange={(e) => update("addr1", e.target.value)} />
+        </Field>
+        <Field label="Suite / floor (optional)">
+          <input style={fieldStyle()} value={company.addr2} onChange={(e) => update("addr2", e.target.value)} />
+        </Field>
+        <div
+          className="comm-addr-row"
+          style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 14 }}
+        >
+          <style>{`@media (max-width: 620px) { .comm-addr-row { grid-template-columns: 1fr !important; } }`}</style>
+          <Field label="City">
+            <input style={fieldStyle()} value={company.city} onChange={(e) => update("city", e.target.value)} />
+          </Field>
+          <Field label="State / province">
+            <input style={fieldStyle()} value={company.state} onChange={(e) => update("state", e.target.value)} />
+          </Field>
+          <Field label="ZIP / postal">
+            <input
+              style={{ ...fieldStyle(), fontFamily: "'JetBrains Mono',monospace", letterSpacing: ".02em" }}
+              value={company.zip}
+              onChange={(e) => update("zip", e.target.value)}
+            />
+          </Field>
+        </div>
+        <Field label="Country">
+          <select style={fieldStyle()} value={company.country} onChange={(e) => update("country", e.target.value)}>
+            <option>United States</option>
+            <option>Canada</option>
+            <option>Mexico</option>
+          </select>
+        </Field>
+      </Panel>
+
+      <Panel
+        title="Billing contact"
+        subtitle="Who receives invoice notices, payment confirmations, and draw-ready alerts."
+      >
+        <FieldRow>
+          <Field label="Contact name">
+            <input style={fieldStyle()} value={company.billingContactName} onChange={(e) => update("billingContactName", e.target.value)} />
+          </Field>
+          <Field label="Title / role">
+            <input style={fieldStyle()} value={company.billingContactTitle} onChange={(e) => update("billingContactTitle", e.target.value)} />
+          </Field>
+        </FieldRow>
+        <FieldRow>
+          <Field label="Email">
+            <input type="email" style={fieldStyle()} value={company.billingContactEmail} onChange={(e) => update("billingContactEmail", e.target.value)} />
+          </Field>
+          <Field label="Phone">
+            <input type="tel" style={fieldStyle()} value={company.billingContactPhone} onChange={(e) => update("billingContactPhone", e.target.value)} />
+          </Field>
+        </FieldRow>
+        <Field label="Invoice delivery" help="How you receive invoice PDFs and payment receipts">
+          <select
+            style={fieldStyle()}
+            value={company.invoiceDelivery}
+            onChange={(e) => update("invoiceDelivery", e.target.value)}
+          >
+            <option value="email+portal">Email + portal (recommended)</option>
+            <option value="email">Email only</option>
+            <option value="portal">Portal only</option>
+          </select>
+        </Field>
+      </Panel>
+
+      {(dirty || saved) && (
+        <SaveBar
+          state={saved ? "success" : "dirty"}
+          message={saved ? "Company info saved" : "You have unsaved changes"}
+          showActions={!saved}
+          onDiscard={() => {
+            setCompany(COMMERCIAL_COMPANY_DEFAULTS);
+            setDirty(false);
+          }}
+          onSave={() => {
+            setDirty(false);
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2400);
+          }}
+          saving={false}
+        />
+      )}
+    </>
+  );
+}
+
+// ═══════ CLIENT PORTALS: MEMBERS TABLE (shared between commercial + residential)
+// Sample-mode only — the live path reuses ContractorTeamRolesLiveTab's API
+// routes and will be introduced in the next commit with its own dispatcher.
+
+type ClientRoleDef = { id: string; label: string; desc: string };
+type ClientMember = {
+  id: number;
+  name: string;
+  email: string;
+  avatar: string;
+  role: string;
+  lastActive: string;
+  joined: string;
+  you?: boolean;
+};
+type ClientInvite = {
+  id: number;
+  email: string;
+  role: string;
+  sentBy: string;
+  sent: string;
+};
+
+function ClientMembersPanel({
+  roles,
+  initialMembers,
+  initialInvites,
+  membersTitle,
+  membersSubtitle,
+  defaultInviteRole,
+  ownerRoleId,
+  ownerSelfBlockMessage,
+}: {
+  roles: ClientRoleDef[];
+  initialMembers: ClientMember[];
+  initialInvites: ClientInvite[];
+  membersTitle: string;
+  membersSubtitle: string;
+  defaultInviteRole: string;
+  ownerRoleId: string;
+  ownerSelfBlockMessage: string;
+}) {
+  const [members, setMembers] = useState<ClientMember[]>(initialMembers);
+  const [invites, setInvites] = useState<ClientInvite[]>(initialInvites);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState(defaultInviteRole);
+  const [removeConfirm, setRemoveConfirm] = useState<number | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+
+  function flash(msg: string) {
+    setWarning(msg);
+    setTimeout(() => setWarning(null), 3500);
+  }
+
+  const changeMemberRole = (id: number, newRole: string) => {
+    const ownerCount = members.filter((m) => m.role === ownerRoleId).length;
+    const target = members.find((m) => m.id === id);
+    if (
+      target?.you &&
+      target.role === ownerRoleId &&
+      newRole !== ownerRoleId &&
+      ownerCount === 1
+    ) {
+      flash(ownerSelfBlockMessage);
+      return;
+    }
+    setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, role: newRole } : m)));
+  };
+  const sendInvite = () => {
+    if (!inviteEmail) return;
+    setInvites((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        email: inviteEmail,
+        role: inviteRole,
+        sentBy: members.find((m) => m.you)?.name ?? "You",
+        sent: "Just now",
+      },
+    ]);
+    setInviteEmail("");
+    setInviteRole(defaultInviteRole);
+    setShowInvite(false);
+  };
+  const removeMember = (id: number) => {
+    setMembers((prev) => prev.filter((m) => m.id !== id));
+    setRemoveConfirm(null);
+  };
+  const cancelInvite = (id: number) =>
+    setInvites((prev) => prev.filter((i) => i.id !== id));
+
+  const filteredMembers = members.filter(
+    (m) =>
+      !memberSearch ||
+      m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+      m.email.toLowerCase().includes(memberSearch.toLowerCase()),
+  );
+
+  return (
+    <>
+      <Panel
+        title={`${membersTitle} (${members.length})`}
+        subtitle={membersSubtitle}
+        headerRight={
+          <button style={btnPrimarySm(true)} onClick={() => setShowInvite((v) => !v)}>
+            {showInvite ? "Cancel" : (
+              <>
+                <span style={{ marginRight: 4 }}>{I.plus}</span>Invite member
+              </>
+            )}
+          </button>
+        }
+      >
+        {showInvite && (
+          <div
+            style={{
+              background: "var(--ac-s)",
+              border: "1px solid var(--ac-m)",
+              borderRadius: 14,
+              padding: 18,
+              marginBottom: 12,
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr auto auto",
+              gap: 10,
+              alignItems: "end",
+            }}
+          >
+            <Field label="Email address">
+              <input
+                type="email"
+                placeholder="colleague@example.com"
+                style={fieldStyle()}
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
+            </Field>
+            <Field label="Role">
+              <select style={fieldStyle()} value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <button style={btnGhostSm()} onClick={() => setShowInvite(false)}>
+              Cancel
+            </button>
+            <button
+              style={btnPrimarySm(Boolean(inviteEmail))}
+              onClick={sendInvite}
+              disabled={!inviteEmail}
+            >
+              Send invite
+            </button>
+          </div>
+        )}
+
+        <div style={{ position: "relative", maxWidth: 320, marginBottom: 14 }}>
+          <span
+            style={{
+              position: "absolute",
+              left: 11,
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "var(--t3)",
+              pointerEvents: "none",
+              display: "flex",
+            }}
+          >
+            {I.search}
+          </span>
+          <input
+            placeholder="Search members by name or email..."
+            value={memberSearch}
+            onChange={(e) => setMemberSearch(e.target.value)}
+            style={{ ...fieldStyle(), height: 36, paddingLeft: 34 }}
+          />
+        </div>
+
+        <div style={{ overflow: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+            <thead>
+              <tr>
+                {["Member", "Role", "Last active", ""].map((h, i) => (
+                  <th
+                    key={i}
+                    style={{
+                      fontFamily: "'DM Sans',system-ui,sans-serif",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "var(--t3)",
+                      textTransform: "uppercase",
+                      letterSpacing: ".06em",
+                      textAlign: i === 3 ? "right" : "left",
+                      padding: "10px 12px",
+                      borderBottom: "1px solid var(--s3)",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredMembers.map((m) => (
+                <tr key={m.id}>
+                  <td
+                    style={{
+                      padding: "14px 12px",
+                      borderBottom: "1px solid var(--s2)",
+                      fontSize: 13.5,
+                      verticalAlign: "middle",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: "50%",
+                          background: "linear-gradient(135deg,var(--ac),var(--ac-m))",
+                          color: "white",
+                          display: "grid",
+                          placeItems: "center",
+                          fontFamily: "'DM Sans',system-ui,sans-serif",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {m.avatar}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontFamily: "'DM Sans',system-ui,sans-serif",
+                            fontSize: 13.5,
+                            fontWeight: 650,
+                            letterSpacing: "-.01em",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          {m.name}
+                          {m.you && <Pill tone="accent">You</Pill>}
+                        </div>
+                        <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 2, fontWeight: 500 }}>
+                          {m.email}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: "14px 12px", borderBottom: "1px solid var(--s2)" }}>
+                    <select
+                      value={m.role}
+                      onChange={(e) => changeMemberRole(m.id, e.target.value)}
+                      style={{
+                        ...fieldStyle(),
+                        height: 32,
+                        width: "auto",
+                        fontSize: 12.5,
+                        padding: "0 28px 0 10px",
+                      }}
+                    >
+                      {roles.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td
+                    style={{
+                      padding: "14px 12px",
+                      borderBottom: "1px solid var(--s2)",
+                      color: "var(--t2)",
+                      fontSize: 12.5,
+                    }}
+                  >
+                    {m.lastActive}
+                  </td>
+                  <td
+                    style={{
+                      padding: "14px 12px",
+                      borderBottom: "1px solid var(--s2)",
+                      textAlign: "right",
+                    }}
+                  >
+                    {!m.you && (
+                      <button
+                        style={{ ...btnGhostSm(), color: "var(--dg)" }}
+                        onClick={() => setRemoveConfirm(m.id)}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {filteredMembers.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    style={{
+                      textAlign: "center",
+                      padding: 24,
+                      color: "var(--t3)",
+                      fontSize: 13,
+                      fontWeight: 500,
+                    }}
+                  >
+                    No members match &ldquo;{memberSearch}&rdquo;
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {warning && (
+          <div
+            style={{
+              background: "var(--wr-s)",
+              border: "1px solid var(--wr)",
+              borderRadius: 12,
+              padding: "10px 14px",
+              marginTop: 10,
+              fontSize: 12.5,
+              color: "var(--wr-t)",
+              fontWeight: 580,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            {I.warn}
+            {warning}
+          </div>
+        )}
+
+        {removeConfirm && (
+          <div
+            style={{
+              background: "var(--dg-s)",
+              border: "1px solid var(--dg)",
+              borderRadius: 14,
+              padding: 14,
+              marginTop: 4,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12.5,
+                color: "var(--dg)",
+                fontWeight: 580,
+                flex: 1,
+                minWidth: 200,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              {I.warn}
+              Remove{" "}
+              <strong>{members.find((m) => m.id === removeConfirm)?.name}</strong>?
+              They&rsquo;ll lose access immediately — project history is preserved.
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button style={btnGhostSm()} onClick={() => setRemoveConfirm(null)}>
+                Cancel
+              </button>
+              <button style={btnDangerSm()} onClick={() => removeMember(removeConfirm)}>
+                Confirm remove
+              </button>
+            </div>
+          </div>
+        )}
+      </Panel>
+
+      {invites.length > 0 && (
+        <Panel
+          title={`Pending invites (${invites.length})`}
+          subtitle="Invitations that haven't been accepted yet."
+        >
+          {invites.map((inv) => (
+            <div
+              key={inv.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "12px 14px",
+                border: "1px solid var(--s3)",
+                borderRadius: 14,
+                marginBottom: 8,
+                background: "var(--s1)",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div
+                  style={{
+                    fontFamily: "'JetBrains Mono',monospace",
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  {inv.email}
+                </div>
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--t3)",
+                    marginTop: 2,
+                    fontWeight: 500,
+                  }}
+                >
+                  {roles.find((r) => r.id === inv.role)?.label} · Invited by {inv.sentBy} · {inv.sent}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button style={btnGhostSm()}>Resend</button>
+                <button
+                  style={{ ...btnGhostSm(), color: "var(--dg)" }}
+                  onClick={() => cancelInvite(inv.id)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ))}
+        </Panel>
+      )}
+    </>
+  );
+}
+
+// ═══════ COMMERCIAL CLIENT: TEAM MEMBERS TAB ═══════════════════════════
+const COMMERCIAL_ROLES: ClientRoleDef[] = [
+  { id: "owner", label: "Owner", desc: "Full access. Can manage the team, payment methods, and all project decisions." },
+  { id: "approver", label: "Approver", desc: "Can approve change orders and mark decisions. View all project content." },
+  { id: "billing_approver", label: "Billing Approver", desc: "Can approve draws and manage payment methods. View all project content." },
+  { id: "viewer", label: "Viewer", desc: "Read-only access to project updates, documents, and financials. No approval authority." },
+];
+const COMMERCIAL_MEMBERS: ClientMember[] = [
+  { id: 1, name: "Rachel Greyson", email: "rachel.greyson@riversidedevco.com", avatar: "RG", role: "owner", lastActive: "Active now", joined: "Jan 2024", you: true },
+  { id: 2, name: "Marcus Blake", email: "marcus.blake@riversidedevco.com", avatar: "MB", role: "billing_approver", lastActive: "2 hours ago", joined: "Jan 2024" },
+  { id: 3, name: "Priya Nair", email: "priya.nair@riversidedevco.com", avatar: "PN", role: "approver", lastActive: "Yesterday", joined: "Feb 2024" },
+  { id: 4, name: "Evan Takahashi", email: "evan.t@riversidedevco.com", avatar: "ET", role: "viewer", lastActive: "3 days ago", joined: "Apr 2024" },
+];
+const COMMERCIAL_INVITES: ClientInvite[] = [
+  { id: 201, email: "legal@riversidedevco.com", role: "viewer", sentBy: "Rachel Greyson", sent: "4 days ago" },
+];
+
+function CommercialTeamTab({
+  commercial,
+}: {
+  commercial?: ClientSettingsBundle;
+}) {
+  if (commercial) {
+    return (
+      <ClientTeamLiveTab
+        bundle={commercial}
+        subtype="commercial"
+        roles={COMMERCIAL_ROLES}
+        ownerRoleId="owner"
+        defaultInviteRole="approver"
+        ownerSelfBlockMessage="You're the only Owner. Promote someone else before changing your own role."
+        membersTitle="Members"
+        membersSubtitle="Colleagues from your organization with access to this project."
+        explainerLayout="cards"
+      />
+    );
+  }
+  return <CommercialTeamSampleTab />;
+}
+
+function CommercialTeamSampleTab() {
+  const [roleExplainer, setRoleExplainer] = useState(false);
+  return (
+    <>
+      <Panel
+        title="Roles"
+        subtitle="Who can do what on this project. Only Owners can change roles or remove members."
+        headerRight={
+          <button style={btnGhostSm()} onClick={() => setRoleExplainer((v) => !v)}>
+            {roleExplainer ? "Hide details" : "Show details"}
+          </button>
+        }
+      >
+        {roleExplainer && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))",
+              gap: 10,
+              marginTop: 4,
+            }}
+          >
+            {COMMERCIAL_ROLES.map((r) => (
+              <div
+                key={r.id}
+                style={{
+                  padding: "12px 14px",
+                  border: "1px solid var(--s3)",
+                  borderRadius: 10,
+                  background: "var(--s1)",
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: "'DM Sans',system-ui,sans-serif",
+                    fontSize: 13,
+                    fontWeight: 650,
+                    marginBottom: 4,
+                  }}
+                >
+                  {r.label}
+                </div>
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--t3)",
+                    lineHeight: 1.45,
+                    fontWeight: 500,
+                  }}
+                >
+                  {r.desc}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+
+      <ClientMembersPanel
+        roles={COMMERCIAL_ROLES}
+        initialMembers={COMMERCIAL_MEMBERS}
+        initialInvites={COMMERCIAL_INVITES}
+        membersTitle="Members"
+        membersSubtitle="Colleagues from your organization with access to this project."
+        defaultInviteRole="approver"
+        ownerRoleId="owner"
+        ownerSelfBlockMessage="You're the only Owner. Promote someone else before changing your own role."
+      />
+    </>
+  );
+}
+
+// ═══════ RESIDENTIAL CLIENT: HOUSEHOLD TAB ═════════════════════════════
+type HouseholdForm = {
+  projectName: string;
+  addr1: string;
+  addr2: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  legalName: string;
+  preferredName: string;
+  email: string;
+  phone: string;
+  preferredChannel: string;
+  preferredTime: string;
+  emergencyName: string;
+  emergencyRelation: string;
+  emergencyPhone: string;
+};
+const HOUSEHOLD_DEFAULTS: HouseholdForm = {
+  projectName: "Chen Residence",
+  addr1: "14 Maple Lane",
+  addr2: "",
+  city: "Palo Alto",
+  state: "CA",
+  zip: "94306",
+  country: "United States",
+  legalName: "Jennifer Chen",
+  preferredName: "Jen",
+  email: "jennifer.chen@gmail.com",
+  phone: "+1 (650) 555-0187",
+  preferredChannel: "email+sms",
+  preferredTime: "anytime",
+  emergencyName: "Michael Chen",
+  emergencyRelation: "Spouse",
+  emergencyPhone: "+1 (650) 555-0188",
+};
+
+function ResidentialHouseholdTab({
+  residential,
+}: {
+  residential?: ClientSettingsBundle;
+}) {
+  if (residential?.orgProfile) {
+    return <ResidentialHouseholdLiveTab residential={residential} />;
+  }
+  return <ResidentialHouseholdSampleTab />;
+}
+
+function ResidentialHouseholdSampleTab() {
+  const [household, setHousehold] = useState<HouseholdForm>(HOUSEHOLD_DEFAULTS);
+  const [dirty, setDirty] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  function update<K extends keyof HouseholdForm>(k: K, v: HouseholdForm[K]) {
+    setHousehold((p) => ({ ...p, [k]: v }));
+    setDirty(true);
+    setSaved(false);
+  }
+
+  return (
+    <>
+      <Panel
+        title="Your home"
+        subtitle="The address of the project we're working on together."
+      >
+        <Field label="Project name" help="How your home appears in your portal">
+          <input style={fieldStyle()} value={household.projectName} onChange={(e) => update("projectName", e.target.value)} />
+        </Field>
+        <Field label="Street address">
+          <input style={fieldStyle()} value={household.addr1} onChange={(e) => update("addr1", e.target.value)} />
+        </Field>
+        <Field label="Unit / apartment (optional)">
+          <input style={fieldStyle()} value={household.addr2} onChange={(e) => update("addr2", e.target.value)} />
+        </Field>
+        <div
+          className="res-addr-row"
+          style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 14 }}
+        >
+          <style>{`@media (max-width: 620px) { .res-addr-row { grid-template-columns: 1fr !important; } }`}</style>
+          <Field label="City">
+            <input style={fieldStyle()} value={household.city} onChange={(e) => update("city", e.target.value)} />
+          </Field>
+          <Field label="State">
+            <input style={fieldStyle()} value={household.state} onChange={(e) => update("state", e.target.value)} />
+          </Field>
+          <Field label="ZIP">
+            <input
+              style={{ ...fieldStyle(), fontFamily: "'JetBrains Mono',monospace", letterSpacing: ".02em" }}
+              value={household.zip}
+              onChange={(e) => update("zip", e.target.value)}
+            />
+          </Field>
+        </div>
+        <Field label="Country">
+          <select style={fieldStyle()} value={household.country} onChange={(e) => update("country", e.target.value)}>
+            <option>United States</option>
+            <option>Canada</option>
+            <option>Mexico</option>
+          </select>
+        </Field>
+      </Panel>
+
+      <Panel
+        title="Your details"
+        subtitle="How we address you in project correspondence."
+      >
+        <FieldRow>
+          <Field label="Legal name" help="Used on contracts and official documents">
+            <input style={fieldStyle()} value={household.legalName} onChange={(e) => update("legalName", e.target.value)} />
+          </Field>
+          <Field label="What you'd like to be called">
+            <input style={fieldStyle()} value={household.preferredName} onChange={(e) => update("preferredName", e.target.value)} />
+          </Field>
+        </FieldRow>
+        <FieldRow>
+          <Field label="Email">
+            <input type="email" style={fieldStyle()} value={household.email} onChange={(e) => update("email", e.target.value)} />
+          </Field>
+          <Field label="Phone">
+            <input type="tel" style={fieldStyle()} value={household.phone} onChange={(e) => update("phone", e.target.value)} />
+          </Field>
+        </FieldRow>
+      </Panel>
+
+      <Panel
+        title="How we reach you"
+        subtitle="Pick how and when you'd like to hear from your builder."
+      >
+        <FieldRow>
+          <Field label="Preferred channel">
+            <select
+              style={fieldStyle()}
+              value={household.preferredChannel}
+              onChange={(e) => update("preferredChannel", e.target.value)}
+            >
+              <option value="email+sms">Email + SMS (recommended)</option>
+              <option value="email">Email only</option>
+              <option value="sms">SMS only</option>
+              <option value="phone">Phone call for urgent only</option>
+            </select>
+          </Field>
+          <Field label="Preferred time">
+            <select
+              style={fieldStyle()}
+              value={household.preferredTime}
+              onChange={(e) => update("preferredTime", e.target.value)}
+            >
+              <option value="anytime">Anytime</option>
+              <option value="business">Business hours (9–5)</option>
+              <option value="evenings">Evenings (after 5)</option>
+              <option value="weekends">Weekends only</option>
+            </select>
+          </Field>
+        </FieldRow>
+      </Panel>
+
+      <Panel
+        title="Emergency contact"
+        subtitle="For site-access issues or after-hours questions. We'll only use this if we can't reach you directly."
+      >
+        <FieldRow>
+          <Field label="Contact name">
+            <input style={fieldStyle()} value={household.emergencyName} onChange={(e) => update("emergencyName", e.target.value)} />
+          </Field>
+          <Field label="Relationship">
+            <input style={fieldStyle()} value={household.emergencyRelation} onChange={(e) => update("emergencyRelation", e.target.value)} />
+          </Field>
+        </FieldRow>
+        <Field label="Phone">
+          <input
+            type="tel"
+            style={fieldStyle()}
+            value={household.emergencyPhone}
+            onChange={(e) => update("emergencyPhone", e.target.value)}
+          />
+        </Field>
+      </Panel>
+
+      {(dirty || saved) && (
+        <SaveBar
+          state={saved ? "success" : "dirty"}
+          message={saved ? "Household info saved" : "You have unsaved changes"}
+          showActions={!saved}
+          onDiscard={() => {
+            setHousehold(HOUSEHOLD_DEFAULTS);
+            setDirty(false);
+          }}
+          onSave={() => {
+            setDirty(false);
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2400);
+          }}
+          saving={false}
+        />
+      )}
+    </>
+  );
+}
+
+// ═══════ RESIDENTIAL CLIENT: CO-OWNER ACCESS TAB ═══════════════════════
+const RESIDENTIAL_ROLES: ClientRoleDef[] = [
+  { id: "co_owner", label: "Co-owner", desc: "Full access. Can make decisions, approve scope changes, manage payment methods, and invite others." },
+  { id: "viewer", label: "Viewer", desc: "Read-only. Can see progress, photos, documents, and the budget. Can't approve or pay anything." },
+];
+const RESIDENTIAL_MEMBERS: ClientMember[] = [
+  { id: 1, name: "Jennifer Chen", email: "jennifer.chen@gmail.com", avatar: "JC", role: "co_owner", lastActive: "Active now", joined: "Feb 2026", you: true },
+  { id: 2, name: "Michael Chen", email: "michael.chen@gmail.com", avatar: "MC", role: "co_owner", lastActive: "Yesterday", joined: "Feb 2026" },
+];
+
+function ResidentialCoOwnerAccessTab({
+  residential,
+}: {
+  residential?: ClientSettingsBundle;
+}) {
+  if (residential) {
+    return (
+      <ClientTeamLiveTab
+        bundle={residential}
+        subtype="residential"
+        roles={RESIDENTIAL_ROLES}
+        ownerRoleId="co_owner"
+        defaultInviteRole="viewer"
+        ownerSelfBlockMessage="You're the only Co-owner. Add another Co-owner before changing your own role."
+        membersTitle="Your household"
+        membersSubtitle="People who can see project progress, approve decisions, or pay draws on your behalf."
+        explainerLayout="help-strip"
+      />
+    );
+  }
+  return <ResidentialCoOwnerAccessSampleTab />;
+}
+
+function ResidentialCoOwnerAccessSampleTab() {
+  return (
+    <>
+      <Panel
+        title="How access works"
+        subtitle="Your household has two access levels. Both apply to every person you invite."
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
+            gap: 10,
+          }}
+        >
+          {RESIDENTIAL_ROLES.map((r) => (
+            <div
+              key={r.id}
+              style={{
+                padding: "14px 16px",
+                border: "1px solid var(--s3)",
+                borderRadius: 12,
+                background: "var(--s1)",
+                display: "flex",
+                gap: 12,
+              }}
+            >
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  background: "var(--ac-s)",
+                  color: "var(--ac-t)",
+                  display: "grid",
+                  placeItems: "center",
+                  flexShrink: 0,
+                }}
+              >
+                {I.users}
+              </div>
+              <div>
+                <div
+                  style={{
+                    fontFamily: "'DM Sans',system-ui,sans-serif",
+                    fontSize: 13,
+                    fontWeight: 650,
+                    marginBottom: 4,
+                  }}
+                >
+                  {r.label}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--t3)",
+                    lineHeight: 1.45,
+                    fontWeight: 500,
+                  }}
+                >
+                  {r.desc}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+
+      <ClientMembersPanel
+        roles={RESIDENTIAL_ROLES}
+        initialMembers={RESIDENTIAL_MEMBERS}
+        initialInvites={[]}
+        membersTitle="Your household"
+        membersSubtitle="People who can see project progress, approve decisions, or pay draws on your behalf."
+        defaultInviteRole="viewer"
+        ownerRoleId="co_owner"
+        ownerSelfBlockMessage="You're the only Co-owner. Add another Co-owner before changing your own role."
+      />
+    </>
+  );
+}
+
+// ═══════ CLIENT PORTALS: PAYMENT METHODS TAB (shared)
+// Sample-only. Real Stripe Checkout / PaymentMethod wiring is a future
+// architectural phase — tracked in the Settings Wiring Backlog as a blocker
+// alongside Plan & Billing (separate from Stripe Connect used for contractor
+// payouts).
+
+type ClientPaymentMethod =
+  | {
+      id: number;
+      type: "card";
+      brand: string;
+      last4: string;
+      exp: string;
+      holder: string;
+      isDefault: boolean;
+      addedOn: string;
+    }
+  | {
+      id: number;
+      type: "ach";
+      bank: string;
+      last4: string;
+      accountType: string;
+      holder: string;
+      isDefault: boolean;
+      addedOn: string;
+      verified?: boolean;
+    };
+
+const COMMERCIAL_METHODS: ClientPaymentMethod[] = [
+  { id: 1, type: "card", brand: "Visa", last4: "4242", exp: "09/28", holder: "Riverside Dev Co", isDefault: true, addedOn: "Jan 12, 2024" },
+  { id: 2, type: "ach", bank: "First Republic Bank", last4: "8391", accountType: "Business checking", holder: "Riverside Development Co, LLC", isDefault: false, addedOn: "Aug 4, 2025", verified: true },
+];
+const RESIDENTIAL_METHODS: ClientPaymentMethod[] = [
+  { id: 1, type: "card", brand: "Visa", last4: "4242", exp: "09/28", holder: "Jennifer Chen", isDefault: true, addedOn: "Feb 12, 2026" },
+  { id: 2, type: "ach", bank: "Chase Bank", last4: "8391", accountType: "Joint checking", holder: "Jennifer & Michael Chen", isDefault: false, addedOn: "Feb 20, 2026", verified: true },
+];
+
+function ClientPaymentMethodsTab({
+  variant,
+}: {
+  variant: "commercial" | "residential";
+}) {
+  const initial = variant === "commercial" ? COMMERCIAL_METHODS : RESIDENTIAL_METHODS;
+  const defaultThreshold = variant === "commercial" ? "50000" : "5000";
+  const holderFallback =
+    variant === "commercial" ? "Riverside Dev Co" : "Jennifer Chen";
+  const bankFallback =
+    variant === "commercial" ? "Silicon Valley Bank" : "Wells Fargo";
+  const accountFallback =
+    variant === "commercial" ? "Business checking" : "Personal checking";
+
+  const [methods, setMethods] = useState<ClientPaymentMethod[]>(initial);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newType, setNewType] = useState<"card" | "ach">("card");
+  const [autopayEnabled, setAutopayEnabled] = useState(false);
+  const [autopayThreshold, setAutopayThreshold] = useState(defaultThreshold);
+  const [removeConfirm, setRemoveConfirm] = useState<number | null>(null);
+
+  function setDefaultMethod(id: number) {
+    setMethods((prev) => prev.map((m) => ({ ...m, isDefault: m.id === id })));
+  }
+  function removeMethod(id: number) {
+    setMethods((prev) => prev.filter((m) => m.id !== id));
+    setRemoveConfirm(null);
+  }
+  function mockAdd() {
+    // In production this launches Stripe Checkout; for the sample demo we
+    // append a placeholder row so the UI reflects the add.
+    const placeholder: ClientPaymentMethod =
+      newType === "card"
+        ? {
+            id: Date.now(),
+            type: "card",
+            brand: "Mastercard",
+            last4: "5678",
+            exp: "06/29",
+            holder: holderFallback,
+            isDefault: false,
+            addedOn: "Just now",
+          }
+        : {
+            id: Date.now(),
+            type: "ach",
+            bank: bankFallback,
+            last4: "2014",
+            accountType: accountFallback,
+            holder: holderFallback,
+            isDefault: false,
+            addedOn: "Just now",
+            verified: false,
+          };
+    setMethods((prev) => [...prev, placeholder]);
+    setShowAdd(false);
+  }
+
+  return (
+    <>
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          padding: "14px 16px",
+          background: "var(--ac-s)",
+          border: "1px solid var(--ac-m)",
+          borderRadius: 14,
+          marginBottom: 14,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <div
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 10,
+            background: "var(--ac)",
+            color: "white",
+            display: "grid",
+            placeItems: "center",
+            flexShrink: 0,
+          }}
+        >
+          {I.shield}
+        </div>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <div
+            style={{
+              fontFamily: "'DM Sans',system-ui,sans-serif",
+              fontSize: 13.5,
+              fontWeight: 650,
+              color: "var(--ac-t)",
+            }}
+          >
+            Secured by Stripe
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              color: "var(--ac-t)",
+              marginTop: 2,
+              fontWeight: 520,
+              opacity: 0.9,
+              lineHeight: 1.45,
+            }}
+          >
+            Cards and bank accounts are stored and charged by Stripe — BuiltCRM never sees
+            your full card or account numbers.
+          </div>
+        </div>
+      </div>
+
+      <Panel
+        title={`Saved methods (${methods.length})`}
+        subtitle="The default method is used when you one-click pay a draw. You can always choose another at checkout."
+        headerRight={
+          <button style={btnPrimarySm(true)} onClick={() => setShowAdd((v) => !v)}>
+            {showAdd ? "Cancel" : (
+              <>
+                <span style={{ marginRight: 4 }}>{I.plus}</span>Add method
+              </>
+            )}
+          </button>
+        }
+      >
+        {showAdd && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 10,
+                marginBottom: 12,
+              }}
+              className="add-method-grid"
+            >
+              <style>{`@media (max-width: 620px) { .add-method-grid { grid-template-columns: 1fr !important; } }`}</style>
+              {(
+                [
+                  {
+                    k: "card" as const,
+                    ttl: "Credit or debit card",
+                    ds: "Instant. 2.9% + 30¢ processing fee on draws over $10K.",
+                    icon: I.card,
+                  },
+                  {
+                    k: "ach" as const,
+                    ttl: "Bank account (ACH)",
+                    ds: "3–5 business day settlement. 0.8% fee, capped at $5.",
+                    icon: I.building,
+                  },
+                ]
+              ).map((opt) => (
+                <button
+                  key={opt.k}
+                  type="button"
+                  onClick={() => setNewType(opt.k)}
+                  style={{
+                    padding: 14,
+                    borderRadius: 14,
+                    border: `1.5px solid ${newType === opt.k ? "var(--ac)" : "var(--s3)"}`,
+                    background: newType === opt.k ? "var(--ac-s)" : "var(--s1)",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    display: "flex",
+                    gap: 12,
+                    alignItems: "flex-start",
+                    fontFamily: "'Instrument Sans',system-ui,sans-serif",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 10,
+                      background: "var(--s2)",
+                      color: "var(--t2)",
+                      display: "grid",
+                      placeItems: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {opt.icon}
+                  </div>
+                  <div>
+                    <div
+                      style={{
+                        fontFamily: "'DM Sans',system-ui,sans-serif",
+                        fontSize: 13,
+                        fontWeight: 650,
+                      }}
+                    >
+                      {opt.ttl}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        color: "var(--t3)",
+                        marginTop: 3,
+                        fontWeight: 500,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {opt.ds}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 12,
+                color: "var(--t3)",
+                marginBottom: 10,
+                fontWeight: 500,
+              }}
+            >
+              {I.shield}
+              <span>You&rsquo;ll be redirected to Stripe&rsquo;s secure form to enter details.</span>
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button style={btnGhostSm()} onClick={() => setShowAdd(false)}>
+                Cancel
+              </button>
+              <button style={btnPrimarySm(true)} onClick={mockAdd}>
+                Continue to Stripe
+              </button>
+            </div>
+          </div>
+        )}
+
+        {methods.length === 0 && (
+          <div
+            style={{
+              padding: 24,
+              textAlign: "center",
+              color: "var(--t3)",
+              fontSize: 13,
+              fontWeight: 500,
+              border: "1px dashed var(--s3)",
+              borderRadius: 12,
+            }}
+          >
+            No payment methods yet. Add one to pay draws with a single click.
+          </div>
+        )}
+
+        {methods.map((m) => (
+          <div
+            key={m.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              padding: 14,
+              border: `1px solid ${m.isDefault ? "var(--ac-m)" : "var(--s3)"}`,
+              background: m.isDefault ? "var(--ac-s)" : "var(--s1)",
+              borderRadius: 14,
+              marginBottom: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <div
+              style={{
+                width: 48,
+                height: 32,
+                borderRadius: 6,
+                background:
+                  m.type === "card"
+                    ? m.brand === "Visa"
+                      ? "linear-gradient(135deg,#1a1f71,#0f1551)"
+                      : "linear-gradient(135deg,#eb001b,#f79e1b)"
+                    : "var(--s2)",
+                color: m.type === "card" ? "white" : "var(--t2)",
+                display: "grid",
+                placeItems: "center",
+                fontFamily: "'DM Sans',system-ui,sans-serif",
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: ".05em",
+                flexShrink: 0,
+              }}
+            >
+              {m.type === "card" ? m.brand.toUpperCase() : I.building}
+            </div>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div
+                style={{
+                  fontFamily: "'JetBrains Mono',monospace",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                {m.type === "card"
+                  ? `•••• •••• •••• ${m.last4}`
+                  : `${m.bank} · •••• ${m.last4}`}
+                {m.isDefault && <Pill tone="accent">Default</Pill>}
+                {m.type === "ach" && m.verified === false && <Pill tone="warn">Verification pending</Pill>}
+              </div>
+              <div
+                style={{
+                  fontSize: 11.5,
+                  color: "var(--t3)",
+                  marginTop: 3,
+                  fontWeight: 500,
+                }}
+              >
+                {m.type === "card"
+                  ? `${m.holder} · Expires ${m.exp} · Added ${m.addedOn}`
+                  : `${m.accountType} · ${m.holder} · Added ${m.addedOn}`}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              {!m.isDefault && (
+                <button style={btnGhostSm()} onClick={() => setDefaultMethod(m.id)}>
+                  Make default
+                </button>
+              )}
+              <button
+                style={{ ...btnGhostSm(), color: "var(--dg)" }}
+                onClick={() => setRemoveConfirm(m.id)}
+                disabled={m.isDefault && methods.length > 1}
+                title={
+                  m.isDefault && methods.length > 1
+                    ? "Set another method as default first"
+                    : "Remove"
+                }
+                aria-label="Remove method"
+              >
+                {I.x}
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {removeConfirm != null && (() => {
+          const m = methods.find((x) => x.id === removeConfirm);
+          if (!m) return null;
+          return (
+            <div
+              style={{
+                background: "var(--dg-s)",
+                border: "1px solid var(--dg)",
+                borderRadius: 14,
+                padding: 14,
+                marginTop: 4,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--dg)",
+                  fontWeight: 580,
+                  flex: 1,
+                  minWidth: 200,
+                }}
+              >
+                Remove this {m.type === "card" ? "card" : "bank account"} ending in{" "}
+                <strong>{m.last4}</strong>? You can always add it back later.
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button style={btnGhostSm()} onClick={() => setRemoveConfirm(null)}>
+                  Cancel
+                </button>
+                <button style={btnDangerSm()} onClick={() => removeMethod(removeConfirm)}>
+                  Remove method
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </Panel>
+
+      <Panel
+        title="Autopay"
+        subtitle="Optionally auto-approve small draws below a threshold you set. You'll still receive notifications."
+      >
+        <SecurityRow
+          title={
+            <>
+              Enable autopay {autopayEnabled && <Pill tone="ok">On</Pill>}
+            </>
+          }
+          desc={
+            variant === "commercial"
+              ? "When on, draws approved by a Billing Approver or Owner will be charged automatically if they're under your threshold. Larger draws always require manual approval at checkout."
+              : "When on, draws will be charged automatically if they're under your threshold. Larger draws always require your approval at checkout."
+          }
+          control={
+            <Toggle
+              on={autopayEnabled}
+              onChange={() => setAutopayEnabled(!autopayEnabled)}
+              ariaLabel="Autopay"
+            />
+          }
+          first
+          last={!autopayEnabled}
+        />
+        {autopayEnabled && (
+          <div
+            style={{
+              paddingTop: 16,
+              borderTop: "1px solid var(--s2)",
+              maxWidth: 360,
+              animation: "fadeIn .24s cubic-bezier(.16,1,.3,1)",
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "'DM Sans',system-ui,sans-serif",
+                fontSize: 13,
+                fontWeight: 650,
+                marginBottom: 4,
+              }}
+            >
+              Autopay threshold
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--t2)",
+                marginBottom: 10,
+                fontWeight: 520,
+              }}
+            >
+              Draws at or below this amount will be auto-charged.
+            </div>
+            <Field label="Maximum amount (USD)">
+              <input
+                type="number"
+                style={{
+                  ...fieldStyle(),
+                  fontFamily: "'JetBrains Mono',monospace",
+                  letterSpacing: ".02em",
+                }}
+                value={autopayThreshold}
+                onChange={(e) => setAutopayThreshold(e.target.value)}
+              />
+            </Field>
+          </div>
+        )}
+      </Panel>
+    </>
+  );
+}
+
+// ═══════ CLIENT PORTALS: TEAM (LIVE, shared between commercial + residential)
+// Wired to the same /api/org/members/* + /api/invitations + /api/org/invitations
+// routes as the contractor team tab. Invitations POST sets
+// portalType="client" and clientSubtype per portal.
+
+function ClientTeamLiveTab({
+  bundle,
+  subtype,
+  roles,
+  ownerRoleId,
+  defaultInviteRole,
+  ownerSelfBlockMessage,
+  membersTitle,
+  membersSubtitle,
+  explainerLayout,
+}: {
+  bundle: ClientSettingsBundle;
+  subtype: "commercial" | "residential";
+  roles: ClientRoleDef[];
+  ownerRoleId: string;
+  defaultInviteRole: string;
+  ownerSelfBlockMessage: string;
+  membersTitle: string;
+  membersSubtitle: string;
+  explainerLayout: "cards" | "help-strip";
+}) {
+  const router = useRouter();
+  const [roleExplainer, setRoleExplainer] = useState(false);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState(defaultInviteRole);
+  const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
+  const [banner, setBanner] = useState<
+    { kind: "error" | "success"; text: string } | null
+  >(null);
+  const [pending, setPending] = useState<Record<string, boolean>>({});
+
+  const canManage = bundle.role === "owner";
+  const visibleMembers = bundle.members.filter(
+    (m) => m.membershipStatus === "active",
+  );
+  const filteredMembers = visibleMembers.filter(
+    (m) =>
+      !memberSearch ||
+      m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+      m.email.toLowerCase().includes(memberSearch.toLowerCase()),
+  );
+  const pendingInvites = bundle.invitations.filter(
+    (i) => i.status === "pending" || i.status === "expired",
+  );
+
+  function flash(kind: "error" | "success", text: string) {
+    setBanner({ kind, text });
+    setTimeout(() => setBanner(null), 3500);
+  }
+
+  async function changeRole(userId: string, newRoleKey: string) {
+    setPending((p) => ({ ...p, [`role:${userId}`]: true }));
+    const res = await fetch(`/api/org/members/${userId}/role`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roleKey: newRoleKey }),
+    });
+    setPending((p) => ({ ...p, [`role:${userId}`]: false }));
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      flash("error", body.message ?? body.error ?? "Could not change role.");
+      return;
+    }
+    router.refresh();
+  }
+
+  async function removeMember(userId: string) {
+    setPending((p) => ({ ...p, [`remove:${userId}`]: true }));
+    const res = await fetch(`/api/org/members/${userId}`, { method: "DELETE" });
+    setPending((p) => ({ ...p, [`remove:${userId}`]: false }));
+    setRemoveConfirm(null);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      flash("error", body.message ?? body.error ?? "Could not remove member.");
+      return;
+    }
+    flash("success", "Member removed.");
+    router.refresh();
+  }
+
+  async function sendInvite() {
+    if (!inviteEmail) return;
+    setPending((p) => ({ ...p, invite: true }));
+    const res = await fetch(`/api/invitations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        invitedEmail: inviteEmail,
+        portalType: "client",
+        clientSubtype: subtype,
+        roleKey: inviteRole,
+      }),
+    });
+    setPending((p) => ({ ...p, invite: false }));
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      flash("error", body.message ?? body.error ?? "Could not send invite.");
+      return;
+    }
+    setInviteEmail("");
+    setInviteRole(defaultInviteRole);
+    setShowInvite(false);
+    flash("success", "Invitation sent.");
+    router.refresh();
+  }
+
+  async function cancelInvite(invitationId: string) {
+    setPending((p) => ({ ...p, [`cancel:${invitationId}`]: true }));
+    const res = await fetch(`/api/org/invitations/${invitationId}`, {
+      method: "DELETE",
+    });
+    setPending((p) => ({ ...p, [`cancel:${invitationId}`]: false }));
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      flash("error", body.message ?? body.error ?? "Could not cancel invite.");
+      return;
+    }
+    flash("success", "Invitation revoked.");
+    router.refresh();
+  }
+
+  async function resendInvite(invitationId: string) {
+    setPending((p) => ({ ...p, [`resend:${invitationId}`]: true }));
+    const res = await fetch(`/api/org/invitations/${invitationId}/resend`, {
+      method: "POST",
+    });
+    setPending((p) => ({ ...p, [`resend:${invitationId}`]: false }));
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      flash("error", body.message ?? body.error ?? "Could not resend invite.");
+      return;
+    }
+    flash("success", "Invitation resent.");
+    router.refresh();
+  }
+
+  const explainerTitle =
+    explainerLayout === "help-strip" ? "How access works" : "Roles";
+  const explainerSubtitle =
+    explainerLayout === "help-strip"
+      ? "Your household has two access levels. Both apply to every person you invite."
+      : "Who can do what on this project. Only Owners can change roles or remove members.";
+
+  return (
+    <>
+      <Panel
+        title={explainerTitle}
+        subtitle={explainerSubtitle}
+        headerRight={
+          explainerLayout === "cards" ? (
+            <button style={btnGhostSm()} onClick={() => setRoleExplainer((v) => !v)}>
+              {roleExplainer ? "Hide details" : "Show details"}
+            </button>
+          ) : null
+        }
+      >
+        {explainerLayout === "help-strip" ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
+              gap: 10,
+            }}
+          >
+            {roles.map((r) => (
+              <div
+                key={r.id}
+                style={{
+                  padding: "14px 16px",
+                  border: "1px solid var(--s3)",
+                  borderRadius: 12,
+                  background: "var(--s1)",
+                  display: "flex",
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    background: "var(--ac-s)",
+                    color: "var(--ac-t)",
+                    display: "grid",
+                    placeItems: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  {I.users}
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontFamily: "'DM Sans',system-ui,sans-serif",
+                      fontSize: 13,
+                      fontWeight: 650,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {r.label}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--t3)",
+                      lineHeight: 1.45,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {r.desc}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : roleExplainer ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))",
+              gap: 10,
+              marginTop: 4,
+            }}
+          >
+            {roles.map((r) => (
+              <div
+                key={r.id}
+                style={{
+                  padding: "12px 14px",
+                  border: "1px solid var(--s3)",
+                  borderRadius: 10,
+                  background: "var(--s1)",
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: "'DM Sans',system-ui,sans-serif",
+                    fontSize: 13,
+                    fontWeight: 650,
+                    marginBottom: 4,
+                  }}
+                >
+                  {r.label}
+                </div>
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--t3)",
+                    lineHeight: 1.45,
+                    fontWeight: 500,
+                  }}
+                >
+                  {r.desc}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {/* ownerSelfBlockMessage is surfaced by the 409 response; listed here
+            only so the audit trail of the block reason is discoverable via
+            code-search. */}
+        <span hidden aria-hidden data-reason={ownerSelfBlockMessage} />
+      </Panel>
+
+      <Panel
+        title={`${membersTitle} (${visibleMembers.length})`}
+        subtitle={membersSubtitle}
+        headerRight={
+          canManage ? (
+            <button style={btnPrimarySm(true)} onClick={() => setShowInvite((v) => !v)}>
+              {showInvite ? "Cancel" : (
+                <>
+                  <span style={{ marginRight: 4 }}>{I.plus}</span>Invite member
+                </>
+              )}
+            </button>
+          ) : null
+        }
+      >
+        {showInvite && canManage && (
+          <div
+            style={{
+              background: "var(--ac-s)",
+              border: "1px solid var(--ac-m)",
+              borderRadius: 14,
+              padding: 18,
+              marginBottom: 12,
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr auto auto",
+              gap: 10,
+              alignItems: "end",
+            }}
+          >
+            <Field label="Email address">
+              <input
+                type="email"
+                placeholder="colleague@example.com"
+                style={fieldStyle()}
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
+            </Field>
+            <Field label="Role">
+              <select
+                style={fieldStyle()}
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+              >
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <button style={btnGhostSm()} onClick={() => setShowInvite(false)}>
+              Cancel
+            </button>
+            <button
+              style={btnPrimarySm(Boolean(inviteEmail) && !pending.invite)}
+              onClick={sendInvite}
+              disabled={!inviteEmail || pending.invite}
+            >
+              {pending.invite ? "Sending…" : "Send invite"}
+            </button>
+          </div>
+        )}
+
+        <div style={{ position: "relative", maxWidth: 320, marginBottom: 14 }}>
+          <span
+            style={{
+              position: "absolute",
+              left: 11,
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "var(--t3)",
+              pointerEvents: "none",
+              display: "flex",
+            }}
+          >
+            {I.search}
+          </span>
+          <input
+            placeholder="Search members by name or email..."
+            value={memberSearch}
+            onChange={(e) => setMemberSearch(e.target.value)}
+            style={{ ...fieldStyle(), height: 36, paddingLeft: 34 }}
+          />
+        </div>
+
+        <div style={{ overflow: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+            <thead>
+              <tr>
+                {["Member", "Role", "Last active", ""].map((h, i) => (
+                  <th
+                    key={i}
+                    style={{
+                      fontFamily: "'DM Sans',system-ui,sans-serif",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "var(--t3)",
+                      textTransform: "uppercase",
+                      letterSpacing: ".06em",
+                      textAlign: i === 3 ? "right" : "left",
+                      padding: "10px 12px",
+                      borderBottom: "1px solid var(--s3)",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredMembers.map((m) => {
+                const isSelf = m.userId === bundle.currentUserId;
+                const isOwner = m.roleKey === ownerRoleId;
+                return (
+                  <tr key={m.id}>
+                    <td
+                      style={{
+                        padding: "14px 12px",
+                        borderBottom: "1px solid var(--s2)",
+                        fontSize: 13.5,
+                        verticalAlign: "middle",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div
+                          style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: "50%",
+                            background:
+                              "linear-gradient(135deg,var(--ac),var(--ac-m))",
+                            color: "white",
+                            display: "grid",
+                            placeItems: "center",
+                            fontFamily: "'DM Sans',system-ui,sans-serif",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {m.initials}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontFamily: "'DM Sans',system-ui,sans-serif",
+                              fontSize: 13.5,
+                              fontWeight: 650,
+                              letterSpacing: "-.01em",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            {m.name}
+                            {isSelf && <Pill tone="accent">You</Pill>}
+                            {isOwner && !isSelf && <Pill tone="ok">Owner</Pill>}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: "var(--t3)",
+                              marginTop: 2,
+                              fontWeight: 500,
+                            }}
+                          >
+                            {m.email}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: "14px 12px", borderBottom: "1px solid var(--s2)" }}>
+                      {canManage && !isSelf ? (
+                        <select
+                          value={m.roleKey}
+                          onChange={(e) => changeRole(m.userId, e.target.value)}
+                          disabled={pending[`role:${m.userId}`]}
+                          style={{
+                            ...fieldStyle(),
+                            height: 32,
+                            width: "auto",
+                            fontSize: 12.5,
+                            padding: "0 28px 0 10px",
+                          }}
+                        >
+                          {roles.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.label}
+                            </option>
+                          ))}
+                          {!roles.find((r) => r.id === m.roleKey) && (
+                            <option value={m.roleKey}>{m.roleKey}</option>
+                          )}
+                        </select>
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: 12.5,
+                            color: "var(--t2)",
+                            fontWeight: 520,
+                          }}
+                        >
+                          {roles.find((r) => r.id === m.roleKey)?.label ?? m.roleKey}
+                        </span>
+                      )}
+                    </td>
+                    <td
+                      style={{
+                        padding: "14px 12px",
+                        borderBottom: "1px solid var(--s2)",
+                        color: "var(--t2)",
+                        fontSize: 12.5,
+                      }}
+                    >
+                      {m.lastActiveAt ? formatRelativeTime(m.lastActiveAt) : "—"}
+                    </td>
+                    <td
+                      style={{
+                        padding: "14px 12px",
+                        borderBottom: "1px solid var(--s2)",
+                        textAlign: "right",
+                      }}
+                    >
+                      {canManage && !isSelf && (
+                        <button
+                          style={{ ...btnGhostSm(), color: "var(--dg)" }}
+                          onClick={() => setRemoveConfirm(m.userId)}
+                          disabled={pending[`remove:${m.userId}`]}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredMembers.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    style={{
+                      textAlign: "center",
+                      padding: 24,
+                      color: "var(--t3)",
+                      fontSize: 13,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {memberSearch
+                      ? `No members match “${memberSearch}”`
+                      : "No members in this organization yet."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {banner && (
+          <div
+            style={{
+              background:
+                banner.kind === "error" ? "var(--dg-s)" : "var(--ok-s)",
+              border: `1px solid ${banner.kind === "error" ? "var(--dg)" : "var(--ok)"}`,
+              borderRadius: 12,
+              padding: "10px 14px",
+              marginTop: 10,
+              fontSize: 12.5,
+              color: banner.kind === "error" ? "var(--dg-t)" : "var(--ok-t)",
+              fontWeight: 580,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            {banner.kind === "error" ? I.warn : I.check}
+            {banner.text}
+          </div>
+        )}
+
+        {removeConfirm && (() => {
+          const target = bundle.members.find((m) => m.userId === removeConfirm);
+          if (!target) return null;
+          return (
+            <div
+              style={{
+                background: "var(--dg-s)",
+                border: "1px solid var(--dg)",
+                borderRadius: 14,
+                padding: 14,
+                marginTop: 4,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--dg)",
+                  fontWeight: 580,
+                  flex: 1,
+                  minWidth: 200,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                {I.warn}
+                Remove <strong>{target.name}</strong>? They&rsquo;ll lose access
+                immediately — project history is preserved.
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button style={btnGhostSm()} onClick={() => setRemoveConfirm(null)}>
+                  Cancel
+                </button>
+                <button
+                  style={btnDangerSm()}
+                  onClick={() => removeMember(removeConfirm)}
+                  disabled={pending[`remove:${removeConfirm}`]}
+                >
+                  {pending[`remove:${removeConfirm}`] ? "Removing…" : "Confirm remove"}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </Panel>
+
+      {pendingInvites.length > 0 && (
+        <Panel
+          title={`Pending invites (${pendingInvites.length})`}
+          subtitle="People who've been invited but haven't accepted yet."
+        >
+          {pendingInvites.map((inv) => (
+            <div
+              key={inv.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "12px 14px",
+                border: "1px solid var(--s3)",
+                borderRadius: 14,
+                marginBottom: 8,
+                background: "var(--s1)",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div
+                  style={{
+                    fontFamily: "'JetBrains Mono',monospace",
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  {inv.invitedEmail}
+                </div>
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--t3)",
+                    marginTop: 2,
+                    fontWeight: 500,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Pill>
+                    {roles.find((r) => r.id === inv.roleKey)?.label ?? inv.roleKey}
+                  </Pill>
+                  {inv.status === "expired" ? (
+                    <Pill tone="warn">Expired</Pill>
+                  ) : (
+                    <span>Expires {formatRelativeTime(inv.expiresAt)}</span>
+                  )}
+                </div>
+              </div>
+              {canManage && (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    style={btnGhostSm()}
+                    onClick={() => resendInvite(inv.id)}
+                    disabled={pending[`resend:${inv.id}`]}
+                  >
+                    {pending[`resend:${inv.id}`] ? "…" : "Resend"}
+                  </button>
+                  <button
+                    style={{ ...btnGhostSm(), color: "var(--dg)" }}
+                    onClick={() => cancelInvite(inv.id)}
+                    disabled={pending[`cancel:${inv.id}`]}
+                  >
+                    {pending[`cancel:${inv.id}`] ? "…" : "Cancel"}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </Panel>
+      )}
+    </>
+  );
+}
+
+// ═══════ COMMERCIAL CLIENT: COMPANY (LIVE) ═════════════════════════════
+// Seeds from orgProfile, saves via /api/org/profile. Shares the portal-
+// agnostic route wired up in commit 7 (accepts commercial owners).
+
+type LiveCommercialForm = {
+  displayName: string;
+  legalName: string;
+  taxId: string;
+  industry: string;
+  companySize: string;
+  website: string;
+  phone: string;
+  addr1: string;
+  addr2: string;
+  city: string;
+  stateRegion: string;
+  postalCode: string;
+  country: string;
+  billingContactName: string;
+  billingContactTitle: string;
+  billingContactEmail: string;
+  primaryContactPhone: string;
+  invoiceDelivery: string;
+};
+function commercialProfileToForm(p: OrganizationProfile): LiveCommercialForm {
+  return {
+    displayName: p.displayName,
+    legalName: p.legalName ?? "",
+    taxId: p.taxId ?? "",
+    industry: p.industry ?? "Commercial Real Estate Development",
+    companySize: p.companySize ?? "1–10 employees",
+    website: p.website ?? "",
+    phone: p.phone ?? "",
+    addr1: p.addr1 ?? "",
+    addr2: p.addr2 ?? "",
+    city: p.city ?? "",
+    stateRegion: p.stateRegion ?? "",
+    postalCode: p.postalCode ?? "",
+    country: p.country ?? "United States",
+    billingContactName: p.billingContactName ?? "",
+    billingContactTitle: p.primaryContactTitle ?? "",
+    billingContactEmail: p.billingEmail ?? "",
+    primaryContactPhone: p.primaryContactPhone ?? "",
+    invoiceDelivery: p.invoiceDelivery ?? "email+portal",
+  };
+}
+function commercialFormToPatch(f: LiveCommercialForm): Record<string, unknown> {
+  return {
+    displayName: f.displayName,
+    legalName: f.legalName || null,
+    taxId: f.taxId || null,
+    industry: f.industry || null,
+    companySize: f.companySize || null,
+    website: f.website || null,
+    phone: f.phone || null,
+    addr1: f.addr1 || null,
+    addr2: f.addr2 || null,
+    city: f.city || null,
+    stateRegion: f.stateRegion || null,
+    postalCode: f.postalCode || null,
+    country: f.country || null,
+    // Map contact/title to billing contact + reuse primary-contact-title
+    // column since commercial "billing contact title" is the only title
+    // field surfaced in this portal's UI.
+    billingContactName: f.billingContactName || null,
+    primaryContactTitle: f.billingContactTitle || null,
+    billingEmail: f.billingContactEmail || null,
+    primaryContactPhone: f.primaryContactPhone || null,
+    invoiceDelivery: f.invoiceDelivery || null,
+  };
+}
+
+function CommercialCompanyLiveTab({
+  commercial,
+}: {
+  commercial: ClientSettingsBundle;
+}) {
+  const router = useRouter();
+  const profile = commercial.orgProfile!;
+  const canManage = commercial.role === "owner";
+
+  const initialForm = commercialProfileToForm(profile);
+  const [company, setCompany] = useState<LiveCommercialForm>(initialForm);
+  const [logoStorageKey, setLogoStorageKey] = useState<string | null>(
+    profile.logoStorageKey,
+  );
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(
+    profile.logoPreviewUrl,
+  );
+  const [dirty, setDirty] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+
+  function update<K extends keyof LiveCommercialForm>(
+    k: K,
+    v: LiveCommercialForm[K],
+  ) {
+    setCompany((p) => ({ ...p, [k]: v }));
+    setDirty(true);
+    setSaved(false);
+    setError(null);
+  }
+
+  const initials = (company.displayName || commercial.orgName)
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((s) => s[0]?.toUpperCase() ?? "")
+    .join("");
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/org/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(commercialFormToPatch(company)),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message ?? body.error ?? "save_failed");
+        return;
+      }
+      setDirty(false);
+      setSaved(true);
+      router.refresh();
+      setTimeout(() => setSaved(false), 2400);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleLogoUpload(file: File) {
+    setLogoError(null);
+    if (file.size > 2 * 1024 * 1024) {
+      setLogoError("File is larger than 2MB.");
+      return;
+    }
+    if (!/^image\/(png|jpeg|jpg|webp|svg\+xml)$/i.test(file.type)) {
+      setLogoError("Only PNG, JPEG, WEBP, or SVG are allowed.");
+      return;
+    }
+    setLogoUploading(true);
+    try {
+      const pre = await fetch("/api/org/logo/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name, contentType: file.type }),
+      });
+      if (!pre.ok) {
+        const body = await pre.json().catch(() => ({}));
+        setLogoError(body.message ?? body.error ?? "presign_failed");
+        return;
+      }
+      const { uploadUrl, storageKey } = await pre.json();
+      const put = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!put.ok) {
+        setLogoError(`Upload failed (${put.status})`);
+        return;
+      }
+      const fin = await fetch("/api/org/logo/finalize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storageKey }),
+      });
+      if (!fin.ok) {
+        const body = await fin.json().catch(() => ({}));
+        setLogoError(body.message ?? body.error ?? "finalize_failed");
+        return;
+      }
+      const data = await fin.json();
+      setLogoStorageKey(data.storageKey);
+      setLogoPreviewUrl(data.previewUrl ?? null);
+      router.refresh();
+    } finally {
+      setLogoUploading(false);
+    }
+  }
+  async function handleLogoRemove() {
+    setLogoError(null);
+    setLogoUploading(true);
+    try {
+      const res = await fetch("/api/org/logo/finalize", { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setLogoError(body.message ?? body.error ?? "remove_failed");
+        return;
+      }
+      setLogoStorageKey(null);
+      setLogoPreviewUrl(null);
+      router.refresh();
+    } finally {
+      setLogoUploading(false);
+    }
+  }
+
+  return (
+    <>
+      <Panel
+        title="Company logo"
+        subtitle="Shown in your team's portal and on your side of project correspondence."
+      >
+        <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+          <div
+            style={{
+              width: 88,
+              height: 88,
+              borderRadius: 14,
+              background: logoPreviewUrl
+                ? `url(${logoPreviewUrl}) center/cover no-repeat`
+                : "linear-gradient(135deg,var(--ac),var(--ac-m))",
+              color: "white",
+              display: "grid",
+              placeItems: "center",
+              fontFamily: "'DM Sans',system-ui,sans-serif",
+              fontSize: 30,
+              fontWeight: 800,
+              letterSpacing: "-.04em",
+              flexShrink: 0,
+            }}
+          >
+            {!logoPreviewUrl && initials}
+          </div>
+          <div>
+            <div style={{ fontSize: 11.5, color: "var(--t3)", marginBottom: 8, fontWeight: 500 }}>
+              PNG, JPEG, WEBP, or SVG · square, up to 2 MB · 512×512 recommended
+            </div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleLogoUpload(file);
+                e.target.value = "";
+              }}
+            />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                style={btnGhostSm()}
+                disabled={!canManage || logoUploading}
+                onClick={() => logoInputRef.current?.click()}
+              >
+                {logoUploading ? "Uploading…" : (
+                  <>
+                    <span style={{ marginRight: 6 }}>{I.upload}</span>Upload logo
+                  </>
+                )}
+              </button>
+              {logoStorageKey && (
+                <button
+                  style={btnGhostSm()}
+                  onClick={handleLogoRemove}
+                  disabled={!canManage || logoUploading}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            {logoError && (
+              <div style={{ fontSize: 12, color: "var(--dg-t)", marginTop: 6, fontWeight: 520 }}>
+                {logoError}
+              </div>
+            )}
+          </div>
+        </div>
+      </Panel>
+
+      <Panel
+        title="Company information"
+        subtitle="Your organization's details as they appear on contracts, invoices, and payment records."
+      >
+        <FieldRow>
+          <Field label="Display name" help="What your team sees across the portal">
+            <input style={fieldStyle()} value={company.displayName} onChange={(e) => update("displayName", e.target.value)} readOnly={!canManage} />
+          </Field>
+          <Field label="Legal name" help="Used on contracts and payment receipts">
+            <input style={fieldStyle()} value={company.legalName} onChange={(e) => update("legalName", e.target.value)} readOnly={!canManage} />
+          </Field>
+        </FieldRow>
+        <FieldRow>
+          <Field label="Tax ID / EIN">
+            <input
+              style={{ ...fieldStyle(), fontFamily: "'JetBrains Mono',monospace", letterSpacing: ".02em" }}
+              value={company.taxId}
+              onChange={(e) => update("taxId", e.target.value)}
+              readOnly={!canManage}
+            />
+          </Field>
+          <Field label="Website">
+            <input type="url" style={fieldStyle()} value={company.website} onChange={(e) => update("website", e.target.value)} readOnly={!canManage} />
+          </Field>
+        </FieldRow>
+        <FieldRow>
+          <Field label="Industry">
+            <select
+              style={fieldStyle()}
+              value={company.industry}
+              onChange={(e) => update("industry", e.target.value)}
+              disabled={!canManage}
+            >
+              {COMMERCIAL_INDUSTRIES.map((i) => (
+                <option key={i} value={i}>
+                  {i}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Company size">
+            <select
+              style={fieldStyle()}
+              value={company.companySize}
+              onChange={(e) => update("companySize", e.target.value)}
+              disabled={!canManage}
+            >
+              {COMMERCIAL_COMPANY_SIZES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </FieldRow>
+        <Field label="Main phone">
+          <input type="tel" style={fieldStyle()} value={company.phone} onChange={(e) => update("phone", e.target.value)} readOnly={!canManage} />
+        </Field>
+      </Panel>
+
+      <Panel title="Business address" subtitle="Used on invoices, payment receipts, and project documentation.">
+        <Field label="Street address">
+          <input style={fieldStyle()} value={company.addr1} onChange={(e) => update("addr1", e.target.value)} readOnly={!canManage} />
+        </Field>
+        <Field label="Suite / floor (optional)">
+          <input style={fieldStyle()} value={company.addr2} onChange={(e) => update("addr2", e.target.value)} readOnly={!canManage} />
+        </Field>
+        <div
+          className="comm-live-addr-row"
+          style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 14 }}
+        >
+          <style>{`@media (max-width: 620px) { .comm-live-addr-row { grid-template-columns: 1fr !important; } }`}</style>
+          <Field label="City">
+            <input style={fieldStyle()} value={company.city} onChange={(e) => update("city", e.target.value)} readOnly={!canManage} />
+          </Field>
+          <Field label="State / province">
+            <input style={fieldStyle()} value={company.stateRegion} onChange={(e) => update("stateRegion", e.target.value)} readOnly={!canManage} />
+          </Field>
+          <Field label="ZIP / postal">
+            <input
+              style={{ ...fieldStyle(), fontFamily: "'JetBrains Mono',monospace", letterSpacing: ".02em" }}
+              value={company.postalCode}
+              onChange={(e) => update("postalCode", e.target.value)}
+              readOnly={!canManage}
+            />
+          </Field>
+        </div>
+        <Field label="Country">
+          <select
+            style={fieldStyle()}
+            value={company.country || "United States"}
+            onChange={(e) => update("country", e.target.value)}
+            disabled={!canManage}
+          >
+            <option>United States</option>
+            <option>Canada</option>
+            <option>Mexico</option>
+          </select>
+        </Field>
+      </Panel>
+
+      <Panel title="Billing contact" subtitle="Who receives invoice notices, payment confirmations, and draw-ready alerts.">
+        <FieldRow>
+          <Field label="Contact name">
+            <input style={fieldStyle()} value={company.billingContactName} onChange={(e) => update("billingContactName", e.target.value)} readOnly={!canManage} />
+          </Field>
+          <Field label="Title / role">
+            <input style={fieldStyle()} value={company.billingContactTitle} onChange={(e) => update("billingContactTitle", e.target.value)} readOnly={!canManage} />
+          </Field>
+        </FieldRow>
+        <FieldRow>
+          <Field label="Email">
+            <input type="email" style={fieldStyle()} value={company.billingContactEmail} onChange={(e) => update("billingContactEmail", e.target.value)} readOnly={!canManage} />
+          </Field>
+          <Field label="Phone">
+            <input type="tel" style={fieldStyle()} value={company.primaryContactPhone} onChange={(e) => update("primaryContactPhone", e.target.value)} readOnly={!canManage} />
+          </Field>
+        </FieldRow>
+        <Field label="Invoice delivery" help="How you receive invoice PDFs and payment receipts">
+          <select
+            style={fieldStyle()}
+            value={company.invoiceDelivery}
+            onChange={(e) => update("invoiceDelivery", e.target.value)}
+            disabled={!canManage}
+          >
+            <option value="email+portal">Email + portal (recommended)</option>
+            <option value="email">Email only</option>
+            <option value="portal">Portal only</option>
+          </select>
+        </Field>
+      </Panel>
+
+      {(dirty || saved || error) && (
+        <SaveBar
+          state={error ? "dirty" : saved ? "success" : "dirty"}
+          message={
+            error
+              ? error
+              : saved
+                ? "Company info saved"
+                : "You have unsaved changes"
+          }
+          showActions={!saved && !error}
+          onDiscard={() => {
+            setCompany(initialForm);
+            setDirty(false);
+            setError(null);
+          }}
+          onSave={save}
+          saving={saving}
+        />
+      )}
+    </>
+  );
+}
+
+// ═══════ RESIDENTIAL CLIENT: HOUSEHOLD (LIVE) ══════════════════════════
+// Seeds from orgProfile, saves via /api/org/profile. "Your details" pulls
+// the user's legal name / email from the shared profile (read-only here —
+// edits go through the Profile tab). Phone, preferred-name, and project
+// name are org-scoped settings on this tab.
+
+type LiveHouseholdForm = {
+  projectName: string;
+  addr1: string;
+  addr2: string;
+  city: string;
+  stateRegion: string;
+  postalCode: string;
+  country: string;
+  legalName: string;
+  preferredName: string;
+  phone: string;
+  preferredChannel: string;
+  preferredTime: string;
+  emergencyName: string;
+  emergencyRelation: string;
+  emergencyPhone: string;
+};
+function householdProfileToForm(p: OrganizationProfile): LiveHouseholdForm {
+  return {
+    projectName: p.projectName ?? p.displayName ?? "",
+    addr1: p.addr1 ?? "",
+    addr2: p.addr2 ?? "",
+    city: p.city ?? "",
+    stateRegion: p.stateRegion ?? "",
+    postalCode: p.postalCode ?? "",
+    country: p.country ?? "United States",
+    legalName: p.legalName ?? p.displayName ?? "",
+    preferredName: p.preferredName ?? "",
+    phone: p.phone ?? "",
+    preferredChannel: p.preferredChannel ?? "email+sms",
+    preferredTime: p.preferredTime ?? "anytime",
+    emergencyName: p.emergencyName ?? "",
+    emergencyRelation: p.emergencyRelation ?? "",
+    emergencyPhone: p.emergencyPhone ?? "",
+  };
+}
+function householdFormToPatch(f: LiveHouseholdForm): Record<string, unknown> {
+  return {
+    projectName: f.projectName || null,
+    legalName: f.legalName || null,
+    preferredName: f.preferredName || null,
+    phone: f.phone || null,
+    addr1: f.addr1 || null,
+    addr2: f.addr2 || null,
+    city: f.city || null,
+    stateRegion: f.stateRegion || null,
+    postalCode: f.postalCode || null,
+    country: f.country || null,
+    preferredChannel: f.preferredChannel || null,
+    preferredTime: f.preferredTime || null,
+    emergencyName: f.emergencyName || null,
+    emergencyRelation: f.emergencyRelation || null,
+    emergencyPhone: f.emergencyPhone || null,
+  };
+}
+
+function ResidentialHouseholdLiveTab({
+  residential,
+}: {
+  residential: ClientSettingsBundle;
+}) {
+  const router = useRouter();
+  const profile = residential.orgProfile!;
+  const canManage = residential.role === "owner";
+
+  const initialForm = householdProfileToForm(profile);
+  const [household, setHousehold] = useState<LiveHouseholdForm>(initialForm);
+  const [dirty, setDirty] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function update<K extends keyof LiveHouseholdForm>(
+    k: K,
+    v: LiveHouseholdForm[K],
+  ) {
+    setHousehold((p) => ({ ...p, [k]: v }));
+    setDirty(true);
+    setSaved(false);
+    setError(null);
+  }
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/org/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(householdFormToPatch(household)),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message ?? body.error ?? "save_failed");
+        return;
+      }
+      setDirty(false);
+      setSaved(true);
+      router.refresh();
+      setTimeout(() => setSaved(false), 2400);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <Panel title="Your home" subtitle="The address of the project we're working on together.">
+        <Field label="Project name" help="How your home appears in your portal">
+          <input style={fieldStyle()} value={household.projectName} onChange={(e) => update("projectName", e.target.value)} readOnly={!canManage} />
+        </Field>
+        <Field label="Street address">
+          <input style={fieldStyle()} value={household.addr1} onChange={(e) => update("addr1", e.target.value)} readOnly={!canManage} />
+        </Field>
+        <Field label="Unit / apartment (optional)">
+          <input style={fieldStyle()} value={household.addr2} onChange={(e) => update("addr2", e.target.value)} readOnly={!canManage} />
+        </Field>
+        <div
+          className="res-live-addr-row"
+          style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 14 }}
+        >
+          <style>{`@media (max-width: 620px) { .res-live-addr-row { grid-template-columns: 1fr !important; } }`}</style>
+          <Field label="City">
+            <input style={fieldStyle()} value={household.city} onChange={(e) => update("city", e.target.value)} readOnly={!canManage} />
+          </Field>
+          <Field label="State">
+            <input style={fieldStyle()} value={household.stateRegion} onChange={(e) => update("stateRegion", e.target.value)} readOnly={!canManage} />
+          </Field>
+          <Field label="ZIP">
+            <input
+              style={{ ...fieldStyle(), fontFamily: "'JetBrains Mono',monospace", letterSpacing: ".02em" }}
+              value={household.postalCode}
+              onChange={(e) => update("postalCode", e.target.value)}
+              readOnly={!canManage}
+            />
+          </Field>
+        </div>
+        <Field label="Country">
+          <select
+            style={fieldStyle()}
+            value={household.country || "United States"}
+            onChange={(e) => update("country", e.target.value)}
+            disabled={!canManage}
+          >
+            <option>United States</option>
+            <option>Canada</option>
+            <option>Mexico</option>
+          </select>
+        </Field>
+      </Panel>
+
+      <Panel title="Your details" subtitle="How we address you in project correspondence.">
+        <FieldRow>
+          <Field label="Legal name" help="Used on contracts and official documents">
+            <input style={fieldStyle()} value={household.legalName} onChange={(e) => update("legalName", e.target.value)} readOnly={!canManage} />
+          </Field>
+          <Field label="What you'd like to be called">
+            <input style={fieldStyle()} value={household.preferredName} onChange={(e) => update("preferredName", e.target.value)} readOnly={!canManage} />
+          </Field>
+        </FieldRow>
+        <Field label="Phone">
+          <input type="tel" style={fieldStyle()} value={household.phone} onChange={(e) => update("phone", e.target.value)} readOnly={!canManage} />
+        </Field>
+      </Panel>
+
+      <Panel title="How we reach you" subtitle="Pick how and when you'd like to hear from your builder.">
+        <FieldRow>
+          <Field label="Preferred channel">
+            <select
+              style={fieldStyle()}
+              value={household.preferredChannel}
+              onChange={(e) => update("preferredChannel", e.target.value)}
+              disabled={!canManage}
+            >
+              <option value="email+sms">Email + SMS (recommended)</option>
+              <option value="email">Email only</option>
+              <option value="sms">SMS only</option>
+              <option value="phone">Phone call for urgent only</option>
+            </select>
+          </Field>
+          <Field label="Preferred time">
+            <select
+              style={fieldStyle()}
+              value={household.preferredTime}
+              onChange={(e) => update("preferredTime", e.target.value)}
+              disabled={!canManage}
+            >
+              <option value="anytime">Anytime</option>
+              <option value="business">Business hours (9–5)</option>
+              <option value="evenings">Evenings (after 5)</option>
+              <option value="weekends">Weekends only</option>
+            </select>
+          </Field>
+        </FieldRow>
+      </Panel>
+
+      <Panel
+        title="Emergency contact"
+        subtitle="For site-access issues or after-hours questions. We'll only use this if we can't reach you directly."
+      >
+        <FieldRow>
+          <Field label="Contact name">
+            <input style={fieldStyle()} value={household.emergencyName} onChange={(e) => update("emergencyName", e.target.value)} readOnly={!canManage} />
+          </Field>
+          <Field label="Relationship">
+            <input style={fieldStyle()} value={household.emergencyRelation} onChange={(e) => update("emergencyRelation", e.target.value)} readOnly={!canManage} />
+          </Field>
+        </FieldRow>
+        <Field label="Phone">
+          <input
+            type="tel"
+            style={fieldStyle()}
+            value={household.emergencyPhone}
+            onChange={(e) => update("emergencyPhone", e.target.value)}
+            readOnly={!canManage}
+          />
+        </Field>
+      </Panel>
+
+      {(dirty || saved || error) && (
+        <SaveBar
+          state={error ? "dirty" : saved ? "success" : "dirty"}
+          message={
+            error
+              ? error
+              : saved
+                ? "Household info saved"
+                : "You have unsaved changes"
+          }
+          showActions={!saved && !error}
+          onDiscard={() => {
+            setHousehold(initialForm);
+            setDirty(false);
+            setError(null);
+          }}
+          onSave={save}
+          saving={saving}
+        />
+      )}
+    </>
   );
 }
 

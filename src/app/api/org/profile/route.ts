@@ -36,6 +36,18 @@ const BodySchema = z.object({
   yearsInBusiness: z.string().trim().max(10).nullable().optional(),
   crewSize: z.string().trim().max(10).nullable().optional(),
   regions: z.array(z.string().max(120)).max(50).nullable().optional(),
+  // Commercial-client-specific
+  industry: z.string().trim().max(120).nullable().optional(),
+  companySize: z.string().trim().max(40).nullable().optional(),
+  invoiceDelivery: z.string().trim().max(40).nullable().optional(),
+  // Residential-client-specific
+  projectName: z.string().trim().max(255).nullable().optional(),
+  preferredName: z.string().trim().max(120).nullable().optional(),
+  preferredChannel: z.string().trim().max(40).nullable().optional(),
+  preferredTime: z.string().trim().max(40).nullable().optional(),
+  emergencyName: z.string().trim().max(200).nullable().optional(),
+  emergencyRelation: z.string().trim().max(80).nullable().optional(),
+  emergencyPhone: z.string().trim().max(40).nullable().optional(),
 });
 
 // Columns we scrub out of audit payloads. tax_id is the sensitive one; add
@@ -139,6 +151,26 @@ export async function PATCH(req: Request) {
       updates.yearsInBusiness = patch.yearsInBusiness || null;
     if (patch.crewSize !== undefined) updates.crewSize = patch.crewSize || null;
     if (patch.regions !== undefined) updates.regions = patch.regions ?? null;
+    if (patch.industry !== undefined)
+      updates.industry = patch.industry || null;
+    if (patch.companySize !== undefined)
+      updates.companySize = patch.companySize || null;
+    if (patch.invoiceDelivery !== undefined)
+      updates.invoiceDelivery = patch.invoiceDelivery || null;
+    if (patch.projectName !== undefined)
+      updates.projectName = patch.projectName || null;
+    if (patch.preferredName !== undefined)
+      updates.preferredName = patch.preferredName || null;
+    if (patch.preferredChannel !== undefined)
+      updates.preferredChannel = patch.preferredChannel || null;
+    if (patch.preferredTime !== undefined)
+      updates.preferredTime = patch.preferredTime || null;
+    if (patch.emergencyName !== undefined)
+      updates.emergencyName = patch.emergencyName || null;
+    if (patch.emergencyRelation !== undefined)
+      updates.emergencyRelation = patch.emergencyRelation || null;
+    if (patch.emergencyPhone !== undefined)
+      updates.emergencyPhone = patch.emergencyPhone || null;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ ok: true, noop: true });

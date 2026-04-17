@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { auditEvents, invitations } from "@/db/schema";
-import { getContractorOrgContext } from "@/domain/loaders/integrations";
+import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
 import { AuthorizationError } from "@/domain/permissions";
 
 const INVITE_TTL_DAYS = 14;
@@ -26,16 +26,9 @@ export async function POST(
   const { id } = await params;
 
   try {
-    const ctx = await getContractorOrgContext(
+    const ctx = await requireOrgAdminContext(
       session.session as unknown as { appUserId?: string | null },
     );
-
-    if (ctx.role !== "contractor_admin") {
-      throw new AuthorizationError(
-        "Only organization admins can resend invitations",
-        "forbidden",
-      );
-    }
 
     const [invite] = await db
       .select({
@@ -48,7 +41,7 @@ export async function POST(
       .where(
         and(
           eq(invitations.id, id),
-          eq(invitations.organizationId, ctx.organization.id),
+          eq(invitations.organizationId, ctx.orgId),
         ),
       )
       .limit(1);
@@ -78,14 +71,15 @@ export async function POST(
         .where(eq(invitations.id, invite.id));
 
       await tx.insert(auditEvents).values({
-        actorUserId: ctx.user.id,
-        organizationId: ctx.organization.id,
+        actorUserId: ctx.userId,
+        organizationId: ctx.orgId,
         objectType: "invitation",
         objectId: invite.id,
         actionName: "resent",
         metadataJson: {
           invitedEmail: invite.invitedEmail,
           expiresAt: newExpires.toISOString(),
+          portal: ctx.portal,
         },
       });
     });

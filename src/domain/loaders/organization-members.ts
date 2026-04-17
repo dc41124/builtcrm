@@ -46,7 +46,21 @@ const LAST_ACTIVE_SQL = sql<Date | null>`(
 
 export async function listOrganizationMembers(
   organizationId: string,
+  portal: "contractor" | "subcontractor" | "commercial" | "residential" = "contractor",
 ): Promise<OrganizationMember[]> {
+  // Role rows are portal-scoped. For client portals the row's portalType is
+  // "client" with clientSubtype discriminating commercial vs residential.
+  const roleJoinConditions = [
+    eq(roleAssignments.userId, organizationUsers.userId),
+    eq(roleAssignments.organizationId, organizationUsers.organizationId),
+  ];
+  if (portal === "contractor" || portal === "subcontractor") {
+    roleJoinConditions.push(eq(roleAssignments.portalType, portal));
+  } else {
+    roleJoinConditions.push(eq(roleAssignments.portalType, "client"));
+    roleJoinConditions.push(eq(roleAssignments.clientSubtype, portal));
+  }
+
   const rows = await db
     .select({
       membershipId: organizationUsers.id,
@@ -63,14 +77,7 @@ export async function listOrganizationMembers(
     })
     .from(organizationUsers)
     .innerJoin(users, eq(users.id, organizationUsers.userId))
-    .leftJoin(
-      roleAssignments,
-      and(
-        eq(roleAssignments.userId, organizationUsers.userId),
-        eq(roleAssignments.organizationId, organizationUsers.organizationId),
-        eq(roleAssignments.portalType, "contractor"),
-      ),
-    )
+    .leftJoin(roleAssignments, and(...roleJoinConditions))
     .where(eq(organizationUsers.organizationId, organizationId))
     .orderBy(desc(organizationUsers.createdAt));
 
@@ -90,23 +97,30 @@ export async function listOrganizationMembers(
   }));
 }
 
-// Used by the role-change action as a last-admin guard. Matches any role key
-// that looks like an admin/owner role (same rule used in getContractorOrgContext).
+// Used by the role-change + remove-member actions as a last-admin guard.
+// Matches any role key that looks like an admin/owner role. The caller
+// passes the portal filter so contractor, sub, and client (commercial +
+// residential) orgs all work — role rows are portal-scoped in the DB.
 export async function countAdminsInOrganization(
   organizationId: string,
+  portal?: "contractor" | "subcontractor" | "commercial" | "residential",
 ): Promise<number> {
+  const conditions = [
+    eq(roleAssignments.organizationId, organizationId),
+    or(
+      sql`${roleAssignments.roleKey} ilike 'admin%'`,
+      sql`${roleAssignments.roleKey} ilike '%owner%'`,
+    ),
+  ];
+  if (portal === "contractor" || portal === "subcontractor") {
+    conditions.push(eq(roleAssignments.portalType, portal));
+  } else if (portal === "commercial" || portal === "residential") {
+    conditions.push(eq(roleAssignments.portalType, "client"));
+    conditions.push(eq(roleAssignments.clientSubtype, portal));
+  }
   const rows = await db
     .select({ roleKey: roleAssignments.roleKey })
     .from(roleAssignments)
-    .where(
-      and(
-        eq(roleAssignments.organizationId, organizationId),
-        eq(roleAssignments.portalType, "contractor"),
-        or(
-          sql`${roleAssignments.roleKey} ilike 'admin%'`,
-          sql`${roleAssignments.roleKey} ilike '%owner%'`,
-        ),
-      ),
-    );
+    .where(and(...conditions));
   return rows.length;
 }

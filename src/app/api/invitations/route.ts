@@ -7,7 +7,7 @@ import { z } from "zod";
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { auditEvents, invitations, organizations, projects } from "@/db/schema";
-import { getContractorOrgContext } from "@/domain/loaders/integrations";
+import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
 import { AuthorizationError } from "@/domain/permissions";
 
 const BodySchema = z.object({
@@ -42,29 +42,69 @@ export async function POST(req: Request) {
   }
 
   try {
-    const ctx = await getContractorOrgContext(
+    const ctx = await requireOrgAdminContext(
       session.session as unknown as { appUserId?: string | null },
     );
 
-    if (
-      parsed.data.portalType === "client" &&
-      !parsed.data.clientSubtype
-    ) {
+    // Client subtype consistency. Commercial/residential owners can only
+    // invite into their own org (same subtype); enforce at the ctx layer.
+    if (parsed.data.portalType === "client" && !parsed.data.clientSubtype) {
       return NextResponse.json(
         { error: "invalid_body", message: "clientSubtype required for client invites" },
         { status: 400 },
       );
     }
+    if (
+      (ctx.portal === "commercial" || ctx.portal === "residential") &&
+      parsed.data.portalType !== "client"
+    ) {
+      throw new AuthorizationError(
+        "Client owners can only invite client portal users",
+        "forbidden",
+      );
+    }
+    if (
+      ctx.portal === "commercial" &&
+      parsed.data.clientSubtype &&
+      parsed.data.clientSubtype !== "commercial"
+    ) {
+      throw new AuthorizationError(
+        "Commercial owners can only invite commercial client users",
+        "forbidden",
+      );
+    }
+    if (
+      ctx.portal === "residential" &&
+      parsed.data.clientSubtype &&
+      parsed.data.clientSubtype !== "residential"
+    ) {
+      throw new AuthorizationError(
+        "Residential owners can only invite residential client users",
+        "forbidden",
+      );
+    }
+    // Sub owners can only invite sub members (no cross-org invites for now).
+    if (ctx.portal === "subcontractor" && parsed.data.portalType !== "subcontractor") {
+      throw new AuthorizationError(
+        "Subcontractor owners can only invite subcontractor users",
+        "forbidden",
+      );
+    }
 
-    // Domain lock: if the org has set allowedEmailDomains, reject invites to
-    // any address outside that list. Applies only to invites, not to existing
-    // member access. Check runs only for same-org invites (contractor inviting
-    // into their own org); cross-org invites bypass for now (subs, clients).
-    if (parsed.data.portalType === "contractor") {
+    // Domain lock: if the inviter's org has set allowedEmailDomains, reject
+    // invites to any address outside that list. Applies only to same-portal
+    // invites (member onboarding), not to cross-org invites (e.g. contractor
+    // inviting a client or sub to collaborate on a project).
+    const sameOrgInvite =
+      (ctx.portal === "contractor" && parsed.data.portalType === "contractor") ||
+      (ctx.portal === "subcontractor" && parsed.data.portalType === "subcontractor") ||
+      ctx.portal === "commercial" ||
+      ctx.portal === "residential";
+    if (sameOrgInvite) {
       const [orgRow] = await db
         .select({ allowedEmailDomains: organizations.allowedEmailDomains })
         .from(organizations)
-        .where(eq(organizations.id, ctx.organization.id))
+        .where(eq(organizations.id, ctx.orgId))
         .limit(1);
       const allowed = orgRow?.allowedEmailDomains ?? null;
       if (allowed && allowed.length > 0) {
@@ -82,15 +122,22 @@ export async function POST(req: Request) {
       }
     }
 
-    // If a project is specified, ensure it belongs to this contractor org.
+    // If a project is specified (contractor cross-org invites only), ensure it
+    // belongs to this contractor org. Client/sub owners don't set projectId.
     if (parsed.data.projectId) {
+      if (ctx.portal !== "contractor") {
+        throw new AuthorizationError(
+          "Only contractors can scope an invitation to a project",
+          "forbidden",
+        );
+      }
       const [project] = await db
         .select({ id: projects.id })
         .from(projects)
         .where(
           and(
             eq(projects.id, parsed.data.projectId),
-            eq(projects.contractorOrganizationId, ctx.organization.id),
+            eq(projects.contractorOrganizationId, ctx.orgId),
           ),
         )
         .limit(1);
@@ -111,8 +158,8 @@ export async function POST(req: Request) {
         .values({
           invitedEmail: parsed.data.invitedEmail.toLowerCase(),
           invitedName: parsed.data.invitedName ?? null,
-          invitedByUserId: ctx.user.id,
-          organizationId: ctx.organization.id,
+          invitedByUserId: ctx.userId,
+          organizationId: ctx.orgId,
           projectId: parsed.data.projectId ?? null,
           portalType: parsed.data.portalType,
           clientSubtype: parsed.data.clientSubtype ?? null,
@@ -124,18 +171,20 @@ export async function POST(req: Request) {
         .returning();
 
       await tx.insert(auditEvents).values({
-        actorUserId: ctx.user.id,
+        actorUserId: ctx.userId,
         projectId: parsed.data.projectId ?? null,
-        organizationId: ctx.organization.id,
+        organizationId: ctx.orgId,
         objectType: "invitation",
         objectId: inserted[0].id,
         actionName: "created",
         nextState: {
           invitedEmail: inserted[0].invitedEmail,
           portalType: inserted[0].portalType,
+          clientSubtype: inserted[0].clientSubtype,
           roleKey: inserted[0].roleKey,
           projectId: inserted[0].projectId,
         },
+        metadataJson: { inviterPortal: ctx.portal },
       });
 
       return inserted;

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { auditEvents, roleAssignments } from "@/db/schema";
-import { getContractorOrgContext } from "@/domain/loaders/integrations";
+import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
 import { countAdminsInOrganization } from "@/domain/loaders/organization-members";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -38,16 +38,18 @@ export async function PATCH(
   const { userId: targetUserId } = await params;
 
   try {
-    const ctx = await getContractorOrgContext(
+    const ctx = await requireOrgAdminContext(
       session.session as unknown as { appUserId?: string | null },
     );
 
-    if (ctx.role !== "contractor_admin") {
-      throw new AuthorizationError(
-        "Only organization admins can change roles",
-        "forbidden",
-      );
-    }
+    // Role rows are portal-scoped. The caller's portal context decides which
+    // assignment we target (contractor/subcontractor/client+subtype).
+    const portalFilter =
+      ctx.portal === "contractor"
+        ? eq(roleAssignments.portalType, "contractor")
+        : ctx.portal === "subcontractor"
+          ? eq(roleAssignments.portalType, "subcontractor")
+          : eq(roleAssignments.portalType, "client");
 
     const [existing] = await db
       .select({
@@ -58,8 +60,8 @@ export async function PATCH(
       .where(
         and(
           eq(roleAssignments.userId, targetUserId),
-          eq(roleAssignments.organizationId, ctx.organization.id),
-          eq(roleAssignments.portalType, "contractor"),
+          eq(roleAssignments.organizationId, ctx.orgId),
+          portalFilter,
         ),
       )
       .limit(1);
@@ -74,18 +76,20 @@ export async function PATCH(
       return NextResponse.json({ ok: true, unchanged: true });
     }
 
-    // Last-admin guard: refuse to demote the only admin.
+    // Last-admin guard: refuse to demote the only admin/owner. countAdmins
+    // looks for any role_key matching admin/owner patterns, which covers
+    // contractor admin, sub owner, commercial owner, residential co_owner.
     if (
       isAdminRole(existing.roleKey) &&
       !isAdminRole(parsed.data.roleKey)
     ) {
-      const adminCount = await countAdminsInOrganization(ctx.organization.id);
+      const adminCount = await countAdminsInOrganization(ctx.orgId, ctx.portal);
       if (adminCount <= 1) {
         return NextResponse.json(
           {
             error: "last_admin",
             message:
-              "You can't demote the only Admin. Promote someone else first.",
+              "You can't demote the only Owner/Admin. Promote someone else first.",
           },
           { status: 409 },
         );
@@ -99,14 +103,14 @@ export async function PATCH(
         .where(eq(roleAssignments.id, existing.id));
 
       await tx.insert(auditEvents).values({
-        actorUserId: ctx.user.id,
-        organizationId: ctx.organization.id,
+        actorUserId: ctx.userId,
+        organizationId: ctx.orgId,
         objectType: "membership",
         objectId: existing.id,
         actionName: "role_changed",
         previousState: { roleKey: existing.roleKey },
         nextState: { roleKey: parsed.data.roleKey },
-        metadataJson: { targetUserId },
+        metadataJson: { targetUserId, portal: ctx.portal },
       });
     });
 
