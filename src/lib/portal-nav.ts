@@ -57,14 +57,11 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
           ]),
         },
         {
-          label: "Settings",
-          defaultOpen: false,
+          label: "Account",
+          defaultOpen: true,
           placement: "after-projects",
           items: mark([
-            { label: "Organization", href: "/contractor/settings/organization" },
-            { label: "Team & Roles", href: "/contractor/settings/team" },
-            { label: "Integrations", href: "/contractor/settings/integrations" },
-            { label: "Payments", href: "/contractor/settings/payments" },
+            { label: "Settings", href: "/contractor/settings" },
           ]),
         },
       ];
@@ -102,13 +99,11 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
         ]),
       },
       {
-        label: "Settings",
-        defaultOpen: false,
+        label: "Account",
+        defaultOpen: true,
         placement: "after-projects",
         items: mark([
-          { label: "Organization", href: "/contractor/settings/organization" },
-          { label: "Team & Roles", href: "/contractor/settings/team" },
-          { label: "Integrations", href: "/contractor/settings/integrations" },
+          { label: "Settings", href: "/contractor/settings" },
         ]),
       },
     ];
@@ -141,8 +136,8 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
           ]),
         },
         {
-          label: "Company",
-          defaultOpen: false,
+          label: "Account",
+          defaultOpen: true,
           placement: "after-projects",
           items: mark([
             { label: "Team", href: "/subcontractor/team" },
@@ -198,9 +193,15 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
   }
 
   if (portalType === "commercial") {
-    // Commercial client sidebar is project-scoped. Structure from
-    // builtcrm_commercial_client_portal_pages.jsx.
-    if (!projectId) return [];
+    // Commercial client sidebar. Project sections are project-scoped;
+    // Account > Settings is always present (global route).
+    const accountSection: NavSection = {
+      label: "Account",
+      defaultOpen: true,
+      placement: "after-projects",
+      items: mark([{ label: "Settings", href: "/commercial/settings" }]),
+    };
+    if (!projectId) return [accountSection];
     const base = `/commercial/project/${projectId}`;
     return [
       {
@@ -243,13 +244,20 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
           { label: "Messages", href: `${base}/messages` },
         ]),
       },
+      accountSection,
     ];
   }
 
   // Residential client sidebar — project-scoped, residential language per
   // builtcrm_residential_client_portal_pages.jsx ("Scope Changes", "Decisions",
-  // "Your project", "Confirmed choices").
-  if (!projectId) return [];
+  // "Your project", "Confirmed choices"). Account > Settings is always present.
+  const accountSection: NavSection = {
+    label: "Account",
+    defaultOpen: true,
+    placement: "after-projects",
+    items: mark([{ label: "Settings", href: "/residential/settings" }]),
+  };
+  if (!projectId) return [accountSection];
   const base = `/residential/project/${projectId}`;
   return [
     {
@@ -286,5 +294,6 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
         { label: "Inbox", href: `${base}/messages` },
       ]),
     },
+    accountSection,
   ];
 }

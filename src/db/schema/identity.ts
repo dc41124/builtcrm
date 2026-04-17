@@ -14,6 +14,28 @@ import {
 import { timestamps } from "./_shared";
 
 // -----------------------------------------------------------------------------
+// User-preference enums (used by users.theme / users.density and elsewhere)
+// -----------------------------------------------------------------------------
+
+export const themeModeEnum = pgEnum("theme_mode", [
+  "light",
+  "dark",
+  "system",
+]);
+
+export const displayDensityEnum = pgEnum("display_density", [
+  "comfortable",
+  "compact",
+]);
+
+export const notificationPortalEnum = pgEnum("notification_portal", [
+  "contractor",
+  "subcontractor",
+  "commercial",
+  "residential",
+]);
+
+// -----------------------------------------------------------------------------
 // Enums
 // -----------------------------------------------------------------------------
 
@@ -70,11 +92,50 @@ export const users = pgTable(
     lastName: varchar("last_name", { length: 120 }),
     displayName: varchar("display_name", { length: 200 }),
     phone: varchar("phone", { length: 40 }),
+    title: varchar("title", { length: 120 }),
+    timezone: varchar("timezone", { length: 64 })
+      .default("America/Los_Angeles")
+      .notNull(),
+    theme: themeModeEnum("theme").default("system").notNull(),
+    density: displayDensityEnum("density").default("comfortable").notNull(),
+    language: varchar("language", { length: 10 }).default("en").notNull(),
+    avatarUrl: text("avatar_url"),
     isActive: boolean("is_active").default(true).notNull(),
     ...timestamps,
   },
   (table) => ({
     emailUnique: unique("users_email_unique").on(table.email),
+  }),
+);
+
+// -----------------------------------------------------------------------------
+// Per-user notification preferences
+//
+// One row per (user, portal_type, event_id). Events are portal-scoped because
+// a user who has both contractor and commercial-client access sees different
+// event taxonomies per portal.
+// -----------------------------------------------------------------------------
+
+export const userNotificationPreferences = pgTable(
+  "user_notification_preferences",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    portalType: notificationPortalEnum("portal_type").notNull(),
+    eventId: varchar("event_id", { length: 120 }).notNull(),
+    email: boolean("email").default(true).notNull(),
+    inApp: boolean("in_app").default(true).notNull(),
+    ...timestamps,
+  },
+  (table) => ({
+    uniq: unique("user_notif_prefs_uniq").on(
+      table.userId,
+      table.portalType,
+      table.eventId,
+    ),
+    userIdx: index("user_notif_prefs_user_idx").on(table.userId),
   }),
 );
 

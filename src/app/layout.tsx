@@ -1,24 +1,76 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+import { eq } from "drizzle-orm";
+
 import "@/styles/globals.css";
 import "@/styles/workspaces.css";
+
+import { auth } from "@/auth/config";
+import { db } from "@/db/client";
+import { users } from "@/db/schema";
 
 export const metadata: Metadata = {
   title: "BuiltCRM",
   description: "Construction project management platform",
 };
 
-// Blocking script — runs before React hydration so the correct theme class is
-// on <html> during first paint. Prevents light/dark flash. Reads localStorage
-// first, then falls back to the OS prefers-color-scheme media query.
-const themeInitScript = `(function(){try{var s=localStorage.getItem('builtcrm-theme');var d=s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
+// Blocking pre-hydration script. Runs synchronously in <head> before first
+// paint so the correct theme class is on <html> and we never flash the
+// wrong theme. Order of precedence:
+//   1. `data-theme-pref` attribute (set server-side from the user's DB prefs)
+//   2. localStorage['builtcrm-theme']
+//   3. OS `prefers-color-scheme`
+// Whatever we resolve gets written back to localStorage so subsequent SSR
+// responses can pick it up even for anonymous visitors.
+const themeInitScript = `(function(){try{
+  var el = document.documentElement;
+  var pref = el.getAttribute('data-theme-pref');
+  if (!pref) { try { pref = localStorage.getItem('builtcrm-theme'); } catch(e) {} }
+  if (!pref) pref = 'system';
+  var isDark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  el.classList.toggle('dark', isDark);
+  try { localStorage.setItem('builtcrm-theme', pref); } catch(e) {}
+}catch(e){}})();`;
 
-export default function RootLayout({
+async function readThemePref(): Promise<"light" | "dark" | "system"> {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    const appUserId = (session?.session as unknown as { appUserId?: string | null })
+      ?.appUserId;
+    if (!appUserId) return "system";
+    const [row] = await db
+      .select({ theme: users.theme })
+      .from(users)
+      .where(eq(users.id, appUserId))
+      .limit(1);
+    return row?.theme ?? "system";
+  } catch {
+    return "system";
+  }
+}
+
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const themePref = await readThemePref();
+  // For explicit light/dark we SSR the correct class directly. For 'system'
+  // the class is decided by the client script based on prefers-color-scheme.
+  const htmlClass = themePref === "dark" ? "dark" : undefined;
+
   return (
-    <html lang="en">
+    // `suppressHydrationWarning` is load-bearing: the pre-hydration script
+    // below can toggle the `dark` class on <html> before React hydrates
+    // (e.g. for `system`-preference users whose OS is dark). That's the
+    // standard theme-provider pattern and React emits a false "extra
+    // attribute" warning for it without this flag.
+    <html
+      lang="en"
+      className={htmlClass}
+      data-theme-pref={themePref}
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>

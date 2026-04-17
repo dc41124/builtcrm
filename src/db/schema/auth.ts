@@ -15,11 +15,38 @@ export const authUser = pgTable(
     image: text("image"),
     // Link to the domain users.id (uuid) — populated on sign-up / seeded.
     appUserId: uuid("app_user_id"),
+    // Better Auth two-factor plugin field.
+    twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     appUserIdx: index("auth_user_app_user_idx").on(t.appUserId),
+  }),
+);
+
+// Better Auth two-factor plugin table. Stores per-user TOTP secret + hashed
+// backup codes. Populated by the plugin's enable/verify/disable endpoints.
+export const authTwoFactor = pgTable(
+  "two_factor",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    secret: text("secret").notNull(),
+    backupCodes: text("backup_codes").notNull(),
+    verified: boolean("verified").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    userIdx: index("two_factor_user_idx").on(t.userId),
+    secretIdx: index("two_factor_secret_idx").on(t.secret),
   }),
 );
 

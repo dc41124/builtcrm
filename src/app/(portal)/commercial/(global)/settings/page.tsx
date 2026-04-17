@@ -6,7 +6,7 @@ import { getUserSettingsView } from "@/domain/loaders/user-settings";
 import { AuthorizationError } from "@/domain/permissions";
 import { SettingsShell } from "@/components/settings/settings-shell";
 
-export default async function SubcontractorSettingsPage() {
+export default async function CommercialSettingsPage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
 
@@ -15,7 +15,7 @@ export default async function SubcontractorSettingsPage() {
     view = await getUserSettingsView({
       session: session.session as unknown as { appUserId?: string | null },
       sessionId: (session.session as { id?: string }).id,
-      portalType: "subcontractor",
+      portalType: "commercial",
     });
   } catch (err) {
     if (err instanceof AuthorizationError) {

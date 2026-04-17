@@ -1,12 +1,14 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { twoFactor } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
   authAccount,
   authSession,
+  authTwoFactor,
   authUser,
   authVerification,
   roleAssignments,
@@ -21,6 +23,7 @@ export const auth = betterAuth({
       session: authSession,
       account: authAccount,
       verification: authVerification,
+      twoFactor: authTwoFactor,
     },
   }),
   emailAndPassword: {
@@ -125,7 +128,12 @@ export const auth = betterAuth({
       },
     },
   },
-  plugins: [nextCookies()],
+  plugins: [
+    twoFactor({
+      issuer: "BuiltCRM",
+    }),
+    nextCookies(),
+  ],
 });
 
 export type Auth = typeof auth;

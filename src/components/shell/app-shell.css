@@ -24,7 +24,14 @@
   -webkit-font-smoothing:antialiased;line-height:1.5;font-size:14px;
   background:var(--s0);min-height:100vh;
 }
-.bcrm.dark{
+/* Dark-mode overrides. The AppShell used to only respond to `.bcrm.dark`
+ * (class on the wrapper itself). That meant toggling `.dark` on <html>
+ * — which is our canonical source of truth — didn't cascade into the
+ * shell because `.bcrm` re-declares base tokens locally and blocks the
+ * html-level .dark rule from tokens.css. Matching `html.dark .bcrm` too
+ * makes the shell follow whatever theme <html> is in. */
+.bcrm.dark,
+html.dark .bcrm{
   --s0:#0c0e14;--s1:#171a24;--s2:#1e2130;--s3:#2a2e3c;--s4:#3a3f52;
   --sh:#222536;--sa:#2a2e3c;
   --sb-bg:#10121a;--sb-h:#1a1d2a;--sb-a:#222536;
