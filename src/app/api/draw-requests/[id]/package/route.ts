@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { Readable } from "node:stream";
 import archiver from "archiver";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { renderToBuffer } from "@react-pdf/renderer";
 
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
@@ -18,6 +19,7 @@ import {
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError, assertCan } from "@/domain/permissions";
+import { G702Document } from "@/lib/pdf/g702-template";
 import { r2, R2_BUCKET } from "@/lib/storage";
 
 // archiver + R2 SDK streaming are Node-only APIs; Edge runtime would reject both.
@@ -49,7 +51,19 @@ export async function GET(
       drawRequestStatus: drawRequests.drawRequestStatus,
       periodFrom: drawRequests.periodFrom,
       periodTo: drawRequests.periodTo,
+      // G702 summary fields — flow straight into the PDF template
+      originalContractSumCents: drawRequests.originalContractSumCents,
+      netChangeOrdersCents: drawRequests.netChangeOrdersCents,
+      contractSumToDateCents: drawRequests.contractSumToDateCents,
+      totalCompletedToDateCents: drawRequests.totalCompletedToDateCents,
+      retainageOnCompletedCents: drawRequests.retainageOnCompletedCents,
+      retainageOnStoredCents: drawRequests.retainageOnStoredCents,
+      totalRetainageCents: drawRequests.totalRetainageCents,
+      totalEarnedLessRetainageCents:
+        drawRequests.totalEarnedLessRetainageCents,
+      previousCertificatesCents: drawRequests.previousCertificatesCents,
       currentPaymentDueCents: drawRequests.currentPaymentDueCents,
+      balanceToFinishCents: drawRequests.balanceToFinishCents,
     })
     .from(drawRequests)
     .where(eq(drawRequests.id, drawId))
@@ -154,12 +168,48 @@ export async function GET(
     );
     const lienWaiversCsv = [csvHeader, ...csvRows].join("\n");
 
+    // Render the G702 PDF up-front (before archive streaming starts). rendering
+    // to a Buffer is synchronous in practice — it doesn't block the event loop
+    // long enough to matter for a 1-page form — and doing it here means a
+    // failure surfaces as a clean 500 instead of a truncated ZIP.
+    // Call G702Document as a plain function (not via createElement) so the
+    // return type is the JSX root — `ReactElement<DocumentProps>` — which is
+    // what renderToBuffer requires. Wrapping via createElement would type the
+    // element as the wrapper's props instead of Document's.
+    const g702Buffer = await renderToBuffer(
+      G702Document({
+        data: {
+          projectName: project?.name ?? "",
+          contractorName: ctx.organization.name,
+          clientName: null,
+          drawNumber: draw.drawNumber,
+          applicationDate: new Date(),
+          periodFrom: draw.periodFrom,
+          periodTo: draw.periodTo,
+          originalContractSumCents: draw.originalContractSumCents,
+          netChangeOrdersCents: draw.netChangeOrdersCents,
+          contractSumToDateCents: draw.contractSumToDateCents,
+          totalCompletedToDateCents: draw.totalCompletedToDateCents,
+          retainageOnCompletedCents: draw.retainageOnCompletedCents,
+          retainageOnStoredCents: draw.retainageOnStoredCents,
+          totalRetainageCents: draw.totalRetainageCents,
+          totalEarnedLessRetainageCents: draw.totalEarnedLessRetainageCents,
+          previousCertificatesCents: draw.previousCertificatesCents,
+          currentPaymentDueCents: draw.currentPaymentDueCents,
+          balanceToFinishCents: draw.balanceToFinishCents,
+        },
+      }),
+    );
+
     // zlib level 6 is the standard speed/compression tradeoff — ~equivalent to
     // `zip -6` on the command line. Higher levels barely shrink PDFs/images
     // (already compressed) and cost noticeable CPU on large packages.
     const archive = archiver("zip", { zlib: { level: 6 } });
     archive.append(JSON.stringify(manifest, null, 2), { name: "manifest.json" });
     archive.append(lienWaiversCsv, { name: "lien-waivers.csv" });
+    archive.append(g702Buffer, {
+      name: `G702-draw-${String(draw.drawNumber).padStart(3, "0")}.pdf`,
+    });
 
     for (const f of supportingFiles) {
       const res = await r2.send(
