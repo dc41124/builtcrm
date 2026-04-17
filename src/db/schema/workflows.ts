@@ -4,6 +4,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -141,6 +142,11 @@ export const complianceRecords = pgTable(
     complianceStatus: complianceStatusEnum("compliance_status").default("pending").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     documentId: uuid("document_id").references(() => documents.id, { onDelete: "set null" }),
+    // Free-form metadata for presentation-layer detail strings that don't fit
+    // structured columns: carrier name, coverage amount, policy number hints,
+    // etc. Keys expected by the sub settings UI: `carrier`, `coverage`,
+    // `detail`. Schema-free on purpose — extend without a migration.
+    metadataJson: jsonb("metadata_json"),
     ...timestamps,
   },
   (table) => ({

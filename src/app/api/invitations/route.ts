@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
-import { auditEvents, invitations, projects } from "@/db/schema";
+import { auditEvents, invitations, organizations, projects } from "@/db/schema";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -54,6 +54,32 @@ export async function POST(req: Request) {
         { error: "invalid_body", message: "clientSubtype required for client invites" },
         { status: 400 },
       );
+    }
+
+    // Domain lock: if the org has set allowedEmailDomains, reject invites to
+    // any address outside that list. Applies only to invites, not to existing
+    // member access. Check runs only for same-org invites (contractor inviting
+    // into their own org); cross-org invites bypass for now (subs, clients).
+    if (parsed.data.portalType === "contractor") {
+      const [orgRow] = await db
+        .select({ allowedEmailDomains: organizations.allowedEmailDomains })
+        .from(organizations)
+        .where(eq(organizations.id, ctx.organization.id))
+        .limit(1);
+      const allowed = orgRow?.allowedEmailDomains ?? null;
+      if (allowed && allowed.length > 0) {
+        const domain = parsed.data.invitedEmail.split("@")[1]?.toLowerCase();
+        const ok = domain && allowed.some((d) => d.toLowerCase() === domain);
+        if (!ok) {
+          return NextResponse.json(
+            {
+              error: "domain_blocked",
+              message: `Email domain not in the allowed list (${allowed.join(", ")}).`,
+            },
+            { status: 403 },
+          );
+        }
+      }
     }
 
     // If a project is specified, ensure it belongs to this contractor org.

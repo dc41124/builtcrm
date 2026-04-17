@@ -564,6 +564,8 @@ git commit -m "Step 8 (4A.2 #8): Consolidate dark mode to user preference"
 **Effort:** S–M
 **Priority:** P1
 
+> **Status as of 2026-04-17:** UI built as an "Organization" tab inside the shared `SettingsShell` rather than a dedicated route (per-portal settings JSX specs arrived Apr 17 and consolidated the layout). Fields render on static sample data. What remains is schema + loader + action wiring — tracked in the **Settings Wiring Backlog** section at the end of this guide.
+
 ### What this does
 
 The contractor portal needs a dedicated Organization page (distinct from user Profile). This is where contractors manage org-level settings: org name, address, logo, billing contact, default terms, company-wide defaults that cascade to projects.
@@ -616,6 +618,8 @@ git commit -m "Step 9 (4A.3 #9): Contractor Organization settings page"
 **Item:** 4A.3 #10
 **Effort:** M
 **Priority:** P1
+
+> **Status as of 2026-04-17:** UI built as a "Team & roles" tab inside the shared `SettingsShell`. Member table, invite panel, role explainer, remove-confirm, and last-admin guard all render from static sample data. Wiring tracked in the **Settings Wiring Backlog** section at the end of this guide — this tab is the most wireable of the five (most of the plumbing exists: `organizationUsers`, `roleAssignments`, `invitations`, `listInvitationsForOrganization`).
 
 ### What this does
 
@@ -710,6 +714,8 @@ git commit -m "Step 11 (4A.3 #11): Subcontractor Team page"
 ---
 
 ## Step 12 — Subcontractor Settings Page
+
+> **Status as of 2026-04-17:** Subcontractor settings JSX spec dropped in `docs/specs/builtcrm_subcontractor_settings.jsx`. Not built yet — today the subcontractor portal renders only the 4 shared tabs (profile/security/notifications/appearance). Per-portal JSX specs now also exist for commercial (`builtcrm_commercial_client_settings.jsx`) and residential (`builtcrm_residential_client_settings.jsx`). Wiring tracked in the **Settings Wiring Backlog** section at the end of this guide.
 
 **Mode:** Require-design-input (**no prototype exists**)
 **Item:** 4A.3 #12
@@ -4615,5 +4621,175 @@ Phase 4+ ships everything that fits a portfolio scope. Things that landed in the
 ### One-line close
 
 If you got here, you took a portfolio project from "working demo" to "shippable SaaS with integration architecture, field workflows, AI, compliance, and residential depth" across 82 items. That's the artifact. Make the README loud about the cuts list; reviewers who matter will read it as product judgment.
+
+---
+
+## Settings Wiring Backlog
+
+**Added:** 2026-04-17
+**Last updated:** 2026-04-17 (commit 5 of the wire-up landed — domain lock, session timeout preference, compliance detail metadata now live).
+**Purpose:** Track every settings tab that renders on static sample data, what infra unblocks each one, and which existing build-guide step(s) the wiring work slots into.
+
+### Background
+
+After Session 17 (contractor settings audit, Step 5) and the Apr 17 drop of per-portal settings JSX specs (`docs/specs/builtcrm_{contractor,subcontractor,commercial_client,residential_client}_settings.jsx` + `builtcrm_settings_shared_shell.jsx`), the settings area consolidated into a single shared `SettingsShell` (`src/components/settings/settings-shell.tsx`) that renders:
+
+- **4 shared tabs** for every portal — profile, security, notifications, appearance
+- **7 contractor-only tabs** gated on `portalType === "contractor"` — organization, team & roles, plan & billing, data, org security, integrations, payments
+- **2 subcontractor-only tabs** gated on `portalType === "subcontractor"` — organization, trade & compliance
+
+Commercial and residential portal-specific tabs haven't been built yet — their JSX specs exist but no tabs have been added to the shell for them.
+
+### Legend
+
+- ✅ **Live** — wired to real loaders + APIs + audit events; persists to the DB
+- 🟢 **Wireable now** — data lives in existing schema + loaders; just needs loader call + API route
+- 🟡 **Partial** — some fields are in-schema, some need migration (stop-trigger)
+- 🔴 **Blocked** — needs significant new infra (schema, service integration, job system)
+- ⏳ **Not started** — UI and/or wiring not yet built
+
+### Migrations applied
+
+| # | Date | File | What it added |
+|---|---|---|---|
+| 1 | 2026-04-17 | `0001_org_settings_fields.sql` | 22 nullable cols on `organizations` (legal_name, tax_id, address, contacts, logo, trade/regions/crew) + `organization_licenses` + `organization_certifications` |
+| 2 | 2026-04-17 | `0002_org_security_and_compliance_metadata.sql` | `organizations.allowed_email_domains`, `organizations.session_timeout_minutes`, `compliance_records.metadata_json` |
+
+### Contractor: Organization ✅
+
+**File:** [settings-shell.tsx](../../src/components/settings/settings-shell.tsx) → `ContractorOrganizationTab` (dispatcher) → `ContractorOrganizationLiveTab`
+**Loader:** `getOrganizationProfile(orgId)` + `listOrganizationLicenses(orgId)` ([organization-profile.ts](../../src/domain/loaders/organization-profile.ts))
+**API routes:** `PATCH /api/org/profile`, `POST/DELETE /api/org/logo/finalize`, `POST /api/org/logo/presign`, `POST/PATCH/DELETE /api/org/licenses[/id]`
+
+What's live: all 14 form fields (display/legal name, tax_id, website, phone, address, contacts, billing) + logo upload to R2 + licenses add/remove. Save bar with discard + error states. Audit event `organization.updated` with `tax_id` redacted in both previousState and nextState JSON. Non-admin users see read-only form + no manage buttons.
+
+**Follow-ups:** license edit (route exists, UI button not wired yet — small add).
+
+### Contractor: Team & roles ✅
+
+**File:** [settings-shell.tsx](../../src/components/settings/settings-shell.tsx) → `ContractorTeamRolesTab` (dispatcher) → `ContractorTeamRolesLiveTab`
+**Loader:** `listOrganizationMembers(orgId)` ([organization-members.ts](../../src/domain/loaders/organization-members.ts)) + `listInvitationsForOrganization` (existing)
+**API routes:** `PATCH /api/org/members/[userId]/role`, `DELETE /api/org/members/[userId]`, `POST /api/invitations`, `DELETE /api/org/invitations/[id]`, `POST /api/org/invitations/[id]/resend`
+
+What's live: members list (joins `organizationUsers` + `users` + `roleAssignments` with last-active sub-query over `authSession`), inline role change with last-admin guard, soft-remove (flips `membershipStatus` to `removed`), invite send/cancel/resend. Audit events on every mutation. Banner surface for errors + successes.
+
+### Contractor: Plan & billing 🔴
+
+**File:** [settings-shell.tsx](../../src/components/settings/settings-shell.tsx) → `ContractorPlanBillingTab`
+**Current state:** Current plan card (Professional, $319/mo annual), 3-tier plan picker with monthly/annual toggle, Visa •••• 4242 payment method, 6-row billing history — all from `PLANS` / `BILLING_INVOICES` constants.
+
+**Schema reality:** Nothing. `src/db/schema/billing.ts` is about **project billing** (draws, SOV, lien waivers), not platform subscription billing.
+
+**To wire fully:**
+
+| Item | Needs | Stop-trigger? |
+|---|---|---|
+| Subscription state | New tables: `subscription_plans`, `organization_subscriptions`, `subscription_invoices`, `stripe_customers` | ✅ schema change |
+| Usage metering | Project count + team count derivable from existing tables. Storage: needs a denorm on `organizations` | ⚠️ partial schema |
+| Stripe Billing integration | Stripe **Billing** (subscription product) is separate from Stripe Connect — new webhook handlers, customer portal URL generation | ✅ new service |
+| Plan change | `POST /api/org/subscription/change-plan` → Stripe subscription update | — |
+| Payment method | Stripe Billing customer portal link (`POST /api/org/subscription/portal`) | — |
+| Billing history | Loader over `subscription_invoices` + download URL via Stripe invoice PDF | — |
+
+**Unblocks when:** Stripe Billing becomes a first-class feature (distinct from Stripe Connect used for contractor payouts). Per Phase 4+ portfolio scope this is deferred. Memory reference: *"Only contractors pay for the platform"* — when that moves from policy to plumbing, this tab becomes live.
+
+### Contractor: Data 🔴
+
+**File:** [settings-shell.tsx](../../src/components/settings/settings-shell.tsx) → `ContractorDataTab`
+**Current state:** 4 export cards (complete archive with preparing→ready mock flow, Projects CSV, Financial CSV, Documents ZIP), 3 import cards (CSV, Procore, Buildertrend), assisted migration tile.
+
+**Schema reality:** Nothing export/import-related.
+
+**To wire fully:**
+
+| Item | Needs | Stop-trigger? |
+|---|---|---|
+| Complete archive (ZIP/JSON) | Trigger.dev v3 job that queries every authorized table per org + R2 upload + signed download URL emailed | ✅ new job |
+| Projects / Financial CSVs | Trigger.dev jobs; small orgs can go synchronous | ✅ new job |
+| Documents ZIP | Streams R2 objects into a ZIP archive | ✅ new job |
+| Export status tracking | New table `data_exports` (status, requested_by, ready_url, expires_at) | ✅ schema change |
+| CSV import | Column-mapping wizard + validation preview + batched insert transaction | ✅ new feature |
+| Procore / Buildertrend imports | OAuth app registration + one-time sync jobs — V2+ per portfolio scope | ✅ new service |
+| Assisted migration | Marketing CTA (schedule-a-call) — no code dependency beyond a Cal.com or form link | — |
+
+**Unblocks when:** Trigger.dev v3 export jobs + `data_exports` tracking table ship (memory note: Trigger.dev v4 upgrade is deferred to between phases). Procore/Buildertrend imports require OAuth partnership (V2+).
+
+### Contractor: Org security 🟡
+
+**File:** [settings-shell.tsx](../../src/components/settings/settings-shell.tsx) → `ContractorOrgSecurityTab`
+**Loaders:** `listOrganizationAuditEvents` ([audit-log.ts](../../src/domain/loaders/audit-log.ts)) + org cols via `getOrganizationProfile`
+**API routes:** `PATCH /api/org/security` (domain lock + session timeout). Domain enforcement in `POST /api/invitations` — rejects emails whose domain isn't in the allowed list.
+
+Status per row:
+
+| Item | Status | Notes |
+|---|---|---|
+| Audit log (filtered table) | ✅ Live | Reads `auditEvents` joined with actor name; category derived via regex on `objectType` + `actionName`; 200-row limit, client-side filters |
+| Domain lock toggle | ✅ Live | Saves to `organizations.allowed_email_domains`. Enforcement lives in the invitation-create route; existing members with other domains are unaffected |
+| Session timeout select | 🟡 Partial | Preference saves to `organizations.session_timeout_minutes`. Enforcement is a follow-up — Better Auth is globally configured and per-org TTL requires a session-lifecycle hook |
+| Require 2FA (org-wide) | 🔴 Blocked | Enterprise-tier; depends on Billing |
+| SSO / SAML | 🔴 Blocked | Needs `sso_providers` + `sso_mappings` tables + SAML handler route + Better Auth SAML plugin. Enterprise-tier gated |
+| Audit log CSV export | ⏳ Not started | Streaming CSV over the filter set — small follow-up |
+
+### Contractor: Integrations ✅
+
+**File:** [settings-shell.tsx](../../src/components/settings/settings-shell.tsx) → `ContractorIntegrationsTab` (embeds the orphan `IntegrationsView` when the bundle is present)
+**Loader:** `getContractorIntegrationsView` ([integrations.ts](../../src/domain/loaders/integrations.ts))
+
+What's live: the salvage pass embeds the existing `IntegrationsView` from `src/app/(portal)/contractor/(global)/settings/integrations/integrations-ui.tsx` when `contractor.integrations` is populated. Connections, sync event history, per-project mappings, and QB detail panel all run on real data.
+
+### Contractor: Payments ✅
+
+**File:** [settings-shell.tsx](../../src/components/settings/settings-shell.tsx) → `ContractorPaymentsTab` (embeds the orphan `PaymentsView` when the bundle is present)
+**Loader:** `getContractorPaymentsView` ([payments.ts](../../src/domain/loaders/payments.ts))
+
+What's live: the salvage pass embeds the existing `PaymentsView`. Stripe Connect status + payout history display.
+
+**Follow-up:** Stripe Connect OAuth onboarding flow (if/when you want contractors to connect Stripe from within the tab vs an out-of-band flow). Not blocking.
+
+### Subcontractor: Organization ✅
+
+**File:** [settings-shell.tsx](../../src/components/settings/settings-shell.tsx) → `SubcontractorOrganizationTab` (dispatcher) → `SubcontractorOrganizationLiveTab`
+**Shares:** `getOrganizationProfile` + `listOrganizationLicenses` with contractor
+**API routes:** same portal-agnostic routes as contractor (`/api/org/profile`, `/api/org/logo/*`, `/api/org/licenses*`). Sub-owner auth resolved via `getSubcontractorOrgContext`.
+
+What's live: all company-info fields + sub-specific additions (primary trade select, secondary-trades chip list from `TRADE_OPTIONS`, years-in-business, crew-size select, service-regions chip list from `REGION_OPTIONS`) + 4-field primary contact + licenses + logo upload (blue-steel gradient per portal accent).
+
+### Subcontractor: Trade & compliance ✅
+
+**File:** [settings-shell.tsx](../../src/components/settings/settings-shell.tsx) → `SubcontractorComplianceTab`
+**Loader:** `listSubOrgComplianceRecords` + `listOrganizationCertifications`
+**API routes:** `POST /api/org/certifications`, `DELETE /api/org/certifications/[id]`
+
+Status per panel:
+
+| Panel | Status | Notes |
+|---|---|---|
+| Trade summary cards | ✅ Live | Reads `primaryTrade`, `secondaryTrades`, `crewSize`, `regions` from `orgProfile` with "Not set"/"None" fallbacks |
+| Compliance snapshot | ✅ Live | Reads `complianceRecords` grouped by type; `metadata_json.carrier` / `.coverage` / `.detail` render when populated; falls back to `documents.title` |
+| Certifications add/remove | ✅ Live | Add form → POST; per-row remove → DELETE; both with audit events |
+| Compliance workspace deep-link | ⏳ Not started | "Open Compliance" button doesn't route anywhere yet — wire when the sub compliance workspace is built |
+
+### Commercial / Residential portals ⏳
+
+**Files:** [commercial/(global)/settings/page.tsx](../../src/app/(portal)/commercial/(global)/settings/page.tsx) + [residential/(global)/settings/page.tsx](../../src/app/(portal)/residential/(global)/settings/page.tsx)
+**Current state:** Each portal renders only the 4 shared tabs. JSX specs exist in `docs/specs/` but no portal-specific tabs have been added to the shell.
+
+Per spec:
+- **Commercial** ([builtcrm_commercial_client_settings.jsx](builtcrm_commercial_client_settings.jsx)): client-org-specific — not yet inventoried. No billing.
+- **Residential** ([builtcrm_residential_client_settings.jsx](builtcrm_residential_client_settings.jsx)): homeowner-specific — not yet inventoried. No billing.
+
+**Unblocks when:** pick either (a) build both portal tab sets to UI completion before wiring, or (b) prioritize one portal end-to-end. Memory reference: *"Only contractors pay for the platform"* — no Plan & billing tab on either.
+
+### Remaining architectural blockers
+
+Four surfaces stay on sample data until the corresponding infrastructure phase lands:
+
+1. **Plan & billing** — needs Stripe Billing subscription infra (distinct from Stripe Connect used for payouts). Part of a future Billing phase.
+2. **Data exports / imports** — needs Trigger.dev v3 export jobs + `data_exports` tracking table. Procore/Buildertrend imports are V2+.
+3. **SSO / SAML** — Enterprise-tier; needs `sso_providers` + SAML handler route + Better Auth plugin.
+4. **Require-2FA org-wide** — Enterprise-tier; depends on Billing.
+
+No more incremental schema work is cost-effective on these — each needs its own design decision and multi-session build.
 
 *End of guide.*

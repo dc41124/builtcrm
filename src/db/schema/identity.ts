@@ -2,7 +2,9 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
   index,
+  integer,
   pgEnum,
   pgTable,
   text,
@@ -145,10 +147,101 @@ export const organizations = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     name: varchar("name", { length: 255 }).notNull(),
     organizationType: organizationTypeEnum("organization_type").notNull(),
+
+    // Settings-page fields (added 2026-04-17, portfolio Phase 4+ settings wire-up).
+    // Nullable on all existing rows — populated via the Organization settings tab.
+    // Shared across contractor and subcontractor portals; sub-specific fields are
+    // flagged below.
+    legalName: varchar("legal_name", { length: 255 }),
+    // Stored plaintext behind disk-level encryption + org-admin access policy.
+    // See `settings wiring` section of phase_4plus_build_guide.md for the
+    // encrypt-at-rest migration path if this ever needs hardening.
+    taxId: varchar("tax_id", { length: 40 }),
+    website: varchar("website", { length: 500 }),
+    phone: varchar("phone", { length: 40 }),
+
+    // Business address (contractor + sub).
+    addr1: varchar("addr1", { length: 255 }),
+    addr2: varchar("addr2", { length: 120 }),
+    city: varchar("city", { length: 120 }),
+    stateRegion: varchar("state_region", { length: 80 }),
+    postalCode: varchar("postal_code", { length: 20 }),
+    country: varchar("country", { length: 80 }),
+
+    // Contacts.
+    primaryContactName: varchar("primary_contact_name", { length: 200 }),
+    primaryContactTitle: varchar("primary_contact_title", { length: 200 }),
+    primaryContactEmail: varchar("primary_contact_email", { length: 320 }),
+    primaryContactPhone: varchar("primary_contact_phone", { length: 40 }),
+    billingContactName: varchar("billing_contact_name", { length: 200 }),
+    billingEmail: varchar("billing_email", { length: 320 }),
+
+    // Logo (R2 storage key; presigned URLs rendered at read time).
+    logoStorageKey: text("logo_storage_key"),
+
+    // Sub-specific fields. Null on contractor rows.
+    primaryTrade: varchar("primary_trade", { length: 120 }),
+    secondaryTrades: text("secondary_trades").array(),
+    yearsInBusiness: varchar("years_in_business", { length: 10 }),
+    crewSize: varchar("crew_size", { length: 10 }),
+    regions: text("regions").array(),
+
+    // Org-security settings (added 2026-04-17, commit 5 of settings wire-up).
+    // Domain lock: if non-null/non-empty, invitations to emails outside these
+    // domains are rejected at the invitation-create route. Existing members
+    // with other domains are unaffected.
+    allowedEmailDomains: text("allowed_email_domains").array(),
+    // Preference stored now; session-TTL enforcement is a follow-up since
+    // Better Auth is configured globally and per-org TTL requires a session
+    // lifecycle hook.
+    sessionTimeoutMinutes: integer("session_timeout_minutes"),
+
     ...timestamps,
   },
   (table) => ({
     nameIdx: index("organizations_name_idx").on(table.name),
+  }),
+);
+
+// License & credential entries per organization. Used by both contractor and
+// subcontractor Organization settings tabs.
+export const organizationLicenses = pgTable(
+  "organization_licenses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 200 }).notNull(),
+    licenseNumber: varchar("license_number", { length: 120 }).notNull(),
+    stateRegion: varchar("state_region", { length: 80 }),
+    expiresOn: date("expires_on"),
+    ...timestamps,
+  },
+  (table) => ({
+    orgIdx: index("organization_licenses_org_idx").on(table.organizationId),
+  }),
+);
+
+// Self-managed certifications (sub-only today, but the table is generic so
+// contractors can adopt it without schema work).
+// `issuedOn` and `expiresOn` are free-form strings because real-world certs
+// have labels like "Various" or "Annual renewal" that don't fit a date column.
+export const organizationCertifications = pgTable(
+  "organization_certifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 200 }).notNull(),
+    holder: varchar("holder", { length: 200 }),
+    issuedOn: varchar("issued_on", { length: 60 }),
+    expiresOn: varchar("expires_on", { length: 60 }),
+    ...timestamps,
+  },
+  (table) => ({
+    orgIdx: index("organization_certifications_org_idx").on(table.organizationId),
   }),
 );
 

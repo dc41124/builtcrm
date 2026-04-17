@@ -1,0 +1,183 @@
+import { asc, eq } from "drizzle-orm";
+
+import { db } from "@/db/client";
+import {
+  organizationCertifications,
+  organizationLicenses,
+  organizations,
+} from "@/db/schema";
+import { presignDownloadUrl } from "@/lib/storage";
+
+// Settings-page shape for the organizations row. Everything except `id`,
+// `name`, and `organizationType` is nullable in the DB; we preserve that here.
+export type OrganizationProfile = {
+  id: string;
+  organizationType: string;
+  // Shared
+  displayName: string; // stored in organizations.name
+  legalName: string | null;
+  taxId: string | null;
+  website: string | null;
+  phone: string | null;
+  addr1: string | null;
+  addr2: string | null;
+  city: string | null;
+  stateRegion: string | null;
+  postalCode: string | null;
+  country: string | null;
+  primaryContactName: string | null;
+  primaryContactTitle: string | null;
+  primaryContactEmail: string | null;
+  primaryContactPhone: string | null;
+  billingContactName: string | null;
+  billingEmail: string | null;
+  logoStorageKey: string | null;
+  logoPreviewUrl: string | null;
+  // Sub-specific — null on contractor rows
+  primaryTrade: string | null;
+  secondaryTrades: string[] | null;
+  yearsInBusiness: string | null;
+  crewSize: string | null;
+  regions: string[] | null;
+  // Org-security (commit 5). Null = unrestricted / no preference set.
+  allowedEmailDomains: string[] | null;
+  sessionTimeoutMinutes: number | null;
+};
+
+export async function getOrganizationProfile(
+  organizationId: string,
+): Promise<OrganizationProfile | null> {
+  const [row] = await db
+    .select({
+      id: organizations.id,
+      organizationType: organizations.organizationType,
+      name: organizations.name,
+      legalName: organizations.legalName,
+      taxId: organizations.taxId,
+      website: organizations.website,
+      phone: organizations.phone,
+      addr1: organizations.addr1,
+      addr2: organizations.addr2,
+      city: organizations.city,
+      stateRegion: organizations.stateRegion,
+      postalCode: organizations.postalCode,
+      country: organizations.country,
+      primaryContactName: organizations.primaryContactName,
+      primaryContactTitle: organizations.primaryContactTitle,
+      primaryContactEmail: organizations.primaryContactEmail,
+      primaryContactPhone: organizations.primaryContactPhone,
+      billingContactName: organizations.billingContactName,
+      billingEmail: organizations.billingEmail,
+      logoStorageKey: organizations.logoStorageKey,
+      primaryTrade: organizations.primaryTrade,
+      secondaryTrades: organizations.secondaryTrades,
+      yearsInBusiness: organizations.yearsInBusiness,
+      crewSize: organizations.crewSize,
+      regions: organizations.regions,
+      allowedEmailDomains: organizations.allowedEmailDomains,
+      sessionTimeoutMinutes: organizations.sessionTimeoutMinutes,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+  if (!row) return null;
+
+  let logoPreviewUrl: string | null = null;
+  if (row.logoStorageKey) {
+    try {
+      logoPreviewUrl = await presignDownloadUrl({
+        key: row.logoStorageKey,
+        expiresInSeconds: 60 * 60,
+      });
+    } catch {
+      logoPreviewUrl = null;
+    }
+  }
+
+  return {
+    id: row.id,
+    organizationType: row.organizationType,
+    displayName: row.name,
+    legalName: row.legalName,
+    taxId: row.taxId,
+    website: row.website,
+    phone: row.phone,
+    addr1: row.addr1,
+    addr2: row.addr2,
+    city: row.city,
+    stateRegion: row.stateRegion,
+    postalCode: row.postalCode,
+    country: row.country,
+    primaryContactName: row.primaryContactName,
+    primaryContactTitle: row.primaryContactTitle,
+    primaryContactEmail: row.primaryContactEmail,
+    primaryContactPhone: row.primaryContactPhone,
+    billingContactName: row.billingContactName,
+    billingEmail: row.billingEmail,
+    logoStorageKey: row.logoStorageKey,
+    logoPreviewUrl,
+    primaryTrade: row.primaryTrade,
+    secondaryTrades: row.secondaryTrades,
+    yearsInBusiness: row.yearsInBusiness,
+    crewSize: row.crewSize,
+    regions: row.regions,
+    allowedEmailDomains: row.allowedEmailDomains,
+    sessionTimeoutMinutes: row.sessionTimeoutMinutes,
+  };
+}
+
+export type OrganizationLicense = {
+  id: string;
+  kind: string;
+  licenseNumber: string;
+  stateRegion: string | null;
+  expiresOn: string | null; // ISO date (YYYY-MM-DD)
+  createdAt: Date;
+};
+
+export async function listOrganizationLicenses(
+  organizationId: string,
+): Promise<OrganizationLicense[]> {
+  const rows = await db
+    .select()
+    .from(organizationLicenses)
+    .where(eq(organizationLicenses.organizationId, organizationId))
+    .orderBy(asc(organizationLicenses.createdAt));
+
+  return rows.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    licenseNumber: r.licenseNumber,
+    stateRegion: r.stateRegion,
+    expiresOn: r.expiresOn ?? null,
+    createdAt: r.createdAt,
+  }));
+}
+
+export type OrganizationCertification = {
+  id: string;
+  kind: string;
+  holder: string | null;
+  issuedOn: string | null;
+  expiresOn: string | null;
+  createdAt: Date;
+};
+
+export async function listOrganizationCertifications(
+  organizationId: string,
+): Promise<OrganizationCertification[]> {
+  const rows = await db
+    .select()
+    .from(organizationCertifications)
+    .where(eq(organizationCertifications.organizationId, organizationId))
+    .orderBy(asc(organizationCertifications.createdAt));
+
+  return rows.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    holder: r.holder,
+    issuedOn: r.issuedOn,
+    expiresOn: r.expiresOn,
+    createdAt: r.createdAt,
+  }));
+}
