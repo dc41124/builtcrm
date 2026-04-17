@@ -12,6 +12,7 @@ import { db } from "@/db/client";
 import { projects, complianceRecords, rfis, approvals } from "@/db/schema";
 
 import type { PortalType, ShellProject } from "@/components/shell/AppShell";
+import { getPortalNavCounts, type NavCounts } from "./portal-nav-counts";
 
 export type PortalShellData = {
   userId: string;
@@ -23,6 +24,7 @@ export type PortalShellData = {
   projects: ShellProject[];
   projectShortcuts: ProjectShortcut[];
   option: PortalOption;
+  navCounts: NavCounts;
 };
 
 // Loads the minimum data needed to render a portal's AppShell and verifies
@@ -54,7 +56,7 @@ export async function loadPortalShell(
   const shortcuts = ctx.projectShortcuts.filter((s) => s.portalLabel === wantLabel);
 
   const projectIds = shortcuts.map((s) => s.projectId);
-  const [phaseRows, healthMap] = await Promise.all([
+  const [phaseRows, healthMap, navCounts] = await Promise.all([
     projectIds.length
       ? db
           .select({ id: projects.id, currentPhase: projects.currentPhase })
@@ -62,6 +64,13 @@ export async function loadPortalShell(
           .where(inArray(projects.id, projectIds))
       : Promise.resolve([] as Array<{ id: string; currentPhase: string }>),
     computeProjectHealth(projectIds),
+    getPortalNavCounts({
+      portalType,
+      userId: appUserId,
+      orgId: option.organizationId,
+      projectIds,
+      activeProjectId,
+    }),
   ]);
   const phaseById = new Map(phaseRows.map((r) => [r.id, r.currentPhase]));
 
@@ -86,6 +95,7 @@ export async function loadPortalShell(
     projects: shellProjects,
     projectShortcuts: shortcuts,
     option,
+    navCounts,
   };
 }
 

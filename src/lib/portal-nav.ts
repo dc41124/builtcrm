@@ -1,17 +1,30 @@
 import type { NavItem, NavSection, PortalType } from "@/components/shell/AppShell";
+import type { NavCounts } from "./portal-nav-counts";
+
+export type BuildNavOptions = {
+  portalType: PortalType;
+  projectId?: string;
+  activeHref?: string;
+  /** Map of href → unread/pending count. Items with a count > 0 get a badge. */
+  counts?: NavCounts;
+};
 
 // Builds the sidebar nav sections for a portal. Structure matches the grouped
 // layouts defined in docs/prototypes/ (design system shell + each portal's
 // own prototype file). Some items point to routes that do not exist yet —
 // those routes are part of the remaining build and will render 404 or
 // ComingSoon placeholders until implemented.
-export function buildNavSections(
-  portalType: PortalType,
-  projectId?: string,
-  activeHref?: string,
-): NavSection[] {
+export function buildNavSections(options: BuildNavOptions): NavSection[] {
+  const { portalType, projectId, activeHref, counts } = options;
   const mark = (items: NavItem[]): NavItem[] =>
-    items.map((i) => ({ ...i, active: activeHref === i.href }));
+    items.map((i) => {
+      const badge = counts?.[i.href];
+      return {
+        ...i,
+        active: activeHref === i.href,
+        badge: badge && badge > 0 ? badge : i.badge,
+      };
+    });
 
   if (portalType === "contractor") {
     if (projectId) {

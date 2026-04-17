@@ -6,7 +6,10 @@ import { loadPortalShell } from "@/lib/portal-shell";
 
 export default async function ContractorGlobalLayout({ children }: { children: ReactNode }) {
   const shell = await loadPortalShell("contractor");
-  const navSections = buildNavSections("contractor");
+  const navSections = buildNavSections({
+    portalType: "contractor",
+    counts: shell.navCounts,
+  });
 
   return (
     <AppShell

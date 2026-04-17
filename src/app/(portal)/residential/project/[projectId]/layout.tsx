@@ -13,7 +13,11 @@ export default async function ResidentialProjectLayout({
 }) {
   const { projectId } = await params;
   const shell = await loadPortalShell("residential", projectId);
-  const navSections = buildNavSections("residential", projectId);
+  const navSections = buildNavSections({
+    portalType: "residential",
+    projectId,
+    counts: shell.navCounts,
+  });
 
   return (
     <AppShell

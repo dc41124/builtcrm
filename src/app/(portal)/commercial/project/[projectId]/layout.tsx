@@ -13,7 +13,11 @@ export default async function CommercialProjectLayout({
 }) {
   const { projectId } = await params;
   const shell = await loadPortalShell("commercial", projectId);
-  const navSections = buildNavSections("commercial", projectId);
+  const navSections = buildNavSections({
+    portalType: "commercial",
+    projectId,
+    counts: shell.navCounts,
+  });
 
   return (
     <AppShell
