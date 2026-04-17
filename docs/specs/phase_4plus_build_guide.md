@@ -683,7 +683,7 @@ Permissions have been flagged as a gap since Phase 2. Today the app has role con
 >
 > After confirmation:
 >
-> 4. Build `src/app/(portal)/contractor/(global)/settings/team/page.tsx` matching the proposed layout. A `ComingSoon` placeholder already exists at this path — replace it.
+> 4. Build `src/app/(portal)/contractor/(global)/settings/team/page.tsx` matching the proposed layout. **A `ComingSoon` placeholder already exists at this path — replace it, don't rebuild from scratch.**
 > 5. Member add uses the existing invitation system from Phase 1 — reuse, don't rebuild.
 > 6. Role changes write via a server action with strict authorization (only Admins can change roles, Admin can't demote self unless another Admin exists).
 > 7. Remove member is soft-remove (keeps audit trail) — membership record marked inactive, not deleted.
@@ -733,7 +733,7 @@ Subcontractor orgs also need a Team page. There is **no prototype** for this —
 >
 > After confirmation:
 >
-> 4. Build `src/app/(portal)/subcontractor/(global)/team/page.tsx`. **Note:** the subcontractor team page is a sibling of `settings/` under `(global)`, not a child of `settings/` (asymmetric with contractor). A `ComingSoon` placeholder already exists at this path — replace it.
+> 4. Build `src/app/(portal)/subcontractor/(global)/team/page.tsx`. **A `ComingSoon` placeholder already exists at this path — replace it, don't rebuild from scratch.** Note: subcontractor team lives directly under `(global)/`, not under a `settings/` parent.
 > 5. Reuse as much from the contractor Team page as possible — the table component, the invite modal, the server actions. Parameterize by org type.
 > 6. All the same audit, authorization, and self-demotion rules apply.
 
@@ -782,7 +782,7 @@ The subcontractor portal has no dedicated Settings landing page. There's no prot
 >
 > After confirmation:
 >
-> 5. Build `src/app/(portal)/subcontractor/(global)/settings/page.tsx`. A `ComingSoon` placeholder already exists at this path — replace it.
+> 5. Build `src/app/(portal)/subcontractor/(global)/settings/page.tsx`. **A `ComingSoon` placeholder already exists at this path — replace it, don't rebuild from scratch.**
 > 6. Reuse the existing subcontractor org record for the profile section.
 > 7. Compliance summary reads from the existing compliance loader (role-scoped to this sub's org).
 
@@ -1698,7 +1698,7 @@ The settings page where users see what's connected, click connect, complete OAut
 
 > Read `docs/prototypes/builtcrm_contractor_settings_integrations.jsx` — the Integrations section(s).
 >
-> Build `src/app/(portal)/contractor/(global)/settings/integrations/page.tsx` (the file already exists with a working skeleton wired to `/api/integrations/connect|disconnect|export` — enhance it, don't rebuild from scratch; see `integrations-ui.tsx` in the same directory):
+> Build `src/app/(portal)/contractor/(global)/settings/integrations/page.tsx`. **The file already exists with a working skeleton wired to `/api/integrations/connect|disconnect|export` — enhance it, don't rebuild from scratch. See `integrations-ui.tsx` in the same directory.**
 >
 > 1. List of integration cards matching the prototype. Each card: provider logo (styled SVG from prototype), name, description, connect/disconnect button, status pill (Not connected / Connected / Sync error / Token expiring soon).
 > 2. Click Connect → kicks off `/api/oauth/[provider]/start` → user completes OAuth → returned to this page with a success banner.
@@ -2146,7 +2146,7 @@ The contractor portal has per-project approvals queues. This step adds a portfol
 > After confirmation:
 >
 > 1. Loader `getContractorCrossProjectApprovals(context, filters)` in `src/domain/loaders/cross-project.ts`.
-> 2. Page `src/app/(portal)/contractor/(global)/approvals/page.tsx` — a redirect-shim stub already exists at this path (redirects to the first project's approvals). Replace it with the real cross-project aggregate view.
+> 2. Page `src/app/(portal)/contractor/(global)/approvals/page.tsx`.
 > 3. Reuse filters and table component from the per-project approvals page from Phase 3.
 > 4. Performance: loader should be <1s for orgs with <50 projects. If slower, propose indexes on the relevant tables and flag the schema change.
 > 5. Authorization: only returns approvals for projects the caller has access to.
