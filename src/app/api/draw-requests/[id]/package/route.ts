@@ -11,15 +11,18 @@ import { db } from "@/db/client";
 import {
   documentLinks,
   documents,
+  drawLineItems,
   drawRequests,
   lienWaivers,
   organizations,
   projects,
+  sovLineItems,
 } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError, assertCan } from "@/domain/permissions";
 import { G702Document } from "@/lib/pdf/g702-template";
+import { G703Document } from "@/lib/pdf/g703-template";
 import { r2, R2_BUCKET } from "@/lib/storage";
 
 // archiver + R2 SDK streaming are Node-only APIs; Edge runtime would reject both.
@@ -168,14 +171,37 @@ export async function GET(
     );
     const lienWaiversCsv = [csvHeader, ...csvRows].join("\n");
 
-    // Render the G702 PDF up-front (before archive streaming starts). rendering
-    // to a Buffer is synchronous in practice — it doesn't block the event loop
-    // long enough to matter for a 1-page form — and doing it here means a
-    // failure surfaces as a clean 500 instead of a truncated ZIP.
-    // Call G702Document as a plain function (not via createElement) so the
-    // return type is the JSX root — `ReactElement<DocumentProps>` — which is
-    // what renderToBuffer requires. Wrapping via createElement would type the
-    // element as the wrapper's props instead of Document's.
+    // Pull draw line items joined to their SOV rows for the G703 continuation
+    // sheet. Ordered by SOV sortOrder so the PDF matches the on-screen table.
+    const g703Lines = await db
+      .select({
+        itemNumber: sovLineItems.itemNumber,
+        description: sovLineItems.description,
+        scheduledValueCents: sovLineItems.scheduledValueCents,
+        workCompletedPreviousCents: drawLineItems.workCompletedPreviousCents,
+        workCompletedThisPeriodCents:
+          drawLineItems.workCompletedThisPeriodCents,
+        materialsPresentlyStoredCents:
+          drawLineItems.materialsPresentlyStoredCents,
+        totalCompletedStoredToDateCents:
+          drawLineItems.totalCompletedStoredToDateCents,
+        percentCompleteBasisPoints: drawLineItems.percentCompleteBasisPoints,
+        balanceToFinishCents: drawLineItems.balanceToFinishCents,
+        retainageCents: drawLineItems.retainageCents,
+      })
+      .from(drawLineItems)
+      .innerJoin(
+        sovLineItems,
+        eq(sovLineItems.id, drawLineItems.sovLineItemId),
+      )
+      .where(eq(drawLineItems.drawRequestId, drawId))
+      .orderBy(sovLineItems.sortOrder);
+
+    // Render G702 + G703 PDFs up-front (before archive streaming starts).
+    // Components are called as plain functions (not via createElement) so the
+    // return type is ReactElement<DocumentProps>, which is what renderToBuffer
+    // requires. Awaiting inline means any template failure surfaces as a clean
+    // 500 instead of a truncated ZIP.
     const g702Buffer = await renderToBuffer(
       G702Document({
         data: {
@@ -201,6 +227,31 @@ export async function GET(
       }),
     );
 
+    const g703Buffer = await renderToBuffer(
+      G703Document({
+        data: {
+          projectName: project?.name ?? "",
+          contractorName: ctx.organization.name,
+          drawNumber: draw.drawNumber,
+          applicationDate: new Date(),
+          periodFrom: draw.periodFrom,
+          periodTo: draw.periodTo,
+          lines: g703Lines.map((l) => ({
+            itemNumber: l.itemNumber,
+            description: l.description,
+            scheduledValueCents: l.scheduledValueCents,
+            workCompletedPreviousCents: l.workCompletedPreviousCents,
+            workCompletedThisPeriodCents: l.workCompletedThisPeriodCents,
+            materialsPresentlyStoredCents: l.materialsPresentlyStoredCents,
+            totalCompletedStoredToDateCents: l.totalCompletedStoredToDateCents,
+            percentCompleteBasisPoints: l.percentCompleteBasisPoints,
+            balanceToFinishCents: l.balanceToFinishCents,
+            retainageCents: l.retainageCents,
+          })),
+        },
+      }),
+    );
+
     // zlib level 6 is the standard speed/compression tradeoff — ~equivalent to
     // `zip -6` on the command line. Higher levels barely shrink PDFs/images
     // (already compressed) and cost noticeable CPU on large packages.
@@ -209,6 +260,9 @@ export async function GET(
     archive.append(lienWaiversCsv, { name: "lien-waivers.csv" });
     archive.append(g702Buffer, {
       name: `G702-draw-${String(draw.drawNumber).padStart(3, "0")}.pdf`,
+    });
+    archive.append(g703Buffer, {
+      name: `G703-draw-${String(draw.drawNumber).padStart(3, "0")}.pdf`,
     });
 
     for (const f of supportingFiles) {
