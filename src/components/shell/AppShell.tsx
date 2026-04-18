@@ -13,6 +13,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "@/auth/client";
 import "./app-shell.css";
 
+import { CommandPalette, type CommandPaletteHandle } from "./CommandPalette";
 import { NotificationBell } from "./NotificationBell";
 import { PORTAL_ACCENTS, type PortalType } from "@/lib/portal-colors";
 
@@ -484,6 +485,8 @@ export default function AppShell({
 
   const accent = ACCENTS[portalType];
   const toggle = (key: string) => setExpanded((p) => ({ ...p, [key]: !p[key] }));
+  const paletteRef = useRef<CommandPaletteHandle | null>(null);
+  const openPalette = () => paletteRef.current?.open();
   const initials = userName.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
   const projectsOpen = !!expanded[PROJECTS_KEY];
   const pathname = usePathname();
@@ -572,11 +575,26 @@ export default function AppShell({
           </div>
 
           <div className="b-srch">
-            <div className="b-srch-w">
+            <button
+              type="button"
+              className="b-srch-w"
+              onClick={openPalette}
+              aria-label="Open command palette"
+            >
               <span className="b-srch-ico">{SearchIcon}</span>
-              <input type="text" placeholder="Search..." />
-              <span className="b-srch-k">/</span>
-            </div>
+              <span
+                style={{
+                  flex: 1,
+                  color: "var(--t3)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  textAlign: "left",
+                }}
+              >
+                Search…
+              </span>
+              <span className="b-srch-k">⌘K</span>
+            </button>
           </div>
 
           <nav className="b-nav">
@@ -663,6 +681,19 @@ export default function AppShell({
               })}
             </div>
             <ProjectSwitcher portalType={portalType} projects={projects} />
+            <button
+              type="button"
+              className="b-cmd-trig"
+              onClick={openPalette}
+              aria-label="Search (⌘K)"
+              title="Search (⌘K)"
+            >
+              <span className="b-cmd-trig-left">
+                <span className="b-cmd-trig-ico" aria-hidden>{SearchIcon}</span>
+                <span className="b-cmd-trig-ph">Search…</span>
+              </span>
+              <kbd className="b-cmd-kbd">⌘K</kbd>
+            </button>
             <div className="b-tr">
               <button
                 type="button"
@@ -682,6 +713,7 @@ export default function AppShell({
           <div className="b-cnt">{children}</div>
         </main>
       </div>
+      <CommandPalette ref={paletteRef} portalType={portalType} />
     </div>
   );
 }
