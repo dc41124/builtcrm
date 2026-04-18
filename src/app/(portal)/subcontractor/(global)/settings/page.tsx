@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth/config";
 import { getUserSettingsView } from "@/domain/loaders/user-settings";
+import { listOrganizationMembers } from "@/domain/loaders/organization-members";
+import { listInvitationsForOrganization } from "@/domain/loaders/invitations";
 import {
   getSubcontractorOrgContext,
   listSubOrgComplianceRecords,
@@ -38,6 +40,8 @@ export default async function SubcontractorSettingsPage() {
           role: "subcontractor_owner" | "subcontractor_user";
           currentUserId: string;
           compliance: Awaited<ReturnType<typeof listSubOrgComplianceRecords>>;
+          members: Awaited<ReturnType<typeof listOrganizationMembers>>;
+          invitations: Awaited<ReturnType<typeof listInvitationsForOrganization>>;
           orgProfile: Awaited<ReturnType<typeof getOrganizationProfile>>;
           orgLicenses: Awaited<ReturnType<typeof listOrganizationLicenses>>;
           orgCertifications: Awaited<ReturnType<typeof listOrganizationCertifications>>;
@@ -46,19 +50,29 @@ export default async function SubcontractorSettingsPage() {
 
     try {
       const ctx = await getSubcontractorOrgContext(sessionShim);
-      const [compliance, orgProfile, orgLicenses, orgCertifications] =
-        await Promise.all([
-          listSubOrgComplianceRecords(ctx.organization.id),
-          getOrganizationProfile(ctx.organization.id),
-          listOrganizationLicenses(ctx.organization.id),
-          listOrganizationCertifications(ctx.organization.id),
-        ]);
+      const [
+        compliance,
+        members,
+        invitations,
+        orgProfile,
+        orgLicenses,
+        orgCertifications,
+      ] = await Promise.all([
+        listSubOrgComplianceRecords(ctx.organization.id),
+        listOrganizationMembers(ctx.organization.id),
+        listInvitationsForOrganization(ctx.organization.id),
+        getOrganizationProfile(ctx.organization.id),
+        listOrganizationLicenses(ctx.organization.id),
+        listOrganizationCertifications(ctx.organization.id),
+      ]);
       subBundle = {
         orgId: ctx.organization.id,
         orgName: ctx.organization.name,
         role: ctx.role,
         currentUserId: ctx.user.id,
         compliance,
+        members,
+        invitations,
         orgProfile,
         orgLicenses,
         orgCertifications,

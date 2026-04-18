@@ -140,7 +140,6 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
           defaultOpen: true,
           placement: "after-projects",
           items: mark([
-            { label: "Team", href: "/subcontractor/team" },
             { label: "Settings", href: "/subcontractor/settings" },
           ]),
         },
@@ -185,7 +184,6 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
         defaultOpen: false,
         placement: "after-projects",
         items: mark([
-          { label: "Team", href: "/subcontractor/team" },
           { label: "Settings", href: "/subcontractor/settings" },
         ]),
       },

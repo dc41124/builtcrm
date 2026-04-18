@@ -72,6 +72,20 @@ export type SubcontractorSettingsBundle = {
   role: "subcontractor_owner" | "subcontractor_user";
   currentUserId: string;
   compliance: SubComplianceRow[];
+  members?: OrganizationMember[];
+  invitations?: Array<{
+    id: string;
+    invitedEmail: string;
+    invitedName: string | null;
+    portalType: string;
+    roleKey: string;
+    status: string;
+    expiresAt: Date;
+    createdAt: Date;
+    projectId: string | null;
+    projectName: string | null;
+    token: string;
+  }>;
   orgProfile?: OrganizationProfile | null;
   orgLicenses?: OrganizationLicense[];
   orgCertifications?: OrganizationCertification[];
@@ -303,7 +317,23 @@ const CONTRACTOR_TABS: TabDescriptor[] = [
 ];
 const SUBCONTRACTOR_TABS: TabDescriptor[] = [
   { id: "organization", label: "Organization", icon: I.building, desc: "Company profile, trade, and licensing" },
+  { id: "team", label: "Team & roles", icon: I.users, desc: "People in your organization with access" },
   { id: "compliance", label: "Trade & compliance", icon: I.shield, desc: "Insurance, W-9, bonding, and certifications" },
+];
+
+const SUB_TEAM_ROLES: RoleDef[] = [
+  {
+    id: "subcontractor_owner",
+    label: "Owner",
+    desc: "Manage team, invite members, change roles, and do everything a member can. Only owners can edit the company profile.",
+    scope: "org",
+  },
+  {
+    id: "subcontractor_user",
+    label: "Member",
+    desc: "Respond to RFIs, upload documents, submit lien waivers, and work on assigned projects. Cannot manage team.",
+    scope: "org",
+  },
 ];
 const COMMERCIAL_TABS: TabDescriptor[] = [
   { id: "company", label: "Company", icon: I.building, desc: "Your organization's profile and address" },
@@ -390,6 +420,9 @@ export function SettingsShell({
         )}
         {tab === "team" && view.portalType === "contractor" && (
           <ContractorTeamRolesTab contractor={contractor} />
+        )}
+        {tab === "team" && view.portalType === "subcontractor" && (
+          <SubcontractorTeamRolesTab subcontractor={subcontractor} />
         )}
         {tab === "billing" && <ContractorPlanBillingTab contractor={contractor} />}
         {tab === "data" && <ContractorDataTab contractor={contractor} />}
@@ -8353,6 +8386,629 @@ function ContractorTeamRolesLiveTab({
                     </td>
                     <td style={{ padding: "14px 12px", borderBottom: "1px solid var(--s2)" }}>
                       <Pill>{TEAM_ROLES.find((r) => r.id === inv.roleKey)?.label ?? inv.roleKey}</Pill>
+                    </td>
+                    <td
+                      style={{
+                        padding: "14px 12px",
+                        borderBottom: "1px solid var(--s2)",
+                        color: "var(--t2)",
+                        fontSize: 12.5,
+                      }}
+                    >
+                      {inv.status === "expired" ? (
+                        <Pill tone="warn">Expired</Pill>
+                      ) : (
+                        <span>
+                          Expires {formatRelativeTime(inv.expiresAt)}
+                        </span>
+                      )}
+                    </td>
+                    <td
+                      style={{
+                        padding: "14px 12px",
+                        borderBottom: "1px solid var(--s2)",
+                        textAlign: "right",
+                      }}
+                    >
+                      {canManage && (
+                        <>
+                          <button
+                            style={btnGhostSm()}
+                            onClick={() => resendInvite(inv.id)}
+                            disabled={pending[`resend:${inv.id}`]}
+                          >
+                            {pending[`resend:${inv.id}`] ? "…" : "Resend"}
+                          </button>
+                          <button
+                            style={{ ...btnGhostSm(), color: "var(--dg)", marginLeft: 4 }}
+                            onClick={() => cancelInvite(inv.id)}
+                            disabled={pending[`cancel:${inv.id}`]}
+                          >
+                            {pending[`cancel:${inv.id}`] ? "…" : "Cancel"}
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      )}
+    </>
+  );
+}
+
+// ═══════ SUBCONTRACTOR: TEAM & ROLES (LIVE) ════════════════════════════
+// Mirrors ContractorTeamRolesLiveTab with the sub's two-role model
+// (Owner / Member). All the same /api/org/members + /api/invitations
+// routes; requireOrgAdminContext on the server routes the role
+// assignment to the sub portal based on ctx.portal.
+
+function SubcontractorTeamRolesTab({
+  subcontractor,
+}: {
+  subcontractor?: SubcontractorSettingsBundle;
+}) {
+  const router = useRouter();
+  const [memberSearch, setMemberSearch] = useState("");
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("subcontractor_user");
+  const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
+  const [roleExplainer, setRoleExplainer] = useState(false);
+  const [banner, setBanner] = useState<
+    { kind: "error" | "success"; text: string } | null
+  >(null);
+  const [pending, setPending] = useState<Record<string, boolean>>({});
+
+  // If the user has no sub-org assignment yet (fresh invitee mid-onboarding)
+  // the page skips loading the bundle. Show a friendly empty state rather
+  // than a dead tab.
+  if (!subcontractor || !subcontractor.members || !subcontractor.invitations) {
+    return (
+      <Panel
+        title="Team & roles"
+        subtitle="People in your organization with access to BuiltCRM."
+      >
+        <div
+          style={{
+            padding: 24,
+            textAlign: "center",
+            color: "var(--t3)",
+            fontSize: 13,
+            fontWeight: 500,
+          }}
+        >
+          Finish accepting your organization invite to see your team.
+        </div>
+      </Panel>
+    );
+  }
+
+  const members = subcontractor.members;
+  const invitations = subcontractor.invitations;
+  const canManage = subcontractor.role === "subcontractor_owner";
+  const visibleMembers = members.filter((m) => m.membershipStatus === "active");
+  const filteredMembers = visibleMembers.filter(
+    (m) =>
+      !memberSearch ||
+      m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+      m.email.toLowerCase().includes(memberSearch.toLowerCase()),
+  );
+  const pendingInvites = invitations.filter(
+    (i) => i.status === "pending" || i.status === "expired",
+  );
+
+  function flash(kind: "error" | "success", text: string) {
+    setBanner({ kind, text });
+    setTimeout(() => setBanner(null), 3500);
+  }
+
+  async function changeRole(userId: string, newRoleKey: string) {
+    setPending((p) => ({ ...p, [`role:${userId}`]: true }));
+    const res = await fetch(`/api/org/members/${userId}/role`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roleKey: newRoleKey }),
+    });
+    setPending((p) => ({ ...p, [`role:${userId}`]: false }));
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      flash("error", body.message ?? body.error ?? "Could not change role.");
+      return;
+    }
+    router.refresh();
+  }
+
+  async function removeMember(userId: string) {
+    setPending((p) => ({ ...p, [`remove:${userId}`]: true }));
+    const res = await fetch(`/api/org/members/${userId}`, { method: "DELETE" });
+    setPending((p) => ({ ...p, [`remove:${userId}`]: false }));
+    setRemoveConfirm(null);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      flash("error", body.message ?? body.error ?? "Could not remove member.");
+      return;
+    }
+    flash("success", "Member removed.");
+    router.refresh();
+  }
+
+  async function sendInvite() {
+    if (!inviteEmail) return;
+    setPending((p) => ({ ...p, invite: true }));
+    const res = await fetch(`/api/invitations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        invitedEmail: inviteEmail,
+        portalType: "subcontractor",
+        roleKey: inviteRole,
+      }),
+    });
+    setPending((p) => ({ ...p, invite: false }));
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      flash("error", body.message ?? body.error ?? "Could not send invite.");
+      return;
+    }
+    setInviteEmail("");
+    setInviteRole("subcontractor_user");
+    setShowInvite(false);
+    flash("success", "Invitation sent.");
+    router.refresh();
+  }
+
+  async function cancelInvite(invitationId: string) {
+    setPending((p) => ({ ...p, [`cancel:${invitationId}`]: true }));
+    const res = await fetch(`/api/org/invitations/${invitationId}`, {
+      method: "DELETE",
+    });
+    setPending((p) => ({ ...p, [`cancel:${invitationId}`]: false }));
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      flash("error", body.message ?? body.error ?? "Could not cancel invite.");
+      return;
+    }
+    flash("success", "Invitation revoked.");
+    router.refresh();
+  }
+
+  async function resendInvite(invitationId: string) {
+    setPending((p) => ({ ...p, [`resend:${invitationId}`]: true }));
+    const res = await fetch(`/api/org/invitations/${invitationId}/resend`, {
+      method: "POST",
+    });
+    setPending((p) => ({ ...p, [`resend:${invitationId}`]: false }));
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      flash("error", body.message ?? body.error ?? "Could not resend invite.");
+      return;
+    }
+    flash("success", "Invitation resent.");
+    router.refresh();
+  }
+
+  return (
+    <>
+      <Panel
+        title="Roles"
+        subtitle="Two roles. Owners manage the team; members do the work. Owners can't demote themselves if they're the last one."
+        headerRight={
+          <button style={btnGhostSm()} onClick={() => setRoleExplainer((v) => !v)}>
+            {roleExplainer ? "Hide details" : "Show details"}
+          </button>
+        }
+      >
+        {roleExplainer && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))",
+              gap: 10,
+              marginTop: 4,
+            }}
+          >
+            {SUB_TEAM_ROLES.map((r) => (
+              <div
+                key={r.id}
+                style={{
+                  padding: "12px 14px",
+                  border: "1px solid var(--s3)",
+                  borderRadius: 10,
+                  background: "var(--s1)",
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: "'DM Sans',system-ui,sans-serif",
+                    fontSize: 13,
+                    fontWeight: 650,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    marginBottom: 4,
+                  }}
+                >
+                  {r.label}
+                  <Pill tone="accent">Org-wide</Pill>
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--t3)", lineHeight: 1.45, fontWeight: 500 }}>
+                  {r.desc}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+
+      <Panel
+        title={`Members (${visibleMembers.length})`}
+        subtitle="Everyone in your organization with access to BuiltCRM. Changes apply on their next request."
+        headerRight={
+          canManage ? (
+            <button style={btnPrimarySm(true)} onClick={() => setShowInvite((v) => !v)}>
+              {showInvite ? "Cancel" : (
+                <>
+                  <span style={{ marginRight: 4 }}>{I.plus}</span>Invite member
+                </>
+              )}
+            </button>
+          ) : null
+        }
+      >
+        {showInvite && canManage && (
+          <div
+            style={{
+              background: "var(--ac-s)",
+              border: "1px solid var(--ac-m)",
+              borderRadius: 14,
+              padding: 18,
+              marginBottom: 12,
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr auto auto",
+              gap: 10,
+              alignItems: "end",
+            }}
+          >
+            <Field label="Email address">
+              <input
+                type="email"
+                placeholder={`new.member@${subcontractor.orgName.toLowerCase().replace(/\s+/g, "")}.com`}
+                style={fieldStyle()}
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
+            </Field>
+            <Field label="Role">
+              <select style={fieldStyle()} value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
+                {SUB_TEAM_ROLES.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <button style={btnGhostSm()} onClick={() => setShowInvite(false)}>
+              Cancel
+            </button>
+            <button
+              style={btnPrimarySm(Boolean(inviteEmail) && !pending.invite)}
+              onClick={sendInvite}
+              disabled={!inviteEmail || pending.invite}
+            >
+              {pending.invite ? "Sending…" : "Send invite"}
+            </button>
+          </div>
+        )}
+
+        <div style={{ position: "relative", maxWidth: 320, marginBottom: 14 }}>
+          <span
+            style={{
+              position: "absolute",
+              left: 11,
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "var(--t3)",
+              pointerEvents: "none",
+              display: "flex",
+            }}
+          >
+            {I.search}
+          </span>
+          <input
+            placeholder="Search members by name or email..."
+            value={memberSearch}
+            onChange={(e) => setMemberSearch(e.target.value)}
+            style={{ ...fieldStyle(), height: 36, paddingLeft: 34 }}
+          />
+        </div>
+
+        <div style={{ overflow: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+            <thead>
+              <tr>
+                {["Member", "Role", "Last active", ""].map((h, i) => (
+                  <th
+                    key={i}
+                    style={{
+                      fontFamily: "'DM Sans',system-ui,sans-serif",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "var(--t3)",
+                      textTransform: "uppercase",
+                      letterSpacing: ".06em",
+                      textAlign: i === 3 ? "right" : "left",
+                      padding: "10px 12px",
+                      borderBottom: "1px solid var(--s3)",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredMembers.map((m) => {
+                const isSelf = m.userId === subcontractor.currentUserId;
+                return (
+                  <tr key={m.id}>
+                    <td
+                      style={{
+                        padding: "14px 12px",
+                        borderBottom: "1px solid var(--s2)",
+                        fontSize: 13.5,
+                        verticalAlign: "middle",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div
+                          style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: "50%",
+                            background: "linear-gradient(135deg,var(--ac),var(--ac-m))",
+                            color: "white",
+                            display: "grid",
+                            placeItems: "center",
+                            fontFamily: "'DM Sans',system-ui,sans-serif",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {m.initials}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontFamily: "'DM Sans',system-ui,sans-serif",
+                              fontSize: 13.5,
+                              fontWeight: 650,
+                              letterSpacing: "-.01em",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            {m.name}
+                            {isSelf && <Pill tone="accent">You</Pill>}
+                          </div>
+                          <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 2, fontWeight: 500 }}>
+                            {m.email}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: "14px 12px", borderBottom: "1px solid var(--s2)" }}>
+                      {canManage && !isSelf ? (
+                        <select
+                          value={m.roleKey}
+                          onChange={(e) => changeRole(m.userId, e.target.value)}
+                          disabled={pending[`role:${m.userId}`]}
+                          style={{
+                            ...fieldStyle(),
+                            height: 32,
+                            width: "auto",
+                            fontSize: 12.5,
+                            padding: "0 28px 0 10px",
+                          }}
+                        >
+                          {SUB_TEAM_ROLES.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.label}
+                            </option>
+                          ))}
+                          {!SUB_TEAM_ROLES.find((r) => r.id === m.roleKey) && (
+                            <option value={m.roleKey}>{m.roleKey}</option>
+                          )}
+                        </select>
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: 12.5,
+                            color: "var(--t2)",
+                            fontWeight: 520,
+                          }}
+                        >
+                          {SUB_TEAM_ROLES.find((r) => r.id === m.roleKey)?.label ?? m.roleKey}
+                        </span>
+                      )}
+                    </td>
+                    <td
+                      style={{
+                        padding: "14px 12px",
+                        borderBottom: "1px solid var(--s2)",
+                        color: "var(--t2)",
+                        fontSize: 12.5,
+                      }}
+                    >
+                      {m.lastActiveAt ? formatRelativeTime(m.lastActiveAt) : "—"}
+                    </td>
+                    <td
+                      style={{
+                        padding: "14px 12px",
+                        borderBottom: "1px solid var(--s2)",
+                        textAlign: "right",
+                      }}
+                    >
+                      {canManage && !isSelf && (
+                        <button
+                          style={{ ...btnGhostSm(), color: "var(--dg)" }}
+                          onClick={() => setRemoveConfirm(m.userId)}
+                          disabled={pending[`remove:${m.userId}`]}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredMembers.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    style={{
+                      textAlign: "center",
+                      padding: 24,
+                      color: "var(--t3)",
+                      fontSize: 13,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {memberSearch
+                      ? `No members match “${memberSearch}”`
+                      : "No members in this organization yet."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {banner && (
+          <div
+            style={{
+              background:
+                banner.kind === "error" ? "var(--dg-s)" : "var(--ok-s)",
+              border: `1px solid ${banner.kind === "error" ? "var(--dg)" : "var(--ok)"}`,
+              borderRadius: 12,
+              padding: "10px 14px",
+              marginTop: 10,
+              fontSize: 12.5,
+              color: banner.kind === "error" ? "var(--dg-t)" : "var(--ok-t)",
+              fontWeight: 580,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            {banner.kind === "error" ? I.warn : I.check}
+            {banner.text}
+          </div>
+        )}
+
+        {removeConfirm && (() => {
+          const target = members.find((m) => m.userId === removeConfirm);
+          if (!target) return null;
+          return (
+            <div
+              style={{
+                background: "var(--dg-s)",
+                border: "1px solid var(--dg)",
+                borderRadius: 14,
+                padding: 14,
+                marginTop: 4,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--dg)",
+                  fontWeight: 580,
+                  flex: 1,
+                  minWidth: 200,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                {I.warn}
+                Remove <strong>{target.name}</strong> from the organization? Their
+                membership row will be soft-removed — records they created stay
+                attached to the projects.
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button style={btnGhostSm()} onClick={() => setRemoveConfirm(null)}>
+                  Cancel
+                </button>
+                <button
+                  style={btnDangerSm()}
+                  onClick={() => removeMember(removeConfirm)}
+                  disabled={pending[`remove:${removeConfirm}`]}
+                >
+                  {pending[`remove:${removeConfirm}`] ? "Removing…" : "Confirm remove"}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </Panel>
+
+      {pendingInvites.length > 0 && (
+        <Panel
+          title={`Pending invites (${pendingInvites.length})`}
+          subtitle="People who've been invited but haven't accepted yet."
+        >
+          <div style={{ overflow: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+              <thead>
+                <tr>
+                  {["Email", "Role", "Status", ""].map((h, i) => (
+                    <th
+                      key={i}
+                      style={{
+                        fontFamily: "'DM Sans',system-ui,sans-serif",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "var(--t3)",
+                        textTransform: "uppercase",
+                        letterSpacing: ".06em",
+                        textAlign: i === 3 ? "right" : "left",
+                        padding: "10px 12px",
+                        borderBottom: "1px solid var(--s3)",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pendingInvites.map((inv) => (
+                  <tr key={inv.id}>
+                    <td
+                      style={{
+                        padding: "14px 12px",
+                        borderBottom: "1px solid var(--s2)",
+                        fontFamily: "'JetBrains Mono',monospace",
+                        fontSize: 12.5,
+                      }}
+                    >
+                      {inv.invitedEmail}
+                    </td>
+                    <td style={{ padding: "14px 12px", borderBottom: "1px solid var(--s2)" }}>
+                      <Pill>{SUB_TEAM_ROLES.find((r) => r.id === inv.roleKey)?.label ?? inv.roleKey}</Pill>
                     </td>
                     <td
                       style={{
