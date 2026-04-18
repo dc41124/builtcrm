@@ -1,4 +1,14 @@
-import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -120,6 +130,14 @@ type AudienceScope =
   | "residential_client"
   | "mixed";
 
+type VisibilityScope =
+  | "internal_only"
+  | "client_visible"
+  | "subcontractor_scoped"
+  | "project_wide"
+  | "phase_scoped"
+  | "scope_scoped";
+
 // Which `documents.audience_scope` values this portal is allowed to
 // read. Contractors read everything; subs read their own + mixed +
 // (contractor-published if visibility_scope permits); clients see
@@ -148,7 +166,7 @@ function allowedAudiencesFor(portal: SearchPortal): AudienceScope[] {
 // Visibility scopes that are NEVER legal for this portal — e.g. a
 // client should never see `internal_only` or `subcontractor_scoped`
 // docs even if the audience_scope looks compatible.
-function forbiddenVisibilityFor(portal: SearchPortal): string[] {
+function forbiddenVisibilityFor(portal: SearchPortal): VisibilityScope[] {
   if (portal === "contractor") return [];
   if (portal === "subcontractor") return ["internal_only", "client_visible"];
   return ["internal_only", "subcontractor_scoped"];
@@ -189,6 +207,19 @@ export async function getGlobalSearchResults(
   const like = `%${q}%`;
   const prefix = `${q}%`;
 
+  // Isolate failures: if one category's query errors (bad SQL, a
+  // schema drift, etc.), the others should still return. Without this
+  // wrapper a single throw from Promise.all poisons the whole
+  // response and the palette shows "no matches" for every query.
+  async function safe<T>(fn: () => Promise<T>, label: string): Promise<T | null> {
+    try {
+      return await fn();
+    } catch (err) {
+      console.error(`[search] ${label} failed`, err);
+      return null;
+    }
+  }
+
   const [
     projectRows,
     rfiRows,
@@ -197,22 +228,32 @@ export async function getGlobalSearchResults(
     messageRows,
     peopleRows,
   ] = await Promise.all([
-    searchProjects(projectIds, like, prefix),
-    searchRfis(projectIds, like, prefix),
-    searchChangeOrders(projectIds, like, prefix),
-    searchDocuments(projectIds, input.portalType, like, prefix),
-    searchMessages(input.appUserId, projectIds, like, prefix),
-    searchPeople(input.appUserId, input.portalType, projectIds, like, prefix),
+    safe(() => searchProjects(projectIds, like, prefix), "projects"),
+    safe(() => searchRfis(projectIds, like, prefix), "rfis"),
+    safe(() => searchChangeOrders(projectIds, like, prefix), "changeOrders"),
+    safe(
+      () => searchDocuments(projectIds, input.portalType, like, prefix),
+      "documents",
+    ),
+    safe(
+      () => searchMessages(input.appUserId, projectIds, like, prefix),
+      "messages",
+    ),
+    safe(
+      () =>
+        searchPeople(input.appUserId, input.portalType, projectIds, like, prefix),
+      "people",
+    ),
   ]);
 
   return {
-    projects: projectRows.map((r) => ({
+    projects: (projectRows ?? []).map((r) => ({
       id: r.id,
       name: r.name,
       phase: r.currentPhase ?? null,
       href: projectBase(input.portalType, r.id),
     })),
-    rfis: rfiRows.map((r) => ({
+    rfis: (rfiRows ?? []).map((r) => ({
       id: r.id,
       number: r.sequentialNumber,
       subject: r.subject,
@@ -220,7 +261,7 @@ export async function getGlobalSearchResults(
       projectName: projectNameById.get(r.projectId) ?? "Project",
       href: `${projectBase(input.portalType, r.projectId)}/rfis`,
     })),
-    changeOrders: coRows.map((r) => ({
+    changeOrders: (coRows ?? []).map((r) => ({
       id: r.id,
       number: r.changeOrderNumber,
       title: r.title,
@@ -228,7 +269,7 @@ export async function getGlobalSearchResults(
       projectName: projectNameById.get(r.projectId) ?? "Project",
       href: changeOrderHref(input.portalType, r.projectId),
     })),
-    documents: documentRows.map((r) => ({
+    documents: (documentRows ?? []).map((r) => ({
       id: r.id,
       title: r.title,
       documentType: r.documentType,
@@ -236,7 +277,7 @@ export async function getGlobalSearchResults(
       projectName: projectNameById.get(r.projectId) ?? "Project",
       href: `${projectBase(input.portalType, r.projectId)}/documents`,
     })),
-    messages: messageRows.map((r) => ({
+    messages: (messageRows ?? []).map((r) => ({
       id: r.id,
       title: r.title ?? "Conversation",
       preview: r.lastMessagePreview,
@@ -244,7 +285,7 @@ export async function getGlobalSearchResults(
       projectName: projectNameById.get(r.projectId) ?? "Project",
       href: `${projectBase(input.portalType, r.projectId)}/messages`,
     })),
-    people: peopleRows,
+    people: peopleRows ?? [],
   };
 }
 
@@ -344,14 +385,7 @@ async function searchDocuments(
     inArray(documents.audienceScope, audiences),
   ];
   if (forbiddenVis.length > 0) {
-    // `notInArray` via raw SQL — drizzle's helpers exist but the
-    // audience/visibility lookups are narrow enough to spell out.
-    whereClauses.push(
-      sql`${documents.visibilityScope}::text NOT IN (${sql.join(
-        forbiddenVis.map((v) => sql`${v}`),
-        sql`, `,
-      )})`,
-    );
+    whereClauses.push(notInArray(documents.visibilityScope, forbiddenVis));
   }
   return db
     .select({
@@ -379,8 +413,12 @@ async function searchMessages(
   // Scope: the user must be a participant in the conversation. This
   // prevents a palette-level scope leak (e.g., a residential client
   // searching "lawsuit" and hitting contractor-internal threads).
+  //
+  // No DISTINCT needed — one participant per user per conversation is
+  // enforced by the unique index on conversation_participants, so the
+  // join produces at most one row per matching conversation.
   return db
-    .selectDistinct({
+    .select({
       id: conversations.id,
       projectId: conversations.projectId,
       title: conversations.title,
@@ -416,7 +454,7 @@ async function searchPeople(
   portal: SearchPortal,
   projectIds: string[],
   like: string,
-  prefix: string,
+  _prefix: string,
 ) {
   if (projectIds.length === 0) return [];
 
@@ -471,6 +509,13 @@ async function searchPeople(
 
   if (uniqueOrgIds.length === 0) return [];
 
+  // selectDistinct + computed ORDER BY expressions don't mix — Postgres
+  // rejects DISTINCT queries whose ORDER BY references anything not in
+  // the SELECT list. We need DISTINCT here (a user with two role
+  // assignments would otherwise duplicate) so drop the prefix-boost
+  // CASE and just sort alphabetically. Natural name ordering is fine
+  // for people lookups; suffix-match ranking matters less than it does
+  // for project/RFI names.
   const rows = await db
     .selectDistinct({
       id: users.id,
@@ -498,13 +543,21 @@ async function searchPeople(
         ),
       ),
     )
-    .orderBy(
-      sql`CASE WHEN COALESCE(${users.displayName}, ${users.email}) ILIKE ${prefix} THEN 0 ELSE 1 END`,
-      asc(users.displayName),
-    )
+    .orderBy(asc(users.displayName))
     .limit(RESULTS_PER_GROUP);
 
-  return rows.map((r) => ({
+  // Light dedup in JS — selectDistinct covers the DB-level case but
+  // organization-name joins can still re-emit a row if a user has
+  // assignments spread across two of our target orgs. We keep the
+  // first hit.
+  const seen = new Set<string>();
+  const deduped: typeof rows = [];
+  for (const r of rows) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    deduped.push(r);
+  }
+  return deduped.map((r) => ({
     id: r.id,
     name: r.displayName ?? r.email,
     email: r.email,

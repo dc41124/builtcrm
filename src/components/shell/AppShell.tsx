@@ -574,29 +574,6 @@ export default function AppShell({
             </div>
           </div>
 
-          <div className="b-srch">
-            <button
-              type="button"
-              className="b-srch-w"
-              onClick={openPalette}
-              aria-label="Open command palette"
-            >
-              <span className="b-srch-ico">{SearchIcon}</span>
-              <span
-                style={{
-                  flex: 1,
-                  color: "var(--t3)",
-                  fontSize: 13,
-                  fontWeight: 500,
-                  textAlign: "left",
-                }}
-              >
-                Search…
-              </span>
-              <span className="b-srch-k">⌘K</span>
-            </button>
-          </div>
-
           <nav className="b-nav">
             {renderSections("before-projects")}
 
