@@ -34,7 +34,7 @@ function fmtDate(d: Date | null): string {
   });
 }
 
-function fmtPeriod(from: Date, to: Date): string {
+function fmtPeriod(from: Date): string {
   const start = new Date(from);
   return start.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
@@ -363,7 +363,7 @@ export function CommercialPaymentsView({
                       <td>
                         <strong>Draw #{d.drawNumber}</strong>
                       </td>
-                      <td>{fmtPeriod(d.periodFrom, d.periodTo)}</td>
+                      <td>{fmtPeriod(d.periodFrom)}</td>
                       <td>{fmtDate(d.submittedAt)}</td>
                       <td>
                         {d.reviewedAt ? (
@@ -406,8 +406,15 @@ export function CommercialPaymentsView({
                           <Link href={`${base}/billing`} className="cpay-rlink">
                             Review →
                           </Link>
-                        ) : isPaid ? (
-                          <span className="cpay-rlink">Receipt</span>
+                        ) : isPaid && d.receiptPaymentTransactionId ? (
+                          <a
+                            href={`/receipts/${d.receiptPaymentTransactionId}`}
+                            className="cpay-rlink"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Receipt
+                          </a>
                         ) : null}
                       </td>
                     </tr>

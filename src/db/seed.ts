@@ -29,7 +29,6 @@ import {
   projectUserMemberships,
   milestones,
   documents,
-  documentLinks,
   rfis,
   rfiResponses,
   changeOrders,
@@ -55,6 +54,11 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Drizzle's insert/select generics are too narrow to accept the wide
+// `PgTable` + arbitrary-values pair this helper takes. The `any` casts
+// below bypass the generic parameter inference that breaks otherwise —
+// seed-only code, and the runtime is still drizzle, so safety is fine.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 async function upsert<TTable extends PgTable, TValues extends Record<string, unknown>>(
   table: TTable,
   where: SQL,
@@ -65,6 +69,7 @@ async function upsert<TTable extends PgTable, TValues extends Record<string, unk
   const [row] = await db.insert(table as any).values(values as any).returning();
   return row;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // -- Photo seeding helpers --------------------------------------------------
 // Generates a deterministic placeholder SVG for a seeded photo and uploads it
@@ -663,7 +668,9 @@ async function seedProjectContent(ctx: ProjectContext) {
       title: d.title,
       storageKey,
       uploadedByUserId: pmUserId,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       visibilityScope: (d.vis ?? "project_wide") as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       audienceScope: (d.aud ?? (residential ? "residential_client" : "commercial_client")) as any,
       documentStatus: isSuperseded ? ("superseded" as const) : ("active" as const),
       isSuperseded,

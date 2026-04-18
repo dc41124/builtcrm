@@ -44,19 +44,12 @@ function fmtDate(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function fmtSize(key: string): string {
-  const segs = key.split("/");
-  const last = segs[segs.length - 1] ?? "";
-  if (last.includes(".")) return "—";
-  return "—";
-}
-
 export function ResidentialDocumentsView({
   projectId,
   currentUserId,
   canWrite,
   documents,
-  linkableItems,
+  linkableItems: _linkableItems,
 }: Props) {
   const router = useRouter();
   const [selCat, setSelCat] = useState("all");

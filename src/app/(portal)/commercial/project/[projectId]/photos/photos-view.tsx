@@ -91,9 +91,14 @@ function titleMatchesFilter(title: string, filter: FilterId): boolean {
   }
 }
 
-export function CommercialPhotosView({ data, nowMs }: Props & { nowMs: number }) {
+export function CommercialPhotosView({
+  projectId,
+  data,
+  nowMs,
+}: Props & { nowMs: number }) {
   const [filter, setFilter] = useState<FilterId>("all");
   const [lightbox, setLightbox] = useState<PhotoRow | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (!lightbox) return;
@@ -147,13 +152,25 @@ export function CommercialPhotosView({ data, nowMs }: Props & { nowMs: number })
             Last upload: <strong>{lastUpload}</strong>
           </span>
         </div>
-        <button type="button" className="cpp-btn" disabled={data.totalCount === 0}>
+        <button
+          type="button"
+          className="cpp-btn"
+          disabled={data.totalCount === 0 || downloading}
+          onClick={async () => {
+            setDownloading(true);
+            try {
+              window.location.href = `/api/export/photos/${projectId}`;
+            } finally {
+              setTimeout(() => setDownloading(false), 1500);
+            }
+          }}
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
-          Download all
+          {downloading ? "Preparing…" : "Download all"}
         </button>
       </div>
 

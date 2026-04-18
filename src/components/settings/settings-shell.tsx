@@ -8512,7 +8512,7 @@ function ContractorOrganizationLiveTab({
     stateRegion: "",
     expiresOn: "",
   });
-  const [savingEditLicense, setSavingEditLicense] = useState(false);
+  const [_savingEditLicense, setSavingEditLicense] = useState(false);
 
   function update<K extends keyof LiveOrgForm>(k: K, v: LiveOrgForm[K]) {
     setOrg((p) => ({ ...p, [k]: v }));
@@ -8667,7 +8667,7 @@ function ContractorOrganizationLiveTab({
     }
   }
 
-  function startEditLicense(l: OrganizationLicense) {
+  function _startEditLicense(l: OrganizationLicense) {
     setEditingLicenseId(l.id);
     setEditLicenseForm({
       kind: l.kind,
@@ -8678,11 +8678,11 @@ function ContractorOrganizationLiveTab({
     setLicenseError(null);
   }
 
-  function cancelEditLicense() {
+  function _cancelEditLicense() {
     setEditingLicenseId(null);
   }
 
-  async function saveEditLicense() {
+  async function _saveEditLicense() {
     if (!editingLicenseId) return;
     if (!editLicenseForm.kind || !editLicenseForm.licenseNumber) return;
     setSavingEditLicense(true);
@@ -12383,6 +12383,7 @@ function ClientPaymentMethodsTab({
 
 // Legacy static mock kept below for reference — unused in the live tab.
 // Scheduled for removal when the saved-methods phase ships.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ClientPaymentMethodsStaticMock({
   variant,
 }: {

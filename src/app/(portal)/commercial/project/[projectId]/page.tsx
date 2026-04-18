@@ -1,10 +1,7 @@
 import { headers } from "next/headers";
-import { eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/auth/config";
-import { db } from "@/db/client";
-import { organizations, projects } from "@/db/schema";
 import {
   getClientProjectView,
   type ClientProjectView,

@@ -341,12 +341,12 @@ function DrawCard({ draw, projectId }: { draw: DrawRequest; projectId: string })
       )}
       {draw.reviewNote && (
         <p>
-          Client note: "{draw.reviewNote}"
+          Client note: &ldquo;{draw.reviewNote}&rdquo;
         </p>
       )}
       {draw.returnReason && (
         <p>
-          Returned: "{draw.returnReason}"
+          Returned: &ldquo;{draw.returnReason}&rdquo;
         </p>
       )}
       {draw.paidAt && draw.paymentReferenceName && (

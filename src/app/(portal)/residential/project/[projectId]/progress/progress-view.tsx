@@ -6,6 +6,7 @@ import type { ClientActivityEvent, ClientProjectView } from "@/domain/loaders/pr
 import type { CommercialPhotosData, PhotoRow } from "@/domain/loaders/commercial-photos";
 
 type Props = {
+  projectId: string;
   contractorName: string;
   currentPhase: string;
   activityTrail: ClientActivityEvent[];
@@ -169,20 +170,26 @@ const CheckIcon = () => (
 
 // ── Main component ──────────────────────────────────────────────
 export function ResidentialProgressView({
+  projectId,
   contractorName,
   currentPhase,
   activityTrail,
-  milestones,
+  milestones: _milestones,
   photoData,
   nowMs: now,
 }: Props & { nowMs: number }) {
   const feed = useMemo(
     () => buildFeed(activityTrail, contractorName, now),
+    // `now` is a render-time snapshot from the server page, intentionally
+    // stable across client re-renders so relative-time labels don't
+    // flicker. Omitting it from deps is the point.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [activityTrail, contractorName],
   );
 
   const [photoFilter, setPhotoFilter] = useState("All rooms");
   const [lightbox, setLightbox] = useState<PhotoRow | null>(null);
+  const [photosDownloading, setPhotosDownloading] = useState(false);
 
   useEffect(() => {
     if (!lightbox) return;
@@ -218,6 +225,8 @@ export function ResidentialProgressView({
         count: g.photos.length,
         photos: g.photos,
       }));
+    // See note on `feed` above — `now` is deliberately excluded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photoData.sets]);
 
   return (
@@ -316,13 +325,22 @@ export function ResidentialProgressView({
               </span>
             </div>
           </div>
-          <button type="button" className="rpp-btn">
+          <button
+            type="button"
+            className="rpp-btn"
+            disabled={photoData.totalCount === 0 || photosDownloading}
+            onClick={() => {
+              setPhotosDownloading(true);
+              window.location.href = `/api/export/photos/${projectId}`;
+              setTimeout(() => setPhotosDownloading(false), 1500);
+            }}
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            Download all
+            {photosDownloading ? "Preparing…" : "Download all"}
           </button>
         </div>
 

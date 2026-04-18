@@ -19,11 +19,6 @@ function formatCents(c: number): string {
   return c < 0 ? `-${s}` : s;
 }
 
-function formatSignedCents(c: number): string {
-  if (c === 0) return "Included";
-  return c > 0 ? `+${formatCents(c)}` : formatCents(c);
-}
-
 function formatDate(d: Date | null): string {
   if (!d) return "—";
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });

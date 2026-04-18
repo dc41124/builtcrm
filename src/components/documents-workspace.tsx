@@ -633,7 +633,7 @@ export function DocumentsWorkspace({
 function DetailPanel({
   doc,
   versionChain,
-  canWrite,
+  canWrite: _canWrite,
   canSupersede,
   canEditThis,
   onClose,

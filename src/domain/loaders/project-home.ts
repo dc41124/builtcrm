@@ -16,6 +16,7 @@ import {
   messages,
   milestones,
   organizations,
+  paymentTransactions,
   projectOrganizationMemberships,
   projectUserMemberships,
   projects,
@@ -389,12 +390,15 @@ export type DrawRequestActivityEvent = {
 async function loadDrawRequestEnrichment(drawIds: string[]): Promise<{
   filesById: Map<string, DrawRequestSupportingFile[]>;
   activityById: Map<string, DrawRequestActivityEvent[]>;
+  receiptPaymentIdByDrawId: Map<string, string>;
 }> {
   const filesById = new Map<string, DrawRequestSupportingFile[]>();
   const activityById = new Map<string, DrawRequestActivityEvent[]>();
-  if (drawIds.length === 0) return { filesById, activityById };
+  const receiptPaymentIdByDrawId = new Map<string, string>();
+  if (drawIds.length === 0)
+    return { filesById, activityById, receiptPaymentIdByDrawId };
 
-  const [docRows, activityRows] = await Promise.all([
+  const [docRows, activityRows, paymentRows] = await Promise.all([
     db
       .select({
         linkedObjectId: documentLinks.linkedObjectId,
@@ -430,6 +434,24 @@ async function loadDrawRequestEnrichment(drawIds: string[]): Promise<{
         ),
       )
       .orderBy(desc(activityFeedItems.createdAt)),
+    // Most recent succeeded payment per draw. `asc` order means later
+    // entries overwrite earlier ones in the map below, leaving the newest
+    // succeeded transaction as the one surfaced to the UI.
+    db
+      .select({
+        id: paymentTransactions.id,
+        relatedEntityId: paymentTransactions.relatedEntityId,
+        succeededAt: paymentTransactions.succeededAt,
+      })
+      .from(paymentTransactions)
+      .where(
+        and(
+          eq(paymentTransactions.relatedEntityType, "draw_request"),
+          inArray(paymentTransactions.relatedEntityId, drawIds),
+          eq(paymentTransactions.transactionStatus, "succeeded"),
+        ),
+      )
+      .orderBy(asc(paymentTransactions.succeededAt)),
   ]);
 
   for (const d of docRows) {
@@ -457,7 +479,11 @@ async function loadDrawRequestEnrichment(drawIds: string[]): Promise<{
     activityById.set(a.relatedObjectId, arr);
   }
 
-  return { filesById, activityById };
+  for (const p of paymentRows) {
+    receiptPaymentIdByDrawId.set(p.relatedEntityId, p.id);
+  }
+
+  return { filesById, activityById, receiptPaymentIdByDrawId };
 }
 
 export type RetainageReleaseRow = {
@@ -1054,6 +1080,7 @@ export type ContractorProjectView = {
     returnReason: string | null;
     paidAt: Date | null;
     paymentReferenceName: string | null;
+    receiptPaymentTransactionId: string | null;
     retainageReleasedCents: number;
     lineItems: Array<{
       id: string;
@@ -1447,6 +1474,8 @@ export async function getContractorProjectView(
     returnReason: d.returnReason,
     paidAt: d.paidAt,
     paymentReferenceName: d.paymentReferenceName,
+    receiptPaymentTransactionId:
+      drawEnrichment.receiptPaymentIdByDrawId.get(d.id) ?? null,
     retainageReleasedCents: d.retainageReleasedCents,
     lineItems: (drawLinesByDraw.get(d.id) ?? []).map((l) => ({
       id: l.id,
@@ -2069,6 +2098,7 @@ export type ClientProjectView = {
     returnReason: string | null;
     paidAt: Date | null;
     paymentReferenceName: string | null;
+    receiptPaymentTransactionId: string | null;
     retainageReleasedCents: number;
     lienWaivers: LienWaiverRow[];
     lineItems: Array<{
@@ -2705,6 +2735,8 @@ export async function getClientProjectView(
       returnReason: d.returnReason,
       paidAt: d.paidAt,
       paymentReferenceName: d.paymentReferenceName,
+      receiptPaymentTransactionId:
+        clientDrawEnrichment.receiptPaymentIdByDrawId.get(d.id) ?? null,
       retainageReleasedCents: d.retainageReleasedCents,
       lienWaivers: clientWaiversByDraw.get(d.id) ?? [],
       lineItems: (clientDrawLinesByDraw.get(d.id) ?? []).map((l) => ({

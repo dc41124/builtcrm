@@ -1385,7 +1385,7 @@ function ResourceThumb({ idx, color }: { idx: number; color: string }) {
   const themes: ReactNode[] = [
     // 0: Why construction needs better software — connected nodes
     (
-      <svg viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
+      <svg key="rt0" viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
         <defs><linearGradient id="rt0" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".18" /><stop offset="1" stopColor={color} stopOpacity=".04" /></linearGradient></defs>
         <rect width="200" height="113" fill="url(#rt0)" />
         <g stroke={color} strokeWidth="1.2" opacity=".45"><line x1="50" y1="35" x2="100" y2="56" /><line x1="100" y1="56" x2="150" y2="35" /><line x1="100" y1="56" x2="60" y2="80" /><line x1="100" y1="56" x2="140" y2="80" /></g>
@@ -1394,7 +1394,7 @@ function ResourceThumb({ idx, color }: { idx: number; color: string }) {
     ),
     // 1: AIA billing guide — document rows
     (
-      <svg viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
+      <svg key="rt1" viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
         <defs><linearGradient id="rt1" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".18" /><stop offset="1" stopColor={color} stopOpacity=".04" /></linearGradient></defs>
         <rect width="200" height="113" fill="url(#rt1)" />
         <rect x="50" y="22" width="100" height="78" rx="6" fill="white" stroke={color} strokeOpacity=".3" />
@@ -1408,7 +1408,7 @@ function ResourceThumb({ idx, color }: { idx: number; color: string }) {
     ),
     // 2: Ridgeline case study — progress bar
     (
-      <svg viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
+      <svg key="rt2" viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
         <defs><linearGradient id="rt2" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".2" /><stop offset="1" stopColor={color} stopOpacity=".05" /></linearGradient></defs>
         <rect width="200" height="113" fill="url(#rt2)" />
         <text x="40" y="48" fontFamily="DM Sans,sans-serif" fontSize="24" fontWeight="820" fill={color} letterSpacing="-1">18→7</text>
@@ -1420,7 +1420,7 @@ function ResourceThumb({ idx, color }: { idx: number; color: string }) {
     ),
     // 3: Selections — color swatches
     (
-      <svg viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
+      <svg key="rt3" viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
         <defs><linearGradient id="rt3" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".18" /><stop offset="1" stopColor={color} stopOpacity=".04" /></linearGradient></defs>
         <rect width="200" height="113" fill="url(#rt3)" />
         <g><rect x="48" y="32" width="28" height="48" rx="4" fill="#e8dcc4" stroke={color} strokeOpacity=".3" />
@@ -1432,7 +1432,7 @@ function ResourceThumb({ idx, color }: { idx: number; color: string }) {
     ),
     // 4: Compliance — shield with check
     (
-      <svg viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
+      <svg key="rt4" viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
         <defs><linearGradient id="rt4" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".2" /><stop offset="1" stopColor={color} stopOpacity=".04" /></linearGradient></defs>
         <rect width="200" height="113" fill="url(#rt4)" />
         <path d="M100 26 L130 36 L130 62 Q130 82 100 92 Q70 82 70 62 L70 36 Z" fill="white" stroke={color} strokeWidth="2" />
@@ -1441,7 +1441,7 @@ function ResourceThumb({ idx, color }: { idx: number; color: string }) {
     ),
     // 5: Apex — convergence arrows
     (
-      <svg viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
+      <svg key="rt5" viewBox="0 0 200 113" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
         <defs><linearGradient id="rt5" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".2" /><stop offset="1" stopColor={color} stopOpacity=".04" /></linearGradient></defs>
         <rect width="200" height="113" fill="url(#rt5)" />
         <g stroke={color} strokeWidth="2" fill="none" strokeLinecap="round">

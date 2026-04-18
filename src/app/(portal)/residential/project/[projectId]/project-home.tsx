@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 
 import type {
@@ -34,7 +34,6 @@ const PHASE_LABELS: Record<string, { label: string; num: string }> = {
   phase_3: { label: "Interior finishes", num: "4 of 6" },
   closeout: { label: "Final details", num: "5 of 6" },
 };
-const PAID = new Set(["paid"]);
 const PENDING = new Set(["submitted", "under_review"]);
 const GC_PALETTE = ["#5b4fc7", "#3d6b8e", "var(--ac)", "var(--wr)", "var(--ok)", "var(--in)"];
 
@@ -62,7 +61,7 @@ export function ResidentialProjectHome({
   drawRequests,
   activityTrail,
   gcContacts,
-  conversations,
+  conversations: _conversations,
   nowMs: now,
 }: Props & { nowMs: number }) {
   const base = `/residential/project/${projectId}`;
@@ -79,7 +78,6 @@ export function ResidentialProjectHome({
   const pctPaid = contractCents > 0 ? Math.round((paidCents / contractCents) * 100) : 0;
   const pctNext = contractCents > 0 ? Math.round((nextPayCents / contractCents) * 100) : 0;
 
-  const pendingApprovals = approvals.filter((a) => a.approvalStatus === "pending_review");
   const pendingScopeChanges = decisions.filter((d) => d.changeOrderStatus === "pending_client_approval");
   const scopeImpact = approvals.filter((a) => (a.category === "change_order" || a.category === "scope_change") && a.approvalStatus === "pending_review").reduce((s, a) => s + Math.abs(a.impactCostCents), 0);
 
@@ -94,7 +92,6 @@ export function ResidentialProjectHome({
     [milestones],
   );
   const nextMs = upcomingMs[0];
-  const unreadThreads = conversations.filter((c) => c.unreadCount > 0).length;
   const phaseInfo = PHASE_LABELS[currentPhase] ?? { label: currentPhase, num: "" };
 
   // Action items for "Things that need you"

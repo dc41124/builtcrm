@@ -191,7 +191,7 @@ function DrawReviewCard({ draw }: { draw: DrawRequest }) {
       )}
       {draw.returnedAt && draw.returnReason && (
         <p>
-          Returned {toIsoDate(draw.returnedAt)} — "{draw.returnReason}"
+          Returned {toIsoDate(draw.returnedAt)} — &ldquo;{draw.returnReason}&rdquo;
         </p>
       )}
       {draw.paidAt && (

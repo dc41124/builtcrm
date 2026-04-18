@@ -241,7 +241,7 @@ function SwatchMini({ colors }: { colors: (string | null)[] }) {
 
 export function ContractorSelectionsWorkspace({
   projectId,
-  projectName,
+  projectName: _projectName,
   categories,
   totals,
   nowMs: now,

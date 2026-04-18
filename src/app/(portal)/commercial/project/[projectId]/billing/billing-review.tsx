@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { EmptyState } from "@/components/empty-state";
 import type { ClientProjectView } from "@/domain/loaders/project-home";
 
 type Draw = ClientProjectView["drawRequests"][number];
@@ -105,10 +104,8 @@ function drawDescFor(d: Draw): string {
   return "Application for payment released by the contractor.";
 }
 
-function drawDetailDesc(d: Draw): string {
-  return (
-    "This draw package groups current-cycle invoices, support documentation, and milestone backup into one review object. Your decision determines whether it moves forward or returns for clarification."
-  );
+function drawDetailDesc(): string {
+  return "This draw package groups current-cycle invoices, support documentation, and milestone backup into one review object. Your decision determines whether it moves forward or returns for clarification.";
 }
 
 function tagsFor(d: Draw, now: number): string[] {
@@ -448,7 +445,7 @@ function DrawDetail({ draw }: { draw: Draw }) {
       <div className="bcr-detail-header">
         <div className="bcr-dh-main">
           <h3 className="bcr-dh-title">{drawNumLabel(draw.drawNumber)}</h3>
-          <div className="bcr-dh-sub">{drawDetailDesc(draw)}</div>
+          <div className="bcr-dh-sub">{drawDetailDesc()}</div>
         </div>
         <div className="bcr-dh-pills">
           {pills.map((p, i) => (

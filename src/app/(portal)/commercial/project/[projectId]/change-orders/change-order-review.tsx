@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { Button } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
 import { KpiCard } from "@/components/kpi-card";
 import { Pill } from "@/components/pill";

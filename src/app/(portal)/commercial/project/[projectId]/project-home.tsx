@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 
 import type {
@@ -43,11 +43,6 @@ function fmtDate(d: Date): string {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function fmtLongDate(d: Date): string {
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-const PAID = new Set(["paid"]);
 const PENDING = new Set(["submitted", "under_review", "returned", "revised"]);
 
 const GC_PALETTE = ["#5b4fc7", "#3d6b8e", "var(--ac)", "var(--wr)", "var(--ok)", "var(--in)"];
@@ -59,7 +54,7 @@ export function CommercialProjectHome({
   currentPhase,
   milestones,
   approvals,
-  openRequests,
+  openRequests: _openRequests,
   drawRequests,
   decisions,
   activityTrail,
@@ -79,7 +74,6 @@ export function CommercialProjectHome({
   const netCOs = latestDraw?.netChangeOrdersCents ?? 0;
   const paidToDate = drawRequests.filter((d) => d.paidAt).reduce((s, d) => s + d.currentPaymentDueCents, 0);
   const pendingPayment = drawRequests.filter((d) => PENDING.has(d.drawRequestStatus)).reduce((s, d) => s + d.currentPaymentDueCents, 0);
-  const pctPaid = contractSum > 0 ? Math.round((paidToDate / contractSum) * 100) : 0;
   const retainageHeld = Math.max(0, (latestDraw?.totalRetainageCents ?? 0) - (latestDraw?.retainageReleasedCents ?? 0));
   const remaining = Math.max(0, contractSum - paidToDate - pendingPayment - retainageHeld);
 

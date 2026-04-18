@@ -214,7 +214,7 @@ function ContractorReleaseRow({
       <div>
         Held at request time: {formatCents(release.totalRetainageHeldCents)}
       </div>
-      {release.approvalNote && <p>Client note: "{release.approvalNote}"</p>}
+      {release.approvalNote && <p>Client note: &ldquo;{release.approvalNote}&rdquo;</p>}
       {release.releaseStatus === "held" && (
         <button type="button" disabled={pending} onClick={submit}>
           {pending ? "Submitting…" : "Submit to client"}

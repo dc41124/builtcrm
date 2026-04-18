@@ -621,6 +621,10 @@ function ThreadDetail({
                     <div className={`msgws-bub ${mine ? "out" : "in"}`}>
                       {m.body}
                       {attUrl && attIsImage && (
+                        // Presigned R2 URL with unknown intrinsic dims — CSS
+                        // sizes the image fluidly. next/image would need
+                        // width/height props we don't have.
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={attUrl}
                           alt={attTitle ?? "attachment"}
@@ -722,6 +726,8 @@ function ThreadDetail({
             >
               <CloseIcon />
             </button>
+            {/* Lightbox attachment — same reason as inline attachment above. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={lightbox.attachedDocumentUrl}
               alt={lightbox.attachedDocumentTitle ?? "attachment"}

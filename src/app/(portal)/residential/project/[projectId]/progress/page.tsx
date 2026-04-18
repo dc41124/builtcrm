@@ -39,6 +39,7 @@ export default async function ResidentialProgressPage({
 
   return (
     <ResidentialProgressView
+      projectId={projectId}
       nowMs={Date.now()}
       contractorName={view.contractorOrganizationName ?? "Your builder"}
       currentPhase={view.currentPhase}

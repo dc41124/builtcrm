@@ -101,13 +101,6 @@ export function ResidentialBudgetView({
     );
   }, [selections]);
 
-  const netSelectionImpact = selectionItems.reduce((sum, s) => {
-    const match = s.amount.match(/[+-]?\$[\d,]+/);
-    if (!match) return sum;
-    const val = Number(match[0].replace(/[$,]/g, ""));
-    return sum + (isNaN(val) ? 0 : val);
-  }, 0);
-
   const selectionUpgradeCents = useMemo(() => {
     return selections.flatMap((c) => c.items)
       .filter((i) => i.currentDecision)

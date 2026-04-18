@@ -100,7 +100,7 @@ function ClientReleaseRow({ release }: { release: RetainageRelease }) {
       <div>
         Held at request time: {formatCents(release.totalRetainageHeldCents)}
       </div>
-      {release.approvalNote && <p>Note: "{release.approvalNote}"</p>}
+      {release.approvalNote && <p>Note: &ldquo;{release.approvalNote}&rdquo;</p>}
       {canDecide && (
         <div style={{ display: "grid", gap: 6 }}>
           <div style={{ display: "flex", gap: 6 }}>
