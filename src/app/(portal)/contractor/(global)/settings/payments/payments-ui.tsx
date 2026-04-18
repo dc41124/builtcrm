@@ -142,18 +142,24 @@ function StripeHeroCard({
   async function connect() {
     setPending(true);
     setError(null);
-    const res = await fetch("/api/integrations/connect", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: "stripe" }),
-    });
-    setPending(false);
-    if (!res.ok) {
+    try {
+      const res = await fetch("/api/contractor/stripe/connect/onboard", {
+        method: "POST",
+      });
       const body = await res.json().catch(() => ({}));
-      setError(body.message ?? body.error ?? "connect_failed");
-      return;
+      if (!res.ok || !body.ok || !body.url) {
+        setError(body.message ?? body.error ?? "connect_failed");
+        return;
+      }
+      // Full-page redirect to Stripe-hosted onboarding. Stripe sends the
+      // user back to /contractor/settings?payments=stripe_return on
+      // completion; the account.updated webhook confirms the state.
+      window.location.href = body.url;
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      setPending(false);
     }
-    router.refresh();
   }
 
   async function disconnect() {
@@ -297,15 +303,19 @@ function StripeHeroCard({
             >
               Stripe dashboard ↗
             </a>
-            <button
-              disabled={!canManage}
-              onClick={() => {
-                /* Payout settings open in Stripe dashboard in Phase 2 */
-              }}
-              style={smBtnStyle(false)}
-            >
-              Payout settings
-            </button>
+            {conn.status !== "connected" && (
+              <button
+                disabled={!canManage || pending}
+                onClick={connect}
+                style={btnPrimary(canManage && !pending)}
+              >
+                {pending
+                  ? "…"
+                  : conn.status === "needs_reauth"
+                    ? "Resolve requirements"
+                    : "Resume onboarding"}
+              </button>
+            )}
             <button
               disabled={!canManage || pending}
               onClick={disconnect}
@@ -320,7 +330,7 @@ function StripeHeroCard({
             onClick={connect}
             style={btnPrimary(canManage && !pending)}
           >
-            {pending ? "Connecting…" : "Connect Stripe"}
+            {pending ? "Connecting…" : "Set up payments"}
           </button>
         )}
       </div>

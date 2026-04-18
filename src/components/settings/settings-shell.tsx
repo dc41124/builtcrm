@@ -4975,6 +4975,7 @@ function ContractorPlanBillingLiveTab({
 }: {
   billing: ContractorBillingView;
 }) {
+  const router = useRouter();
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">(
     billing.subscription.billingCycle,
   );
@@ -4986,6 +4987,28 @@ function ContractorPlanBillingLiveTab({
   >(null);
   const [pendingPlanSlug, setPendingPlanSlug] = useState<string | null>(null);
   const [portalPending, setPortalPending] = useState(false);
+
+  // Poll-refresh the billing view every 30s while the tab is open so invoice
+  // rows + subscription status updates land without a full reload. Only
+  // active while the page is visible — paused when the tab is backgrounded.
+  useEffect(() => {
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    function schedule() {
+      timer = setTimeout(() => {
+        if (stopped) return;
+        if (typeof document !== "undefined" && !document.hidden) {
+          router.refresh();
+        }
+        schedule();
+      }, 30_000);
+    }
+    schedule();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [router]);
 
   const plan = billing.currentPlan;
   const sub = billing.subscription;
@@ -8482,6 +8505,14 @@ function ContractorOrganizationLiveTab({
   });
   const [licensePending, setLicensePending] = useState<Record<string, boolean>>({});
   const [licenseError, setLicenseError] = useState<string | null>(null);
+  const [editingLicenseId, setEditingLicenseId] = useState<string | null>(null);
+  const [editLicenseForm, setEditLicenseForm] = useState({
+    kind: "",
+    licenseNumber: "",
+    stateRegion: "",
+    expiresOn: "",
+  });
+  const [savingEditLicense, setSavingEditLicense] = useState(false);
 
   function update<K extends keyof LiveOrgForm>(k: K, v: LiveOrgForm[K]) {
     setOrg((p) => ({ ...p, [k]: v }));
@@ -8633,6 +8664,49 @@ function ContractorOrganizationLiveTab({
       router.refresh();
     } finally {
       setLicensePending((p) => ({ ...p, [id]: false }));
+    }
+  }
+
+  function startEditLicense(l: OrganizationLicense) {
+    setEditingLicenseId(l.id);
+    setEditLicenseForm({
+      kind: l.kind,
+      licenseNumber: l.licenseNumber,
+      stateRegion: l.stateRegion ?? "",
+      expiresOn: l.expiresOn ?? "",
+    });
+    setLicenseError(null);
+  }
+
+  function cancelEditLicense() {
+    setEditingLicenseId(null);
+  }
+
+  async function saveEditLicense() {
+    if (!editingLicenseId) return;
+    if (!editLicenseForm.kind || !editLicenseForm.licenseNumber) return;
+    setSavingEditLicense(true);
+    setLicenseError(null);
+    try {
+      const res = await fetch(`/api/org/licenses/${editingLicenseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: editLicenseForm.kind,
+          licenseNumber: editLicenseForm.licenseNumber,
+          stateRegion: editLicenseForm.stateRegion || null,
+          expiresOn: editLicenseForm.expiresOn || null,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setLicenseError(body.message ?? body.error ?? "update_failed");
+        return;
+      }
+      setEditingLicenseId(null);
+      router.refresh();
+    } finally {
+      setSavingEditLicense(false);
     }
   }
 
@@ -9592,6 +9666,14 @@ function SubcontractorOrganizationLiveTab({
   });
   const [licensePending, setLicensePending] = useState<Record<string, boolean>>({});
   const [licenseError, setLicenseError] = useState<string | null>(null);
+  const [editingLicenseId, setEditingLicenseId] = useState<string | null>(null);
+  const [editLicenseForm, setEditLicenseForm] = useState({
+    kind: "",
+    licenseNumber: "",
+    stateRegion: "",
+    expiresOn: "",
+  });
+  const [savingEditLicense, setSavingEditLicense] = useState(false);
 
   function update<K extends keyof LiveSubOrgForm>(k: K, v: LiveSubOrgForm[K]) {
     setOrg((p) => ({ ...p, [k]: v }));
@@ -9757,6 +9839,49 @@ function SubcontractorOrganizationLiveTab({
       router.refresh();
     } finally {
       setLicensePending((p) => ({ ...p, [id]: false }));
+    }
+  }
+
+  function startEditLicense(l: OrganizationLicense) {
+    setEditingLicenseId(l.id);
+    setEditLicenseForm({
+      kind: l.kind,
+      licenseNumber: l.licenseNumber,
+      stateRegion: l.stateRegion ?? "",
+      expiresOn: l.expiresOn ?? "",
+    });
+    setLicenseError(null);
+  }
+
+  function cancelEditLicense() {
+    setEditingLicenseId(null);
+  }
+
+  async function saveEditLicense() {
+    if (!editingLicenseId) return;
+    if (!editLicenseForm.kind || !editLicenseForm.licenseNumber) return;
+    setSavingEditLicense(true);
+    setLicenseError(null);
+    try {
+      const res = await fetch(`/api/org/licenses/${editingLicenseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: editLicenseForm.kind,
+          licenseNumber: editLicenseForm.licenseNumber,
+          stateRegion: editLicenseForm.stateRegion || null,
+          expiresOn: editLicenseForm.expiresOn || null,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setLicenseError(body.message ?? body.error ?? "update_failed");
+        return;
+      }
+      setEditingLicenseId(null);
+      router.refresh();
+    } finally {
+      setSavingEditLicense(false);
     }
   }
 
@@ -10126,63 +10251,169 @@ function SubcontractorOrganizationLiveTab({
             No licenses added yet. GCs may ask for these when assigning work.
           </div>
         ) : (
-          licenses.map((l) => (
-            <div
-              key={l.id}
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 12,
-                padding: 14,
-                border: "1px solid var(--s3)",
-                borderRadius: 14,
-                marginBottom: 8,
-                background: "var(--s1)",
-              }}
-            >
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    fontFamily: "'DM Sans',system-ui,sans-serif",
-                    fontSize: 13.5,
-                    fontWeight: 650,
-                    letterSpacing: "-.01em",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {l.kind}
-                  {l.stateRegion && <Pill tone="accent">{l.stateRegion}</Pill>}
-                </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "var(--t3)",
-                    marginTop: 3,
-                    fontWeight: 500,
-                    fontFamily: "'JetBrains Mono',monospace",
-                  }}
-                >
-                  {l.licenseNumber}
-                  {l.expiresOn && <> · Expires {l.expiresOn}</>}
-                </div>
-              </div>
-              {canManage && (
-                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                  <button
-                    style={{ ...btnGhostSm(), color: "var(--dg)" }}
-                    onClick={() => removeLicense(l.id)}
-                    aria-label="Remove license"
-                    disabled={licensePending[l.id]}
+          licenses.map((l) => {
+            const isEditing = editingLicenseId === l.id;
+            return (
+              <div
+                key={l.id}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 12,
+                  padding: 14,
+                  border: "1px solid var(--s3)",
+                  borderRadius: 14,
+                  marginBottom: 8,
+                  background: "var(--s1)",
+                }}
+              >
+                {isEditing ? (
+                  <div
+                    style={{
+                      flex: 1,
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))",
+                      gap: 8,
+                    }}
                   >
-                    {licensePending[l.id] ? "…" : I.x}
-                  </button>
-                </div>
-              )}
-            </div>
-          ))
+                    <Field label="Kind">
+                      <input
+                        style={fieldStyle()}
+                        value={editLicenseForm.kind}
+                        onChange={(e) =>
+                          setEditLicenseForm({
+                            ...editLicenseForm,
+                            kind: e.target.value,
+                          })
+                        }
+                        disabled={savingEditLicense}
+                      />
+                    </Field>
+                    <Field label="Number">
+                      <input
+                        style={fieldStyle()}
+                        value={editLicenseForm.licenseNumber}
+                        onChange={(e) =>
+                          setEditLicenseForm({
+                            ...editLicenseForm,
+                            licenseNumber: e.target.value,
+                          })
+                        }
+                        disabled={savingEditLicense}
+                      />
+                    </Field>
+                    <Field label="State/region">
+                      <input
+                        style={fieldStyle()}
+                        value={editLicenseForm.stateRegion}
+                        onChange={(e) =>
+                          setEditLicenseForm({
+                            ...editLicenseForm,
+                            stateRegion: e.target.value,
+                          })
+                        }
+                        disabled={savingEditLicense}
+                      />
+                    </Field>
+                    <Field label="Expires (YYYY-MM-DD)">
+                      <input
+                        style={fieldStyle()}
+                        value={editLicenseForm.expiresOn}
+                        onChange={(e) =>
+                          setEditLicenseForm({
+                            ...editLicenseForm,
+                            expiresOn: e.target.value,
+                          })
+                        }
+                        disabled={savingEditLicense}
+                      />
+                    </Field>
+                  </div>
+                ) : (
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontFamily: "'DM Sans',system-ui,sans-serif",
+                        fontSize: 13.5,
+                        fontWeight: 650,
+                        letterSpacing: "-.01em",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      {l.kind}
+                      {l.stateRegion && <Pill tone="accent">{l.stateRegion}</Pill>}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "var(--t3)",
+                        marginTop: 3,
+                        fontWeight: 500,
+                        fontFamily: "'JetBrains Mono',monospace",
+                      }}
+                    >
+                      {l.licenseNumber}
+                      {l.expiresOn && <> · Expires {l.expiresOn}</>}
+                    </div>
+                  </div>
+                )}
+                {canManage && (
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    {isEditing ? (
+                      <>
+                        <button
+                          style={btnPrimarySm(
+                            !savingEditLicense &&
+                              Boolean(
+                                editLicenseForm.kind &&
+                                  editLicenseForm.licenseNumber,
+                              ),
+                          )}
+                          onClick={saveEditLicense}
+                          disabled={
+                            savingEditLicense ||
+                            !editLicenseForm.kind ||
+                            !editLicenseForm.licenseNumber
+                          }
+                        >
+                          {savingEditLicense ? "Saving…" : "Save"}
+                        </button>
+                        <button
+                          style={btnGhostSm()}
+                          onClick={cancelEditLicense}
+                          disabled={savingEditLicense}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          style={btnGhostSm()}
+                          onClick={() => startEditLicense(l)}
+                          aria-label="Edit license"
+                          disabled={licensePending[l.id]}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          style={{ ...btnGhostSm(), color: "var(--dg)" }}
+                          onClick={() => removeLicense(l.id)}
+                          aria-label="Remove license"
+                          disabled={licensePending[l.id]}
+                        >
+                          {licensePending[l.id] ? "…" : I.x}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
 
         {licenseError && (
@@ -12027,7 +12258,132 @@ const RESIDENTIAL_METHODS: ClientPaymentMethod[] = [
   { id: 2, type: "ach", bank: "Chase Bank", last4: "8391", accountType: "Joint checking", holder: "Jennifer & Michael Chen", isDefault: false, addedOn: "Feb 20, 2026", verified: true },
 ];
 
+// Honest-minimum live variant. Saved payment methods + autopay require a
+// per-client-org Stripe Customer + SetupIntent flow (schema change, dedicated
+// phase). Until then: payment happens at checkout, one draw at a time.
 function ClientPaymentMethodsTab({
+  variant,
+}: {
+  variant: "commercial" | "residential";
+}) {
+  const audience = variant === "commercial" ? "your AP team" : "you";
+  return (
+    <>
+      <Panel
+        title="Paying your builder"
+        subtitle="Payments are processed by Stripe and settle directly to your builder's account."
+      >
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            padding: "14px 16px",
+            background: "var(--ac-s)",
+            border: "1px solid var(--ac-m)",
+            borderRadius: 14,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              background: "var(--ac)",
+              color: "white",
+              display: "grid",
+              placeItems: "center",
+              flexShrink: 0,
+            }}
+          >
+            {I.shield}
+          </div>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div
+              style={{
+                fontFamily: "'DM Sans',system-ui,sans-serif",
+                fontSize: 13.5,
+                fontWeight: 650,
+                color: "var(--ac-t)",
+              }}
+            >
+              Secured by Stripe
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--ac-t)",
+                marginTop: 2,
+                fontWeight: 520,
+                opacity: 0.9,
+                lineHeight: 1.45,
+              }}
+            >
+              Cards and bank accounts are entered inside Stripe Checkout each
+              time {audience} pay — BuiltCRM never sees your full card or
+              account numbers.
+            </div>
+          </div>
+        </div>
+      </Panel>
+      <Panel
+        title="How payments work here"
+        subtitle="A step-by-step of what happens when you approve a draw."
+      >
+        <ol
+          style={{
+            margin: 0,
+            paddingLeft: 20,
+            fontSize: 13,
+            color: "var(--t2)",
+            fontWeight: 520,
+            lineHeight: 1.7,
+          }}
+        >
+          <li>
+            Your builder submits a draw for work completed this period.
+          </li>
+          <li>
+            You review and <strong>approve</strong> it on the Billing page.
+          </li>
+          <li>
+            A <strong>Pay this draw</strong> button appears. Clicking it opens
+            Stripe Checkout.
+          </li>
+          <li>
+            Enter your card or bank details (ACH), confirm, and Stripe routes
+            the funds to your builder&apos;s account.
+          </li>
+          <li>
+            You receive an emailed receipt. ACH settles in 3–5 business days;
+            card payments post immediately.
+          </li>
+        </ol>
+        <div
+          style={{
+            marginTop: 14,
+            padding: 12,
+            background: "var(--s2)",
+            border: "1px solid var(--s3)",
+            borderRadius: 10,
+            fontSize: 12,
+            color: "var(--t2)",
+            fontWeight: 520,
+            lineHeight: 1.5,
+          }}
+        >
+          <strong>Coming soon:</strong> saved payment methods and one-click
+          pay. For now every draw is entered fresh at checkout.
+        </div>
+      </Panel>
+    </>
+  );
+}
+
+// Legacy static mock kept below for reference — unused in the live tab.
+// Scheduled for removal when the saved-methods phase ships.
+function ClientPaymentMethodsStaticMock({
   variant,
 }: {
   variant: "commercial" | "residential";

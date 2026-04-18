@@ -411,6 +411,54 @@ export function ResidentialBillingReview({ draws }: { projectName: string; draws
   );
 }
 
+function PayNowBlock({ drawId }: { drawId: string }) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function payNow() {
+    setPending(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/draw-requests/${drawId}/pay`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok || !data.url) {
+        setError(data.message ?? data.error ?? "Could not start payment.");
+        setPending(false);
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setError("Network error. Try again.");
+      setPending(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <p className="rbr-empty" style={{ marginBottom: 0 }}>
+        You&apos;ve approved this payment. Pay now via ACH (or card, if your
+        builder&apos;s plan allows).
+      </p>
+      <button
+        type="button"
+        className="rbr-btn lg pri"
+        onClick={payNow}
+        disabled={pending}
+      >
+        <CheckIcon />
+        {pending ? "Starting secure checkout…" : "Pay this draw"}
+      </button>
+      {error && <p className="rbr-err">{error}</p>}
+      <p style={{ fontSize: 11, color: "var(--t3)", margin: 0 }}>
+        Processed by Stripe. ACH takes 3–5 business days to settle; card
+        payments post immediately. You&apos;ll get a receipt by email.
+      </p>
+    </div>
+  );
+}
+
 function DecisionCard({ draw }: { draw: Draw }) {
   const router = useRouter();
   const canDecide = draw.drawRequestStatus === "under_review";
@@ -463,6 +511,9 @@ function DecisionCard({ draw }: { draw: Draw }) {
   }
 
   if (!canDecide) {
+    const isApproved =
+      draw.drawRequestStatus === "approved" ||
+      draw.drawRequestStatus === "approved_with_note";
     return (
       <div className="rbr-card">
         <div className="rbr-card-h">
@@ -475,14 +526,15 @@ function DecisionCard({ draw }: { draw: Draw }) {
           </div>
         </div>
         <div className="rbr-card-b">
-          <p className="rbr-empty">
-            {draw.drawRequestStatus === "paid"
-              ? "This payment has been sent."
-              : draw.drawRequestStatus === "approved" ||
-                  draw.drawRequestStatus === "approved_with_note"
-                ? "You've already approved this payment. It will be processed according to your contract."
+          {isApproved && draw.currentPaymentDueCents > 0 ? (
+            <PayNowBlock drawId={draw.id} />
+          ) : (
+            <p className="rbr-empty">
+              {draw.drawRequestStatus === "paid"
+                ? "This payment has been sent."
                 : "Waiting on your builder."}
-          </p>
+            </p>
+          )}
         </div>
       </div>
     );

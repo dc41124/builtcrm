@@ -100,18 +100,18 @@ describe("getEffectiveContext — project + role access", () => {
 
 describe("middleware — unauthenticated redirect", () => {
   it("redirects missing session to /login with next=path", () => {
-    const req = new NextRequest("http://localhost/app/contractor", {
+    const req = new NextRequest("http://localhost/contractor", {
       headers: {},
     });
     const res = middleware(req);
     expect(res.status).toBe(307);
     const location = res.headers.get("location")!;
     expect(location).toContain("/login");
-    expect(location).toContain("next=%2Fapp%2Fcontractor");
+    expect(location).toContain("next=%2Fcontractor");
   });
 
   it("lets requests with a session cookie through", () => {
-    const req = new NextRequest("http://localhost/app/contractor", {
+    const req = new NextRequest("http://localhost/contractor", {
       headers: { cookie: "better-auth.session_token=fake" },
     });
     const res = middleware(req);

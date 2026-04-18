@@ -28,7 +28,7 @@ vi.mock("@/auth/config", () => ({
       getSession: vi.fn(async () => currentSessionHolder.current),
     },
   },
-  resolvePortalPath: () => "/app/contractor",
+  resolvePortalPath: () => "/contractor",
 }));
 
 // Exposed so the route-caller helper can flip the active user per call.

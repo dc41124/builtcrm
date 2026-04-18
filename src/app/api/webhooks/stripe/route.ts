@@ -1,22 +1,26 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type Stripe from "stripe";
 
 import { db } from "@/db/client";
 import {
+  auditEvents,
+  drawRequests,
+  integrationConnections,
   organizations,
   organizationSubscriptions,
+  paymentTransactions,
   subscriptionInvoices,
   subscriptionPlans,
 } from "@/db/schema";
+import { getSystemUserId } from "@/domain/system-user";
 import { getStripe, getWebhookSecret } from "@/lib/stripe";
 
-// Note: this endpoint does not write audit_events rows. audit_events.actor_user_id
-// is non-nullable and webhook events have no user actor. Follow-up (schema
-// change — stop-trigger) is to either create a "system" user and use its ID,
-// or to make actor_user_id nullable. The change-plan route still audits when
-// a user acts — we only lose observability for trial-end charges and
-// Stripe-portal-initiated changes (card updates, cancellation).
+// Audit events on this endpoint use the synthetic SYSTEM_USER_ID as
+// actor_user_id — webhook events have no user actor but audit_events
+// requires one. See src/domain/system-user.ts for the seed-if-not-exists
+// helper. Each mutation below writes one audit_event so the full Stripe-
+// initiated lifecycle is observable in the Org security audit log.
 
 // Stripe webhook endpoint. Events handled:
 //   - checkout.session.completed      → create/link the org_subscription
@@ -69,6 +73,16 @@ export async function POST(req: Request) {
       case "invoice.payment_failed":
         await handleInvoice(event.data.object as Stripe.Invoice, event.type);
         break;
+      case "account.updated":
+        await handleConnectAccountUpdated(event.data.object as Stripe.Account);
+        break;
+      case "charge.succeeded":
+      case "charge.failed":
+        await handleChargeStatus(
+          event.data.object as Stripe.Charge,
+          event.type,
+        );
+        break;
       default:
         // Not an event we care about — ack with 200 so Stripe doesn't retry.
         break;
@@ -86,6 +100,10 @@ export async function POST(req: Request) {
 // ---------------------------------------------------------------------------
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  if (session.mode === "payment") {
+    await handleCheckoutPaymentCompleted(session);
+    return;
+  }
   if (session.mode !== "subscription") return;
 
   const organizationId = session.metadata?.organizationId;
@@ -166,6 +184,20 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     .update(organizations)
     .set({ currentPlanSlug: planSlug })
     .where(eq(organizations.id, organizationId));
+
+  await db.insert(auditEvents).values({
+    actorUserId: await getSystemUserId(),
+    organizationId,
+    objectType: "subscription",
+    objectId: sub.id,
+    actionName: "created",
+    nextState: {
+      planSlug,
+      billingCycle,
+      status: sub.status,
+      trialEnd: sub.trial_end,
+    },
+  });
 }
 
 async function handleSubscriptionChanged(
@@ -228,6 +260,25 @@ async function handleSubscriptionChanged(
       .set({ currentPlanSlug: newPlanSlug })
       .where(eq(organizations.id, row.organizationId));
   }
+
+  await db.insert(auditEvents).values({
+    actorUserId: await getSystemUserId(),
+    organizationId: row.organizationId,
+    objectType: "subscription",
+    objectId: sub.id,
+    actionName:
+      eventType === "customer.subscription.deleted" ? "canceled" : "updated",
+    previousState: {
+      status: row.status,
+      planId: row.planId,
+      cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+    },
+    nextState: {
+      status: sub.status,
+      planSlug: newPlanSlug,
+      cancelAtPeriodEnd: sub.cancel_at_period_end,
+    },
+  });
 }
 
 async function handleInvoice(
@@ -240,7 +291,10 @@ async function handleInvoice(
   if (!parentSubId) return;
 
   const [row] = await db
-    .select({ id: organizationSubscriptions.id })
+    .select({
+      id: organizationSubscriptions.id,
+      organizationId: organizationSubscriptions.organizationId,
+    })
     .from(organizationSubscriptions)
     .where(eq(organizationSubscriptions.stripeSubscriptionId, parentSubId))
     .limit(1);
@@ -292,6 +346,19 @@ async function handleInvoice(
   } else {
     await db.insert(subscriptionInvoices).values(values);
   }
+
+  await db.insert(auditEvents).values({
+    actorUserId: await getSystemUserId(),
+    organizationId: row.organizationId,
+    objectType: "subscription_invoice",
+    objectId: invoice.id ?? parentSubId,
+    actionName: eventType === "invoice.paid" ? "paid" : "payment_failed",
+    nextState: {
+      invoiceNumber: invoice.number,
+      amountPaidCents: invoice.amount_paid ?? 0,
+      status: invoice.status ?? "open",
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -329,6 +396,244 @@ function periodsFromSubscription(sub: Stripe.Subscription): Periods {
     end: endSec ? new Date(endSec * 1000) : now,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Draw payment flow — checkout.session.completed (mode=payment). Links the
+// Checkout session back to the pre-inserted payment_transactions row via
+// metadata.paymentTransactionId, advances status to 'processing', and
+// stores the payment_intent id for later charge.succeeded / .failed events
+// to correlate against.
+
+async function handleCheckoutPaymentCompleted(
+  session: Stripe.Checkout.Session,
+) {
+  const ptId = session.metadata?.paymentTransactionId;
+  if (!ptId) {
+    console.warn("[stripe-webhook] payment checkout without pt metadata");
+    return;
+  }
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id;
+  await db
+    .update(paymentTransactions)
+    .set({
+      transactionStatus: "processing",
+      stripePaymentIntentId: paymentIntentId ?? null,
+      initiatedAt: new Date(),
+    })
+    .where(eq(paymentTransactions.id, ptId));
+}
+
+async function handleChargeStatus(
+  charge: Stripe.Charge,
+  eventType: "charge.succeeded" | "charge.failed",
+) {
+  const piId =
+    typeof charge.payment_intent === "string"
+      ? charge.payment_intent
+      : charge.payment_intent?.id;
+  if (!piId) return;
+
+  const [pt] = await db
+    .select()
+    .from(paymentTransactions)
+    .where(eq(paymentTransactions.stripePaymentIntentId, piId))
+    .limit(1);
+  if (!pt) {
+    console.warn(
+      `[stripe-webhook] ${eventType} for unknown payment_intent ${piId}`,
+    );
+    return;
+  }
+
+  if (eventType === "charge.succeeded") {
+    const methodDetails = extractPaymentMethodDetails(charge);
+    const feeCents = charge.balance_transaction
+      ? null
+      : null; // Stripe fee resolves async; we don't fetch balance_transaction here for simplicity
+    await db
+      .update(paymentTransactions)
+      .set({
+        transactionStatus: "succeeded",
+        stripeChargeId: charge.id,
+        paymentMethodDetails: methodDetails ?? undefined,
+        processingFeeCents: feeCents ?? pt.processingFeeCents,
+        netAmountCents: pt.grossAmountCents - (feeCents ?? 0),
+        receiptUrl: charge.receipt_url ?? null,
+        succeededAt: new Date(),
+      })
+      .where(eq(paymentTransactions.id, pt.id));
+
+    if (pt.relatedEntityType === "draw_request") {
+      await db
+        .update(drawRequests)
+        .set({
+          drawRequestStatus: "paid",
+          paidAt: new Date(),
+          paymentReferenceName: `Stripe ${charge.id}`,
+        })
+        .where(eq(drawRequests.id, pt.relatedEntityId));
+    }
+
+    await db.insert(auditEvents).values({
+      actorUserId: await getSystemUserId(),
+      organizationId: pt.organizationId,
+      projectId: pt.projectId,
+      objectType: "payment_transaction",
+      objectId: pt.id,
+      actionName: "charge_succeeded",
+      nextState: {
+        grossAmountCents: pt.grossAmountCents,
+        stripeChargeId: charge.id,
+        relatedEntityType: pt.relatedEntityType,
+        relatedEntityId: pt.relatedEntityId,
+      },
+    });
+    return;
+  }
+
+  // charge.failed
+  await db
+    .update(paymentTransactions)
+    .set({
+      transactionStatus: "failed",
+      stripeChargeId: charge.id,
+      failedAt: new Date(),
+      failureReason:
+        charge.failure_message ??
+        charge.outcome?.seller_message ??
+        "charge_failed",
+    })
+    .where(eq(paymentTransactions.id, pt.id));
+
+  await db.insert(auditEvents).values({
+    actorUserId: await getSystemUserId(),
+    organizationId: pt.organizationId,
+    projectId: pt.projectId,
+    objectType: "payment_transaction",
+    objectId: pt.id,
+    actionName: "charge_failed",
+    nextState: {
+      stripeChargeId: charge.id,
+      failureReason: charge.failure_message ?? charge.outcome?.seller_message ?? "charge_failed",
+      relatedEntityType: pt.relatedEntityType,
+      relatedEntityId: pt.relatedEntityId,
+    },
+  });
+}
+
+function extractPaymentMethodDetails(
+  charge: Stripe.Charge,
+): Record<string, unknown> | null {
+  const details = charge.payment_method_details;
+  if (!details) return null;
+  if (details.card) {
+    return {
+      type: "card",
+      brand: details.card.brand,
+      last4: details.card.last4,
+    };
+  }
+  if (details.us_bank_account) {
+    return {
+      type: "us_bank_account",
+      bank_name: details.us_bank_account.bank_name,
+      last4: details.us_bank_account.last4,
+    };
+  }
+  return { type: details.type ?? "unknown" };
+}
+
+// ---------------------------------------------------------------------------
+// Stripe Connect — account.updated. Fired whenever the contractor's Connect
+// account state changes (onboarding submitted, charges/payouts enabled,
+// requirements added). We mirror the salient booleans into syncPreferences
+// and flip connectionStatus to 'connected' once the account is able to
+// charge + payout.
+
+async function handleConnectAccountUpdated(account: Stripe.Account) {
+  const [row] = await db
+    .select()
+    .from(integrationConnections)
+    .where(
+      and(
+        eq(integrationConnections.provider, "stripe"),
+        eq(integrationConnections.externalAccountId, account.id),
+      ),
+    )
+    .limit(1);
+  if (!row) {
+    console.warn(
+      `[stripe-webhook] account.updated for unknown Connect account ${account.id}`,
+    );
+    return;
+  }
+
+  const detailsSubmitted = Boolean(account.details_submitted);
+  const chargesEnabled = Boolean(account.charges_enabled);
+  const payoutsEnabled = Boolean(account.payouts_enabled);
+
+  // "connected" means we can accept payments on the contractor's behalf.
+  // Any unresolved verification state is "connecting". Disabled /
+  // restricted accounts surface as "needs_reauth" so the UI prompts a
+  // re-onboard link.
+  const isFullyActive = detailsSubmitted && chargesEnabled && payoutsEnabled;
+  const hasRequirements =
+    (account.requirements?.disabled_reason ?? null) !== null ||
+    (account.requirements?.currently_due ?? []).length > 0;
+  const nextStatus: "connected" | "connecting" | "needs_reauth" = isFullyActive
+    ? "connected"
+    : hasRequirements && detailsSubmitted
+      ? "needs_reauth"
+      : "connecting";
+
+  const existingPrefs =
+    (row.syncPreferences as Record<string, unknown> | null) ?? {};
+  const nextPrefs = {
+    ...existingPrefs,
+    stripe_details_submitted: detailsSubmitted,
+    stripe_charges_enabled: chargesEnabled,
+    stripe_payouts_enabled: payoutsEnabled,
+    stripe_requirements_disabled_reason:
+      account.requirements?.disabled_reason ?? null,
+    stripe_requirements_currently_due:
+      account.requirements?.currently_due ?? [],
+  };
+
+  await db
+    .update(integrationConnections)
+    .set({
+      connectionStatus: nextStatus,
+      externalAccountName:
+        account.business_profile?.name ?? row.externalAccountName,
+      syncPreferences: nextPrefs,
+      lastSyncAt: new Date(),
+      connectedAt:
+        isFullyActive && !row.connectedAt ? new Date() : row.connectedAt,
+    })
+    .where(eq(integrationConnections.id, row.id));
+
+  if (row.connectionStatus !== nextStatus) {
+    await db.insert(auditEvents).values({
+      actorUserId: await getSystemUserId(),
+      organizationId: row.organizationId,
+      objectType: "stripe_connect_account",
+      objectId: row.id,
+      actionName: `status_${nextStatus}`,
+      previousState: { status: row.connectionStatus },
+      nextState: {
+        status: nextStatus,
+        detailsSubmitted,
+        chargesEnabled,
+        payoutsEnabled,
+      },
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 function extractSubscriptionId(invoice: Stripe.Invoice): string | null {
   // Invoice.subscription was removed in newer API versions; it lives on the

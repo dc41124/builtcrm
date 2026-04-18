@@ -13,6 +13,7 @@ import {
   authTwoFactor,
   authUser,
   authVerification,
+  organizations,
   roleAssignments,
   users,
 } from "@/db/schema";
@@ -116,9 +117,52 @@ export const auth = betterAuth({
               )[0];
 
           const r = primary ?? fallback;
+
+          // Org-level sign-in enforcement — cheap reads here because
+          // session.create fires once per login, not per request.
+          // 1. Require-2FA org-wide: block login if org demands it and
+          //    the user hasn't enrolled.
+          // 2. Session-timeout: shorten expiresAt to createdAt + orgMinutes
+          //    when org has configured a stricter cap. Better Auth handles
+          //    the expiry check on every subsequent getSession.
+          let effectiveExpiresAt = session.expiresAt;
+          if (r?.organizationId) {
+            const [org] = await db
+              .select({
+                requireTwoFactorOrg: organizations.requireTwoFactorOrg,
+                sessionTimeoutMinutes: organizations.sessionTimeoutMinutes,
+              })
+              .from(organizations)
+              .where(eq(organizations.id, r.organizationId))
+              .limit(1);
+
+            if (org?.requireTwoFactorOrg) {
+              const [authRow] = await db
+                .select({ twoFactorEnabled: authUser.twoFactorEnabled })
+                .from(authUser)
+                .where(eq(authUser.id, session.userId))
+                .limit(1);
+              if (!authRow?.twoFactorEnabled) {
+                throw new Error(
+                  "TWO_FACTOR_REQUIRED: Your organization requires two-factor authentication. Enable it on your account before signing in.",
+                );
+              }
+            }
+
+            if (org?.sessionTimeoutMinutes) {
+              const orgCap = new Date(
+                Date.now() + org.sessionTimeoutMinutes * 60 * 1000,
+              );
+              if (orgCap < effectiveExpiresAt) {
+                effectiveExpiresAt = orgCap;
+              }
+            }
+          }
+
           return {
             data: {
               ...session,
+              expiresAt: effectiveExpiresAt,
               appUserId: u.appUserId,
               organizationId: r?.organizationId ?? null,
               role: r?.roleKey ?? null,

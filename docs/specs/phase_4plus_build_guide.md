@@ -1765,6 +1765,8 @@ git commit -m "Step 29 (4C.1 #29): Provider registry pattern"
 
 ## Step 30 — Stripe Connect Setup for Contractor Onboarding
 
+> **Status: ✅ Done** (2026-04-17) — Session 1 of the Client Stripe Checkout phase. Standard Connect accounts via Stripe-hosted onboarding. Reuses `integration_connections` with `provider='stripe'`, storing `details_submitted` / `charges_enabled` / `payouts_enabled` in `syncPreferences`. `account.updated` webhook flips `connectionStatus` between `connecting` / `needs_reauth` / `connected`. Routes: `POST /api/contractor/stripe/connect/onboard`. UI: Payments tab's "Set up payments" button + "Resume onboarding" / "Resolve requirements" when not fully active.
+
 **Mode:** Require-design-input
 **Item:** 4C.2 #30
 **Effort:** M
@@ -1825,6 +1827,8 @@ git commit -m "Step 30 (4C.2 #30): Stripe Connect onboarding for contractor orgs
 
 ## Step 31 — ACH Draw Payments (Client → Contractor)
 
+> **Status: ✅ Done** (2026-04-17) — Session 2 of the Client Stripe Checkout phase. ACH + card (card gated Pro+) draw payments via Stripe Checkout, routed via Connect (`destination=acct_...`, `application_fee_amount=0`). `POST /api/draw-requests/[id]/pay` endpoint creates the Checkout session + pre-inserts a `payment_transactions` row; webhook handlers (`checkout.session.completed` payment-mode branch, `charge.succeeded`, `charge.failed`) advance the row through `processing`/`succeeded`/`failed` and flip the draw's status to `paid`. Pay button wired in both residential + commercial draw-review pages once the draw is approved.
+
 **Mode:** Require-design-input
 **Item:** 4C.2 #31
 **Effort:** M
@@ -1880,6 +1884,8 @@ git commit -m "Step 31 (4C.2 #31): ACH draw payments via Stripe Connect"
 
 ## Step 32 — Card Payments for Selections
 
+> **Status: ✅ Done** (2026-04-17) — Session 3 of the Client Stripe Checkout phase. Residential clients pay selection upgrade overage via Stripe Checkout (card only per original spec). `POST /api/selections/decisions/[id]/pay` endpoint, reuses the Connect destination + `payment_transactions` pattern from Step 31. Plan-gated via `requireFeature(ctx, "stripe.client_pays_selections")` — Pro+ contractors only. Pay-upgrade block rendered in residential `ConfirmedView` when `option.priceCents > item.allowanceCents`.
+
 **Mode:** Require-design-input
 **Item:** 4C.2 #32
 **Effort:** S
@@ -1924,6 +1930,8 @@ git commit -m "Step 32 (4C.2 #32): Card payments for selection upgrades"
 ---
 
 ## Step 33 — Payment Transaction Recording + Reconciliation
+
+> **Status: ✅ Partial — ready side live** (2026-04-17). `payment_transactions` table rows are created + advanced through status lifecycle by Sessions 1–3 of the Client Stripe Checkout phase. Contractor Payments tab (`PaymentsView`) reads them for the payout history display. **Deferred:** reconciliation cron job that periodically confirms Stripe's view matches BuiltCRM's — logged as a follow-up.
 
 **Mode:** Safe-to-autorun
 **Item:** 4C.2 #33
@@ -3436,6 +3444,8 @@ git commit -m "Step 61 (8-lite.2 #61): Custom fields on entities"
 
 ## Step 62 — Bulk CSV Import / Export Wizard
 
+> **Status: ✅ Done** (2026-04-17) — Data Exports phase Sessions 1–5. Export side: Projects CSV, Documents ZIP, Audit log CSV (Enterprise), full archive (orchestrator). All Pro+ gated via `data_exports.full_archive` feature key (Enterprise-only for audit log). Import side: Projects CSV with column-mapping wizard, transactional batch insert. `data_exports` tracking table + `Recent exports` panel in the Data tab. Schema: migration `0006_data_exports.sql`. Helpers: `src/lib/exports/csv.ts`, `src/lib/exports/builders.ts`, `src/lib/imports/csv-parser.ts`, `src/lib/imports/projects-import.ts`.
+
 **Mode:** Require-design-input
 **Item:** 8-lite.2 #62
 **Effort:** S
@@ -3484,6 +3494,8 @@ git commit -m "Step 62 (8-lite.2 #62): Bulk CSV import / export wizard"
 ---
 
 ## Step 63 — SSO Stub
+
+> **Status: ✅ Done — real, not stubbed** (2026-04-17). Shipped across 3 sessions as full SAML 2.0 handshake via `samlify` + `@authenio/samlify-node-xmllint` (WASM schema validator). Schema: migration `0007_sso_providers.sql` (one provider per contractor org). Routes: `/api/auth/sso/initiate` + `/api/auth/sso/acs` via a Better Auth plugin (`src/auth/sso-plugin.ts`); provider CRUD at `/api/org/sso/providers` (Enterprise-gated). UI: Org security tab's Configure drawer now live with paste-IdP-metadata form + "Test sign-in" button. Auto-provisioning on first SSO login is deliberately deferred (UX decision needed); users must be invited first.
 
 **Mode:** Require-design-input
 **Item:** 8-lite.2 #63
@@ -4689,63 +4701,56 @@ What's live: all 14 form fields (display/legal name, tax_id, website, phone, add
 
 What's live: members list (joins `organizationUsers` + `users` + `roleAssignments` with last-active sub-query over `authSession`), inline role change with last-admin guard, soft-remove (flips `membershipStatus` to `removed`), invite send/cancel/resend. Audit events on every mutation. Banner surface for errors + successes.
 
-### Contractor: Plan & billing 🔴
+### Contractor: Plan & billing ✅
 
-**File:** [settings-shell.tsx](../../src/components/settings/settings-shell.tsx) → `ContractorPlanBillingTab`
-**Current state:** Current plan card (Professional, $319/mo annual), 3-tier plan picker with monthly/annual toggle, Visa •••• 4242 payment method, 6-row billing history — all from `PLANS` / `BILLING_INVOICES` constants.
+**File:** [settings-shell.tsx](../../src/components/settings/settings-shell.tsx) → `ContractorPlanBillingTab` (dispatcher) → `ContractorPlanBillingLiveTab`
+**Loader:** `getContractorBillingSummary(orgId)` ([billing.ts](../../src/domain/loaders/billing.ts))
+**API routes:** `POST /api/org/subscription/change-plan`, `POST /api/org/subscription/portal`, `POST /api/webhooks/stripe`
+**Schema:** `subscription_plans` / `stripe_customers` / `organization_subscriptions` / `subscription_invoices` + `organizations.current_plan_slug` / `usage_project_count` / `usage_team_count` / `usage_storage_bytes` + `organizations.require_2fa_org` (migrations `0004`, `0005`).
+**Policy:** `src/domain/policies/plan.ts` — `PLAN_FEATURES` registry, `PlanContext`, `requireTier` / `requireFeature` / `hasFeature`, `PlanGateError` → 402.
 
-**Schema reality:** Nothing. `src/db/schema/billing.ts` is about **project billing** (draws, SOV, lien waivers), not platform subscription billing.
+Live across all three tiers (Starter / Professional / Enterprise). Path A for plans without an existing Stripe subscription (creates Checkout session); path B for existing subscriptions (direct Stripe API swap). Stripe Customer Portal linked for card updates + invoice PDFs + cancellation. Self-serve signup routes through the plan picker at `/signup/contractor` (14-day trial, card required). Billing tab auto-refreshes every 30s via polling hook so webhook-delivered invoice rows appear without reload. Plan-gated features enforced server-side via `requireFeature`; UI affordances derived from `contractor.planContext`.
 
-**To wire fully:**
-
-| Item | Needs | Stop-trigger? |
-|---|---|---|
-| Subscription state | New tables: `subscription_plans`, `organization_subscriptions`, `subscription_invoices`, `stripe_customers` | ✅ schema change |
-| Usage metering | Project count + team count derivable from existing tables. Storage: needs a denorm on `organizations` | ⚠️ partial schema |
-| Stripe Billing integration | Stripe **Billing** (subscription product) is separate from Stripe Connect — new webhook handlers, customer portal URL generation | ✅ new service |
-| Plan change | `POST /api/org/subscription/change-plan` → Stripe subscription update | — |
-| Payment method | Stripe Billing customer portal link (`POST /api/org/subscription/portal`) | — |
-| Billing history | Loader over `subscription_invoices` + download URL via Stripe invoice PDF | — |
-
-**Unblocks when:** Stripe Billing becomes a first-class feature (distinct from Stripe Connect used for contractor payouts). Per Phase 4+ portfolio scope this is deferred. Memory reference: *"Only contractors pay for the platform"* — when that moves from policy to plumbing, this tab becomes live.
-
-### Contractor: Data 🔴
+### Contractor: Data ✅
 
 **File:** [settings-shell.tsx](../../src/components/settings/settings-shell.tsx) → `ContractorDataTab`
-**Current state:** 4 export cards (complete archive with preparing→ready mock flow, Projects CSV, Financial CSV, Documents ZIP), 3 import cards (CSV, Procore, Buildertrend), assisted migration tile.
+**Loader:** `listRecentDataExports(orgId)` ([data-exports.ts](../../src/domain/loaders/data-exports.ts))
+**API routes:** `POST /api/org/exports/{projects-csv, documents-zip, audit-log-csv, full-archive}`, `POST /api/org/imports/projects/{preview, commit}`
+**Schema:** `data_exports` (migration `0006`).
+**Builders / parser:** [src/lib/exports/builders.ts](../../src/lib/exports/builders.ts), [src/lib/exports/csv.ts](../../src/lib/exports/csv.ts), [src/lib/imports/csv-parser.ts](../../src/lib/imports/csv-parser.ts), [src/lib/imports/projects-import.ts](../../src/lib/imports/projects-import.ts)
 
-**Schema reality:** Nothing export/import-related.
+Status per card:
 
-**To wire fully:**
-
-| Item | Needs | Stop-trigger? |
+| Card | Status | Notes |
 |---|---|---|
-| Complete archive (ZIP/JSON) | Trigger.dev v3 job that queries every authorized table per org + R2 upload + signed download URL emailed | ✅ new job |
-| Projects / Financial CSVs | Trigger.dev jobs; small orgs can go synchronous | ✅ new job |
-| Documents ZIP | Streams R2 objects into a ZIP archive | ✅ new job |
-| Export status tracking | New table `data_exports` (status, requested_by, ready_url, expires_at) | ✅ schema change |
-| CSV import | Column-mapping wizard + validation preview + batched insert transaction | ✅ new feature |
-| Procore / Buildertrend imports | OAuth app registration + one-time sync jobs — V2+ per portfolio scope | ✅ new service |
-| Assisted migration | Marketing CTA (schedule-a-call) — no code dependency beyond a Cal.com or form link | — |
+| Complete archive | ✅ Live | Pro+ gate. ZIP with `_manifest.json`, `projects.csv`, `financial/{draws,sov,lien_waivers}.csv`, `documents/<project>/<type>/<file>…`, and `audit-log.csv` when Enterprise. Synchronous via `archiver`; buffers to memory. |
+| Projects (CSV) | ✅ Live | Pro+ gate. Synchronous, streams CSV direct in response. |
+| Financial records (CSV) | 🟡 Honest minimum | Card disabled with footer pointing at Complete archive (which contains draws/SOV/lien_waivers CSVs). Standalone card deferred. |
+| Documents (ZIP) | ✅ Live | Pro+ gate. Uses shared `appendOrgDocumentsToArchive` helper — fetches each R2 object, emits `<project>/<type>/<file>` + manifest. Skips missing objects rather than failing. |
+| Audit log (CSV) | ✅ Live | Enterprise gate (`audit.csv_export`). Reuses `listOrganizationAuditEvents` with `unbounded:true`. |
+| CSV / spreadsheet import | ✅ Live | Pro+ gate. Inline wizard: upload or paste, auto-mapping with per-field dropdowns, preview + invalid-row report, transactional batched insert (all-or-nothing). Projects only — clients/subs/docs import deferred. |
+| Procore / Buildertrend | ⏳ Not started | V2+ per portfolio scope (requires OAuth partnerships). |
+| Assisted migration | ✅ Live | `Schedule a call` button wired to `mailto:sales@builtcrm.dev?subject=Assisted%20migration%20inquiry`. |
+| Recent exports list | ✅ Live | Panel between Export and Import showing date / kind / actor / status for the last 20 exports. |
 
-**Unblocks when:** Trigger.dev v3 export jobs + `data_exports` tracking table ship (memory note: Trigger.dev v4 upgrade is deferred to between phases). Procore/Buildertrend imports require OAuth partnership (V2+).
+**Known scaling note:** synchronous ZIP generation is correct for portfolio scope (<100 docs). Real-world orgs with thousands of documents would need the Trigger.dev-v3 async pattern — deferred.
 
-### Contractor: Org security 🟡
+### Contractor: Org security ✅
 
 **File:** [settings-shell.tsx](../../src/components/settings/settings-shell.tsx) → `ContractorOrgSecurityTab`
-**Loaders:** `listOrganizationAuditEvents` ([audit-log.ts](../../src/domain/loaders/audit-log.ts)) + org cols via `getOrganizationProfile`
-**API routes:** `PATCH /api/org/security` (domain lock + session timeout). Domain enforcement in `POST /api/invitations` — rejects emails whose domain isn't in the allowed list.
+**Loaders:** `listOrganizationAuditEvents` ([audit-log.ts](../../src/domain/loaders/audit-log.ts)) + `getSsoProviderByOrg` ([sso.ts](../../src/domain/loaders/sso.ts)) + org cols via `getOrganizationProfile`
+**API routes:** `PATCH /api/org/security` (domain lock + session timeout + require-2FA), `POST/DELETE /api/org/sso/providers`, `/api/auth/sso/initiate` + `/api/auth/sso/acs` (Better Auth plugin endpoints).
 
 Status per row:
 
 | Item | Status | Notes |
 |---|---|---|
-| Audit log (filtered table) | ✅ Live | Reads `auditEvents` joined with actor name; category derived via regex on `objectType` + `actionName`; 200-row limit, client-side filters |
-| Domain lock toggle | ✅ Live | Saves to `organizations.allowed_email_domains`. Enforcement lives in the invitation-create route; existing members with other domains are unaffected |
-| Session timeout select | 🟡 Partial | Preference saves to `organizations.session_timeout_minutes`. Enforcement is a follow-up — Better Auth is globally configured and per-org TTL requires a session-lifecycle hook |
-| Require 2FA (org-wide) | 🔴 Blocked | Enterprise-tier; depends on Billing |
-| SSO / SAML | 🔴 Blocked | Needs `sso_providers` + `sso_mappings` tables + SAML handler route + Better Auth SAML plugin. Enterprise-tier gated |
-| Audit log CSV export | ⏳ Not started | Streaming CSV over the filter set — small follow-up |
+| Audit log (filtered table) | ✅ Live | Reads `auditEvents` joined with actor name; category derived via regex on `objectType` + `actionName`; 200-row limit (UI) / unbounded (export), client-side filters. Webhook-originated events now audited too via the `system` user (`SYSTEM_USER_ID`). |
+| Domain lock toggle | ✅ Live | Saves to `organizations.allowed_email_domains`. Enforcement lives in the invitation-create route; existing members with other domains are unaffected. |
+| Session timeout select | ✅ Live | Saves to `organizations.session_timeout_minutes`. **Enforced:** `session.create.before` hook in `src/auth/config.ts` shortens `session.expiresAt` to `min(Better Auth default, now + orgMinutes)`. Better Auth's native expiry check kicks the user out when the session ages past the cap. |
+| Require 2FA (org-wide) | ✅ Live | Professional+ gate (`require_2fa_org` feature key). Saves to `organizations.require_2fa_org`. **Enforced:** `session.create.before` throws `TWO_FACTOR_REQUIRED` if the user hasn't enrolled. Schema: migration `0005`. |
+| SSO / SAML | ✅ Live | Enterprise-only. Full SAML 2.0 via `samlify` + `@authenio/samlify-node-xmllint`. Schema: migration `0007_sso_providers`. Configure drawer collects IdP entity ID / SSO URL / PEM cert / allowed domain; **Test sign-in** link initiates the handshake. SSO only logs in users who already have a contractor role in the provider's org (auto-provisioning deferred). |
+| Audit log CSV export | ✅ Live | Enterprise-only gate. Shipped as a card in Settings → Data, not Org security (cleaner taxonomy). `POST /api/org/exports/audit-log-csv`. |
 
 ### Contractor: Integrations ✅
 
@@ -4758,10 +4763,10 @@ What's live: the salvage pass embeds the existing `IntegrationsView` from `src/a
 
 **File:** [settings-shell.tsx](../../src/components/settings/settings-shell.tsx) → `ContractorPaymentsTab` (embeds the orphan `PaymentsView` when the bundle is present)
 **Loader:** `getContractorPaymentsView` ([payments.ts](../../src/domain/loaders/payments.ts))
+**API route:** `POST /api/contractor/stripe/connect/onboard` (creates Stripe Standard account if needed + returns fresh hosted onboarding link)
+**Webhook:** `account.updated` handler in `/api/webhooks/stripe` mirrors `details_submitted` / `charges_enabled` / `payouts_enabled` into `integration_connections.syncPreferences` + flips status.
 
-What's live: the salvage pass embeds the existing `PaymentsView`. Stripe Connect status + payout history display.
-
-**Follow-up:** Stripe Connect OAuth onboarding flow (if/when you want contractors to connect Stripe from within the tab vs an out-of-band flow). Not blocking.
+What's live: `PaymentsView` now wires real Stripe Connect onboarding. "Set up payments" button creates a Standard account + redirects to Stripe-hosted onboarding; "Resume onboarding" / "Resolve requirements" re-issue the link while account is `connecting` / `needs_reauth`. Audit events on status transitions via the system user.
 
 ### Subcontractor: Organization ✅
 
@@ -4786,26 +4791,121 @@ Status per panel:
 | Certifications add/remove | ✅ Live | Add form → POST; per-row remove → DELETE; both with audit events |
 | Compliance workspace deep-link | ⏳ Not started | "Open Compliance" button doesn't route anywhere yet — wire when the sub compliance workspace is built |
 
-### Commercial / Residential portals ⏳
+### Commercial / Residential portals 🟡
 
 **Files:** [commercial/(global)/settings/page.tsx](../../src/app/(portal)/commercial/(global)/settings/page.tsx) + [residential/(global)/settings/page.tsx](../../src/app/(portal)/residential/(global)/settings/page.tsx)
-**Current state:** Each portal renders only the 4 shared tabs. JSX specs exist in `docs/specs/` but no portal-specific tabs have been added to the shell.
 
-Per spec:
-- **Commercial** ([builtcrm_commercial_client_settings.jsx](builtcrm_commercial_client_settings.jsx)): client-org-specific — not yet inventoried. No billing.
-- **Residential** ([builtcrm_residential_client_settings.jsx](builtcrm_residential_client_settings.jsx)): homeowner-specific — not yet inventoried. No billing.
+Status per client-portal tab:
 
-**Unblocks when:** pick either (a) build both portal tab sets to UI completion before wiring, or (b) prioritize one portal end-to-end. Memory reference: *"Only contractors pay for the platform"* — no Plan & billing tab on either.
+| Tab | Status | Notes |
+|---|---|---|
+| Profile / Security / Notifications / Appearance (shared) | ✅ Live | Same as contractor. |
+| Company profile (commercial) / Household profile (residential) | ✅ Live | `CommercialCompanyLiveTab` + `ResidentialHouseholdLiveTab`. Share `/api/org/profile` + logo routes. Schema: migration `0003`. |
+| Team members (commercial) / Co-owner access (residential) | ✅ Live | Shared `ClientTeamLiveTab`. Same `/api/org/members/*` + `/api/invitations` routes as contractor. |
+| Payment methods | 🟡 Honest minimum | Static mock replaced with "Secured by Stripe" + 5-step "how payments work" explainer + "Coming soon: saved methods" note. Payment method entry happens at Stripe Checkout time per draw. **Saved methods** (SetupIntent flow, per-client Stripe customer, schema table) are deferred to a future phase. |
 
-### Remaining architectural blockers
+**Pay-draw wiring live in both client portals:** [residential/billing-review.tsx](../../src/app/(portal)/residential/project/[projectId]/billing/billing-review.tsx) and [commercial/billing-review.tsx](../../src/app/(portal)/commercial/project/[projectId]/billing/billing-review.tsx) render a Pay button once the draw is approved + has a balance due. Residential selections page also has a Pay-upgrade button (Pro+ gated).
 
-Four surfaces stay on sample data until the corresponding infrastructure phase lands:
+### Remaining architectural blockers — RESOLVED (2026-04-17)
 
-1. **Plan & billing** — needs Stripe Billing subscription infra (distinct from Stripe Connect used for payouts). Part of a future Billing phase.
-2. **Data exports / imports** — needs Trigger.dev v3 export jobs + `data_exports` tracking table. Procore/Buildertrend imports are V2+.
-3. **SSO / SAML** — Enterprise-tier; needs `sso_providers` + SAML handler route + Better Auth plugin.
-4. **Require-2FA org-wide** — Enterprise-tier; depends on Billing.
+All four previously-blocked surfaces shipped across four dedicated multi-session phases. See the **Completed Phases — Settings Wiring Follow-Up** section below for the full ledger with migration numbers, endpoints, and per-session deliverables.
 
-No more incremental schema work is cost-effective on these — each needs its own design decision and multi-session build.
+| Surface | Status | Phase |
+|---|---|---|
+| Plan & billing | ✅ | Billing phase (5 sessions) |
+| Data exports / imports | ✅ | Data Exports phase (5 sessions) |
+| SSO / SAML | ✅ | SSO/SAML phase (3 sessions) |
+| Require-2FA org-wide | ✅ | Billing phase Session 4 (plan-gate) + Cleanup session (login enforcement) |
+| Client Stripe Checkout (Pay draws + selection upgrades) | ✅ | Client Stripe Checkout phase (3 sessions) |
+
+---
+
+## Completed Phases — Settings Wiring Follow-Up (2026-04-17)
+
+Between the settings wire-up (Steps 9–12) and this update, **~18 sessions across 5 phases** shipped. All of it lands on top of the shared `SettingsShell` and reuses the policy/schema patterns established in Phase 4A–4C.
+
+### Billing phase (5 sessions)
+
+Platform subscription billing for contractors (contractors pay us). Distinct from Stripe Connect (contractors receive money from clients — that's the Client Stripe Checkout phase).
+
+- **S1 — Schema + Stripe SDK + policy scaffold.** Migration `0004_stripe_billing`: 4 tables (`subscription_plans` seeded with Starter / Professional / Enterprise at final prices, `stripe_customers`, `organization_subscriptions`, `subscription_invoices`) + 4 org cols (`current_plan_slug`, `usage_project_count`, `usage_team_count`, `usage_storage_bytes`). Backfilled every existing contractor org to Professional/active. New dep: `stripe`. New policy file: [src/domain/policies/plan.ts](../../src/domain/policies/plan.ts) — `PLAN_FEATURES` registry, `PlanContext`, `requireTier` / `requireFeature` / `hasFeature`, `PlanGateError`.
+- **S2 — Stripe Checkout + portal + webhooks + Plan & billing live data.** Endpoints: `POST /api/org/subscription/change-plan` (Path A: Checkout for new subs; Path B: direct Stripe update for existing), `POST /api/org/subscription/portal`, `POST /api/webhooks/stripe` (`checkout.session.completed`, `customer.subscription.updated/deleted`, `invoice.paid/payment_failed`). Loader: [billing.ts](../../src/domain/loaders/billing.ts). Plan & billing tab refactored to dispatcher + `ContractorPlanBillingLiveTab`.
+- **S3 — Self-serve contractor signup.** New routes `/signup/contractor` (2-step form: account → plan picker) + `POST /api/signup/contractor-bootstrap` (creates org + role + membership, promotes session row so portal routing works immediately). Login page footer adds "Create a contractor account" link.
+- **S4 — Plan-gate wiring + Require-2FA toggle.** Migration `0005_require_2fa_org` (one column). Loader: `getOrgPlanContext(orgId)`. `PATCH /api/org/security` gains `requireTwoFactorOrg` field with `requireFeature(ctx, "require_2fa_org")`. Org security tab's Require-2FA row goes from 🔴 to ✅ live toggle.
+- **Setup required for testing:** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL` in `.env.local`; 4 Stripe prices in dashboard (Starter/Professional × monthly/annual); populate `stripe_price_id_*` in `subscription_plans` via SQL; `stripe listen --forward-to localhost:3000/api/webhooks/stripe`.
+
+### Data Exports phase (5 sessions)
+
+See Step 62 (Bulk CSV Import/Export) + Settings Wiring Backlog's Data card table.
+
+- **S1 — Schema + first export.** Migration `0006_data_exports` (1 table). `POST /api/org/exports/projects-csv` (Pro+ gated, synchronous).
+- **S2 — Documents ZIP + Audit log CSV.** `POST /api/org/exports/documents-zip` (Pro+ via `archiver`), `POST /api/org/exports/audit-log-csv` (Enterprise). Loader unbounded option.
+- **S3 — Full archive + financial CSVs.** `POST /api/org/exports/full-archive` (Pro+; orchestrator ZIP with `projects.csv`, `financial/{draws,sov,lien_waivers}.csv`, `documents/…`, optional `audit-log.csv` for Enterprise). Helpers: [builders.ts](../../src/lib/exports/builders.ts) (`buildProjectsCsv`, `buildAuditLogCsv`, `buildFinancialCsvs`, `appendOrgDocumentsToArchive`).
+- **S4 — CSV import.** Inline wizard in Data tab. `POST /api/org/imports/projects/{preview, commit}`. Transactional all-or-nothing insert. Minimal RFC 4180 parser ([csv-parser.ts](../../src/lib/imports/csv-parser.ts)) + field catalog/validator ([projects-import.ts](../../src/lib/imports/projects-import.ts)).
+- **S5 — Polish.** `listRecentDataExports` loader + Recent exports panel in Data tab. Migration CTA wired to `mailto:sales@builtcrm.dev`. `documents-zip` route refactored to use `appendOrgDocumentsToArchive`.
+
+### SSO/SAML phase (3 sessions)
+
+- **S1 — Schema.** Migration `0007_sso_providers` (one provider per org). Columns: entity_id, sso_url, certificate_pem, allowed_email_domain, status, last_login_at.
+- **S2 — Better Auth plugin + CRUD.** New deps: `samlify`, `@authenio/samlify-node-xmllint`. New plugin: [src/auth/sso-plugin.ts](../../src/auth/sso-plugin.ts) registers `/sso/initiate` + `/sso/acs` endpoints. One-line change to [src/auth/config.ts](../../src/auth/config.ts) adds `ssoPlugin()` to plugins array. Session minted via `internalAdapter.createSession` + `setSessionCookie` (proper signed cookies, not direct row writes). Provider CRUD at `POST/DELETE /api/org/sso/providers` (Enterprise-gated).
+- **S3 — UI wire-up.** Org security drawer now live with SP Entity ID + ACS URL (read-only, paste into IdP) + IdP details form (entity ID, SSO URL, PEM cert, allowed domain). Save / Remove / Test sign-in buttons.
+- **Design call made:** no auto-provisioning. SSO only logs in users who already have a contractor role in the provider's org (invite first, then SSO). Auto-provisioning deferred pending UX decision.
+- **Testing:** point samltest.id at the SP metadata; use the Test sign-in button.
+
+### Client Stripe Checkout phase (3 sessions)
+
+Parallel to Billing — contractor receives money from clients.
+
+- **S1 — Contractor Stripe Connect onboarding.** Standard accounts via hosted onboarding. `POST /api/contractor/stripe/connect/onboard` creates account + returns fresh link. `account.updated` webhook flips `connectionStatus` based on `details_submitted` / `charges_enabled` / `payouts_enabled`. Payments tab "Set up payments" button wired.
+- **S2 — Client "Pay this draw" flow.** `POST /api/draw-requests/[id]/pay` creates Checkout session in payment mode, routed via Connect (`destination=acct_...`). Plan-gated payment methods on contractor's plan (Starter=ACH, Pro+=ACH+card). Webhook handlers: `checkout.session.completed` (payment-mode branch), `charge.succeeded` (updates `payment_transactions` + flips draw to paid), `charge.failed`. Pay button on residential + commercial draw review pages.
+- **S3 — Selection upgrades + honest Payment methods tab.** `POST /api/selections/decisions/[id]/pay` (Pro+ gate `stripe.client_pays_selections`, card only). Pay-upgrade block in residential `ConfirmedView`. Client Payment methods tab replaced with honest "entered at checkout time" messaging + 5-step explainer. Static mock kept as `ClientPaymentMethodsStaticMock` for removal when saved-methods phase ships.
+
+### Cleanup session — small follow-ups (1 session, 5 items)
+
+- **Session-timeout enforcement** — `session.create.before` in auth config shortens `expiresAt` to `min(default, now + orgMinutes)`; Better Auth's native expiry check does the rest.
+- **Require-2FA login enforcement** — same hook throws `TWO_FACTOR_REQUIRED` if org requires 2FA and user hasn't enrolled.
+- **Webhook audit events via system-user** — new [src/domain/system-user.ts](../../src/domain/system-user.ts) module with `SYSTEM_USER_ID = 00000000-0000-0000-0000-000000000001`, idempotent `ensureSystemUser()` seed. All 5 Stripe webhook paths now write audit events (no schema change needed — the FK just points at the system row).
+- **License edit UI** — inline edit mode on license rows (contractor + subcontractor). `PATCH /api/org/licenses/[id]` route was already there; UI wired now.
+- **Real-time billing refresh** — 30-second `useEffect` polling hook on Plan & billing tab; paused when tab is backgrounded.
+
+### Migrations landed (0004 → 0007)
+
+| # | Date | File | What it added |
+|---|---|---|---|
+| 4 | 2026-04-17 | `0004_stripe_billing.sql` | 4 subscription tables + 4 org cols + seeded plan rows + backfilled existing contractors to Professional/active |
+| 5 | 2026-04-17 | `0005_require_2fa_org.sql` | `organizations.require_2fa_org` boolean |
+| 6 | 2026-04-17 | `0006_data_exports.sql` | `data_exports` tracking table |
+| 7 | 2026-04-17 | `0007_sso_providers.sql` | `sso_providers` (one per contractor org) |
+
+### Open follow-ups carried forward
+
+These are deliberately deferred — each needs its own scope decision.
+
+- **Saved client payment methods** (SetupIntent + per-client Stripe customer). Needs schema (`client_stripe_customers` table) since the existing `stripe_customers` is semantically for contractor subscription customers.
+- **SSO auto-provisioning** on first login. Needs UX decision: default role? `contractor_pm`? Prompt the admin?
+- **IdP metadata XML upload parser** (samlify has the parser; UI only). Nice-to-have polish.
+- **Signed AuthnRequest** in SSO (currently unsigned; some IdPs require signing).
+- **Trigger.dev v3 async pattern** for 10k+ document exports.
+- **Abandoned-org cleanup cron** for users who bail on signup Checkout.
+- **SSO-enforced login** — if an org has both SSO and a password-enabled user, disable password login for SSO-domain users.
+- **Payment reconciliation cron** — Step 33's second half.
+- **"Open Compliance" deep-link** from sub Trade & compliance tab.
+- **Orphan route cleanup** — `src/app/(portal)/contractor/(global)/settings/{integrations,payments,organization,team,invitations}/` are reachable by direct URL but not linked.
+- **Trigger.dev email job for invitations** — currently logs invite URL.
+- **Drizzle migration journal rebuild** — migrations today are applied via throwaway tsx runners (see `src/db/_migrate-000X.ts` pattern used + deleted per migration). Not blocking but worth tidying if we pick up more schema work.
+
+### Next-session kickoff
+
+When picking up fresh:
+
+1. Re-read [`builtcrm_phase4_portfolio_scope.md`](builtcrm_phase4_portfolio_scope.md) and this build guide per the Phase 4+ execution rules.
+2. Scan the **Completed Phases** section above to orient.
+3. Pick the next target. Likely candidates, in rough priority:
+   - **Notification Center** (Step 15) — highest leverage per hour per the scope doc; data already writes to DB.
+   - **Global command palette** (Step 17).
+   - **Drawings module** (Step 44) — biggest single commercial-GC feature, timebox carefully.
+   - One of the open follow-ups above (saved methods, auto-provisioning, etc.) if you want to close out loose ends from the settings work.
+4. Universal stop-triggers still apply (schema, auth, new deps, file deletions, CLAUDE.md / scope doc edits).
+5. Build verifies clean as of 2026-04-17 at 93/93 routes with no lint/type errors.
 
 *End of guide.*

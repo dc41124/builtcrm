@@ -683,6 +683,67 @@ function DrawDetail({ draw }: { draw: Draw }) {
           </div>
         </div>
       )}
+
+      {/* Pay now — shown once the package is approved and still has a balance due. */}
+      {!canDecide &&
+        (draw.drawRequestStatus === "approved" ||
+          draw.drawRequestStatus === "approved_with_note") &&
+        draw.currentPaymentDueCents > 0 && (
+          <PayNowBlock drawId={draw.id} />
+        )}
+    </div>
+  );
+}
+
+function PayNowBlock({ drawId }: { drawId: string }) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function payNow() {
+    setPending(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/draw-requests/${drawId}/pay`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok || !data.url) {
+        setError(data.message ?? data.error ?? "Could not start payment.");
+        setPending(false);
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setError("Network error. Try again.");
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="bcr-ds">
+      <div className="bcr-ds-head">
+        <h4>Pay this draw</h4>
+        <div className="bcr-ds-actions">
+          <span className="bcr-pl green">Approved</span>
+        </div>
+      </div>
+      <div className="bcr-ds-body">
+        <p className="bcr-dec-intro">
+          Approved. Pay now via ACH (or card, if your contractor&apos;s plan
+          allows). Processed by Stripe — ACH settles in 3–5 business days.
+        </p>
+        {error && <div className="bcr-dec-err">{error}</div>}
+        <div className="bcr-decision-actions">
+          <button
+            type="button"
+            className="bcr-btn primary"
+            onClick={payNow}
+            disabled={pending}
+          >
+            {pending ? "Starting secure checkout…" : "Pay this draw"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

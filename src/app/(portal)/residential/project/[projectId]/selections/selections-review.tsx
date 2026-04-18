@@ -912,11 +912,117 @@ function ProvisionalView({
   );
 }
 
+function PayUpgradeBlock({
+  decisionId,
+  upgradeCents,
+}: {
+  decisionId: string;
+  upgradeCents: number;
+}) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function pay() {
+    setPending(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/selections/decisions/${decisionId}/pay`,
+        { method: "POST" },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok || !data.url) {
+        setError(data.message ?? data.error ?? "Could not start payment.");
+        setPending(false);
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setError("Network error. Try again.");
+      setPending(false);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        background: "var(--ac-s)",
+        border: "1px solid var(--ac-m)",
+        borderRadius: 14,
+        padding: 16,
+        marginBottom: 16,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontFamily: "'DM Sans',system-ui,sans-serif",
+            fontSize: 14,
+            fontWeight: 700,
+            color: "var(--ac-t)",
+          }}
+        >
+          Upgrade amount: {formatCents(upgradeCents)}
+        </div>
+        <p
+          style={{
+            margin: "4px 0 0 0",
+            fontSize: 12.5,
+            color: "var(--t2)",
+            fontWeight: 520,
+            lineHeight: 1.5,
+          }}
+        >
+          This option exceeds your allowance. Pay the difference by card now
+          to keep your builder on schedule — we handle it via Stripe.
+        </p>
+      </div>
+      <div>
+        <button
+          type="button"
+          onClick={pay}
+          disabled={pending}
+          style={{
+            background: "var(--ac)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 10,
+            padding: "10px 18px",
+            fontSize: 13,
+            fontWeight: 650,
+            cursor: pending ? "not-allowed" : "pointer",
+            fontFamily: "'Instrument Sans',system-ui,sans-serif",
+          }}
+        >
+          {pending ? "Starting secure checkout…" : "Pay upgrade by card"}
+        </button>
+      </div>
+      {error && (
+        <div
+          style={{
+            fontSize: 12,
+            color: "var(--dg-t)",
+            fontWeight: 600,
+          }}
+        >
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConfirmedView({ item }: { item: SelectionItemRow }) {
   const decision = item.currentDecision;
   const chosen = item.options.find((o) => o.id === decision?.selectedOptionId);
   const isLocked =
     item.selectionItemStatus === "locked" || decision?.isLocked;
+  const upgradeCents = chosen
+    ? Math.max(0, chosen.priceCents - item.allowanceCents)
+    : 0;
 
   return (
     <div className="rsel-layout">
@@ -934,6 +1040,12 @@ function ConfirmedView({ item }: { item: SelectionItemRow }) {
           item={item}
           pill={{ label: "Confirmed", color: "green" }}
         />
+        {upgradeCents > 0 && decision && (
+          <PayUpgradeBlock
+            decisionId={decision.id}
+            upgradeCents={upgradeCents}
+          />
+        )}
         <div className="rsel-post">
           <h3>
             <CheckIcon /> What happens next
