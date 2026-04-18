@@ -101,7 +101,11 @@ function LoginPageInner() {
       </div>
 
       <div className="auth-footer">
-        Have an invitation? <Link href="/signup">Accept invite instead</Link>
+        New to BuiltCRM?{" "}
+        <Link href="/signup/contractor">Create a contractor account</Link>
+        <div style={{ marginTop: 6, fontSize: 12, opacity: 0.8 }}>
+          Have an invitation? <Link href="/signup">Accept invite instead</Link>
+        </div>
       </div>
     </>
   );

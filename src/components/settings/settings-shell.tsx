@@ -19,6 +19,11 @@ import type { AuditEventView } from "@/domain/loaders/audit-log";
 import { AUDIT_CATEGORIES } from "@/lib/audit-categories";
 import type { ContractorIntegrationsView } from "@/domain/loaders/integrations";
 import type { ContractorPaymentsView } from "@/domain/loaders/payments";
+import type {
+  BillingPlanView,
+  ContractorBillingView,
+} from "@/domain/loaders/billing";
+import type { PlanContext } from "@/domain/policies/plan";
 import type { SubComplianceRow } from "@/domain/loaders/subcontractor-compliance";
 import type {
   OrganizationCertification,
@@ -52,6 +57,8 @@ export type ContractorSettingsBundle = {
   payments: ContractorPaymentsView;
   orgProfile: OrganizationProfile | null;
   orgLicenses: OrganizationLicense[];
+  billing: ContractorBillingView | null;
+  planContext: PlanContext;
   nowMs: number;
 };
 
@@ -380,7 +387,7 @@ export function SettingsShell({
         {tab === "team" && view.portalType === "contractor" && (
           <ContractorTeamRolesTab contractor={contractor} />
         )}
-        {tab === "billing" && <ContractorPlanBillingTab />}
+        {tab === "billing" && <ContractorPlanBillingTab contractor={contractor} />}
         {tab === "data" && <ContractorDataTab />}
         {tab === "orgsec" && <ContractorOrgSecurityTab contractor={contractor} />}
         {tab === "integrations" && <ContractorIntegrationsTab contractor={contractor} />}
@@ -4600,7 +4607,21 @@ const BILLING_INVOICES: BillingInvoice[] = [
   { id: "INV-2025-11-0026", date: "Nov 1, 2025", amount: 319.0, status: "Paid", period: "Nov 2025" },
 ];
 
-function ContractorPlanBillingTab() {
+// Dispatcher: live variant when the loader returned a billing summary,
+// static sample-data fallback otherwise (e.g. legacy orgs where the
+// subscription_plans seed hasn't been populated with Stripe price IDs yet).
+function ContractorPlanBillingTab({
+  contractor,
+}: {
+  contractor?: ContractorSettingsBundle;
+}) {
+  if (contractor?.billing) {
+    return <ContractorPlanBillingLiveTab billing={contractor.billing} />;
+  }
+  return <ContractorPlanBillingStaticFallback />;
+}
+
+function ContractorPlanBillingStaticFallback() {
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("annual");
   const [showChangePlan, setShowChangePlan] = useState(false);
   const teamPct = (CURRENT_USAGE.team.used / CURRENT_USAGE.team.cap) * 100;
@@ -4939,6 +4960,740 @@ function ContractorPlanBillingTab() {
       </Panel>
     </>
   );
+}
+
+// Live variant — reads from the real billing loader + wires buttons to the
+// change-plan and customer-portal endpoints. See src/domain/loaders/billing.ts
+// for the shape. Visual structure mirrors the static fallback above so the
+// tab looks identical regardless of data source.
+function ContractorPlanBillingLiveTab({
+  billing,
+}: {
+  billing: ContractorBillingView;
+}) {
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">(
+    billing.subscription.billingCycle,
+  );
+  const [showChangePlan, setShowChangePlan] = useState(false);
+  const [banner, setBanner] = useState<
+    | { kind: "ok"; message: string }
+    | { kind: "error"; message: string }
+    | null
+  >(null);
+  const [pendingPlanSlug, setPendingPlanSlug] = useState<string | null>(null);
+  const [portalPending, setPortalPending] = useState(false);
+
+  const plan = billing.currentPlan;
+  const sub = billing.subscription;
+
+  const priceCents =
+    sub.billingCycle === "monthly"
+      ? plan.priceMonthlyCents
+      : plan.priceAnnualCents;
+  const annualBilledCents =
+    sub.billingCycle === "annual" && plan.priceAnnualCents
+      ? plan.priceAnnualCents * 12
+      : null;
+
+  const teamCap = plan.teamLimit ?? null;
+  const projectCap = plan.projectLimit ?? null;
+  const storageCapGb = plan.storageLimitGb ?? null;
+  const storageUsedGb = billing.usage.storageBytes / 1024 / 1024 / 1024;
+
+  const teamPct =
+    teamCap && teamCap > 0
+      ? Math.min(100, (billing.usage.teamCount / teamCap) * 100)
+      : 0;
+  const projectPct =
+    projectCap && projectCap > 0
+      ? Math.min(100, (billing.usage.projectCount / projectCap) * 100)
+      : 0;
+  const storagePct =
+    storageCapGb && storageCapGb > 0
+      ? Math.min(100, (storageUsedGb / storageCapGb) * 100)
+      : 0;
+
+  const periodLabel = sub.cancelAtPeriodEnd
+    ? `Cancels ${formatLongDate(sub.currentPeriodEnd)}`
+    : `Renews ${formatLongDate(sub.currentPeriodEnd)}`;
+  const trialing = sub.status === "trialing";
+  const suspended =
+    sub.status !== "trialing" && sub.status !== "active";
+
+  async function choosePlan(slug: string) {
+    if (slug === plan.slug) return;
+    if (slug === "enterprise") {
+      window.location.href = "mailto:sales@builtcrm.dev?subject=Enterprise%20plan%20inquiry";
+      return;
+    }
+    setBanner(null);
+    setPendingPlanSlug(slug);
+    try {
+      const res = await fetch("/api/org/subscription/change-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planSlug: slug, billingCycle }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        mode?: "checkout" | "updated";
+        url?: string;
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok || !data.ok) {
+        setBanner({
+          kind: "error",
+          message:
+            data.message ?? data.error ?? "Could not change plan. Try again.",
+        });
+        return;
+      }
+      if (data.mode === "checkout" && data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      // Direct API update: refresh the page so loader re-reads.
+      window.location.reload();
+    } catch {
+      setBanner({
+        kind: "error",
+        message: "Network error. Try again.",
+      });
+    } finally {
+      setPendingPlanSlug(null);
+    }
+  }
+
+  async function openPortal() {
+    setBanner(null);
+    setPortalPending(true);
+    try {
+      const res = await fetch("/api/org/subscription/portal", { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        url?: string;
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok || !data.ok || !data.url) {
+        setBanner({
+          kind: "error",
+          message:
+            data.message ??
+            data.error ??
+            "Could not open the billing portal. Try again.",
+        });
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setBanner({
+        kind: "error",
+        message: "Network error. Try again.",
+      });
+    } finally {
+      setPortalPending(false);
+    }
+  }
+
+  return (
+    <>
+      {banner && (
+        <div
+          role="status"
+          style={{
+            padding: "10px 14px",
+            borderRadius: 10,
+            marginBottom: 12,
+            border: "1px solid",
+            borderColor: banner.kind === "ok" ? "var(--ok)" : "var(--err)",
+            background:
+              banner.kind === "ok" ? "var(--okbg)" : "var(--errbg)",
+            color: banner.kind === "ok" ? "var(--ok)" : "var(--err)",
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          {banner.message}
+        </div>
+      )}
+      <Panel
+        title="Current plan"
+        subtitle="Your subscription and how much of each limit you're using."
+        headerRight={
+          <button
+            style={btnGhostSm()}
+            onClick={() => setShowChangePlan((v) => !v)}
+          >
+            {showChangePlan ? "Hide options" : "Change plan"}
+          </button>
+        }
+      >
+        <div
+          className="plan-row"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "2fr 1fr",
+            gap: 16,
+            alignItems: "start",
+          }}
+        >
+          <style>{`@media (max-width: 820px) { .plan-row { grid-template-columns: 1fr !important; } }`}</style>
+
+          <div
+            style={{
+              background: "linear-gradient(135deg,var(--ac-s),var(--s1))",
+              border: "1px solid var(--ac-m)",
+              borderRadius: 14,
+              padding: 20,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: 12,
+                marginBottom: 16,
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontFamily: "'DM Sans',system-ui,sans-serif",
+                    fontSize: 22,
+                    fontWeight: 780,
+                    letterSpacing: "-.03em",
+                    color: "var(--ac-t)",
+                  }}
+                >
+                  {plan.name}
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: "var(--t2)",
+                    fontWeight: 520,
+                    marginTop: 2,
+                  }}
+                >
+                  {capitalize(sub.billingCycle)} billing · {periodLabel}
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                {priceCents != null ? (
+                  <>
+                    <div
+                      style={{
+                        fontFamily: "'DM Sans',system-ui,sans-serif",
+                        fontSize: 18,
+                        fontWeight: 700,
+                        color: "var(--t1)",
+                      }}
+                    >
+                      ${(priceCents / 100).toFixed(0)}
+                      <small
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 500,
+                          color: "var(--t3)",
+                        }}
+                      >
+                        /mo
+                      </small>
+                    </div>
+                    {annualBilledCents && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "var(--t3)",
+                          fontWeight: 500,
+                          marginTop: 2,
+                        }}
+                      >
+                        Billed ${(annualBilledCents / 100).toLocaleString()}/yr
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: "var(--t3)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Custom pricing
+                  </div>
+                )}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <Pill tone={suspended ? "danger" : "ok"}>
+                {suspended
+                  ? "Suspended"
+                  : trialing
+                    ? "Trial"
+                    : capitalize(sub.status)}
+              </Pill>
+              <Pill tone="accent">
+                {sub.billingCycle === "annual"
+                  ? "Annual · save 20%"
+                  : "Monthly"}
+              </Pill>
+              {sub.cancelAtPeriodEnd && <Pill tone="warn">Cancels soon</Pill>}
+              {!sub.hasStripeSubscription && (
+                <Pill tone="warn">Legacy — no card on file</Pill>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h4
+              style={{
+                fontFamily: "'DM Sans',system-ui,sans-serif",
+                fontSize: 13,
+                fontWeight: 700,
+                margin: 0,
+                marginBottom: 6,
+              }}
+            >
+              Usage this month
+            </h4>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 14,
+                marginTop: 4,
+              }}
+            >
+              <UsageBar
+                label="Active projects"
+                value={`${billing.usage.projectCount} / ${projectCap ?? "Unlimited"}`}
+                pct={projectPct}
+              />
+              <UsageBar
+                label="Team members"
+                value={`${billing.usage.teamCount} / ${teamCap ?? "Unlimited"}`}
+                pct={teamPct}
+                tone={teamPct > 75 ? "warn" : "normal"}
+              />
+              <UsageBar
+                label="Document storage"
+                value={`${storageUsedGb.toFixed(1)} GB / ${
+                  storageCapGb != null ? `${storageCapGb} GB` : "Unlimited"
+                }`}
+                pct={storagePct}
+              />
+            </div>
+          </div>
+        </div>
+
+        {showChangePlan && (
+          <div
+            style={{
+              marginTop: 20,
+              paddingTop: 20,
+              borderTop: "1px solid var(--s3)",
+              animation: "fadeIn .24s cubic-bezier(.16,1,.3,1)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 14,
+                flexWrap: "wrap",
+                gap: 12,
+              }}
+            >
+              <h4
+                style={{
+                  fontFamily: "'DM Sans',system-ui,sans-serif",
+                  fontSize: 15,
+                  fontWeight: 700,
+                  margin: 0,
+                }}
+              >
+                Compare plans
+              </h4>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 2,
+                  background: "var(--s2)",
+                  borderRadius: 10,
+                  padding: 3,
+                }}
+              >
+                {(["monthly", "annual"] as const).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setBillingCycle(c)}
+                    style={{
+                      height: 32,
+                      padding: "0 14px",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 650,
+                      color: billingCycle === c ? "var(--t1)" : "var(--t2)",
+                      background:
+                        billingCycle === c ? "var(--s1)" : "transparent",
+                      boxShadow: billingCycle === c ? "var(--shsm)" : "none",
+                      border: "none",
+                      cursor: "pointer",
+                      fontFamily: "'Instrument Sans',system-ui,sans-serif",
+                    }}
+                  >
+                    {c === "monthly" ? "Monthly" : "Annual · save 20%"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div
+              className="tier-grid"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3,1fr)",
+                gap: 12,
+              }}
+            >
+              <style>{`@media (max-width: 860px) { .tier-grid { grid-template-columns: 1fr !important; } }`}</style>
+              {billing.availablePlans.map((p) => (
+                <LivePlanTierCard
+                  key={p.id}
+                  plan={p}
+                  billingCycle={billingCycle}
+                  isCurrent={p.slug === plan.slug}
+                  isPending={pendingPlanSlug === p.slug}
+                  disabled={pendingPlanSlug !== null}
+                  onSelect={() => choosePlan(p.slug)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </Panel>
+
+      <Panel
+        title="Payment method"
+        subtitle="The card we charge for your BuiltCRM subscription. Separate from Stripe Connect which handles your payouts."
+        headerRight={
+          billing.hasStripeCustomer ? (
+            <button
+              style={btnGhostSm()}
+              onClick={openPortal}
+              disabled={portalPending}
+            >
+              {portalPending ? "Opening…" : "Manage in Stripe"}
+            </button>
+          ) : null
+        }
+      >
+        {billing.hasStripeCustomer ? (
+          <div
+            style={{
+              padding: 14,
+              background: "var(--s2)",
+              border: "1px solid var(--s3)",
+              borderRadius: 14,
+              fontSize: 13,
+              color: "var(--t2)",
+              fontWeight: 520,
+              lineHeight: 1.5,
+            }}
+          >
+            Your card and invoices are managed through the Stripe-hosted
+            billing portal. Click <strong>Manage in Stripe</strong> to update
+            the card on file, download invoice PDFs, or cancel your
+            subscription.
+          </div>
+        ) : (
+          <div
+            style={{
+              padding: 14,
+              background: "var(--s2)",
+              border: "1px dashed var(--s3)",
+              borderRadius: 14,
+              fontSize: 13,
+              color: "var(--t2)",
+              fontWeight: 520,
+              lineHeight: 1.5,
+            }}
+          >
+            No card on file yet — this org was provisioned without an active
+            Stripe subscription. Click{" "}
+            <strong>Change plan</strong> above to pick a tier and enter a
+            card.
+          </div>
+        )}
+      </Panel>
+
+      <Panel
+        title="Billing history"
+        subtitle="Your past invoices. Click any to open the Stripe-hosted PDF."
+      >
+        <div style={{ overflow: "auto" }}>
+          {billing.invoices.length === 0 ? (
+            <div
+              style={{
+                padding: "18px 4px",
+                color: "var(--t3)",
+                fontSize: 13,
+                fontWeight: 520,
+              }}
+            >
+              No invoices yet. Your first invoice will appear here after your
+              trial ends.
+            </div>
+          ) : (
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                minWidth: 620,
+              }}
+            >
+              <thead>
+                <tr>
+                  {["Invoice", "Period", "Date", "Amount", "Status", ""].map(
+                    (h, i) => (
+                      <th
+                        key={i}
+                        style={{
+                          fontFamily: "'DM Sans',system-ui,sans-serif",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: "var(--t3)",
+                          textTransform: "uppercase",
+                          letterSpacing: ".06em",
+                          textAlign: i === 5 ? "right" : "left",
+                          padding: "10px 12px",
+                          borderBottom: "1px solid var(--s3)",
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {billing.invoices.map((inv) => (
+                  <tr key={inv.id}>
+                    <td
+                      style={{
+                        padding: "14px 12px",
+                        borderBottom: "1px solid var(--s2)",
+                        fontFamily: "'JetBrains Mono',monospace",
+                        fontSize: 12.5,
+                      }}
+                    >
+                      {inv.number ?? inv.stripeInvoiceId.slice(-10)}
+                    </td>
+                    <td
+                      style={{
+                        padding: "14px 12px",
+                        borderBottom: "1px solid var(--s2)",
+                        color: "var(--t2)",
+                        fontSize: 12.5,
+                      }}
+                    >
+                      {formatShortDate(inv.periodStart)} –{" "}
+                      {formatShortDate(inv.periodEnd)}
+                    </td>
+                    <td
+                      style={{
+                        padding: "14px 12px",
+                        borderBottom: "1px solid var(--s2)",
+                        color: "var(--t2)",
+                        fontSize: 12.5,
+                      }}
+                    >
+                      {inv.paidAt
+                        ? formatLongDate(inv.paidAt)
+                        : formatLongDate(inv.createdAt)}
+                    </td>
+                    <td
+                      style={{
+                        padding: "14px 12px",
+                        borderBottom: "1px solid var(--s2)",
+                        fontFamily: "'JetBrains Mono',monospace",
+                        fontWeight: 600,
+                      }}
+                    >
+                      ${(inv.amountPaidCents / 100).toFixed(2)}
+                    </td>
+                    <td
+                      style={{
+                        padding: "14px 12px",
+                        borderBottom: "1px solid var(--s2)",
+                      }}
+                    >
+                      <Pill
+                        tone={
+                          inv.status === "paid"
+                            ? "ok"
+                            : inv.status === "open"
+                              ? "warn"
+                              : "danger"
+                        }
+                      >
+                        {capitalize(inv.status)}
+                      </Pill>
+                    </td>
+                    <td
+                      style={{
+                        padding: "14px 12px",
+                        borderBottom: "1px solid var(--s2)",
+                        textAlign: "right",
+                      }}
+                    >
+                      {inv.invoicePdfUrl ? (
+                        <a
+                          href={inv.invoicePdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={btnGhostSm()}
+                          aria-label={`Download ${inv.number ?? inv.stripeInvoiceId}`}
+                        >
+                          {I.download}
+                        </a>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </Panel>
+    </>
+  );
+}
+
+function LivePlanTierCard({
+  plan,
+  billingCycle,
+  isCurrent,
+  isPending,
+  disabled,
+  onSelect,
+}: {
+  plan: BillingPlanView;
+  billingCycle: "monthly" | "annual";
+  isCurrent: boolean;
+  isPending: boolean;
+  disabled: boolean;
+  onSelect: () => void;
+}) {
+  const cents =
+    billingCycle === "monthly"
+      ? plan.priceMonthlyCents
+      : plan.priceAnnualCents;
+  const label = plan.isSelfServePurchasable
+    ? isCurrent
+      ? "Current plan"
+      : isPending
+        ? "Working…"
+        : `Choose ${plan.name}`
+    : "Contact sales";
+  return (
+    <div
+      style={{
+        border: isCurrent ? "2px solid var(--ac-m)" : "1px solid var(--s3)",
+        borderRadius: 12,
+        padding: 16,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        background: isCurrent ? "var(--ac-s)" : "var(--s1)",
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "'DM Sans',system-ui,sans-serif",
+          fontSize: 16,
+          fontWeight: 740,
+        }}
+      >
+        {plan.name}
+      </div>
+      <div style={{ fontSize: 13, color: "var(--t2)", fontWeight: 520 }}>
+        {cents != null ? (
+          <>
+            <strong style={{ color: "var(--t1)", fontSize: 18 }}>
+              ${(cents / 100).toFixed(0)}
+            </strong>
+            /mo
+          </>
+        ) : (
+          "Custom"
+        )}
+      </div>
+      <ul
+        style={{
+          margin: 0,
+          paddingLeft: 16,
+          fontSize: 12,
+          color: "var(--t2)",
+          lineHeight: 1.7,
+          fontWeight: 520,
+        }}
+      >
+        <li>
+          {plan.projectLimit != null ? `${plan.projectLimit} projects` : "Unlimited projects"}
+        </li>
+        <li>
+          {plan.teamLimit != null ? `${plan.teamLimit} team` : "Unlimited team"}
+        </li>
+        <li>
+          {plan.storageLimitGb != null
+            ? `${plan.storageLimitGb} GB storage`
+            : "Unlimited storage"}
+        </li>
+      </ul>
+      <button
+        onClick={onSelect}
+        disabled={isCurrent || disabled}
+        style={{
+          marginTop: "auto",
+          height: 36,
+          borderRadius: 8,
+          border: "none",
+          cursor: isCurrent || disabled ? "not-allowed" : "pointer",
+          background: isCurrent ? "var(--s3)" : "var(--ac-m)",
+          color: isCurrent ? "var(--t2)" : "white",
+          fontSize: 13,
+          fontWeight: 650,
+          fontFamily: "'Instrument Sans',system-ui,sans-serif",
+          opacity: isCurrent || (disabled && !isPending) ? 0.7 : 1,
+        }}
+      >
+        {label}
+      </button>
+    </div>
+  );
+}
+
+function formatLongDate(d: Date): string {
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatShortDate(d: Date): string {
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function UsageBar({
@@ -5469,9 +6224,11 @@ function ContractorOrgSecurityTab({
   const initialDomains = profile?.allowedEmailDomains ?? null;
   const initialDomainLock = Boolean(initialDomains && initialDomains.length > 0);
   const initialSessionTimeout = String(profile?.sessionTimeoutMinutes ?? 10080);
+  const initialRequire2fa = profile?.requireTwoFactorOrg ?? false;
 
   const [domainLock, setDomainLock] = useState(initialDomainLock);
   const [sessionTimeout, setSessionTimeout] = useState(initialSessionTimeout);
+  const [require2fa, setRequire2fa] = useState(initialRequire2fa);
   const [auditFilter, setAuditFilter] = useState<string>("All events");
   const [auditActor, setAuditActor] = useState("");
   const [ssoDrawerOpen, setSsoDrawerOpen] = useState(false);
@@ -5479,6 +6236,15 @@ function ContractorOrgSecurityTab({
   const [securitySavedAt, setSecuritySavedAt] = useState<number | null>(null);
   const [securitySaving, setSecuritySaving] = useState(false);
   const ssoEnabled = false;
+
+  // Plan-gate readouts. The API is the source of truth (enforces
+  // requireFeature); this just drives the UI affordance.
+  const planTier = contractor?.planContext.tier ?? null;
+  const planStatus = contractor?.planContext.status ?? null;
+  const canRequire2fa =
+    planTier != null &&
+    (planTier === "professional" || planTier === "enterprise") &&
+    (planStatus === "trialing" || planStatus === "active");
 
   // Derive the domain to display in the lock description. Prefer the already-
   // configured allowed list; else fall back to the admin's email domain;
@@ -5496,6 +6262,7 @@ function ContractorOrgSecurityTab({
     updates: {
       allowedEmailDomains?: string[] | null;
       sessionTimeoutMinutes?: number | null;
+      requireTwoFactorOrg?: boolean;
     },
     optimisticRevert: () => void,
   ) {
@@ -5540,6 +6307,12 @@ function ContractorOrgSecurityTab({
       { sessionTimeoutMinutes: Number.isFinite(numeric) ? numeric : null },
       () => setSessionTimeout(prev),
     );
+  }
+  function toggleRequire2fa() {
+    if (!canRequire2fa) return;
+    const next = !require2fa;
+    setRequire2fa(next);
+    saveSecurity({ requireTwoFactorOrg: next }, () => setRequire2fa(!next));
   }
 
   // When we have a contractor bundle, render live audit events mapped to the
@@ -5649,14 +6422,36 @@ function ContractorOrgSecurityTab({
         <SecurityRow
           title={
             <>
-              Require 2FA for all members <Pill tone="accent">Enterprise</Pill>
+              Require 2FA for all members{" "}
+              <Pill tone="accent">Professional</Pill>
             </>
           }
-          desc="Force every member to enable two-factor authentication before they can sign in."
+          desc={
+            canRequire2fa
+              ? "Force every member to enable two-factor authentication. Preference is stored now; login-time enforcement lands with the SSO phase."
+              : "Available on Professional and above. Every member will be required to enroll in 2FA before they can sign in."
+          }
           control={
-            <button style={{ ...btnGhostSm(), cursor: "not-allowed", opacity: 0.7 }} disabled>
-              Upgrade to enable
-            </button>
+            canRequire2fa ? (
+              <Toggle
+                on={require2fa}
+                onChange={toggleRequire2fa}
+                ariaLabel="Require 2FA org-wide"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  // Nudge the user to the billing tab. This component doesn't
+                  // own tab routing, so we fire a global event that the shell
+                  // could listen for — fallback is simply a location hash.
+                  window.location.hash = "#plan-billing";
+                }}
+                style={btnGhostSm()}
+              >
+                Upgrade to enable
+              </button>
+            )
           }
           last
         />

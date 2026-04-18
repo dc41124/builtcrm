@@ -6,9 +6,11 @@ import { z } from "zod";
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { auditEvents, organizations } from "@/db/schema";
+import { getOrgPlanContext } from "@/domain/loaders/billing";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { getSubcontractorOrgContext } from "@/domain/loaders/subcontractor-compliance";
 import { AuthorizationError } from "@/domain/permissions";
+import { PlanGateError, requireFeature } from "@/domain/policies/plan";
 
 // Separate from /api/org/profile so sign-in policy changes get their own
 // audit trail (actionName `security.updated`) and can be authorized
@@ -35,6 +37,9 @@ const BodySchema = z.object({
     .max(10080)
     .nullable()
     .optional(),
+  // Gated to Professional+ via requireFeature("require_2fa_org"). The toggle
+  // is one boolean regardless of enabling or disabling the requirement.
+  requireTwoFactorOrg: z.boolean().optional(),
 });
 
 async function resolveAdminOrg(sessionShim: { appUserId?: string | null }) {
@@ -77,6 +82,13 @@ export async function PATCH(req: Request) {
     if (parsed.data.sessionTimeoutMinutes !== undefined) {
       updates.sessionTimeoutMinutes = parsed.data.sessionTimeoutMinutes;
     }
+    if (parsed.data.requireTwoFactorOrg !== undefined) {
+      // Plan gate — only Professional+ can toggle this. Starter gets 402 with
+      // a structured error so the client can show the upgrade CTA inline.
+      const planCtx = await getOrgPlanContext(orgId);
+      requireFeature(planCtx, "require_2fa_org");
+      updates.requireTwoFactorOrg = parsed.data.requireTwoFactorOrg;
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ ok: true, noop: true });
@@ -86,6 +98,7 @@ export async function PATCH(req: Request) {
       .select({
         allowedEmailDomains: organizations.allowedEmailDomains,
         sessionTimeoutMinutes: organizations.sessionTimeoutMinutes,
+        requireTwoFactorOrg: organizations.requireTwoFactorOrg,
       })
       .from(organizations)
       .where(eq(organizations.id, orgId))
@@ -117,6 +130,18 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
+    if (err instanceof PlanGateError) {
+      // 402 Payment Required — semantically "your plan doesn't permit this".
+      return NextResponse.json(
+        {
+          error: "plan_gate",
+          reason: err.reason,
+          required: err.required,
+          message: err.message,
+        },
+        { status: 402 },
+      );
+    }
     if (err instanceof AuthorizationError) {
       const status =
         err.code === "unauthenticated"

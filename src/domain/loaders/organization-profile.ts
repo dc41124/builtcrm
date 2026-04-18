@@ -42,6 +42,9 @@ export type OrganizationProfile = {
   // Org-security (commit 5). Null = unrestricted / no preference set.
   allowedEmailDomains: string[] | null;
   sessionTimeoutMinutes: number | null;
+  // Professional+ gated. Preference persists; login-time enforcement hook
+  // deferred to the SSO phase (both touch src/auth/config.ts).
+  requireTwoFactorOrg: boolean;
   // Commercial-client-specific (commit 8). Null on other portals.
   industry: string | null;
   companySize: string | null;
@@ -88,6 +91,7 @@ export async function getOrganizationProfile(
       regions: organizations.regions,
       allowedEmailDomains: organizations.allowedEmailDomains,
       sessionTimeoutMinutes: organizations.sessionTimeoutMinutes,
+      requireTwoFactorOrg: organizations.requireTwoFactorOrg,
       industry: organizations.industry,
       companySize: organizations.companySize,
       invoiceDelivery: organizations.invoiceDelivery,
@@ -145,6 +149,7 @@ export async function getOrganizationProfile(
     regions: row.regions,
     allowedEmailDomains: row.allowedEmailDomains,
     sessionTimeoutMinutes: row.sessionTimeoutMinutes,
+    requireTwoFactorOrg: row.requireTwoFactorOrg,
     industry: row.industry,
     companySize: row.companySize,
     invoiceDelivery: row.invoiceDelivery,

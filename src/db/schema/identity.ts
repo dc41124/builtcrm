@@ -196,6 +196,12 @@ export const organizations = pgTable(
     // Better Auth is configured globally and per-org TTL requires a session
     // lifecycle hook.
     sessionTimeoutMinutes: integer("session_timeout_minutes"),
+    // Professional+ gated. Enforcement (block login when not enrolled) lives
+    // in a Better Auth hook that hasn't been wired yet — the toggle persists
+    // the preference and the UI is honest about "effective at next sign-in".
+    // See Session 4 of the Billing phase for the gating wiring; enforcement
+    // hook is grouped with the SSO phase since both touch src/auth/config.ts.
+    requireTwoFactorOrg: boolean("require_2fa_org").default(false).notNull(),
 
     // Commercial-client-specific fields (commit 8). Null on other portals.
     industry: varchar("industry", { length: 120 }),

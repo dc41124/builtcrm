@@ -15,6 +15,10 @@ import {
   getContractorOrgContext,
 } from "@/domain/loaders/integrations";
 import { getContractorPaymentsView } from "@/domain/loaders/payments";
+import {
+  getContractorBillingSummary,
+  getOrgPlanContext,
+} from "@/domain/loaders/billing";
 import { AuthorizationError } from "@/domain/permissions";
 import { SettingsShell } from "@/components/settings/settings-shell";
 
@@ -44,6 +48,8 @@ export default async function ContractorSettingsPage() {
       payments,
       orgProfile,
       orgLicenses,
+      billing,
+      planContext,
     ] = await Promise.all([
       listOrganizationMembers(ctx.organization.id),
       listInvitationsForOrganization(ctx.organization.id),
@@ -52,6 +58,8 @@ export default async function ContractorSettingsPage() {
       getContractorPaymentsView({ session: sessionShim }),
       getOrganizationProfile(ctx.organization.id),
       listOrganizationLicenses(ctx.organization.id),
+      getContractorBillingSummary(ctx.organization.id),
+      getOrgPlanContext(ctx.organization.id),
     ]);
 
     return (
@@ -97,6 +105,8 @@ export default async function ContractorSettingsPage() {
             payments,
             orgProfile,
             orgLicenses,
+            billing,
+            planContext,
             nowMs,
           }}
         />
