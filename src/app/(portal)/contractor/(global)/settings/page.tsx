@@ -19,6 +19,8 @@ import {
   getContractorBillingSummary,
   getOrgPlanContext,
 } from "@/domain/loaders/billing";
+import { listRecentDataExports } from "@/domain/loaders/data-exports";
+import { getSsoProviderByOrg } from "@/domain/loaders/sso";
 import { AuthorizationError } from "@/domain/permissions";
 import { SettingsShell } from "@/components/settings/settings-shell";
 
@@ -50,6 +52,8 @@ export default async function ContractorSettingsPage() {
       orgLicenses,
       billing,
       planContext,
+      recentExports,
+      ssoProvider,
     ] = await Promise.all([
       listOrganizationMembers(ctx.organization.id),
       listInvitationsForOrganization(ctx.organization.id),
@@ -60,6 +64,8 @@ export default async function ContractorSettingsPage() {
       listOrganizationLicenses(ctx.organization.id),
       getContractorBillingSummary(ctx.organization.id),
       getOrgPlanContext(ctx.organization.id),
+      listRecentDataExports(ctx.organization.id, { limit: 20 }),
+      getSsoProviderByOrg(ctx.organization.id),
     ]);
 
     return (
@@ -107,6 +113,8 @@ export default async function ContractorSettingsPage() {
             orgLicenses,
             billing,
             planContext,
+            recentExports,
+            ssoProvider,
             nowMs,
           }}
         />

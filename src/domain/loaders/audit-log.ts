@@ -70,9 +70,13 @@ function deriveDetail(row: {
 
 export async function listOrganizationAuditEvents(
   organizationId: string,
-  opts: { limit?: number } = {},
+  opts: { limit?: number; unbounded?: boolean } = {},
 ): Promise<AuditEventView[]> {
-  const limit = Math.min(opts.limit ?? 200, 500);
+  // UI reads cap at 500 for perf. Exports pass `unbounded: true` to pull up
+  // to the full history; size is bounded by the audit log's natural growth.
+  const limit = opts.unbounded
+    ? (opts.limit ?? 100000)
+    : Math.min(opts.limit ?? 200, 500);
 
   const rows = await db
     .select({

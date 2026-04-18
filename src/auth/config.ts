@@ -4,6 +4,8 @@ import { nextCookies } from "better-auth/next-js";
 import { twoFactor } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 
+import { ssoPlugin } from "./sso-plugin";
+
 import { db } from "@/db/client";
 import {
   authAccount,
@@ -132,6 +134,7 @@ export const auth = betterAuth({
     twoFactor({
       issuer: "BuiltCRM",
     }),
+    ssoPlugin(),
     nextCookies(),
   ],
 });

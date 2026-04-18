@@ -24,6 +24,8 @@ import type {
   ContractorBillingView,
 } from "@/domain/loaders/billing";
 import type { PlanContext } from "@/domain/policies/plan";
+import type { RecentDataExportView } from "@/domain/loaders/data-exports";
+import type { SsoProviderView } from "@/domain/loaders/sso";
 import type { SubComplianceRow } from "@/domain/loaders/subcontractor-compliance";
 import type {
   OrganizationCertification,
@@ -59,6 +61,8 @@ export type ContractorSettingsBundle = {
   orgLicenses: OrganizationLicense[];
   billing: ContractorBillingView | null;
   planContext: PlanContext;
+  recentExports: RecentDataExportView[];
+  ssoProvider: SsoProviderView | null;
   nowMs: number;
 };
 
@@ -388,7 +392,7 @@ export function SettingsShell({
           <ContractorTeamRolesTab contractor={contractor} />
         )}
         {tab === "billing" && <ContractorPlanBillingTab contractor={contractor} />}
-        {tab === "data" && <ContractorDataTab />}
+        {tab === "data" && <ContractorDataTab contractor={contractor} />}
         {tab === "orgsec" && <ContractorOrgSecurityTab contractor={contractor} />}
         {tab === "integrations" && <ContractorIntegrationsTab contractor={contractor} />}
         {tab === "payments" && <ContractorPaymentsTab contractor={contractor} />}
@@ -5924,12 +5928,121 @@ function PlanTierCard({
 }
 
 // ═══════ CONTRACTOR: DATA TAB ══════════════════════════════════════════
-function ContractorDataTab() {
-  const [exportStatus, setExportStatus] = useState<null | "preparing" | "ready">(null);
-  const requestExport = () => {
-    setExportStatus("preparing");
-    setTimeout(() => setExportStatus("ready"), 2000);
-  };
+type ExportSlot = "fullArchive" | "projectsCsv" | "documentsZip" | "auditLogCsv";
+type ExportStatus = null | "downloading" | "error" | "gated";
+
+function ContractorDataTab({
+  contractor,
+}: {
+  contractor?: ContractorSettingsBundle;
+}) {
+  const [exportStates, setExportStates] = useState<
+    Record<ExportSlot, { status: ExportStatus; error: string | null }>
+  >({
+    fullArchive: { status: null, error: null },
+    projectsCsv: { status: null, error: null },
+    documentsZip: { status: null, error: null },
+    auditLogCsv: { status: null, error: null },
+  });
+
+  const planTier = contractor?.planContext.tier ?? null;
+  const planStatus = contractor?.planContext.status ?? null;
+  const activeOrTrialing =
+    planStatus === "trialing" || planStatus === "active";
+  const canExport =
+    planTier != null &&
+    (planTier === "professional" || planTier === "enterprise") &&
+    activeOrTrialing;
+  const canExportAudit =
+    planTier === "enterprise" && activeOrTrialing;
+
+  function updateSlot(slot: ExportSlot, next: { status: ExportStatus; error: string | null }) {
+    setExportStates((s) => ({ ...s, [slot]: next }));
+  }
+
+  // Shared download flow. POSTs, handles 402 plan-gate, reads response as
+  // blob, triggers browser download via a transient anchor. Works for CSV
+  // and ZIP alike — browsers respect Content-Disposition.
+  async function downloadViaPost(
+    slot: ExportSlot,
+    url: string,
+    fallbackFilename: string,
+    allowed: boolean,
+  ) {
+    if (!allowed) {
+      updateSlot(slot, { status: "gated", error: null });
+      return;
+    }
+    updateSlot(slot, { status: "downloading", error: null });
+    try {
+      const res = await fetch(url, { method: "POST" });
+      if (res.status === 402) {
+        updateSlot(slot, { status: "gated", error: null });
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        updateSlot(slot, {
+          status: "error",
+          error: data.message ?? data.error ?? "Could not generate export.",
+        });
+        return;
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(cd);
+      const filename = match?.[1] ?? fallbackFilename;
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+      updateSlot(slot, { status: null, error: null });
+    } catch {
+      updateSlot(slot, { status: "error", error: "Network error. Try again." });
+    }
+  }
+
+  const downloadFullArchive = () =>
+    downloadViaPost(
+      "fullArchive",
+      "/api/org/exports/full-archive",
+      "archive.zip",
+      canExport,
+    );
+  const downloadProjectsCsv = () =>
+    downloadViaPost(
+      "projectsCsv",
+      "/api/org/exports/projects-csv",
+      "projects.csv",
+      canExport,
+    );
+  const downloadDocumentsZip = () =>
+    downloadViaPost(
+      "documentsZip",
+      "/api/org/exports/documents-zip",
+      "documents.zip",
+      canExport,
+    );
+  const downloadAuditLogCsv = () =>
+    downloadViaPost(
+      "auditLogCsv",
+      "/api/org/exports/audit-log-csv",
+      "audit-log.csv",
+      canExportAudit,
+    );
+
+  const fullArchive = exportStates.fullArchive;
+  const projectsCsv = exportStates.projectsCsv;
+  const documentsZip = exportStates.documentsZip;
+  const auditLogCsv = exportStates.auditLogCsv;
+
+  // Import uses the same Pro+ gate as exports.
+  const canImport = canExport;
+  const [importOpen, setImportOpen] = useState(false);
 
   return (
     <>
@@ -5949,21 +6062,27 @@ function ContractorDataTab() {
             iconColor="var(--ac-t)"
             icon={I.download}
             title="Complete archive"
-            desc="Everything — projects, documents, messages, billing records, audit log. Delivered as a zipped JSON bundle."
+            desc="Projects, financials, documents, and (Enterprise only) the audit log — one ZIP. Includes a machine-readable manifest."
             primary
             action={
-              exportStatus === "preparing"
-                ? "Preparing..."
-                : exportStatus === "ready"
-                  ? "Ready — download"
-                  : "Request export"
+              fullArchive.status === "downloading" ? (
+                "Bundling..."
+              ) : fullArchive.status === "gated" || !canExport ? (
+                "Upgrade to Professional"
+              ) : (
+                <>
+                  <span style={{ marginRight: 4 }}>{I.download}</span>Download archive
+                </>
+              )
             }
-            disabled={exportStatus === "preparing"}
-            onAction={requestExport}
+            disabled={fullArchive.status === "downloading"}
+            onAction={downloadFullArchive}
             footer={
-              exportStatus === "ready"
-                ? "Link emailed to your billing address."
-                : undefined
+              fullArchive.status === "error" && fullArchive.error
+                ? fullArchive.error
+                : fullArchive.status === "gated" && contractor
+                  ? "Data exports are available on Professional and above."
+                  : undefined
             }
           />
           <DataCard
@@ -5973,9 +6092,24 @@ function ContractorDataTab() {
             title="Projects (CSV)"
             desc="Project list with statuses, budgets, and team assignments. Good for spreadsheets and reports."
             action={
-              <>
-                <span style={{ marginRight: 4 }}>{I.download}</span>Download CSV
-              </>
+              projectsCsv.status === "downloading" ? (
+                "Generating..."
+              ) : projectsCsv.status === "gated" || !canExport ? (
+                "Upgrade to Professional"
+              ) : (
+                <>
+                  <span style={{ marginRight: 4 }}>{I.download}</span>Download CSV
+                </>
+              )
+            }
+            disabled={projectsCsv.status === "downloading"}
+            onAction={downloadProjectsCsv}
+            footer={
+              projectsCsv.status === "error" && projectsCsv.error
+                ? projectsCsv.error
+                : projectsCsv.status === "gated" && contractor
+                  ? "Data exports are available on Professional and above."
+                  : undefined
             }
           />
           <DataCard
@@ -5984,11 +6118,9 @@ function ContractorDataTab() {
             icon={I.file}
             title="Financial records (CSV)"
             desc="SOVs, draws, invoices, lien waivers, and payment history. Feeds straight into accounting."
-            action={
-              <>
-                <span style={{ marginRight: 4 }}>{I.download}</span>Download CSV
-              </>
-            }
+            action="Use Complete archive"
+            disabled
+            footer="Financial CSVs (draws, SOV, lien waivers) are bundled inside the Complete archive for now. A standalone card will ship in a later release."
           />
           <DataCard
             iconBg="var(--ac-s)"
@@ -5997,13 +6129,158 @@ function ContractorDataTab() {
             title="Documents (ZIP)"
             desc="All files uploaded to your projects, with folder structure preserved. Large — may take a few minutes."
             action={
-              <>
-                <span style={{ marginRight: 4 }}>{I.download}</span>Request ZIP
-              </>
+              documentsZip.status === "downloading" ? (
+                "Bundling..."
+              ) : documentsZip.status === "gated" || !canExport ? (
+                "Upgrade to Professional"
+              ) : (
+                <>
+                  <span style={{ marginRight: 4 }}>{I.download}</span>Download ZIP
+                </>
+              )
+            }
+            disabled={documentsZip.status === "downloading"}
+            onAction={downloadDocumentsZip}
+            footer={
+              documentsZip.status === "error" && documentsZip.error
+                ? documentsZip.error
+                : documentsZip.status === "gated" && contractor
+                  ? "Data exports are available on Professional and above."
+                  : undefined
+            }
+          />
+          <DataCard
+            iconBg="var(--ac-s)"
+            iconColor="var(--ac-t)"
+            icon={I.shield}
+            title="Audit log (CSV)"
+            desc="Full sign-in, permission, and state-change history for compliance reviews. Enterprise feature."
+            action={
+              auditLogCsv.status === "downloading" ? (
+                "Generating..."
+              ) : auditLogCsv.status === "gated" || !canExportAudit ? (
+                "Upgrade to Enterprise"
+              ) : (
+                <>
+                  <span style={{ marginRight: 4 }}>{I.download}</span>Download CSV
+                </>
+              )
+            }
+            disabled={auditLogCsv.status === "downloading"}
+            onAction={downloadAuditLogCsv}
+            footer={
+              auditLogCsv.status === "error" && auditLogCsv.error
+                ? auditLogCsv.error
+                : auditLogCsv.status === "gated" && contractor
+                  ? "Audit log export is an Enterprise-only feature."
+                  : undefined
             }
           />
         </div>
       </Panel>
+
+      {contractor && contractor.recentExports.length > 0 && (
+        <Panel
+          title="Recent exports"
+          subtitle="Your last 20 exports. All current kinds are delivered inline — historical record, no re-download."
+        >
+          <div style={{ overflow: "auto" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                minWidth: 560,
+              }}
+            >
+              <thead>
+                <tr>
+                  {["Date", "Kind", "Requested by", "Status"].map((h, i) => (
+                    <th
+                      key={i}
+                      style={{
+                        fontFamily: "'DM Sans',system-ui,sans-serif",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "var(--t3)",
+                        textTransform: "uppercase",
+                        letterSpacing: ".06em",
+                        textAlign: "left",
+                        padding: "10px 12px",
+                        borderBottom: "1px solid var(--s3)",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {contractor.recentExports.map((e) => (
+                  <tr key={e.id}>
+                    <td
+                      style={{
+                        padding: "12px",
+                        borderBottom: "1px solid var(--s2)",
+                        fontSize: 12.5,
+                        color: "var(--t2)",
+                      }}
+                    >
+                      {e.createdAt.toLocaleString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px",
+                        borderBottom: "1px solid var(--s2)",
+                        fontSize: 12.5,
+                      }}
+                    >
+                      {humanizeExportKind(e.exportKind)}
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px",
+                        borderBottom: "1px solid var(--s2)",
+                        fontSize: 12.5,
+                        color: "var(--t2)",
+                      }}
+                    >
+                      {e.requestedBy.name}
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px",
+                        borderBottom: "1px solid var(--s2)",
+                      }}
+                    >
+                      <Pill
+                        tone={
+                          e.status === "ready"
+                            ? "ok"
+                            : e.status === "failed"
+                              ? "danger"
+                              : "warn"
+                        }
+                      >
+                        {e.status === "ready"
+                          ? e.storageKey
+                            ? "Ready"
+                            : "Inline delivered"
+                          : e.status}
+                      </Pill>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      )}
 
       <Panel title="Import projects" subtitle="Bring in data from your previous PM tool or a spreadsheet.">
         <div
@@ -6019,7 +6296,22 @@ function ContractorDataTab() {
             icon={I.upload}
             title="CSV / spreadsheet"
             desc="Map your columns to BuiltCRM fields. Good for project lists, client contacts, and sub directories."
-            action="Start import"
+            action={
+              !canImport
+                ? "Upgrade to Professional"
+                : importOpen
+                  ? "Close wizard"
+                  : "Start import"
+            }
+            disabled={!canImport}
+            onAction={
+              canImport ? () => setImportOpen((v) => !v) : undefined
+            }
+            footer={
+              !canImport && contractor
+                ? "CSV import is available on Professional and above."
+                : undefined
+            }
           />
           <DataCard
             iconBg="var(--in-s)"
@@ -6039,6 +6331,10 @@ function ContractorDataTab() {
           />
         </div>
       </Panel>
+
+      {importOpen && canImport && (
+        <ProjectsImportWizard onClose={() => setImportOpen(false)} />
+      )}
 
       <Panel
         title="Assisted migration"
@@ -6079,13 +6375,440 @@ function ContractorDataTab() {
               Typical project: 2–4 weeks.
             </div>
             <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button style={btnPrimarySm(true)}>Schedule a call</button>
-              <button style={btnGhostSm()}>View sample plan</button>
+              <a
+                href="mailto:sales@builtcrm.dev?subject=Assisted%20migration%20inquiry"
+                style={{ ...btnPrimarySm(true), textDecoration: "none" }}
+              >
+                Schedule a call
+              </a>
             </div>
           </div>
         </div>
       </Panel>
     </>
+  );
+}
+
+function humanizeExportKind(kind: string): string {
+  switch (kind) {
+    case "projects_csv":
+      return "Projects (CSV)";
+    case "financial_csv":
+      return "Financial (CSV)";
+    case "documents_zip":
+      return "Documents (ZIP)";
+    case "full_archive":
+      return "Complete archive";
+    case "audit_log_csv":
+      return "Audit log (CSV)";
+    default:
+      return kind;
+  }
+}
+
+// Inline projects-CSV import wizard. 3-phase state machine:
+//   "input"   — paste / upload CSV, submit for preview
+//   "mapping" — show detected mapping + validation; allow remap + commit
+//   "done"    — success toast with inserted count
+//
+// Wizard is fully client-side until hitting /api/org/imports/projects/{preview,commit}.
+// Plan gate is enforced at both API endpoints — the UI guard is convenience only.
+function ProjectsImportWizard({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
+  type Phase = "input" | "mapping" | "done";
+  const [phase, setPhase] = useState<Phase>("input");
+  const [csvText, setCsvText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{
+    header: string[];
+    mapping: Record<string, number>;
+    catalog: Array<{ field: string; label: string; required: boolean }>;
+    totalRows: number;
+    validCount: number;
+    invalidCount: number;
+    invalidRows: Array<{
+      rowNum: number;
+      errors: Array<{ field: string; message: string }>;
+    }>;
+    samplePreview: Array<Record<string, unknown>>;
+  } | null>(null);
+  const [insertedCount, setInsertedCount] = useState<number | null>(null);
+
+  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    setCsvText(text);
+  }
+
+  async function runPreview(mappingOverride?: Record<string, number>) {
+    if (csvText.trim().length === 0) {
+      setError("Paste CSV text or choose a file first.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/org/imports/projects/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          csv: csvText,
+          mapping: mappingOverride,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 402) {
+        setError("CSV import requires Professional or above.");
+        setSubmitting(false);
+        return;
+      }
+      if (!res.ok || !data.ok) {
+        setError(data.message ?? data.error ?? "Preview failed.");
+        setSubmitting(false);
+        return;
+      }
+      setPreview({
+        header: data.header,
+        mapping: data.mapping,
+        catalog: data.catalog,
+        totalRows: data.totalRows,
+        validCount: data.validCount,
+        invalidCount: data.invalidCount,
+        invalidRows: data.invalidRows,
+        samplePreview: data.samplePreview,
+      });
+      setPhase("mapping");
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function updateMapping(field: string, idx: number | null) {
+    if (!preview) return;
+    const next = { ...preview.mapping };
+    if (idx == null) delete next[field];
+    else next[field] = idx;
+    // Re-run preview server-side with new mapping for consistent validation.
+    runPreview(next);
+  }
+
+  async function runCommit() {
+    if (!preview) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/org/imports/projects/commit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          csv: csvText,
+          mapping: preview.mapping,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 402) {
+        setError("CSV import requires Professional or above.");
+        return;
+      }
+      if (!res.ok || !data.ok) {
+        setError(data.message ?? data.error ?? "Commit failed.");
+        return;
+      }
+      setInsertedCount(data.insertedCount);
+      setPhase("done");
+      // Refresh loaders so the new projects appear immediately.
+      router.refresh();
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Panel
+      title="Import projects from CSV"
+      subtitle="Map your CSV columns to project fields, preview, then commit in a single transaction."
+      headerRight={
+        <button style={btnGhostSm()} onClick={onClose}>
+          Close
+        </button>
+      }
+    >
+      {error && (
+        <div
+          role="alert"
+          style={{
+            padding: "10px 14px",
+            borderRadius: 10,
+            marginBottom: 12,
+            border: "1px solid var(--dg)",
+            background: "var(--dg-s)",
+            color: "var(--dg-t)",
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          {error}
+        </div>
+      )}
+      {phase === "input" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label
+              style={{
+                fontFamily: "'DM Sans',system-ui,sans-serif",
+                fontSize: 13,
+                fontWeight: 650,
+                display: "block",
+                marginBottom: 6,
+              }}
+            >
+              Upload a CSV file
+            </label>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={onFileChange}
+              style={{ fontSize: 13 }}
+            />
+          </div>
+          <div>
+            <label
+              style={{
+                fontFamily: "'DM Sans',system-ui,sans-serif",
+                fontSize: 13,
+                fontWeight: 650,
+                display: "block",
+                marginBottom: 6,
+              }}
+            >
+              Or paste CSV text directly
+            </label>
+            <textarea
+              value={csvText}
+              onChange={(e) => setCsvText(e.target.value)}
+              rows={8}
+              placeholder="name,project_code,status&#10;Parkside Tower,PKT-001,active"
+              style={{
+                width: "100%",
+                fontFamily: "'JetBrains Mono',monospace",
+                fontSize: 12,
+                padding: 10,
+                border: "1px solid var(--s3)",
+                borderRadius: 10,
+                background: "var(--s1)",
+                color: "var(--t1)",
+                resize: "vertical",
+              }}
+            />
+          </div>
+          <div>
+            <button
+              type="button"
+              onClick={() => runPreview()}
+              disabled={submitting || csvText.trim().length === 0}
+              style={btnPrimarySm(!submitting)}
+            >
+              {submitting ? "Previewing…" : "Preview"}
+            </button>
+          </div>
+        </div>
+      )}
+      {phase === "mapping" && preview && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              fontSize: 13,
+              fontWeight: 520,
+              color: "var(--t2)",
+            }}
+          >
+            <Pill tone="ok">{preview.validCount} valid</Pill>
+            {preview.invalidCount > 0 && (
+              <Pill tone="danger">{preview.invalidCount} invalid</Pill>
+            )}
+            <span style={{ alignSelf: "center" }}>
+              of {preview.totalRows} rows
+            </span>
+          </div>
+          <div>
+            <h4
+              style={{
+                fontFamily: "'DM Sans',system-ui,sans-serif",
+                fontSize: 13,
+                fontWeight: 700,
+                margin: 0,
+                marginBottom: 8,
+              }}
+            >
+              Column mapping
+            </h4>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))",
+                gap: 8,
+              }}
+            >
+              {preview.catalog.map((c) => (
+                <label
+                  key={c.field}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                    fontSize: 12,
+                    color: "var(--t2)",
+                    fontWeight: 520,
+                  }}
+                >
+                  <span>
+                    {c.label}
+                    {c.required && (
+                      <span style={{ color: "var(--dg-t)", marginLeft: 2 }}>
+                        *
+                      </span>
+                    )}
+                  </span>
+                  <select
+                    value={preview.mapping[c.field] ?? ""}
+                    onChange={(e) =>
+                      updateMapping(
+                        c.field,
+                        e.target.value === ""
+                          ? null
+                          : Number(e.target.value),
+                      )
+                    }
+                    style={{ ...fieldStyle(), width: "100%" }}
+                    disabled={submitting}
+                  >
+                    <option value="">(not mapped)</option>
+                    {preview.header.map((h, i) => (
+                      <option key={i} value={i}>
+                        {h || `Column ${i + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+          </div>
+          {preview.invalidRows.length > 0 && (
+            <div>
+              <h4
+                style={{
+                  fontFamily: "'DM Sans',system-ui,sans-serif",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  margin: 0,
+                  marginBottom: 6,
+                }}
+              >
+                Invalid rows ({preview.invalidCount})
+              </h4>
+              <ul
+                style={{
+                  margin: 0,
+                  paddingLeft: 16,
+                  fontSize: 12,
+                  color: "var(--t2)",
+                  lineHeight: 1.6,
+                  fontWeight: 520,
+                }}
+              >
+                {preview.invalidRows.map((r) => (
+                  <li key={r.rowNum}>
+                    <strong>Row {r.rowNum}:</strong>{" "}
+                    {r.errors.map((e) => e.message).join("; ")}
+                  </li>
+                ))}
+                {preview.invalidCount > preview.invalidRows.length && (
+                  <li>
+                    …and {preview.invalidCount - preview.invalidRows.length}{" "}
+                    more
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={runCommit}
+              disabled={
+                submitting ||
+                preview.invalidCount > 0 ||
+                preview.validCount === 0
+              }
+              style={btnPrimarySm(
+                !submitting &&
+                  preview.invalidCount === 0 &&
+                  preview.validCount > 0,
+              )}
+            >
+              {submitting
+                ? "Importing…"
+                : `Import ${preview.validCount} project${preview.validCount === 1 ? "" : "s"}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPreview(null);
+                setPhase("input");
+              }}
+              style={btnGhostSm()}
+              disabled={submitting}
+            >
+              Start over
+            </button>
+          </div>
+        </div>
+      )}
+      {phase === "done" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div
+            style={{
+              padding: 14,
+              background: "var(--ok-s)",
+              border: "1px solid var(--ok)",
+              borderRadius: 12,
+              color: "var(--ok-t)",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            Imported {insertedCount}{" "}
+            project{insertedCount === 1 ? "" : "s"} successfully.
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => {
+                setCsvText("");
+                setPreview(null);
+                setInsertedCount(null);
+                setPhase("input");
+              }}
+              style={btnGhostSm()}
+            >
+              Import another file
+            </button>
+            <button type="button" onClick={onClose} style={btnGhostSm()}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </Panel>
   );
 }
 
@@ -6235,16 +6958,21 @@ function ContractorOrgSecurityTab({
   const [securityError, setSecurityError] = useState<string | null>(null);
   const [securitySavedAt, setSecuritySavedAt] = useState<number | null>(null);
   const [securitySaving, setSecuritySaving] = useState(false);
-  const ssoEnabled = false;
 
   // Plan-gate readouts. The API is the source of truth (enforces
   // requireFeature); this just drives the UI affordance.
   const planTier = contractor?.planContext.tier ?? null;
   const planStatus = contractor?.planContext.status ?? null;
+  const activeOrTrialing =
+    planStatus === "trialing" || planStatus === "active";
   const canRequire2fa =
     planTier != null &&
     (planTier === "professional" || planTier === "enterprise") &&
-    (planStatus === "trialing" || planStatus === "active");
+    activeOrTrialing;
+  const canUseSSO = planTier === "enterprise" && activeOrTrialing;
+  const ssoProvider = contractor?.ssoProvider ?? null;
+  const ssoEnabled =
+    ssoProvider != null && ssoProvider.status === "active";
 
   // Derive the domain to display in the lock description. Prefer the already-
   // configured allowed list; else fall back to the admin's email domain;
@@ -6313,6 +7041,112 @@ function ContractorOrgSecurityTab({
     const next = !require2fa;
     setRequire2fa(next);
     saveSecurity({ requireTwoFactorOrg: next }, () => setRequire2fa(!next));
+  }
+
+  // SSO form state seeded from the loaded provider (if any). Certificate PEM
+  // is the only large field — textarea. Everything else is a one-line input.
+  const [ssoFormName, setSsoFormName] = useState(ssoProvider?.name ?? "");
+  const [ssoFormEntityId, setSsoFormEntityId] = useState(
+    ssoProvider?.entityId ?? "",
+  );
+  const [ssoFormSsoUrl, setSsoFormSsoUrl] = useState(
+    ssoProvider?.ssoUrl ?? "",
+  );
+  const [ssoFormCert, setSsoFormCert] = useState(
+    ssoProvider?.certificatePem ?? "",
+  );
+  const [ssoFormDomain, setSsoFormDomain] = useState(
+    ssoProvider?.allowedEmailDomain ?? "",
+  );
+  const [ssoSaving, setSsoSaving] = useState(false);
+  const [ssoBanner, setSsoBanner] = useState<
+    | { kind: "ok"; message: string }
+    | { kind: "error"; message: string }
+    | null
+  >(null);
+
+  async function saveSso() {
+    setSsoSaving(true);
+    setSsoBanner(null);
+    try {
+      const res = await fetch("/api/org/sso/providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: ssoFormName,
+          entityId: ssoFormEntityId,
+          ssoUrl: ssoFormSsoUrl,
+          certificatePem: ssoFormCert,
+          allowedEmailDomain: ssoFormDomain.toLowerCase(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 402) {
+        setSsoBanner({
+          kind: "error",
+          message: "SSO configuration requires Enterprise.",
+        });
+        return;
+      }
+      if (!res.ok || !data.ok) {
+        setSsoBanner({
+          kind: "error",
+          message: data.message ?? data.error ?? "Could not save SSO config.",
+        });
+        return;
+      }
+      setSsoBanner({
+        kind: "ok",
+        message: data.created ? "SSO configured." : "SSO updated.",
+      });
+      router.refresh();
+    } catch {
+      setSsoBanner({ kind: "error", message: "Network error. Try again." });
+    } finally {
+      setSsoSaving(false);
+    }
+  }
+
+  async function deleteSso() {
+    if (!ssoProvider) return;
+    setSsoSaving(true);
+    setSsoBanner(null);
+    try {
+      const res = await fetch("/api/org/sso/providers", { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setSsoBanner({
+          kind: "error",
+          message: data.message ?? data.error ?? "Could not remove SSO.",
+        });
+        return;
+      }
+      setSsoBanner({ kind: "ok", message: "SSO removed." });
+      setSsoFormName("");
+      setSsoFormEntityId("");
+      setSsoFormSsoUrl("");
+      setSsoFormCert("");
+      setSsoFormDomain("");
+      router.refresh();
+    } catch {
+      setSsoBanner({ kind: "error", message: "Network error. Try again." });
+    } finally {
+      setSsoSaving(false);
+    }
+  }
+
+  // SP metadata — depends on the current origin. Entity ID is stable; ACS
+  // URL uses the saved provider's ID (so this only renders once provider
+  // has been created and reloaded).
+  function spEntityId(): string {
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "";
+    return `${origin}/api/auth/sso`;
+  }
+  function acsUrl(providerId: string): string {
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "";
+    return `${origin}/api/auth/sso/acs?providerId=${providerId}`;
   }
 
   // When we have a contractor bundle, render live audit events mapped to the
@@ -6459,7 +7293,7 @@ function ContractorOrgSecurityTab({
 
       <Panel
         title="Single sign-on (SSO)"
-        subtitle="Connect your identity provider for SAML-based authentication."
+        subtitle="Connect your identity provider for SAML 2.0 authentication."
         headerRight={<Pill tone="accent">Enterprise</Pill>}
       >
         <SecurityRow
@@ -6471,16 +7305,35 @@ function ContractorOrgSecurityTab({
               </Pill>
             </>
           }
-          desc="Compatible with Okta, Azure AD, Google Workspace, OneLogin, and any SAML 2.0–compliant IdP."
+          desc={
+            canUseSSO
+              ? "Compatible with Okta, Azure AD, Google Workspace, OneLogin, and any SAML 2.0–compliant IdP."
+              : "Available on Enterprise. Configure an IdP and users in your allowed domain can sign in without passwords."
+          }
           control={
-            <button style={btnGhostSm()} onClick={() => setSsoDrawerOpen((v) => !v)}>
-              {ssoDrawerOpen ? "Close" : "Configure"}
-            </button>
+            canUseSSO ? (
+              <button
+                style={btnGhostSm()}
+                onClick={() => setSsoDrawerOpen((v) => !v)}
+              >
+                {ssoDrawerOpen ? "Close" : "Configure"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.hash = "#plan-billing";
+                }}
+                style={btnGhostSm()}
+              >
+                Upgrade to enable
+              </button>
+            )
           }
           first
           last
         />
-        {ssoDrawerOpen && (
+        {ssoDrawerOpen && canUseSSO && (
           <div
             style={{
               background: "var(--s2)",
@@ -6488,53 +7341,233 @@ function ContractorOrgSecurityTab({
               padding: 16,
               marginTop: 12,
               animation: "fadeIn .24s cubic-bezier(.16,1,.3,1)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
             }}
           >
-            <h5
-              style={{
-                fontFamily: "'DM Sans',system-ui,sans-serif",
-                fontSize: 13,
-                fontWeight: 700,
-                margin: 0,
-                marginBottom: 6,
-              }}
-            >
-              Service provider details
-            </h5>
-            <Field label="Entity ID (SP)">
-              <input
-                readOnly
-                style={{ ...fieldStyle(), fontFamily: "'JetBrains Mono',monospace" }}
-                value="https://app.builtcrm.com/sso/saml/summitcontracting"
-              />
-            </Field>
-            <Field label="ACS URL (Reply URL)">
-              <input
-                readOnly
-                style={{ ...fieldStyle(), fontFamily: "'JetBrains Mono',monospace" }}
-                value="https://app.builtcrm.com/sso/saml/summitcontracting/acs"
-              />
-            </Field>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label
+            {ssoBanner && (
+              <div
+                role="status"
                 style={{
-                  fontFamily: "'DM Sans',system-ui,sans-serif",
-                  fontSize: 12,
-                  fontWeight: 650,
-                  color: "var(--t2)",
-                  letterSpacing: ".01em",
+                  padding: "10px 14px",
+                  borderRadius: 10,
+                  border: "1px solid",
+                  borderColor:
+                    ssoBanner.kind === "ok" ? "var(--ok)" : "var(--dg)",
+                  background:
+                    ssoBanner.kind === "ok" ? "var(--ok-s)" : "var(--dg-s)",
+                  color:
+                    ssoBanner.kind === "ok" ? "var(--ok-t)" : "var(--dg-t)",
+                  fontSize: 13,
+                  fontWeight: 600,
                 }}
               >
-                Metadata XML
-              </label>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button style={btnGhostSm()}>
-                  <span style={{ marginRight: 4 }}>{I.download}</span>Download metadata
-                </button>
-                <button style={{ ...btnPrimarySm(false), cursor: "not-allowed" }} disabled>
-                  Upload IdP metadata
-                </button>
+                {ssoBanner.message}
               </div>
+            )}
+            <div>
+              <h5
+                style={{
+                  fontFamily: "'DM Sans',system-ui,sans-serif",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  margin: 0,
+                  marginBottom: 6,
+                }}
+              >
+                BuiltCRM service provider — copy these into your IdP
+              </h5>
+              <Field label="SP Entity ID">
+                <input
+                  readOnly
+                  style={{
+                    ...fieldStyle(),
+                    fontFamily: "'JetBrains Mono',monospace",
+                  }}
+                  value={spEntityId()}
+                />
+              </Field>
+              <Field label="ACS URL (Reply URL)">
+                <input
+                  readOnly
+                  style={{
+                    ...fieldStyle(),
+                    fontFamily: "'JetBrains Mono',monospace",
+                  }}
+                  value={
+                    ssoProvider
+                      ? acsUrl(ssoProvider.id)
+                      : "Save the form first — ACS URL is provider-specific."
+                  }
+                />
+              </Field>
+            </div>
+            <div>
+              <h5
+                style={{
+                  fontFamily: "'DM Sans',system-ui,sans-serif",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  margin: 0,
+                  marginBottom: 6,
+                }}
+              >
+                Identity provider details — paste from your IdP
+              </h5>
+              <Field label="Provider name (label only)">
+                <input
+                  style={fieldStyle()}
+                  placeholder="Okta Corp"
+                  value={ssoFormName}
+                  onChange={(e) => setSsoFormName(e.target.value)}
+                  disabled={ssoSaving}
+                />
+              </Field>
+              <Field label="IdP Entity ID">
+                <input
+                  style={{
+                    ...fieldStyle(),
+                    fontFamily: "'JetBrains Mono',monospace",
+                  }}
+                  placeholder="http://www.okta.com/exk1..."
+                  value={ssoFormEntityId}
+                  onChange={(e) => setSsoFormEntityId(e.target.value)}
+                  disabled={ssoSaving}
+                />
+              </Field>
+              <Field label="IdP SSO URL (AuthnRequest destination)">
+                <input
+                  style={{
+                    ...fieldStyle(),
+                    fontFamily: "'JetBrains Mono',monospace",
+                  }}
+                  placeholder="https://example.okta.com/app/.../sso/saml"
+                  value={ssoFormSsoUrl}
+                  onChange={(e) => setSsoFormSsoUrl(e.target.value)}
+                  disabled={ssoSaving}
+                />
+              </Field>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label
+                  style={{
+                    fontFamily: "'DM Sans',system-ui,sans-serif",
+                    fontSize: 12,
+                    fontWeight: 650,
+                    color: "var(--t2)",
+                  }}
+                >
+                  IdP signing certificate (PEM)
+                </label>
+                <textarea
+                  value={ssoFormCert}
+                  onChange={(e) => setSsoFormCert(e.target.value)}
+                  rows={6}
+                  placeholder={"-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"}
+                  style={{
+                    width: "100%",
+                    fontFamily: "'JetBrains Mono',monospace",
+                    fontSize: 11,
+                    padding: 10,
+                    border: "1px solid var(--s3)",
+                    borderRadius: 10,
+                    background: "var(--s1)",
+                    color: "var(--t1)",
+                    resize: "vertical",
+                  }}
+                  disabled={ssoSaving}
+                />
+              </div>
+              <Field label="Allowed email domain (required)">
+                <input
+                  style={{
+                    ...fieldStyle(),
+                    fontFamily: "'JetBrains Mono',monospace",
+                  }}
+                  placeholder="example.com"
+                  value={ssoFormDomain}
+                  onChange={(e) => setSsoFormDomain(e.target.value)}
+                  disabled={ssoSaving}
+                />
+              </Field>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={saveSso}
+                disabled={
+                  ssoSaving ||
+                  !ssoFormName ||
+                  !ssoFormEntityId ||
+                  !ssoFormSsoUrl ||
+                  !ssoFormCert ||
+                  !ssoFormDomain
+                }
+                style={btnPrimarySm(
+                  !ssoSaving &&
+                    !!ssoFormName &&
+                    !!ssoFormEntityId &&
+                    !!ssoFormSsoUrl &&
+                    !!ssoFormCert &&
+                    !!ssoFormDomain,
+                )}
+              >
+                {ssoSaving
+                  ? "Saving…"
+                  : ssoProvider
+                    ? "Update SSO config"
+                    : "Save SSO config"}
+              </button>
+              {ssoProvider && (
+                <>
+                  <a
+                    href={`/api/auth/sso/initiate?providerId=${ssoProvider.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ ...btnGhostSm(), textDecoration: "none" }}
+                  >
+                    Test sign-in
+                  </a>
+                  <button
+                    type="button"
+                    onClick={deleteSso}
+                    disabled={ssoSaving}
+                    style={btnGhostSm()}
+                  >
+                    Remove SSO
+                  </button>
+                </>
+              )}
+            </div>
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--t3)",
+                fontWeight: 520,
+                lineHeight: 1.5,
+                borderTop: "1px solid var(--s3)",
+                paddingTop: 10,
+              }}
+            >
+              <strong>How it works:</strong> users in{" "}
+              <code>{ssoFormDomain || "your-domain.com"}</code> must already
+              have a BuiltCRM account (invited by an admin). After configuring
+              SSO they sign in via the IdP&#39;s portal and BuiltCRM trusts
+              the assertion. Auto-provisioning is not supported yet.
+              {ssoProvider?.lastLoginAt && (
+                <>
+                  {" "}
+                  Last successful SSO sign-in:{" "}
+                  {ssoProvider.lastLoginAt.toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                  .
+                </>
+              )}
             </div>
           </div>
         )}
