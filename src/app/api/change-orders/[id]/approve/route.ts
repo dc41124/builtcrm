@@ -9,6 +9,7 @@ import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
+import { emitNotifications } from "@/lib/notifications/emit";
 
 export async function POST(
   _req: Request,
@@ -89,6 +90,19 @@ export async function POST(
         },
         tx,
       );
+    });
+
+    await emitNotifications({
+      eventId: "co_approved",
+      actorUserId: ctx.user.id,
+      projectId: co.projectId,
+      relatedObjectType: "change_order",
+      relatedObjectId: co.id,
+      vars: {
+        number: co.changeOrderNumber,
+        title: co.title,
+        actorName: ctx.user.displayName ?? ctx.user.email,
+      },
     });
 
     return NextResponse.json({ id: co.id, status: "approved" });

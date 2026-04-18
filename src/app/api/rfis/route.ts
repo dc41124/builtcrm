@@ -10,6 +10,7 @@ import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
+import { emitNotifications } from "@/lib/notifications/emit";
 
 const BodySchema = z.object({
   projectId: z.string().uuid(),
@@ -123,6 +124,27 @@ export async function POST(req: Request) {
 
       return row;
     });
+
+    const rfiVars = {
+      title: `RFI-${String(result.sequentialNumber).padStart(3, "0")}: ${result.subject}`,
+      actorName: ctx.user.displayName ?? ctx.user.email,
+    };
+    const emitBase = {
+      actorUserId: ctx.user.id,
+      projectId: ctx.project.id,
+      relatedObjectType: "rfi",
+      relatedObjectId: result.id,
+      vars: rfiVars,
+    };
+    await Promise.all([
+      emitNotifications({ ...emitBase, eventId: "rfi_new" }),
+      emitNotifications({
+        ...emitBase,
+        eventId: "rfi_assigned",
+        targetOrganizationId:
+          parsed.data.assignedToOrganizationId ?? undefined,
+      }),
+    ]);
 
     return NextResponse.json({
       id: result.id,

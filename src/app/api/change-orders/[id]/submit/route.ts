@@ -9,6 +9,7 @@ import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
+import { emitNotifications } from "@/lib/notifications/emit";
 
 export async function POST(
   _req: Request,
@@ -85,6 +86,30 @@ export async function POST(
         tx,
       );
     });
+
+    // Fire notifications after the transaction commits. `emitNotifications`
+    // is best-effort — never throws, so a failure here won't undo the
+    // submission the user just made. We fan out for three events: the
+    // contractor-side confirmation and both client-side flavors; each
+    // event's recipient resolver filters down to the right audience.
+    const actorName = ctx.user.displayName ?? ctx.user.email;
+    const coVars = {
+      number: co.changeOrderNumber,
+      title: co.title,
+      actorName,
+    };
+    const emitBase = {
+      actorUserId: ctx.user.id,
+      projectId: co.projectId,
+      relatedObjectType: "change_order",
+      relatedObjectId: co.id,
+      vars: coVars,
+    };
+    await Promise.all([
+      emitNotifications({ ...emitBase, eventId: "co_submitted" }),
+      emitNotifications({ ...emitBase, eventId: "co_needs_approval" }),
+      emitNotifications({ ...emitBase, eventId: "scope_change" }),
+    ]);
 
     return NextResponse.json({ id: co.id, status: "pending_client_approval" });
   } catch (err) {

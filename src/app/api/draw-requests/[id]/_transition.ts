@@ -11,6 +11,7 @@ import { writeAuditEvent } from "@/domain/audit";
 import type { EffectiveContext } from "@/domain/context";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
+import { emitNotifications } from "@/lib/notifications/emit";
 
 import {
   consumeUnassignedReleases,
@@ -307,6 +308,38 @@ export async function handleDrawTransition(
         tx,
       );
     });
+
+    // Fire notifications for the subset of transitions that map to
+    // user-facing events. Submit → draw_submitted (contractors), approve
+    // and approve-with-note → draw_approved (contractors) + draw_review
+    // bookkeeping is handled at the client's own submit flow. Keeping
+    // this switch explicit so future states don't quietly start emitting.
+    const amountLabel =
+      typeof draw.currentPaymentDueCents === "number"
+        ? `$${(draw.currentPaymentDueCents / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`
+        : null;
+    const baseVars = {
+      drawNumber: draw.drawNumber,
+      amount: amountLabel,
+      actorName: ctx.user.displayName ?? ctx.user.email,
+    };
+    const emitBase = {
+      actorUserId: ctx.user.id,
+      projectId: draw.projectId,
+      relatedObjectType: "draw_request",
+      relatedObjectId: draw.id,
+      vars: baseVars,
+    };
+    if (kind === "submit") {
+      // draw_submitted goes to contractor team (actor is filtered out).
+      // draw_review goes to the client side so they know it's their turn.
+      await Promise.all([
+        emitNotifications({ ...emitBase, eventId: "draw_submitted" }),
+        emitNotifications({ ...emitBase, eventId: "draw_review" }),
+      ]);
+    } else if (kind === "approve" || kind === "approve-with-note") {
+      await emitNotifications({ ...emitBase, eventId: "draw_approved" });
+    }
 
     return NextResponse.json({ id: draw.id, status: rule.toState });
   } catch (err) {

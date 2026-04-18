@@ -8,6 +8,7 @@ export * from "./messaging";
 export * from "./selections";
 export * from "./integrations";
 export * from "./audit";
+export * from "./notifications";
 export * from "./subscriptions";
 export * from "./exports";
 export * from "./sso";

@@ -4,6 +4,7 @@ import { and, eq, lt } from "drizzle-orm";
 import { db } from "@/db/client";
 import { activityFeedItems, uploadRequests } from "@/db/schema";
 import { redis } from "@/lib/redis";
+import { emitNotifications } from "@/lib/notifications/emit";
 
 // Dedupe key: set of upload_request IDs that have already received an
 // overdue reminder. Stale IDs for closed requests stay in the set harmlessly.
@@ -23,6 +24,7 @@ export const uploadRequestReminder = schedules.task({
         title: uploadRequests.title,
         dueAt: uploadRequests.dueAt,
         visibilityScope: uploadRequests.visibilityScope,
+        requestedFromOrganizationId: uploadRequests.requestedFromOrganizationId,
       })
       .from(uploadRequests)
       .where(
@@ -71,6 +73,32 @@ export const uploadRequestReminder = schedules.task({
 
     const [firstId, ...restIds] = toRemind.map((r) => r.id);
     await redis.sadd(REMINDED_SET_KEY, firstId, ...restIds);
+
+    // Dual-write to notifications so the sub sees an entry in the bell
+    // alongside the activityFeedItems row. Fire-and-forget per request —
+    // emitNotifications is internally best-effort, so a per-row failure
+    // doesn't fail the reminder pass.
+    await Promise.all(
+      toRemind.map((r) => {
+        const daysOverdue = Math.max(
+          1,
+          Math.floor((now.getTime() - r.dueAt!.getTime()) / (1000 * 60 * 60 * 24)),
+        );
+        return emitNotifications({
+          eventId: "upload_request",
+          actorUserId: "",
+          projectId: r.projectId,
+          targetOrganizationId:
+            r.requestedFromOrganizationId ?? undefined,
+          relatedObjectType: "upload_request",
+          relatedObjectId: r.id,
+          vars: {
+            title: `Overdue: ${r.title}`,
+            actorName: `${daysOverdue} day${daysOverdue === 1 ? "" : "s"} past due`,
+          },
+        });
+      }),
+    );
 
     logger.info("reminders written", {
       reminded: toRemind.length,

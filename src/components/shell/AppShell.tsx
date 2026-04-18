@@ -13,6 +13,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "@/auth/client";
 import "./app-shell.css";
 
+import { NotificationBell } from "./NotificationBell";
 import { PORTAL_ACCENTS, type PortalType } from "@/lib/portal-colors";
 
 // Re-export so existing consumers that import PortalType from AppShell still work.
@@ -161,11 +162,6 @@ const ChevronDown = (
 const SearchIcon = (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
-  </svg>
-);
-const BellIcon = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 11-6 0m6 0H9" />
   </svg>
 );
 const MoonIcon = (
@@ -678,10 +674,7 @@ export default function AppShell({
                 <span className="b-theme-icon b-theme-sun" aria-hidden>{SunIcon}</span>
                 <span className="b-theme-icon b-theme-moon" aria-hidden>{MoonIcon}</span>
               </button>
-              <button className="b-tbb" aria-label="Notifications">
-                {BellIcon}
-                <div className="b-nd" />
-              </button>
+              <NotificationBell portalType={portalType} />
               <div className="b-tav">{initials}</div>
             </div>
           </div>

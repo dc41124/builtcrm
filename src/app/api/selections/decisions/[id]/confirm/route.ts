@@ -4,10 +4,15 @@ import { eq } from "drizzle-orm";
 
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
-import { selectionDecisions, selectionItems } from "@/db/schema";
+import {
+  selectionDecisions,
+  selectionItems,
+  selectionOptions,
+} from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
+import { emitNotifications } from "@/lib/notifications/emit";
 
 export async function POST(
   _req: Request,
@@ -98,6 +103,24 @@ export async function POST(
         },
         tx,
       );
+    });
+
+    const [option] = await db
+      .select({ name: selectionOptions.name })
+      .from(selectionOptions)
+      .where(eq(selectionOptions.id, decision.selectedOptionId))
+      .limit(1);
+
+    await emitNotifications({
+      eventId: "selection_confirmed",
+      actorUserId: ctx.user.id,
+      projectId: decision.projectId,
+      relatedObjectType: "selection_decision",
+      relatedObjectId: decision.id,
+      vars: {
+        itemTitle: item.title,
+        optionName: option?.name ?? null,
+      },
     });
 
     return NextResponse.json({

@@ -9,6 +9,7 @@ import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
+import { emitNotifications } from "@/lib/notifications/emit";
 
 export async function POST(
   _req: Request,
@@ -84,6 +85,19 @@ export async function POST(
         },
         tx,
       );
+    });
+
+    await emitNotifications({
+      eventId: "approval_needed",
+      actorUserId: ctx.user.id,
+      projectId: apv.projectId,
+      relatedObjectType: "approval",
+      relatedObjectId: apv.id,
+      vars: {
+        number: apv.approvalNumber,
+        title: apv.title,
+        actorName: ctx.user.displayName ?? ctx.user.email,
+      },
     });
 
     return NextResponse.json({ id: apv.id, status: "pending_review" });

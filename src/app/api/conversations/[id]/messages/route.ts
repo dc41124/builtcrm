@@ -13,6 +13,7 @@ import {
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
+import { emitNotifications } from "@/lib/notifications/emit";
 
 const BodySchema = z.object({
   body: z.string().min(1).max(10000),
@@ -119,6 +120,19 @@ export async function POST(
       );
 
       return row;
+    });
+
+    await emitNotifications({
+      eventId: "message_new",
+      actorUserId: ctx.user.id,
+      projectId: conversation.projectId,
+      conversationId,
+      relatedObjectType: "message",
+      relatedObjectId: result.id,
+      vars: {
+        actorName: ctx.user.displayName ?? ctx.user.email,
+        preview: parsed.data.body,
+      },
     });
 
     return NextResponse.json({ id: result.id, createdAt: result.createdAt });

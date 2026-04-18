@@ -9,6 +9,7 @@ import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
+import { emitNotifications } from "@/lib/notifications/emit";
 
 const BodySchema = z.object({
   projectId: z.string().uuid(),
@@ -92,6 +93,19 @@ export async function POST(req: Request) {
       );
 
       return row;
+    });
+
+    await emitNotifications({
+      eventId: "upload_request",
+      actorUserId: ctx.user.id,
+      projectId: ctx.project.id,
+      targetOrganizationId: parsed.data.targetOrganizationId,
+      relatedObjectType: "upload_request",
+      relatedObjectId: result.id,
+      vars: {
+        title: result.title,
+        actorName: ctx.user.displayName ?? ctx.user.email,
+      },
     });
 
     return NextResponse.json({ id: result.id, status: result.requestStatus });
