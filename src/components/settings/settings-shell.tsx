@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { authClient } from "@/auth/client";
 import {
@@ -376,7 +376,7 @@ export function SettingsShell({
   commercial?: ClientSettingsBundle;
   residential?: ClientSettingsBundle;
 }) {
-  const [tab, setTab] = useState<TabId>("profile");
+  const searchParams = useSearchParams();
   const tabs: TabDescriptor[] =
     view.portalType === "contractor"
       ? [...BASE_TABS, ...CONTRACTOR_TABS]
@@ -387,6 +387,16 @@ export function SettingsShell({
           : view.portalType === "residential"
             ? [...BASE_TABS, ...RESIDENTIAL_TABS]
             : BASE_TABS;
+
+  // Deep-link support: `/{portal}/settings?tab=notifications` lands on
+  // the Notifications tab instead of Profile. Falls back to "profile"
+  // if the param is absent or references a tab not in this portal.
+  const initialTab = (() => {
+    const want = searchParams?.get("tab");
+    if (want && tabs.some((t) => t.id === want)) return want as TabId;
+    return "profile" as TabId;
+  })();
+  const [tab, setTab] = useState<TabId>(initialTab);
 
   return (
     <div

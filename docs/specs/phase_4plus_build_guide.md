@@ -1021,6 +1021,22 @@ git add .
 git commit -m "Step 15 (4B.1 #15): Notification center — bell, dropdown, persistent page"
 ```
 
+### Status: Completed 2026-04-18 (commit `2a84e0d`)
+
+Notes on deviations from the spec above:
+
+- **Schema additions beyond the spec's minimal shape:** added `source_audit_event_id` FK (traceability), `project_id` (per-project filtering + future sidebar badges), and `related_object_type`/`related_object_id` (used by the routing helper to construct deep links). Dedup is tolerate-duplicates — a strict unique constraint would reject legitimate re-notifications (e.g. a CO resubmitted after revision should notify again) and a time-windowed partial index isn't supported in Postgres (index predicates must be immutable). TODO left in the schema file for a 90-day retention sweep via Trigger.dev.
+- **Emission architecture:** built a shared `emitNotifications(...)` helper in `src/lib/notifications/emit.ts` that takes a payload + the actor, resolves recipients internally, and fans out. Callers never construct per-portal copy themselves — the helper looks up catalog entries and calls the per-(event, portal) copy renderer in `src/lib/notifications/routing.ts`. Residential gets "Scope Change" vocabulary; commercial gets "Change Order". Actor is always filtered out.
+- **Recipient resolver:** `getEventRecipients()` in `src/lib/notifications/recipients.ts` owns the per-event audience rules (projectContractors / projectClients with subtype filter / projectSubs with org filter / conversationParticipantsFor). Keeping these rules in one file avoids drift across routes. Contractor staff use the project-membership fallback from `getEffectiveContext` (implicit project access without an explicit PUM row).
+- **Poll-on-focus over SSE** — poll every 60s while visible, refetch on focus, suspended on hidden tabs. Confirmed with user per the stop-and-ask.
+- **Mark-read: explicit click or navigate-away only.** Opening the dropdown does NOT mark rows read.
+- **In-app preferences respected at emit time**, not at read time — if a user turns a pref back on later, they don't retroactively see a flood.
+- **Per-project unread counts** — `getUnreadNotificationCountByProject` in the loader returns `Record<projectId, count>` including a synthetic `__org__` bucket for notifications without a project. Nothing consumes it yet; available for future sidebar badge work.
+- **Event slice shipped (8 + dual-write):** `co_submitted`, `co_approved`, `co_needs_approval`, `scope_change`, `approval_needed`, `selection_confirmed`, `draw_submitted`, `draw_review`, `draw_approved`, `rfi_new`, `rfi_assigned`, `message_new`, `upload_request` (on create) — plus a dual-write in the overdue-upload-request reminder job. Covers contractor, subcontractor, commercial, and residential demo paths.
+- **Four thin portal pages** delegate to a shared `NotificationsPage` component. Restructuring `(portal)` to use a single `[portal]` dynamic segment wasn't worth it for this.
+- **Migration is hand-applied.** `npm run db:migrate` doesn't work in this repo (no drizzle journal — existing migrations use psql/Neon paste-in per the `0001_org_settings_fields.sql` header). User applied `0008_notifications.sql` by hand.
+- **Commit message** diverged slightly from the template — uses "notification center" as shorthand instead of the full "bell, dropdown, persistent page".
+
 ---
 
 ## Step 16 — Notification Preferences
@@ -1066,6 +1082,27 @@ Pairs with Step 15. Users can now see notifications; this step lets them tune wh
 git add .
 git commit -m "Step 16 (4B.1 #16): Notification preferences — per-channel, per-event-type"
 ```
+
+### Status: Completed 2026-04-18
+
+Most of Step 16's scope was already shipped earlier as part of the settings wire-up and Step 15's emit helper. The audit at commit time confirmed the following were already in place:
+
+- **Schema:** `user_notification_preferences` (userId, portalType, eventId, email, inApp) — no `smsEnabled` column. Spec calls for it as "default false and disabled" (placeholder for a channel that doesn't exist yet); adding the column now would be dead schema, so deferred until an SMS sender is scoped.
+- **Catalog:** `NOTIFICATION_GROUPS` per portal with category groupings, plus `CRITICAL_EMAIL_EVENTS` + `defaultNotificationPrefs(portalType)` matching the spec's "all-in-app, critical-only-email" default.
+- **Settings UI:** `NotificationsTab` in the shared `SettingsShell` (an entry in `BASE_TABS`, so it renders for all four portals). Grouped toggles for email + in-app per event, batch Save via `SaveBar`, Reset-to-defaults button. Matches the Phase 3 settings-page pattern the spec points to.
+- **Save route:** `PUT /api/user/notifications` with `validEventIdsFor` gate + reset branch.
+- **In-app preference respected at emit time:** Step 15's `emit.ts` queries the prefs table per recipient and skips rows where `inApp === false`, without touching audit writes. "Both channels off still writes the audit event but suppresses the user-facing notification" holds by construction because audit and emit are sibling calls in route handlers, not nested.
+- **Bell + dropdown respect in-app:** implicit — the bell reads from the `notifications` table; rows blocked by the in-app pref were never written.
+
+Remaining items finished in this mini-commit:
+
+- **Deep-link support:** `SettingsShell` now reads `?tab=<id>` from the URL on mount and lands on that tab when it's a valid tab for the portal, falling back to Profile otherwise.
+- **Fixed the persistent notifications page link:** the "Notification preferences →" link now targets `/{portal}/settings?tab=notifications` instead of landing on the Profile tab.
+
+Not in scope (future work):
+
+- **Email gate at emit.** No email sender exists in the codebase yet. When one lands (Postmark/SendGrid integration is scoped separately in Phase 4+), the gate pattern is `if (pref?.email !== false) sendEmail(...)` alongside the existing in-app check in `emit.ts`. Spec's "no email sent on that event" check is N/A until then.
+- **SMS preference.** Deferred with the SMS channel itself.
 
 ---
 

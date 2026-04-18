@@ -425,7 +425,7 @@ export function NotificationsPage({
 
       <div style={{ textAlign: "center" }}>
         <Link
-          href={`/${portalType}/settings`}
+          href={`/${portalType}/settings?tab=notifications`}
           style={{
             fontFamily: "var(--fd)",
             fontSize: 12.5,
