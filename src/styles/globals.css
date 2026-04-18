@@ -73,3 +73,18 @@ textarea:focus-visible,
 .inv-input:focus-visible {
   box-shadow: var(--shri);
 }
+
+/* Hide the native spinner arrows on number inputs across all portals.
+   They clash with the DM Sans / Instrument Sans form vibe and the rest
+   of the UI treats numeric fields as plain text boxes. Keyboard up/down
+   still works; scroll-wheel increment is retained where the browser
+   permits. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

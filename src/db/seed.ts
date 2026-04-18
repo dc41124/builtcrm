@@ -48,6 +48,11 @@ import {
   selectionItems,
   selectionOptions,
   selectionDecisions,
+  dailyLogs,
+  dailyLogCrewEntries,
+  dailyLogDelays,
+  dailyLogIssues,
+  dailyLogAmendments,
 } from "./schema";
 
 // ---------------------------------------------------------------------------
@@ -1850,6 +1855,448 @@ async function seedProjectContent(ctx: ProjectContext) {
           }
         }
       }
+    }
+  }
+
+  // ---- Daily logs (Step 18 — field records) ----------------------------
+  await seedDailyLogs(ctx);
+}
+
+// ---------------------------------------------------------------------------
+// Daily logs seed
+// ---------------------------------------------------------------------------
+//
+// Creates 6 submitted daily logs per project spanning the last ~9 work
+// days. Each log has weather, crew entries for the sub(s), notes +
+// client-facing summary. Commercial gets delays/issues + one amendment
+// under review; residential gets hero title, mood, team note, and a
+// friendly summary. Idempotent by (projectId, logDate).
+
+type DailyLogSeed = {
+  daysAgo: number;
+  conditions: "clear" | "partly_cloudy" | "overcast" | "light_rain" | "heavy_rain" | "snow";
+  highC: number;
+  lowC: number;
+  precipPct: number;
+  windKmh: number;
+  notes: string;
+  clientSummary: string;
+  clientHighlights: string[];
+  milestone?: string;
+  milestoneType?: "ok" | "warn" | "info";
+  heroTitle?: string;
+  residentialSummary?: string;
+  mood?: "great" | "good" | "slow";
+  teamNote?: string;
+  delays?: Array<{
+    delayType: "weather" | "material" | "inspection" | "subcontractor_no_show" | "coordination" | "other";
+    description: string;
+    hoursLost: number;
+    impactedActivity?: string;
+  }>;
+  issues?: Array<{
+    issueType: "safety_near_miss" | "safety_incident" | "coordination" | "quality" | "other";
+    description: string;
+  }>;
+  crew: Array<{ orgKey: "sub" | "sub2"; trade: string; headcount: number; hours: number; note?: string; reconciled?: { headcount: number; hours: number } }>;
+  amendment?: {
+    changeSummary: string;
+    field: "notes" | "clientSummary" | "weatherHighC" | "milestone";
+    before: string | number | null;
+    after: string | number | null;
+    status: "pending" | "approved";
+  };
+};
+
+const COMMERCIAL_LOGS: DailyLogSeed[] = [
+  {
+    daysAgo: 1,
+    conditions: "partly_cloudy",
+    highC: 14,
+    lowC: 8,
+    precipPct: 10,
+    windKmh: 12,
+    notes:
+      "East corridor electrical rough-in completed on schedule — all branch circuits terminated into panels EC-04 and EC-05, ready for inspection Friday. Plumbing crew began riser installation on floors 3 and 4 with no conflicts with the revised routing per CO-14. HVAC mechanical trunk lines were set in corridor ceiling; duct insulation to follow Monday.",
+    clientSummary:
+      "East corridor electrical rough-in completed and the panel room is ready for Friday's inspection. Plumbing work started on floors 3 and 4, and mechanical trunk lines were set in the main corridor ceiling.",
+    clientHighlights: [
+      "East corridor electrical rough-in complete",
+      "Floors 3 & 4 plumbing started",
+      "Mechanical trunk lines set in corridor",
+    ],
+    milestone: "Electrical pre-inspection prepared",
+    milestoneType: "ok",
+    crew: [
+      { orgKey: "sub", trade: "Electrical", headcount: 6, hours: 48, note: "East corridor wrapped, panels EC-04/05 ready for inspection." },
+      { orgKey: "sub2", trade: "Plumbing", headcount: 4, hours: 32, note: "Started risers on F3/F4." },
+    ],
+  },
+  {
+    daysAgo: 2,
+    conditions: "overcast",
+    highC: 12,
+    lowC: 7,
+    precipPct: 25,
+    windKmh: 18,
+    notes:
+      "Electrical rough-in continues east corridor. Drywall delivery received 10 AM, staged on floor 2. Minor rain delay 2 PM–3:30 PM on exterior caulking.",
+    clientSummary:
+      "Electrical rough-in continued in the east corridor. Drywall delivery was received mid-morning. Brief weather delay on exterior caulking; interior work progressed on schedule.",
+    clientHighlights: [
+      "Electrical rough-in progress on east corridor",
+      "Drywall delivery received and staged",
+      "Weather delay: 1.5 hrs exterior caulking",
+    ],
+    delays: [
+      {
+        delayType: "weather",
+        description: "Afternoon rain paused exterior caulking on the south elevation.",
+        hoursLost: 1.5,
+        impactedActivity: "Exterior caulking, south elevation",
+      },
+    ],
+    crew: [
+      { orgKey: "sub", trade: "Electrical", headcount: 6, hours: 44 },
+      { orgKey: "sub2", trade: "Plumbing", headcount: 3, hours: 24 },
+    ],
+    amendment: {
+      changeSummary: "Drywall delivery time corrected after reviewing security log.",
+      field: "notes",
+      before:
+        "Electrical rough-in continues east corridor. Drywall delivery received 10 AM, staged on floor 2. Minor rain delay 2 PM–3:30 PM on exterior caulking.",
+      after:
+        "Electrical rough-in continues east corridor. Drywall delivery received 10:15 AM, staged on floor 2. Minor rain delay 2 PM–3:30 PM on exterior caulking.",
+      status: "pending",
+    },
+  },
+  {
+    daysAgo: 3,
+    conditions: "light_rain",
+    highC: 10,
+    lowC: 6,
+    precipPct: 85,
+    windKmh: 22,
+    notes:
+      "Interior work only due to rain. Panel room electrical completed final termination. Drywall hanging west wing levels 2–3.",
+    clientSummary:
+      "Interior-only work day due to rainfall. The panel room electrical installation reached final termination and drywall hanging progressed on the west wing.",
+    clientHighlights: ["Panel room electrical complete", "Drywall west wing L2-3"],
+    milestone: "Panel room electrical complete",
+    milestoneType: "ok",
+    crew: [
+      { orgKey: "sub", trade: "Electrical", headcount: 5, hours: 40, reconciled: { headcount: 5, hours: 44 } },
+      { orgKey: "sub2", trade: "Plumbing", headcount: 2, hours: 16 },
+    ],
+  },
+  {
+    daysAgo: 6,
+    conditions: "clear",
+    highC: 18,
+    lowC: 11,
+    precipPct: 0,
+    windKmh: 8,
+    notes:
+      "Full crew on site. Electrical, HVAC, and plumbing all progressing east corridor. Inspector visit 11 AM passed panel room pre-inspection.",
+    clientSummary:
+      "Full crew day across all trades. An 11 AM inspector visit resulted in a passed panel room pre-inspection — supporting next week's formal inspection.",
+    clientHighlights: [
+      "Inspector pre-inspection passed",
+      "Full crew day — all trades active",
+    ],
+    milestone: "Passed panel room pre-inspection",
+    milestoneType: "ok",
+    crew: [
+      { orgKey: "sub", trade: "Electrical", headcount: 7, hours: 56 },
+      { orgKey: "sub2", trade: "Plumbing", headcount: 5, hours: 40 },
+    ],
+  },
+  {
+    daysAgo: 7,
+    conditions: "partly_cloudy",
+    highC: 15,
+    lowC: 8,
+    precipPct: 15,
+    windKmh: 14,
+    notes:
+      "Concrete cure completed overnight on slab repair area. Framing continuation west wing. GC walkthrough 3 PM — 4 items flagged to punch list.",
+    clientSummary:
+      "Concrete cure on the slab repair area completed overnight. Framing continued on the west wing. A walkthrough identified 4 items for the punch list — none affect the current schedule.",
+    clientHighlights: ["Slab repair cure complete", "West wing framing", "4 items added to punch list"],
+    crew: [
+      { orgKey: "sub", trade: "Electrical", headcount: 4, hours: 32 },
+    ],
+    issues: [
+      {
+        issueType: "safety_near_miss",
+        description: "Cord management issue on floor 3 — resolved, crew briefed at end-of-day huddle.",
+      },
+    ],
+  },
+  {
+    daysAgo: 8,
+    conditions: "clear",
+    highC: 17,
+    lowC: 10,
+    precipPct: 0,
+    windKmh: 10,
+    notes:
+      "Electrical rough-in began in the east corridor. HVAC coordination meeting concluded mid-morning, clearing the way for trunk line installation.",
+    clientSummary:
+      "Electrical rough-in began in the east corridor. HVAC coordination meeting concluded mid-morning, clearing the way for trunk line installation early next week.",
+    clientHighlights: ["East corridor electrical started", "HVAC coordination closed"],
+    crew: [
+      { orgKey: "sub", trade: "Electrical", headcount: 5, hours: 40 },
+    ],
+  },
+];
+
+const RESIDENTIAL_LOGS: DailyLogSeed[] = [
+  {
+    daysAgo: 1,
+    conditions: "clear",
+    highC: 16,
+    lowC: 9,
+    precipPct: 0,
+    windKmh: 8,
+    notes: "Kitchen rough-in continues. Cabinet delivery scheduled for Thursday.",
+    clientSummary: "Rough-in work continued and your cabinets are on schedule for Thursday.",
+    clientHighlights: [
+      "Electrical rough-in progressing",
+      "Cabinet delivery confirmed for Thursday",
+    ],
+    heroTitle: "Rough-in wrapped — cabinets land Thursday!",
+    residentialSummary:
+      "The electrical crew kept pushing through rough-in today and the plumbing crew tied in the sink supply lines. Your cabinets have been confirmed for delivery on Thursday — we'll be ready to set them as soon as they arrive.",
+    mood: "great",
+    teamNote:
+      "Walking the space today it really started to feel like your kitchen. You're going to love how the island comes together.",
+    milestone: "Rough-in substantially complete",
+    milestoneType: "ok",
+    crew: [
+      { orgKey: "sub", trade: "Plumbing", headcount: 2, hours: 16, note: "Sink supplies tied in." },
+    ],
+  },
+  {
+    daysAgo: 3,
+    conditions: "light_rain",
+    highC: 11,
+    lowC: 6,
+    precipPct: 75,
+    windKmh: 18,
+    notes: "Interior drywall patching and primer on walls. Outside work paused for rain.",
+    clientSummary:
+      "Rainy day so we stayed inside. Drywall patching wrapped up and we got a coat of primer on the walls.",
+    clientHighlights: ["Drywall patching complete", "Primer coat applied", "Outside work paused for rain"],
+    heroTitle: "Primer's up — walls looking sharp",
+    residentialSummary:
+      "Wet weather kept us inside, but we made solid progress. All drywall patches are smoothed and the first primer coat is on. Exterior work will pick back up tomorrow once conditions clear.",
+    mood: "good",
+    crew: [
+      { orgKey: "sub", trade: "Plumbing", headcount: 1, hours: 8 },
+    ],
+  },
+  {
+    daysAgo: 6,
+    conditions: "clear",
+    highC: 19,
+    lowC: 11,
+    precipPct: 0,
+    windKmh: 6,
+    notes: "Island framing complete. Inspector walk-through passed.",
+    clientSummary: "Big day — island framing wrapped up and the inspector gave us a clean pass.",
+    clientHighlights: ["Island framing complete", "Pre-inspection passed"],
+    heroTitle: "Inspector visit passed — island is framed!",
+    residentialSummary:
+      "Huge milestone day. The island framing is done, and our inspector stopped by this morning and gave everything the green light. You can really start to see the shape of the new kitchen now.",
+    mood: "great",
+    teamNote:
+      "The island came out exactly like we drew it — you're going to love prepping meals on this.",
+    milestone: "Kitchen pre-inspection passed",
+    milestoneType: "ok",
+    crew: [
+      { orgKey: "sub", trade: "Plumbing", headcount: 2, hours: 18 },
+    ],
+  },
+  {
+    daysAgo: 8,
+    conditions: "partly_cloudy",
+    highC: 14,
+    lowC: 8,
+    precipPct: 20,
+    windKmh: 12,
+    notes: "Old cabinets demolished. Debris removed same-day.",
+    clientSummary:
+      "Demo day! Old cabinets are out and the space is cleared for the new build-out.",
+    clientHighlights: ["Old cabinets demolished", "Debris cleared same day"],
+    heroTitle: "Out with the old — ready for the new",
+    residentialSummary:
+      "Today was demo day. The old cabinets came out quickly and we had debris hauled off by end of day. The space is ready for the framing and rough-in work starting tomorrow.",
+    mood: "good",
+    crew: [
+      { orgKey: "sub", trade: "Plumbing", headcount: 1, hours: 4 },
+    ],
+  },
+  {
+    daysAgo: 10,
+    conditions: "clear",
+    highC: 17,
+    lowC: 10,
+    precipPct: 0,
+    windKmh: 10,
+    notes: "Site prep and pre-construction meeting with client on site.",
+    clientSummary:
+      "Pre-construction walk-through today — reviewed the scope, timeline, and answered questions.",
+    clientHighlights: ["Pre-construction meeting", "Site preparation complete"],
+    heroTitle: "We're officially under way!",
+    residentialSummary:
+      "The pre-construction meeting went great. We walked through the full scope together, talked schedule, and answered every question. Excited to start tomorrow.",
+    mood: "great",
+    teamNote:
+      "Thanks again for the coffee! Really looking forward to this one.",
+    crew: [],
+  },
+];
+
+async function seedDailyLogs(ctx: ProjectContext): Promise<void> {
+  const logs = ctx.residential ? RESIDENTIAL_LOGS : COMMERCIAL_LOGS;
+  const pmUserId = ctx.pmUserId;
+  const day = 86400000;
+
+  // Anchor "today" to the seed run's UTC date — logDate is a PG date
+  // column so we only care about the YYYY-MM-DD part.
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  for (const seed of logs) {
+    const logDate = new Date(today.getTime() - seed.daysAgo * day);
+    const logDateIso = logDate.toISOString().slice(0, 10);
+    const submittedAt = new Date(
+      logDate.getTime() + 17 * 60 * 60 * 1000 /* 5 PM on that day */,
+    );
+    const editWindowClosesAt = new Date(submittedAt.getTime() + 24 * 60 * 60 * 1000);
+
+    const existing = await db
+      .select({ id: dailyLogs.id })
+      .from(dailyLogs)
+      .where(
+        and(
+          eq(dailyLogs.projectId, ctx.project.id),
+          eq(dailyLogs.logDate, logDateIso),
+        ),
+      )
+      .limit(1);
+
+    let logId: string;
+    if (existing[0]) {
+      logId = existing[0].id;
+    } else {
+      const [row] = await db
+        .insert(dailyLogs)
+        .values({
+          projectId: ctx.project.id,
+          logDate: logDateIso,
+          status: "submitted",
+          reportedByUserId: pmUserId,
+          submittedAt,
+          editWindowClosesAt,
+          weatherConditions: seed.conditions,
+          weatherHighC: seed.highC,
+          weatherLowC: seed.lowC,
+          weatherPrecipPct: seed.precipPct,
+          weatherWindKmh: seed.windKmh,
+          weatherSource: "manual",
+          weatherCapturedAt: submittedAt,
+          notes: seed.notes,
+          clientSummary: seed.clientSummary,
+          clientHighlights: seed.clientHighlights,
+          milestone: seed.milestone ?? null,
+          milestoneType: seed.milestoneType ?? null,
+          residentialHeroTitle: seed.heroTitle ?? null,
+          residentialSummary: seed.residentialSummary ?? null,
+          residentialMood: seed.mood ?? null,
+          residentialTeamNote: seed.teamNote ?? null,
+          residentialTeamNoteByUserId: seed.teamNote ? pmUserId : null,
+        })
+        .returning({ id: dailyLogs.id });
+      logId = row.id;
+    }
+
+    // Crew entries — idempotent by (projectId, logDate, orgId).
+    for (const c of seed.crew) {
+      const orgId = c.orgKey === "sub2" ? (ctx.sub2OrgId ?? ctx.subOrgId) : ctx.subOrgId;
+      const submittedByUserId =
+        c.orgKey === "sub2" ? (ctx.sub2UserId ?? ctx.subUserId) : ctx.subUserId;
+      const existingCrew = await db
+        .select({ id: dailyLogCrewEntries.id })
+        .from(dailyLogCrewEntries)
+        .where(
+          and(
+            eq(dailyLogCrewEntries.projectId, ctx.project.id),
+            eq(dailyLogCrewEntries.logDate, logDateIso),
+            eq(dailyLogCrewEntries.orgId, orgId),
+          ),
+        )
+        .limit(1);
+      if (existingCrew[0]) continue;
+      await db.insert(dailyLogCrewEntries).values({
+        dailyLogId: logId,
+        projectId: ctx.project.id,
+        logDate: logDateIso,
+        orgId,
+        trade: c.trade,
+        headcount: c.headcount,
+        hours: c.hours.toString(),
+        submittedNote: c.note ?? null,
+        submittedByUserId,
+        submittedByRole: "sub",
+        submittedAt: new Date(submittedAt.getTime() - 30 * 60 * 1000),
+        reconciledHeadcount: c.reconciled?.headcount ?? null,
+        reconciledHours: c.reconciled?.hours.toString() ?? null,
+        reconciledByUserId: c.reconciled ? pmUserId : null,
+        reconciledAt: c.reconciled ? new Date(submittedAt.getTime() + 60 * 60 * 1000) : null,
+      });
+    }
+
+    // Delays — only inserted on first creation.
+    if (seed.delays && seed.delays.length > 0 && !existing[0]) {
+      for (const d of seed.delays) {
+        await db.insert(dailyLogDelays).values({
+          dailyLogId: logId,
+          delayType: d.delayType,
+          description: d.description,
+          hoursLost: d.hoursLost.toString(),
+          impactedActivity: d.impactedActivity ?? null,
+        });
+      }
+    }
+
+    // Issues — only inserted on first creation.
+    if (seed.issues && seed.issues.length > 0 && !existing[0]) {
+      for (const i of seed.issues) {
+        await db.insert(dailyLogIssues).values({
+          dailyLogId: logId,
+          issueType: i.issueType,
+          description: i.description,
+        });
+      }
+    }
+
+    // Amendment — one pending review so the UI rail has something to render.
+    if (seed.amendment && !existing[0]) {
+      await db.insert(dailyLogAmendments).values({
+        dailyLogId: logId,
+        changeSummary: seed.amendment.changeSummary,
+        changedFields: {
+          [seed.amendment.field]: {
+            before: seed.amendment.before,
+            after: seed.amendment.after,
+          },
+        },
+        status: seed.amendment.status,
+        requestedByUserId: pmUserId,
+        requestedAt: new Date(submittedAt.getTime() + 2 * 60 * 60 * 1000),
+      });
     }
   }
 }

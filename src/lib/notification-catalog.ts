@@ -127,6 +127,11 @@ export const NOTIFICATION_GROUPS: Record<
           label: "Milestone completed",
           desc: "A tracked schedule milestone was marked done",
         },
+        {
+          id: "daily_log_crew_submitted",
+          label: "Sub submitted crew entry",
+          desc: "A sub filed their crew entry for today's log",
+        },
       ],
     },
   ],
@@ -153,6 +158,11 @@ export const NOTIFICATION_GROUPS: Record<
           id: "schedule_change",
           label: "Your schedule changed",
           desc: "A task you own was rescheduled or reassigned",
+        },
+        {
+          id: "daily_log_crew_reconciled",
+          label: "Crew hours reconciled by the GC",
+          desc: "The GC adjusted your submitted headcount or hours — review required",
         },
       ],
     },
@@ -251,6 +261,11 @@ export const NOTIFICATION_GROUPS: Record<
           label: "Weekly progress report",
           desc: "Your builder's Friday project update",
         },
+        {
+          id: "daily_log_posted",
+          label: "Daily log posted",
+          desc: "Your contractor posted the log for a day on site",
+        },
       ],
     },
     {
@@ -323,6 +338,11 @@ export const NOTIFICATION_GROUPS: Record<
           label: "New document shared with you",
           desc: "Permits, warranties, and other files to keep",
         },
+        {
+          id: "daily_log_posted",
+          label: "New journal entry",
+          desc: "Your builder posted a new day in the project journal",
+        },
       ],
     },
     {
@@ -360,6 +380,7 @@ const CRITICAL_EMAIL_EVENTS = new Set<string>([
   "scope_change",
   "payment_milestone",
   "payment_processed",
+  "daily_log_crew_reconciled",
 ]);
 
 export type NotificationPrefState = Record<

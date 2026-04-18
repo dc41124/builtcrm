@@ -245,6 +245,7 @@ export async function getEventRecipients(
     case "rfi_new":
     case "selection_confirmed":
     case "upload_completed":
+    case "daily_log_crew_submitted":
       if (projectId) recipients = await projectContractors(projectId);
       break;
 
@@ -261,8 +262,15 @@ export async function getEventRecipients(
 
     case "rfi_assigned":
     case "upload_request":
+    case "daily_log_crew_reconciled":
       if (projectId)
         recipients = await projectSubs(projectId, targetOrganizationId);
+      break;
+
+    case "daily_log_posted":
+      // Clients (both commercial + residential) see posted daily logs.
+      // Each portal's catalog + routing handles redacted copy separately.
+      if (projectId) recipients = await projectClients(projectId);
       break;
 
     case "message_new":

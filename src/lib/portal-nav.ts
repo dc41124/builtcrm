@@ -44,6 +44,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
           items: mark([
             { label: "Project Home", href: `${base}` },
             { label: "Schedule", href: `${base}/schedule` },
+            { label: "Daily Logs", href: `${base}/daily-logs` },
             { label: "RFIs", href: `${base}/rfis` },
             { label: "Change Orders", href: `${base}/change-orders` },
             { label: "Approvals", href: `${base}/approvals` },
@@ -152,6 +153,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
         defaultOpen: true,
         items: mark([
           { label: "Today Board", href: "/subcontractor/today" },
+          { label: "Daily Logs", href: "/subcontractor/daily-logs" },
           { label: "RFIs & Questions", href: "/subcontractor/rfis" },
           { label: "Upload Requests", href: "/subcontractor/upload-requests" },
           { label: "Schedule", href: "/subcontractor/schedule" },
@@ -208,6 +210,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
         items: mark([
           { label: "Project Home", href: `${base}` },
           { label: "Progress & Updates", href: `${base}/progress` },
+          { label: "Daily Logs", href: `${base}/daily-logs` },
           { label: "Photos", href: `${base}/photos` },
           { label: "Schedule", href: `${base}/schedule` },
         ]),
@@ -264,6 +267,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
       items: mark([
         { label: "Project Home", href: `${base}` },
         { label: "Progress & Photos", href: `${base}/progress` },
+        { label: "Journal", href: `${base}/journal` },
         { label: "Selections", href: `${base}/selections` },
         { label: "Schedule", href: `${base}/schedule` },
       ]),

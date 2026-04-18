@@ -169,6 +169,46 @@ export function renderNotification(
         linkUrl: base ? `${base}/upload-requests` : null,
       };
 
+    // ── Daily logs ───────────────────────────────────────────────
+    case "daily_log_posted":
+      // Different framing for commercial vs residential. Commercial
+      // clients see "daily log"; residential homeowners see "journal entry".
+      return portalType === "residential"
+        ? {
+            title: "New journal entry",
+            body: str(v.logDate)
+              ? `Your builder posted the update for ${v.logDate}.`
+              : "Your builder posted a new day in the project journal.",
+            linkUrl: base ? `${base}/progress` : null,
+          }
+        : {
+            title: str(v.logDate)
+              ? `Daily log posted for ${v.logDate}`
+              : "Daily log posted",
+            body: str(v.projectName)
+              ? `${v.projectName} — today's site update is ready.`
+              : "Your contractor posted a new daily log.",
+            linkUrl: base ? `${base}/daily-logs` : null,
+          };
+    case "daily_log_crew_submitted":
+      return {
+        title: "Crew entry submitted",
+        body: str(v.actorName)
+          ? str(v.logDate)
+            ? `${v.actorName} filed their crew for ${v.logDate}.`
+            : `${v.actorName} filed a crew entry.`
+          : "A sub filed their crew entry.",
+        linkUrl: base ? `${base}/daily-logs` : null,
+      };
+    case "daily_log_crew_reconciled":
+      return {
+        title: "Crew hours reconciled",
+        body: str(v.logDate)
+          ? `The GC adjusted your crew numbers for ${v.logDate}. Review required.`
+          : "The GC adjusted your submitted crew numbers. Review required.",
+        linkUrl: base ? `${base}/daily-logs` : null,
+      };
+
     // ── Messages ─────────────────────────────────────────────────
     case "message_new":
       return {

@@ -1,6 +1,7 @@
 import {
   index,
   integer,
+  numeric,
   pgEnum,
   pgTable,
   text,
@@ -114,6 +115,19 @@ export const projects = pgTable(
     stateProvince: varchar("state_province", { length: 120 }),
     postalCode: varchar("postal_code", { length: 20 }),
     country: varchar("country", { length: 3 }).default("CA"),
+    // IANA tz string (e.g. "America/Toronto"). Anchors "today" for daily
+    // logs and any other date-keyed workflow so a contractor in NY editing
+    // a project in LA submits against LA's calendar day, not server time
+    // or the submitter's browser.
+    timezone: varchar("timezone", { length: 64 }).default("UTC").notNull(),
+
+    // Geocoded from the street address on first use (lazy; see
+    // src/lib/geocoding/nominatim.ts). Feeds the weather autofill
+    // (Open-Meteo needs coordinates) and is generally useful for later
+    // features like nearest-crew queries or a project map.
+    latitude: numeric("latitude", { precision: 9, scale: 6 }),
+    longitude: numeric("longitude", { precision: 9, scale: 6 }),
+    geocodedAt: timestamp("geocoded_at", { withTimezone: true }),
 
     ...timestamps,
   },
