@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   date,
@@ -212,6 +213,19 @@ export const organizations = pgTable(
     emergencyName: varchar("emergency_name", { length: 200 }),
     emergencyRelation: varchar("emergency_relation", { length: 80 }),
     emergencyPhone: varchar("emergency_phone", { length: 40 }),
+
+    // Platform subscription billing (Session 1 of Billing phase, 2026-04-17).
+    // `currentPlanSlug` is denormalized from organization_subscriptions.plan.slug
+    // for fast plan-gate reads on the hot path. Kept in sync by the Stripe
+    // webhook processor. Null for non-contractor orgs (subs + clients never pay).
+    // Usage counters are maintained by domain actions on object create /
+    // soft-remove; they enforce the per-tier limits in subscription_plans.
+    currentPlanSlug: varchar("current_plan_slug", { length: 40 }),
+    usageProjectCount: integer("usage_project_count").default(0).notNull(),
+    usageTeamCount: integer("usage_team_count").default(0).notNull(),
+    usageStorageBytes: bigint("usage_storage_bytes", { mode: "number" })
+      .default(0)
+      .notNull(),
 
     ...timestamps,
   },
