@@ -7,6 +7,7 @@ import {
   projectUserMemberships,
   roleAssignments,
 } from "@/db/schema";
+import type { PortalType } from "@/lib/portal-colors";
 
 export type PortalOption = {
   roleAssignmentId: string;
@@ -24,6 +25,12 @@ export type ProjectShortcut = {
   projectId: string;
   projectName: string;
   portalLabel: string;
+  href: string;
+};
+
+export type AccessibleProject = {
+  projectId: string;
+  projectName: string;
   href: string;
 };
 
@@ -138,6 +145,88 @@ export function portalHref(
   return clientSubtype === "residential"
     ? "/residential"
     : "/commercial";
+}
+
+// All projects a user can reach from a specific portal. Uncapped — the
+// project-switcher dropdown renders the full list and the sidebar now
+// uses this too (truncation is a presentation concern, not a loader one).
+//
+// Contractor staff get implicit access to every project owned by their
+// org, mirroring getEffectiveContext. Subs + clients must have an
+// explicit project_user_memberships row under a matching role assignment.
+export async function getAccessibleProjects(
+  appUserId: string,
+  portalType: PortalType,
+): Promise<AccessibleProject[]> {
+  const assignments = await db
+    .select({
+      id: roleAssignments.id,
+      portalType: roleAssignments.portalType,
+      clientSubtype: roleAssignments.clientSubtype,
+      organizationId: roleAssignments.organizationId,
+    })
+    .from(roleAssignments)
+    .where(eq(roleAssignments.userId, appUserId));
+
+  const matching = assignments.filter((a) => {
+    if (portalType === "contractor") return a.portalType === "contractor";
+    if (portalType === "subcontractor") return a.portalType === "subcontractor";
+    if (portalType === "commercial") {
+      return a.portalType === "client" && a.clientSubtype !== "residential";
+    }
+    return a.portalType === "client" && a.clientSubtype === "residential";
+  });
+
+  if (matching.length === 0) return [];
+
+  const base = `/${portalType}`;
+  const result: AccessibleProject[] = [];
+  const seen = new Set<string>();
+
+  for (const a of matching) {
+    if (a.portalType === "contractor") {
+      const orgProjects = await db
+        .select({ id: projects.id, name: projects.name })
+        .from(projects)
+        .where(eq(projects.contractorOrganizationId, a.organizationId));
+      for (const p of orgProjects) {
+        if (seen.has(p.id)) continue;
+        seen.add(p.id);
+        result.push({
+          projectId: p.id,
+          projectName: p.name,
+          href: `${base}/project/${p.id}`,
+        });
+      }
+    } else {
+      const memberships = await db
+        .select({
+          projectId: projectUserMemberships.projectId,
+          projectName: projects.name,
+        })
+        .from(projectUserMemberships)
+        .innerJoin(projects, eq(projects.id, projectUserMemberships.projectId))
+        .where(
+          and(
+            eq(projectUserMemberships.userId, appUserId),
+            eq(projectUserMemberships.organizationId, a.organizationId),
+            eq(projectUserMemberships.roleAssignmentId, a.id),
+          ),
+        );
+      for (const m of memberships) {
+        if (seen.has(m.projectId)) continue;
+        seen.add(m.projectId);
+        result.push({
+          projectId: m.projectId,
+          projectName: m.projectName,
+          href: `${base}/project/${m.projectId}`,
+        });
+      }
+    }
+  }
+
+  result.sort((a, b) => a.projectName.localeCompare(b.projectName));
+  return result;
 }
 
 export function portalLabel(option: PortalOption): {

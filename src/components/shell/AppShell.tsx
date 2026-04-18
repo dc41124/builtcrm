@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "@/auth/client";
@@ -30,6 +37,8 @@ export type NavSection = {
 };
 
 export type ShellProject = {
+  /** Project UUID — set by loadPortalShell. Optional for legacy callers. */
+  id?: string;
   name: string;
   href?: string;
   phase?: string;
@@ -206,6 +215,210 @@ const LogoMark = (
 );
 
 const PROJECTS_KEY = "__projects__";
+
+// Derives the "{segmentsAfterProjectId}" tail from a pathname for a
+// /{portal}/project/{id}/...path URL. Returns null when the current page
+// isn't project-scoped — the caller uses that signal to land on the new
+// project's home instead of carrying the subsection forward.
+function projectSubsection(
+  pathname: string | null,
+  portalType: PortalType,
+): string | null {
+  if (!pathname) return null;
+  const segs = pathname.split("/").filter(Boolean);
+  if (segs[0] !== portalType) return null;
+  if (segs[1] !== "project" || !segs[2]) return null;
+  return segs.slice(3).join("/");
+}
+
+function currentProjectId(
+  pathname: string | null,
+  portalType: PortalType,
+): string | null {
+  if (!pathname) return null;
+  const segs = pathname.split("/").filter(Boolean);
+  if (segs[0] !== portalType) return null;
+  if (segs[1] !== "project" || !segs[2]) return null;
+  return segs[2];
+}
+
+function ProjectSwitcher({
+  portalType,
+  projects,
+}: {
+  portalType: PortalType;
+  projects: ShellProject[];
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [focusedIdx, setFocusedIdx] = useState(0);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  const activeProjectId = currentProjectId(pathname, portalType);
+  const currentProject = useMemo(
+    () =>
+      projects.find((p) => p.id === activeProjectId) ??
+      projects.find((p) => p.active) ??
+      null,
+    [projects, activeProjectId],
+  );
+  const subsection = projectSubsection(pathname, portalType);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return projects;
+    return projects.filter((p) => p.name.toLowerCase().includes(q));
+  }, [projects, query]);
+
+  // Reset focus + query when the dropdown opens, then focus the search
+  // input so users can start typing immediately. No-op on close.
+  useEffect(() => {
+    if (!open) return;
+    setQuery("");
+    setFocusedIdx(0);
+    const id = window.setTimeout(() => searchRef.current?.focus(), 0);
+    return () => window.clearTimeout(id);
+  }, [open]);
+
+  // Clamp focused index whenever the filtered list shrinks (e.g. typing).
+  useEffect(() => {
+    if (focusedIdx > Math.max(0, filtered.length - 1)) setFocusedIdx(0);
+  }, [filtered.length, focusedIdx]);
+
+  // Keep the keyboard-focused row visible as the user arrows through a
+  // long list. Skipped when the dropdown is closed or empty.
+  useEffect(() => {
+    if (!open) return;
+    const el = listRef.current?.querySelector<HTMLElement>(
+      `[data-idx="${focusedIdx}"]`,
+    );
+    el?.scrollIntoView({ block: "nearest" });
+  }, [open, focusedIdx]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!rootRef.current) return;
+      if (!rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  function go(project: ShellProject) {
+    if (!project.href) return;
+    // Carry the current subsection across when we're on a project page;
+    // land on project home otherwise (cross-project pages like
+    // /dashboard, /settings, /retainage have no meaningful subsection).
+    const dest =
+      activeProjectId && subsection
+        ? `${project.href}/${subsection}`
+        : project.href;
+    setOpen(false);
+    router.push(dest);
+  }
+
+  function onListKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setFocusedIdx((i) => Math.min(i + 1, Math.max(0, filtered.length - 1)));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setFocusedIdx((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const p = filtered[focusedIdx];
+      if (p) go(p);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setFocusedIdx(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setFocusedIdx(Math.max(0, filtered.length - 1));
+    }
+  }
+
+  if (projects.length === 0) return null;
+
+  const buttonLabel = currentProject?.name ?? "Select project";
+
+  return (
+    <div className="b-psw" ref={rootRef}>
+      <button
+        type="button"
+        className="b-psw-btn"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="Switch project"
+      >
+        <span className="b-psw-label">{buttonLabel}</span>
+        <span className="b-psw-chev" aria-hidden>
+          {ChevronDown}
+        </span>
+      </button>
+      {open && (
+        <div
+          className="b-psw-panel"
+          role="dialog"
+          aria-label="Project switcher"
+          onKeyDown={onListKeyDown}
+        >
+          <div className="b-psw-srch">
+            <span className="b-psw-srch-ico" aria-hidden>
+              {SearchIcon}
+            </span>
+            <input
+              ref={searchRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search projects…"
+              aria-label="Search projects"
+            />
+          </div>
+          <div className="b-psw-list" role="listbox" ref={listRef}>
+            {filtered.length === 0 ? (
+              <div className="b-psw-empty">No projects match.</div>
+            ) : (
+              filtered.map((p, i) => {
+                const isActive = p.id === activeProjectId;
+                const isFocused = i === focusedIdx;
+                return (
+                  <button
+                    key={p.id ?? p.href ?? p.name}
+                    type="button"
+                    role="option"
+                    aria-selected={isActive}
+                    data-idx={i}
+                    className={`b-psw-row${isActive ? " on" : ""}${isFocused ? " kbd" : ""}`}
+                    onMouseEnter={() => setFocusedIdx(i)}
+                    onClick={() => go(p)}
+                  >
+                    <span className={`b-pd ${p.dot}`} />
+                    <span className="b-psw-row-name">{p.name}</span>
+                    {p.phase && <span className="b-psw-row-phase">{p.phase}</span>}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AppShell({
   portalType,
@@ -453,6 +666,7 @@ export default function AppShell({
                 );
               })}
             </div>
+            <ProjectSwitcher portalType={portalType} projects={projects} />
             <div className="b-tr">
               <button
                 type="button"

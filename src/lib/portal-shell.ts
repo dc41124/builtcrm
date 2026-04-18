@@ -4,6 +4,7 @@ import { and, eq, inArray, lte, or } from "drizzle-orm";
 
 import { auth } from "@/auth/config";
 import {
+  getAccessibleProjects,
   loadUserPortalContext,
   type PortalOption,
   type ProjectShortcut,
@@ -55,7 +56,11 @@ export async function loadPortalShell(
   const wantLabel = shortcutLabelFor(portalType);
   const shortcuts = ctx.projectShortcuts.filter((s) => s.portalLabel === wantLabel);
 
-  const projectIds = shortcuts.map((s) => s.projectId);
+  // Full project list (uncapped) powers both the sidebar and the topbar
+  // project switcher. `projectShortcuts` above stays capped at 5 for the
+  // portal-selector overview use case.
+  const accessible = await getAccessibleProjects(appUserId, portalType);
+  const projectIds = accessible.map((p) => p.projectId);
   const [phaseRows, healthMap, navCounts] = await Promise.all([
     projectIds.length
       ? db
@@ -74,12 +79,13 @@ export async function loadPortalShell(
   ]);
   const phaseById = new Map(phaseRows.map((r) => [r.id, r.currentPhase]));
 
-  const shellProjects: ShellProject[] = shortcuts.map((s) => ({
-    name: s.projectName,
-    href: `/${portalType}/project/${s.projectId}`,
-    phase: phaseLabel(phaseById.get(s.projectId)),
-    dot: healthMap.get(s.projectId) ?? "gray",
-    active: activeProjectId ? s.projectId === activeProjectId : false,
+  const shellProjects: ShellProject[] = accessible.map((p) => ({
+    id: p.projectId,
+    name: p.projectName,
+    href: p.href,
+    phase: phaseLabel(phaseById.get(p.projectId)),
+    dot: healthMap.get(p.projectId) ?? "gray",
+    active: activeProjectId ? p.projectId === activeProjectId : false,
   }));
 
   const userRow = session.user as unknown as { name?: string | null; email: string };

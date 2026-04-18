@@ -851,6 +851,20 @@ git add .
 git commit -m "Step 13 (4A.4 #13): Export endpoints — payment PDF, photo ZIP, receipt links"
 ```
 
+### Status: Completed 2026-04-18 (commit `0846922`)
+
+Notes on deviations from the spec above:
+
+- **Path key changed** from `[paymentId]` to `[paymentTransactionId]`. The backing table is `payment_transactions` (polymorphic via `relatedEntityType` ∈ `draw_request | retainage_release | selection_decision | change_order`). Keying by transaction id means one URL + one template handles every flavor — Stripe draw payment, manual check on a selection upgrade, all of them.
+- **Photo route keys by `projectId`, not `albumId`.** No `photo_albums` table exists; photos are `documents` rows with `documentType='photo_log'`. Route: `/api/export/photos/[projectId]` with optional `?from=YYYY-MM-DD&to=YYYY-MM-DD` filter and an `index.txt` manifest. When Step 21 introduces a `category='photos'` enum the WHERE clause swaps in one line, URL unchanged.
+- **Receipts collapsed to a single dispatch route.** `/receipts/[paymentTransactionId]` 302s to `receiptUrl` when the row is Stripe-hosted, otherwise 302s to the canonical `/api/export/payment/[id]` which renders the PDF. One template covers both Stripe and manual flavors, branching on `stripePaymentIntentId != null`.
+- **No new dependencies.** `@react-pdf/renderer` and `archiver` were already present (Step 2 + earlier draw-package work at `src/app/api/draw-requests/[id]/package/route.ts`, which is the pattern this step mirrors).
+- **403 vs 404 behavior:** `getEffectiveContext` throws `AuthorizationError("forbidden")` when the caller has no project access, which maps to 403. 404 only fires when the UUID genuinely doesn't exist. Enumeration risk is nil because the id check happens before the access check leaks row existence.
+- **Loader extension:** `loadDrawRequestEnrichment` in `src/domain/loaders/project-home.ts` now also returns `receiptPaymentIdByDrawId`, projected as `receiptPaymentTransactionId: string | null` on both `ContractorProjectView.drawRequests[]` and `ClientProjectView.drawRequests[]`. The Receipt link renders conditionally on this.
+- **UI wiring:** Receipt span in `commercial/.../payments-view.tsx` → conditional `<a href="/receipts/{id}">`. Download-all buttons in `commercial/.../photos/photos-view.tsx` and `residential/.../progress/progress-view.tsx` → hit the photos ZIP route. `projectId` was threaded through `ResidentialProgressView` props to enable that.
+- **Bonus in same commit:** scaffolded `.eslintrc.json` (`next/core-web-vitals` + `next/typescript`, with `^_`-prefix ignored for unused vars) and swept 57 preexisting lint errors across the repo. `npm run lint` + `npm run build` both clean.
+- **Commit message** diverged from the template (covered both the feature and the lint sweep). If a consistent per-step tag matters later, this commit is `0846922` and can be referenced as "Step 13 (4A.4 #13)" retroactively.
+
 ---
 
 ## Step 14 — Project Navigation Dropdown in Top Bar
@@ -901,6 +915,20 @@ Users currently have to go back to the dashboard or sidebar project list to swit
 git add .
 git commit -m "Step 14 (4A.5 #14): Project navigation dropdown in topbar"
 ```
+
+### Status: Completed 2026-04-18
+
+Notes on deviations from the spec above:
+
+- **Pre-existing cap removed.** `loadUserPortalContext` in `src/domain/loaders/portals.ts` was capping project lists at 5 per portal option — which also silently hid projects 6+ from the sidebar, not just the dropdown. Extracted `getAccessibleProjects(appUserId, portalType)` as the spec suggested; `loadPortalShell` now uses it for the uncapped list, so the sidebar and dropdown share the same data. `projectShortcuts` in `loadUserPortalContext` stays capped at 5 for its original portal-selector/overview use case.
+- **ShellProject gained an optional `id`.** Set by `loadPortalShell` so the switcher can match the current URL's project id without re-parsing href strings.
+- **Switcher lives inline in `AppShell.tsx`.** Tight coupling to topbar CSS and single consumer, so a separate file would have added indirection for no benefit. Rendered between breadcrumbs and the right-side actions.
+- **Topbar layout switched from `justify-content: space-between` to `gap + margin-left:auto` on `.b-tr`.** With 4 topbar children, space-between spread them awkwardly; the new rule clusters breadcrumbs + switcher on the left and actions on the right.
+- **Subsection carry-over:** when switching from `/{portal}/project/A/billing/draw/5`, lands on `/{portal}/project/B/billing/draw/5`. If that deep URL doesn't exist in project B, project B's own loaders 403/404 as normal — no short-circuit in the switcher.
+- **Cross-project pages** (`/{portal}/dashboard`, `/{portal}/settings`, etc.): button label shows "Select project" and switching navigates to the new project's home (empty subsection → `project.href` only).
+- **Keyboard:** Arrow up/down, Home/End, Enter, Escape. Focused row `scrollIntoView({block: "nearest"})` so long lists stay usable. Search input auto-focuses on open.
+- **Empty state:** switcher renders `null` when `projects.length === 0`, so sub users added to zero projects don't see a dead button.
+- **Auth not bypassed.** The dropdown only surfaces what the loader returned (role-scoped). If a client somehow navigates to a forbidden project URL, the project page's loader still throws the usual 403.
 
 ---
 
