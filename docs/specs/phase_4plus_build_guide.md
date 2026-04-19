@@ -2317,9 +2317,26 @@ git commit -m "Step 32 (4C.2 #32): Card payments for selection upgrades"
 
 ---
 
-## Step 33 — Payment Transaction Recording + Reconciliation
+## Step 33 — Payment Transaction Recording + Reconciliation ✅ DONE (2026-04-19)
 
-> **Status: ✅ Partial — ready side live** (2026-04-17). `payment_transactions` table rows are created + advanced through status lifecycle by Sessions 1–3 of the Client Stripe Checkout phase. Contractor Payments tab (`PaymentsView`) reads them for the payout history display. **Deferred:** reconciliation cron job that periodically confirms Stripe's view matches BuiltCRM's — logged as a follow-up.
+**Completion notes**
+- **Write path was already live** pre-Step-33. The Stripe webhook handler at `/api/webhooks/stripe` creates `payment_transactions` rows and advances them through the full status lifecycle (checkout → processing → succeeded/failed, with refund + charge-failed branches). The contractor Payments tab (`PaymentsView` at `src/app/(portal)/contractor/(global)/settings/payments/payments-ui.tsx`) already reads them. Step 33 closes the reconciliation gap.
+- **Nightly reconciliation job shipped** at `src/jobs/stripe-payment-reconciliation.ts`. Schedule: `0 4 * * *` (04:00 UTC) — picked to clear the 03:30 UTC `integration-sync-event-cleanup` window.
+- **Scope per run:** every `integration_connections` row with `provider='stripe'` AND `connectionStatus='connected'` AND a populated `externalAccountId` (the Connect acct_* id). Non-Stripe providers and platform-level subscription billing are ignored — subscription invoices have their own retry machinery inside Stripe.
+- **Missing-locally detection.** For each connected account, fetches `stripe.paymentIntents.list({ created: { gte: 7d_ago }, limit: 100 }, { stripeAccount })`, intersects the returned IDs against `payment_transactions.stripePaymentIntentId` filtered by `organizationId`, and audits every PI that Stripe has but BuiltCRM does not. No auto-create — the domain mapping (draw_request vs. selection, projectId) requires human judgment; a contractor admin triages from the audit log.
+- **Stuck-status detection.** For each org, scans `payment_transactions` where `transactionStatus IN ('pending','processing')` AND `createdAt < 7d_ago`, audits each. Terminal statuses (`succeeded` / `failed` / `refunded` / `partially_refunded` / `canceled` / `disputed`) never trigger.
+- **Audit events emitted:**
+  - `payment.reconciliation.missing_locally` (objectType `payment_transaction`; synthetic objectId = the Stripe PI id since no local row exists; `metadataJson.synthetic: true` flags this for audit viewers)
+  - `payment.reconciliation.stuck_status` (objectType `payment_transaction`; real UUID objectId)
+  - `payment.reconciliation.error` (fires if the per-org Stripe call throws, e.g. deauthorized account or rate-limit; captures the error without aborting the batch so other orgs still run)
+- **Pagination warning path.** Single-page fetch at `limit: 100` is sufficient for portfolio-size volume; if Stripe returns `has_more: true` the job logs a warning rather than looping. When a real customer shows up with >100 PIs in 7 days the loop can be added in a focused edit. Flagged in-file.
+- **Per-org isolation.** One org's failure (invalid token, deauthorized account, network) is caught and audited as `payment.reconciliation.error`; the batch continues to the remaining orgs.
+- **No new dependencies, no schema changes.** Reuses the existing `getStripe()` client, `paymentTransactions` / `integrationConnections` / `auditEvents` tables, and the `getSystemUserId()` actor pattern the Stripe webhook handler established.
+
+**What shipped (files)**
+- `src/jobs/stripe-payment-reconciliation.ts` — NEW. Auto-discovered by Trigger.dev via `dirs: ["./src/jobs"]` in `trigger.config.ts`.
+
+**Step 33 task-prompt items 1 and 2** (the contractor payments UI and per-payment detail) are **not re-done** here — they're live in the contractor settings → payments tab. The separate top-level "contractor cross-project payment tracking page" mentioned in the task prompt is distinct from this step; it's Step 38 (`Contractor Cross-Project Payment Tracking Page`) and still marked ComingSoon in HANDOFF.md.
 
 **Mode:** Safe-to-autorun
 **Item:** 4C.2 #33
