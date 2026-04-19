@@ -119,6 +119,10 @@ Expanded from minimal test data to audit-ready density across all 4 projects:
 
 Either path also needs to drop the orphan `payment_status` enum (or add it back to schema if anything depends on it — grep says no).
 
+**Schema changes parked behind this reconciliation (Step 26 additions):**
+- `webhook_events.organization_id` should be **nullable** so the inbound webhook handler can log "received but unmatched" rows for forensics. Currently the column is NOT NULL, so unmatched payloads return 202 with an audit event only — the row-level diagnostic trail is lost. Common operational causes for unmatched: disconnected-but-provider-unaware, stored `external_account_id` mismatch from an OAuth bug, race at connection-creation time.
+- Add `UNIQUE (source_provider, event_id) WHERE webhook_direction = 'inbound'` partial unique index on `webhook_events` so the inbound-event dedup path can use `INSERT … ON CONFLICT DO NOTHING` atomically. Today Step 26's handler does `SELECT`-then-`INSERT` with a narrow, operationally-zero race window; the partial unique index collapses that into a single atomic statement and removes the race.
+
 ---
 
 ## DB State
