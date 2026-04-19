@@ -1331,6 +1331,9 @@ git commit -m "Step 19 (4B.3 #19): Punch list module"
 - UI: shared workspace component across contractor + subcontractor pages; contractor gets the 6-card summary strip + full action set; sub gets the 4-card version with submit + start-revision only.
 - Nav: Submittals wired into contractor + subcontractor project sidebars (between Punch List and RFIs).
 
+### Reports page wiring (Step 24.5 follow-up)
+- The `submittal-log` report in the Reports hub is a stub. When convenient, wire a `getSubmittalLogReport(context)` loader against the shipped `submittals` / `submittal_transmittals` tables — submittal status and reviewer activity across projects — and flip `built: true` on that report in `reports-ui.tsx`. Not time-critical; the Reports hub degrades gracefully with the "Coming in Step 20" stub.
+
 ---
 
 ## Step 20.5 — External Reviewer Portal ✅ DONE (2026-04-18)
@@ -1712,6 +1715,62 @@ Executive surface for the contractor portal. At-a-glance KPIs across all project
 ```bash
 git add .
 git commit -m "Step 24 (4B.6 #24): Reports dashboard — portfolio KPIs + aging charts + PDF export"
+```
+
+---
+
+## Step 24.5 — Reports Hub (catalog + 8 new reports) ✅ DONE (2026-04-19)
+
+**Completion notes**
+- Wraps the Step 24 portfolio dashboard in a **landing hub** with six categories (Financial, Operational, Compliance, Tax & Legal, Residential, Library) and surfaces **26 report tiles** — 9 fully built in this pass, 17 stubs with "Coming in Step XX" messaging that resolve as the upstream module ships.
+- **Nine built reports:** Portfolio Overview (live Step 24 content), WIP Schedule, AR Aging, Job Cost, Cashflow Projection, Labor & Productivity, Schedule Performance, Compliance, Saved & Scheduled Reports.
+- **Hub behaviour:** starred tiles + recently-viewed strip tracked in component state (pre-persistence), full-text search across label/description/category, sibling-category tabs on the report detail view for fast switching.
+- **Seed data** for the 8 new reports lives in `reports-seed.ts`. Each dataset is a 1:1 port of the `docs/specs/builtcrm_contractor_reports_v4.jsx` reference. Replaced loader-by-loader as the source module ships (see wiring table).
+- **Color discipline:** thematic colors (indigo accent, slate text/borders) route through design tokens (`--ac`, `--ac-s`, `--t1/2/3`, `--s2/3/4`). Semantic status colors stay fixed via `--ok`, `--wr`, `--dg` tokens so a "healthy" indicator doesn't re-theme per portal.
+- **Cashflow chart redrawn** from the spec's mirrored-bar layout (which bled outflow bars into the week/date labels) to a paired side-by-side layout — both inflow and outflow bars go up from a shared x-axis baseline, with the running-balance line in the upper plot band. Nothing can overflow.
+- **Icons:** 34 inline SVG components at `reports-icons.tsx` following the existing 24×24 `stroke="currentColor"` convention from `AppShell.tsx`. No new dependency.
+- **Scrollbar recipe** matches the gantt / workspace standard — 4px thumb on `--s4`, transparent track, darken to `--t3` on hover, Firefox `scrollbar-width: thin`. Applied to any `.rpt-tbl-scroll` or `.rpt-tabs` overflow region.
+
+**What shipped (files)**
+- `src/app/(portal)/contractor/(global)/reports/reports-ui.tsx` — full rewrite (landing hub + report shell + 9 reports)
+- `src/app/(portal)/contractor/(global)/reports/reports-seed.ts` — deterministic seed data
+- `src/app/(portal)/contractor/(global)/reports/reports-icons.tsx` — inline SVG icon set
+- `src/styles/workspaces.css` — new `.rpt-hub`, `.rpt-tile`, `.rpt-cat`, `.rpt-k-*`, `.rpt-data-tbl`, `.rpt-cost-*`, `.rpt-spi-*`, `.rpt-cashflow-svg`, `.rpt-compl-*`, `.rpt-saved-*` styles (Step 24's existing `.rpt-*` rules preserved; new KPI rules namespaced under `.rpt-k-*` to avoid collision with the Overview's `.rpt-kpi-*`)
+
+**Mode:** Require-design-input (spec-driven from `docs/specs/builtcrm_contractor_reports_v4.jsx`)
+**Item:** 4B.6 #24.5
+**Effort:** L
+**Priority:** P1
+
+### Wiring table — replace seed with loader as each source ships
+
+As each upstream module ships, its matching report tile flips from stub to built: delete the seed array, add a loader, wire into the `renderReport` switch, and flip `built: true` on the report in the catalog.
+
+| Report id | Source step | Category | Current state |
+| --- | --- | --- | --- |
+| `payments` | Step 38 | Financial | Stub |
+| `weekly-reports` | Step 39 | Operational | Stub |
+| `lien-waivers` | Step 40 | Compliance | Stub |
+| `procurement` | Step 41 | Operational | Stub |
+| `inspections` | Step 45 | Operational | Stub |
+| `closeout` | Step 48 | Operational | Stub |
+| `prequal` | Step 49 | Compliance | Stub |
+| `safety` | Step 52 | Operational | Stub |
+| `time` | Step 53 | Operational | Stub |
+| `t5018` | Step 67 | Tax & Legal | Stub |
+| `holdback` | Step 68 | Tax & Legal | Stub |
+| `allowances` | Step 74 | Residential | Stub |
+| `submittal-log` | Step 20 (shipped) | Operational | Stub — needs wiring |
+| `daily-logs`, `co-log`, `rfi-log` | Phase 4B existing modules | Operational | Stub |
+| `audit` | Phase 8-lite | Compliance | Stub |
+
+Every downstream step in the table above has a "Wire into Reports page (Step 24.5)" bullet in its "What to check" checklist so this doesn't get forgotten.
+
+### Commit:
+
+```bash
+git add .
+git commit -m "Step 24.5 (4B.6 #24.5): Reports hub — 26-tile catalog + 8 new reports"
 ```
 
 ---
@@ -2413,6 +2472,7 @@ Like Step 37 but for payments (inbound and outbound). One page, all projects, fi
 - Totals match per-project billing sums
 - Filters work, drilldown navigates correctly
 - Performance acceptable
+- **Wire `payments` report into the Reports page (Step 24.5):** add a `getPaymentTrackingReport(context)` loader that aggregates the same inbound/outbound data, flip `built: true` on the `payments` tile in `reports-ui.tsx`, and add the report body to the `renderReport` switch.
 - `npm run build && npm run lint` clean
 
 ### Commit:
@@ -2461,6 +2521,7 @@ Many GCs send clients a weekly progress report. This step adds the report primit
 - Contractor opens a draft, edits, sends
 - Client sees the report in their portal
 - Residential client sees warmer copy
+- **Wire `weekly-reports` report into the Reports page (Step 24.5):** aggregate sent weekly reports across the portfolio, flip `built: true` in `reports-ui.tsx`, and render a list view with per-project filter.
 - `npm run build && npm run lint` clean
 
 ### Commit:
@@ -2501,6 +2562,7 @@ From the Phase 3 handoff deferred list. When a draw is created, the system shoul
 - Submit a draw with 3 subs on it → 3 lien waiver rows appear, correctly sized
 - Re-submit (if that's possible) or re-run the action → no duplicate waivers created
 - Audit event fires
+- **Wire `lien-waivers` report into the Reports page (Step 24.5):** add a `getLienWaiverLogReport(context)` loader (waiver status per draw and sub, outstanding counts), flip `built: true` on the `lien-waivers` tile in `reports-ui.tsx`, and render the log as a filterable table.
 - `npm run build && npm run lint` clean
 
 ### Commit:
@@ -2553,6 +2615,7 @@ Commercial expectation. Purchase orders for materials and equipment: PO number, 
 - Create a vendor, create a PO with line items, issue it, partially receive, invoice, close
 - PO PDF generates with correct branding
 - List and filters work
+- **Wire `procurement` report into the Reports page (Step 24.5):** aggregate POs by vendor + status + aging across the portfolio, flip `built: true` on the `procurement` tile in `reports-ui.tsx`.
 - `npm run build && npm run lint` clean
 
 ### Commit:
@@ -2827,6 +2890,7 @@ QA/QC checklists distinct from milestones. Template library for common inspectio
 - Sub completes inspection on mobile, marks some items fail → punch items auto-generate
 - Pass rate KPI updates
 - Template CRUD works
+- **Wire `inspections` report into the Reports page (Step 24.5):** surface QA/QC pass-fail trends across the portfolio, flip `built: true` on the `inspections` tile in `reports-ui.tsx`.
 - `npm run build && npm run lint` clean
 
 ### Commit:
@@ -2965,6 +3029,7 @@ White-space feature. At project closeout, contractors bundle O&M manuals, warran
 - Export produces a clean ZIP with index
 - Client opens, reviews, accepts
 - Project closeout state reflects acceptance
+- **Wire `closeout` report into the Reports page (Step 24.5):** per-project closeout completion matrix (sections filled, documents linked, client acceptance status), flip `built: true` on the `closeout` tile in `reports-ui.tsx`.
 - `npm run build && npm run lint` clean
 
 ### Commit:
@@ -3013,6 +3078,7 @@ White-space feature. Contractors require prequalification before awarding work. 
 - Contractor reviews, scores, approves
 - Sub profile shows approved badge
 - Sub with failed prequal can't be assigned (warning or block)
+- **Wire `prequal` report into the Reports page (Step 24.5):** portfolio-level qualification matrix across all tracked subs, flip `built: true` on the `prequal` tile in `reports-ui.tsx`.
 - `npm run build && npm run lint` clean
 
 ### Commit:
@@ -3235,6 +3301,7 @@ Toolbox talks, Job Hazard Analyses (JHA), incident reports. Standard field expec
 - Go online, form syncs
 - Incident report notifies project admin
 - PDF export produces readable report history
+- **Wire `safety` report into the Reports page (Step 24.5):** summarise toolbox talks, JHAs, and incident reports across the portfolio, flip `built: true` on the `safety` tile in `reports-ui.tsx`.
 - `npm run build && npm run lint` clean
 
 ### Commit:
@@ -3282,6 +3349,7 @@ Sub field workers clock in/out per task or project. Time entries roll up to thei
 - Admin sees entries in timesheet
 - Submitted entries aren't editable by the worker
 - Overlap attempts blocked
+- **Wire `time` report into the Reports page (Step 24.5):** aggregate sub hours by project and crew across the portfolio, flip `built: true` on the `time` tile in `reports-ui.tsx`.
 - `npm run build && npm run lint` clean
 
 ### Commit:
@@ -4036,6 +4104,7 @@ Canadian tax form. Contractors in the construction industry must issue T5018 sli
 - Generate → ZIP downloads with XML + per-sub PDFs
 - XML validates against CRA schema
 - Non-Canadian orgs don't see this page
+- **Wire `t5018` report into the Reports page (Step 24.5):** Tax & Legal category, gated on Canadian jurisdiction, flip `built: true` on the `t5018` tile in `reports-ui.tsx`. Report body can thin-wrap the generator UI (year selector + preview table + generate button).
 - `npm run build && npm run lint` clean
 
 ### Commit:
@@ -4091,6 +4160,7 @@ This step builds the full timer + form engine. Demo-worthy — it's a real, enfo
 - Holdback accrues 10% per sub payment
 - Jan 1 release eligibility flags correctly
 - Non-Ontario projects don't have this page
+- **Wire `holdback` report into the Reports page (Step 24.5):** Tax & Legal category, gated on Ontario jurisdiction, surface the holdback ledger + active-timer summary portfolio-wide. Flip `built: true` on the `holdback` tile in `reports-ui.tsx`.
 - `npm run build && npm run lint` clean
 
 ### Commit:
@@ -4387,6 +4457,7 @@ git commit -m "Step 73 (10.1 #73): Specifications / scope-of-work surface"
 - Residential client sees allowance status card on project home
 - Over-allowance categories highlighted
 - Drilldown opens the relevant selections category
+- **Wire `allowances` report into the Reports page (Step 24.5):** Residential category — portfolio-level running allowance balance across residential projects, flip `built: true` on the `allowances` tile in `reports-ui.tsx`.
 - `npm run build && npm run lint` clean
 
 ### Commit:
