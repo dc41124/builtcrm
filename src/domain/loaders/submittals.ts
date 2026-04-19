@@ -10,6 +10,7 @@ import {
   users,
 } from "@/db/schema";
 import { getEffectiveContext, type SessionLike } from "@/domain/context";
+import { resolveCurrentVersionMap } from "@/domain/documents/versioning";
 import { AuthorizationError } from "@/domain/permissions";
 import type {
   SubmittalDocumentRole,
@@ -301,43 +302,78 @@ export async function getSubmittal(
 async function queryDocuments(
   submittalId: string,
 ): Promise<SubmittalDocumentRow[]> {
-  const rows = await db
+  // Step 22: respect submittal_documents.pin_version. When pin is
+  // false (active review in progress) we resolve forward to the
+  // current version so the GC/sub always see the latest upload.
+  // When pin is true (submittal reached a terminal reviewer state)
+  // we lock to the exact linked version — the decision was made
+  // against that file and downstream displays must not drift.
+  const joinRows = await db
     .select({
       id: submittalDocuments.id,
-      documentId: submittalDocuments.documentId,
+      linkedDocumentId: submittalDocuments.documentId,
+      pinVersion: submittalDocuments.pinVersion,
       role: submittalDocuments.role,
       sortOrder: submittalDocuments.sortOrder,
       attachedByUserId: submittalDocuments.attachedByUserId,
       attachedByName: users.displayName,
       createdAt: submittalDocuments.createdAt,
-      title: documents.title,
-      storageKey: documents.storageKey,
-      fileSizeBytes: documents.fileSizeBytes,
     })
     .from(submittalDocuments)
-    .innerJoin(documents, eq(documents.id, submittalDocuments.documentId))
     .leftJoin(users, eq(users.id, submittalDocuments.attachedByUserId))
     .where(eq(submittalDocuments.submittalId, submittalId))
     .orderBy(asc(submittalDocuments.sortOrder), asc(submittalDocuments.createdAt));
 
-  const urls = await Promise.all(
-    rows.map((r) =>
-      presignDownloadUrl({ key: r.storageKey, expiresInSeconds: 600 }).catch(
-        () => "",
-      ),
-    ),
+  if (joinRows.length === 0) return [];
+
+  // Resolve effective document ids: pinned rows stay on their linked
+  // id; unpinned rows walk forward to the chain head.
+  const unpinned = joinRows
+    .filter((r) => !r.pinVersion)
+    .map((r) => r.linkedDocumentId);
+  const headMap = await resolveCurrentVersionMap(unpinned);
+  const effectiveIds = joinRows.map((r) =>
+    r.pinVersion ? r.linkedDocumentId : headMap.get(r.linkedDocumentId) ?? r.linkedDocumentId,
   );
-  return rows.map((r, i) => ({
-    id: r.id,
-    documentId: r.documentId,
-    role: r.role,
-    sortOrder: r.sortOrder,
-    title: r.title,
-    url: urls[i],
-    fileSizeBytes: r.fileSizeBytes,
-    attachedAt: r.createdAt.toISOString(),
-    attachedByName: r.attachedByName,
-  }));
+
+  // Pull storage keys + titles for the effective id set.
+  const docRows = await db
+    .select({
+      id: documents.id,
+      title: documents.title,
+      storageKey: documents.storageKey,
+      fileSizeBytes: documents.fileSizeBytes,
+    })
+    .from(documents)
+    .where(inArray(documents.id, effectiveIds));
+  const docById = new Map(docRows.map((d) => [d.id, d]));
+
+  const urls = await Promise.all(
+    effectiveIds.map((id) => {
+      const d = docById.get(id);
+      if (!d) return Promise.resolve("");
+      return presignDownloadUrl({
+        key: d.storageKey,
+        expiresInSeconds: 600,
+      }).catch(() => "");
+    }),
+  );
+
+  return joinRows.map((r, i) => {
+    const effId = effectiveIds[i];
+    const d = docById.get(effId);
+    return {
+      id: r.id,
+      documentId: effId,
+      role: r.role,
+      sortOrder: r.sortOrder,
+      title: d?.title ?? "",
+      url: urls[i],
+      fileSizeBytes: d?.fileSizeBytes ?? null,
+      attachedAt: r.createdAt.toISOString(),
+      attachedByName: r.attachedByName,
+    };
+  });
 }
 
 async function queryTransmittals(

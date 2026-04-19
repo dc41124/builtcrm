@@ -1475,12 +1475,37 @@ git commit -m "Step 21 (4B.4 #21): Document categories"
 
 ---
 
-## Step 22 — Document Versioning
+## Step 22 — Document Versioning ✅ DONE (2026-04-18)
 
-**Mode:** Safe-to-autorun
+**Mode:** Safe-to-autorun (but schema change → stop-and-ask triggered)
 **Item:** 4B.4 #22
 **Effort:** M
 **Priority:** P1
+
+### Completion notes
+- **Migrated to Option A (column).** The codebase had a pre-existing link-row pattern (`document_links.link_role = 'supersedes'`) with a comment locking it in as a "schema rule." Migration `0014_document_versioning.sql` adds `documents.supersedes_document_id` (self-ref FK + partial unique index + standard walk index), backfills any existing pivot rows into the column, then deletes those rows. Loader + workspace now read the column; no link-role pivot is created on new supersessions.
+- **Linearity enforced at the DB.** Partial unique index `documents_supersedes_unique` on `supersedes_document_id WHERE NOT NULL` guarantees one direct successor per document. Branches are impossible.
+- **Cycle + self-ref guards** at the app layer via `src/domain/documents/versioning.ts#isInChain`. Hop cap of 32 everywhere that walks.
+- **Race handling.** The supersede endpoint wraps the insert + predecessor-flip in a transaction that re-reads `is_superseded` inside. On race loss (concurrent supersede) or any transaction failure, the orphan R2 object is deleted via new `deleteObject` helper and the client gets a clean 409 `race_lost` with copy they can show the user.
+- **Category + scope locked across chains.** The supersede route carries `category`, `visibilityScope`, `audienceScope` forward from the predecessor — any override attempt in the request body is ignored. Downstream category filters + client audience views stay coherent as chains grow.
+- **`pin_version` column added** on both `document_links` and `submittal_documents` as the cross-module generalisation for "render the exact linked version, not the chain head." Default false (follow chain). Submittals auto-pin when the status transitions to any reviewer-decided state (`returned_approved | returned_as_noted | revise_resubmit | rejected | closed`) — set by both the GC transition endpoint and the external-reviewer decision endpoint. Change orders will opt in as they're revisited.
+- **UI: `v3 of 3` pill** on every row whose chain has more than one version. Position + total precomputed once in the workspace's `versionInfo` memo (no per-row chain walk). Superseded rows keep their existing `.sup` dim style.
+- **"Upload new version" confirm modal** — click surfaces "Previous version uploaded by [name] on [date]" as a prominent banner before the file picker opens. Social friction per the advisor directive; not a hard access-control gate.
+- **Audit events** `superseded` + `version_created` fire via `writeAuditEvent` inside the same transaction.
+
+### What shipped (files)
+- `src/db/migrations/0014_document_versioning.sql` — column + index + pin_version + pivot backfill/cleanup
+- `src/db/schema/documents.ts` — `supersedesDocumentId` + `pinVersion` on `documentLinks`
+- `src/db/schema/submittals.ts` — `pinVersion` on `submittalDocuments`
+- `src/domain/documents/versioning.ts` — `resolveCurrentVersionId`, `resolveCurrentVersionMap`, `getVersionChain`, `isInChain`
+- `src/lib/storage.ts` — `deleteObject` helper for R2 orphan cleanup
+- `src/app/api/documents/[id]/supersede/route.ts` — rewritten to use the column, with race + cycle guards and orphan cleanup
+- `src/domain/loaders/project-home.ts#loadDocumentsForProject` — reads column instead of pivot
+- `src/domain/loaders/submittals.ts#queryDocuments` — pin-aware, resolves head when unpinned
+- `src/app/reviewer/[token]/page.tsx` — pin-aware package doc resolution
+- `src/app/api/submittals/[id]/transition/route.ts` + `src/app/api/reviewer/[token]/decision/route.ts` — auto-pin on decision
+- `src/components/documents-workspace.tsx` — column-based chain walks, `v3 of 3` pill, previous-uploader confirm modal
+- `src/styles/workspaces.css` — `.docws-ver-pill` style
 
 ### What this does
 

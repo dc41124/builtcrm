@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -8,6 +8,7 @@ import {
   submittals,
   users,
 } from "@/db/schema";
+import { resolveCurrentVersionMap } from "@/domain/documents/versioning";
 import { presignDownloadUrl } from "@/lib/storage";
 import {
   formatNumber,
@@ -103,17 +104,17 @@ export default async function ReviewerTokenPage({
       }).catch(() => null)
     : null;
 
-  // Package documents — the things the reviewer is here to look at.
-  const packageRows = await db
+  // Package documents — resolve to chain-head when not pinned so the
+  // reviewer sees the latest upload even if the sub revised mid-review.
+  // Pin flips to true on the reviewer's own decision submission; for
+  // an active review pin is always false here.
+  const packageJoinRows = await db
     .select({
       id: submittalDocuments.id,
-      documentId: submittalDocuments.documentId,
-      title: documents.title,
-      storageKey: documents.storageKey,
-      fileSizeBytes: documents.fileSizeBytes,
+      linkedDocumentId: submittalDocuments.documentId,
+      pinVersion: submittalDocuments.pinVersion,
     })
     .from(submittalDocuments)
-    .innerJoin(documents, eq(documents.id, submittalDocuments.documentId))
     .where(
       and(
         eq(submittalDocuments.submittalId, auth.submittalId),
@@ -122,21 +123,49 @@ export default async function ReviewerTokenPage({
     )
     .orderBy(asc(submittalDocuments.sortOrder), asc(submittalDocuments.createdAt));
 
-  const urls = await Promise.all(
-    packageRows.map((r) =>
-      presignDownloadUrl({
-        key: r.storageKey,
-        expiresInSeconds: 900,
-      }).catch(() => ""),
-    ),
+  const unpinnedIds = packageJoinRows
+    .filter((r) => !r.pinVersion)
+    .map((r) => r.linkedDocumentId);
+  const headMap = await resolveCurrentVersionMap(unpinnedIds);
+  const effectiveIds = packageJoinRows.map((r) =>
+    r.pinVersion ? r.linkedDocumentId : headMap.get(r.linkedDocumentId) ?? r.linkedDocumentId,
   );
-  const packageDocs: ReviewerPackageDoc[] = packageRows.map((r, i) => ({
-    id: r.id,
-    documentId: r.documentId,
-    title: r.title,
-    url: urls[i],
-    fileSizeBytes: r.fileSizeBytes,
-  }));
+
+  const effectiveDocs =
+    effectiveIds.length === 0
+      ? []
+      : await db
+          .select({
+            id: documents.id,
+            title: documents.title,
+            storageKey: documents.storageKey,
+            fileSizeBytes: documents.fileSizeBytes,
+          })
+          .from(documents)
+          .where(inArray(documents.id, effectiveIds));
+  const docById = new Map(effectiveDocs.map((d) => [d.id, d]));
+
+  const urls = await Promise.all(
+    effectiveIds.map((id) => {
+      const d = docById.get(id);
+      if (!d) return Promise.resolve("");
+      return presignDownloadUrl({
+        key: d.storageKey,
+        expiresInSeconds: 900,
+      }).catch(() => "");
+    }),
+  );
+  const packageDocs: ReviewerPackageDoc[] = packageJoinRows.map((r, i) => {
+    const effId = effectiveIds[i];
+    const d = docById.get(effId);
+    return {
+      id: r.id,
+      documentId: effId,
+      title: d?.title ?? "",
+      url: urls[i],
+      fileSizeBytes: d?.fileSizeBytes ?? null,
+    };
+  });
 
   return (
     <ReviewerWorkspace

@@ -170,6 +170,25 @@ export async function POST(
 
       await tx.update(submittals).set(patch).where(eq(submittals.id, id));
 
+      // Step 22 pin: when a submittal reaches a reviewer-decided
+      // state (or closed), freeze the linked package/stamp/comments
+      // documents at their current versions. Downstream UIs honour
+      // the pin by displaying the specific linked doc rather than
+      // walking forward to the chain head — critical for legal
+      // integrity on approved submittals.
+      const isTerminalForPin =
+        to === "returned_approved" ||
+        to === "returned_as_noted" ||
+        to === "revise_resubmit" ||
+        to === "rejected" ||
+        to === "closed";
+      if (isTerminalForPin) {
+        await tx
+          .update(submittalDocuments)
+          .set({ pinVersion: true })
+          .where(eq(submittalDocuments.submittalId, id));
+      }
+
       await writeAuditEvent(
         ctx,
         {

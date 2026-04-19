@@ -7,9 +7,12 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   varchar,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { timestamps } from "./_shared";
 import { users } from "./identity";
 import { audienceScopeEnum, projects, visibilityScopeEnum } from "./projects";
@@ -56,12 +59,28 @@ export const documents = pgTable(
     documentStatus: documentStatusEnum("document_status").default("active").notNull(),
     category: documentCategoryEnum("category").default("other").notNull(),
     isSuperseded: boolean("is_superseded").default(false).notNull(),
+    // Self-referencing FK to the prior version. Null on first
+    // uploads + on the root of any chain. The migration backfills
+    // from the legacy link-row pivot (document_links with
+    // link_role='supersedes') so historical chains carry forward.
+    supersedesDocumentId: uuid("supersedes_document_id").references(
+      (): AnyPgColumn => documents.id,
+      { onDelete: "set null" },
+    ),
     ...timestamps,
   },
   (table) => ({
     storageKeyUnique: unique("documents_storage_key_unique").on(table.storageKey),
     projectIdx: index("documents_project_idx").on(table.projectId),
     audienceIdx: index("documents_audience_idx").on(table.audienceScope),
+    supersedesIdx: index("documents_supersedes_idx").on(
+      table.supersedesDocumentId,
+    ),
+    // Partial unique: one direct successor per document, linearity
+    // enforced. Nullable column → many NULLs permitted.
+    supersedesUnique: uniqueIndex("documents_supersedes_unique")
+      .on(table.supersedesDocumentId)
+      .where(sql`${table.supersedesDocumentId} IS NOT NULL`),
   }),
 );
 
@@ -75,6 +94,12 @@ export const documentLinks = pgTable(
     linkedObjectType: varchar("linked_object_type", { length: 120 }).notNull(),
     linkedObjectId: uuid("linked_object_id").notNull(),
     linkRole: varchar("link_role", { length: 120 }).notNull(),
+    // When true, the linking module displays the exact document
+    // version present at link time (not the chain head). See
+    // src/domain/documents/versioning.ts#resolveForDisplay. Needed
+    // for legally-attached docs where "what was agreed to" matters
+    // more than "the latest file." Default false = follow chain.
+    pinVersion: boolean("pin_version").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({

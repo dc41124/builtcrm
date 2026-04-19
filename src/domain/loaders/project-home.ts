@@ -920,6 +920,7 @@ export type DocumentRow = {
   audienceScope: string;
   documentStatus: "active" | "pending_review" | "superseded" | "archived";
   isSuperseded: boolean;
+  supersedesDocumentId: string | null;
   supersededByDocumentId: string | null;
   fileSizeBytes: number | null;
   links: DocumentLinkRow[];
@@ -932,8 +933,9 @@ export type DocumentAudience = "contractor" | "subcontractor" | "client";
 // Role-scoped read of every document on a project. Contractor sees all
 // non-archived rows; subs are blocked from client-only / internal-only
 // content; clients get only project-wide or explicitly client-visible
-// material. Supersession is resolved via document_links rows carrying
-// link_role='supersedes' (schema rule: don't add a column for this).
+// material. Supersession lives on the `supersedes_document_id` column
+// (Step 22) — the legacy link_role='supersedes' pivot was backfilled
+// and dropped by 0014_document_versioning.sql.
 export async function loadDocumentsForProject(
   projectId: string,
   audience: DocumentAudience,
@@ -952,6 +954,7 @@ export async function loadDocumentsForProject(
       audienceScope: documents.audienceScope,
       documentStatus: documents.documentStatus,
       isSuperseded: documents.isSuperseded,
+      supersedesDocumentId: documents.supersedesDocumentId,
       fileSizeBytes: documents.fileSizeBytes,
       createdAt: documents.createdAt,
       updatedAt: documents.updatedAt,
@@ -1021,24 +1024,22 @@ export async function loadDocumentsForProject(
     linksByDoc.set(l.documentId, arr);
   }
 
-  // Superseded-by lookup: a newer document carries a document_links row
-  // with (linkedObjectType='document', linkedObjectId=<oldId>, linkRole='supersedes').
-  const supersedesRows = await db
+  // Superseded-by lookup: reverse-index the supersedes_document_id
+  // column. For any doc in `ids` that has a successor (another doc
+  // whose supersedes_document_id points at it), record that successor
+  // id. Used by the UI to render "v3 (current)" pills on old rows.
+  const successorRows = await db
     .select({
-      newDocumentId: documentLinks.documentId,
-      oldDocumentId: documentLinks.linkedObjectId,
+      id: documents.id,
+      predecessorId: documents.supersedesDocumentId,
     })
-    .from(documentLinks)
-    .where(
-      and(
-        eq(documentLinks.linkedObjectType, "document"),
-        eq(documentLinks.linkRole, "supersedes"),
-        inArray(documentLinks.linkedObjectId, ids),
-      ),
-    );
+    .from(documents)
+    .where(inArray(documents.supersedesDocumentId, ids));
   const supersededByMap = new Map<string, string>();
-  for (const s of supersedesRows) {
-    supersededByMap.set(s.oldDocumentId, s.newDocumentId);
+  for (const s of successorRows) {
+    if (s.predecessorId) {
+      supersededByMap.set(s.predecessorId, s.id);
+    }
   }
 
   return filtered.map((r) => ({
@@ -1054,6 +1055,7 @@ export async function loadDocumentsForProject(
     audienceScope: r.audienceScope,
     documentStatus: r.documentStatus,
     isSuperseded: r.isSuperseded,
+    supersedesDocumentId: r.supersedesDocumentId,
     supersededByDocumentId: supersededByMap.get(r.id) ?? null,
     fileSizeBytes: r.fileSizeBytes,
     links: linksByDoc.get(r.id) ?? [],

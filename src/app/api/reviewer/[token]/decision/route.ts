@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import {
   auditEvents,
   invitations,
+  submittalDocuments,
   submittalTransmittals,
   submittals,
 } from "@/db/schema";
@@ -117,6 +118,15 @@ export async function POST(
       patch.rejectionReason = input.rejectionReason ?? null;
     }
     await tx.update(submittals).set(patch).where(eq(submittals.id, auth.submittalId));
+
+    // Step 22 pin: reviewer's decision locks the linked package,
+    // stamp, and comments docs to the exact versions they reviewed.
+    // Matches the same pin-on-terminal rule applied in the GC's
+    // transition endpoint for parity across both decision paths.
+    await tx
+      .update(submittalDocuments)
+      .set({ pinVersion: true })
+      .where(eq(submittalDocuments.submittalId, auth.submittalId));
 
     await tx
       .update(invitations)

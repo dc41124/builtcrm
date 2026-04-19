@@ -238,19 +238,56 @@ export function DocumentsWorkspace({
     return () => window.removeEventListener("click", onClick);
   }, [openMenuId]);
 
-  // Supersession chains: map each current doc id → list of older doc ids.
-  const supersedeChains = useMemo(() => {
-    const olderOf = new Map<string, string[]>();
+  // Supersession chain indices keyed off the supersedes_document_id
+  // column (Step 22). `olderOf` maps each doc id → the single
+  // predecessor it directly supersedes (chain is linear per the
+  // partial-unique DB index). `newerOf` is the inverse lookup —
+  // predecessor id → successor id — used for the forward walk.
+  // `versionInfo` pre-computes (position, total) per doc so the row
+  // renderer can show "v3 of 3" without walking the chain inline.
+  const { olderOf, newerOf, versionInfo } = useMemo(() => {
+    const o = new Map<string, string>();
+    const n = new Map<string, string>();
     for (const d of documents) {
-      for (const l of d.links) {
-        if (l.linkedObjectType === "document" && l.linkRole === "supersedes") {
-          const arr = olderOf.get(d.id) ?? [];
-          arr.push(l.linkedObjectId);
-          olderOf.set(d.id, arr);
-        }
+      if (d.supersedesDocumentId) {
+        o.set(d.id, d.supersedesDocumentId);
+        n.set(d.supersedesDocumentId, d.id);
       }
     }
-    return olderOf;
+    // For every doc, count its position (1 = oldest root) and the
+    // total chain length. Walk ignores docs the current audience
+    // can't see, so positions stay consistent within the filtered
+    // set. Hop cap defends against corrupt chains.
+    const HOP_CAP = 32;
+    const pos = new Map<string, { position: number; total: number }>();
+    for (const d of documents) {
+      // Compute chain total by walking to root, then forward to head.
+      const seen = new Set<string>();
+      let root = d.id;
+      let back = o.get(root);
+      while (back && !seen.has(back) && seen.size < HOP_CAP) {
+        seen.add(back);
+        root = back;
+        back = o.get(root);
+      }
+      // Walk forward from root counting each step until we hit this doc
+      // and then continue to the head.
+      const fwSeen = new Set<string>([root]);
+      let selfPosition = 1;
+      let hop = 1;
+      let cursor = root;
+      if (cursor === d.id) selfPosition = hop;
+      let forward = n.get(cursor);
+      while (forward && !fwSeen.has(forward) && fwSeen.size < HOP_CAP) {
+        fwSeen.add(forward);
+        cursor = forward;
+        hop += 1;
+        if (cursor === d.id) selfPosition = hop;
+        forward = n.get(cursor);
+      }
+      pos.set(d.id, { position: selfPosition, total: hop });
+    }
+    return { olderOf: o, newerOf: n, versionInfo: pos };
   }, [documents]);
 
   const visibleDocs = useMemo(
@@ -328,39 +365,48 @@ export function DocumentsWorkspace({
     [documents, selectedId],
   );
 
-  // Version history: walk the supersedes chain backward from the selected
-  // doc, then add whatever newer doc points at this one (if any).
+  // Version history: full ordered chain (newest first) by walking the
+  // supersedes column in both directions from the selected doc. Linear
+  // by construction — partial unique index guarantees one predecessor
+  // and one successor per node.
   const versionChain = useMemo(() => {
     if (!selected) return [] as DocumentRow[];
     const byId = new Map(documents.map((d) => [d.id, d] as const));
-    const result: DocumentRow[] = [selected];
-    const seen = new Set<string>([selected.id]);
-    // Walk backward via supersedes links on the current doc
-    const queue = [...(supersedeChains.get(selected.id) ?? [])];
-    while (queue.length > 0) {
-      const id = queue.shift()!;
-      if (seen.has(id)) continue;
-      seen.add(id);
-      const row = byId.get(id);
-      if (!row) continue;
-      result.push(row);
-      const more = supersedeChains.get(row.id) ?? [];
-      for (const m of more) queue.push(m);
+    const HOP_CAP = 32;
+
+    // Walk forward (newer side) from selected up to the head.
+    const forward: DocumentRow[] = [];
+    {
+      let cursor: string | undefined = newerOf.get(selected.id);
+      const seen = new Set<string>();
+      while (cursor && !seen.has(cursor) && forward.length < HOP_CAP) {
+        seen.add(cursor);
+        const row = byId.get(cursor);
+        if (!row) break;
+        forward.push(row);
+        cursor = newerOf.get(row.id);
+      }
     }
-    // Walk forward: if a newer row supersedes this one, prepend it
-    const newer = documents.find((d) =>
-      d.links.some(
-        (l) =>
-          l.linkedObjectType === "document" &&
-          l.linkRole === "supersedes" &&
-          l.linkedObjectId === selected.id,
-      ),
-    );
-    if (newer && !seen.has(newer.id)) {
-      result.unshift(newer);
+
+    // Walk backward (older side) from selected down to the root.
+    const backward: DocumentRow[] = [];
+    {
+      let cursor: string | undefined = olderOf.get(selected.id);
+      const seen = new Set<string>();
+      while (cursor && !seen.has(cursor) && backward.length < HOP_CAP) {
+        seen.add(cursor);
+        const row = byId.get(cursor);
+        if (!row) break;
+        backward.push(row);
+        cursor = olderOf.get(row.id);
+      }
     }
-    return result;
-  }, [selected, documents, supersedeChains]);
+
+    // Render order: newest first (forward reversed is still newest
+    // first since we walked head-ward; simpler to reverse the final
+    // order to newest-first).
+    return [...forward.reverse(), selected, ...backward];
+  }, [selected, documents, olderOf, newerOf]);
 
   async function downloadDoc(docId: string) {
     const res = await fetch(`/api/files/${docId}`);
@@ -541,7 +587,19 @@ export function DocumentsWorkspace({
                               {extColor.label}
                             </div>
                             <div className="docws-fn-txt">
-                              <div className="docws-fn-title">{d.title}</div>
+                              <div className="docws-fn-title">
+                                {d.title}
+                                {versionInfo.get(d.id) &&
+                                versionInfo.get(d.id)!.total > 1 ? (
+                                  <span
+                                    className="docws-ver-pill"
+                                    title={`Version ${versionInfo.get(d.id)!.position} of ${versionInfo.get(d.id)!.total}`}
+                                  >
+                                    v{versionInfo.get(d.id)!.position} of{" "}
+                                    {versionInfo.get(d.id)!.total}
+                                  </span>
+                                ) : null}
+                              </div>
                               <div className="docws-fn-ext">
                                 {CATEGORIES.find((c) => c.id === d.category)?.label ??
                                   d.documentType}
@@ -745,7 +803,13 @@ function DetailPanel({
             <Icon name="download" /> Download
           </button>
           {canSupersede && (
-            <SupersedeButton docId={doc.id} projectId={projectId} onDone={onRefresh} />
+            <SupersedeButton
+              docId={doc.id}
+              projectId={projectId}
+              priorUploadedByName={doc.uploadedByName}
+              priorUploadedAt={doc.createdAt}
+              onDone={onRefresh}
+            />
           )}
         </div>
       </div>
@@ -882,12 +946,23 @@ function PermanentUploadZone({
 function SupersedeButton({
   docId,
   projectId,
+  priorUploadedByName,
+  priorUploadedAt,
   onDone,
 }: {
   docId: string;
   projectId: string;
+  priorUploadedByName: string | null;
+  priorUploadedAt: Date;
   onDone: () => void;
 }) {
+  // Two-step flow: click opens a confirmation card with a prominent
+  // "Previous version uploaded by [name] on [date]" banner, then a
+  // file picker. Advisor directive — social friction to discourage
+  // accidentally versioning someone else's work, without hard-blocking
+  // legitimate cases (original uploader is out, PM posts architect's
+  // revision, etc.).
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -908,6 +983,7 @@ function SupersedeButton({
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? "supersede_failed");
       }
+      setConfirmOpen(false);
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : "unknown_error");
@@ -929,12 +1005,146 @@ function SupersedeButton({
       <button
         type="button"
         className="docws-btn ghost"
-        onClick={() => inputRef.current?.click()}
+        onClick={() => {
+          setError(null);
+          setConfirmOpen(true);
+        }}
         disabled={pending}
       >
-        <Icon name="upload" /> {pending ? "Uploading…" : "Supersede"}
+        <Icon name="upload" /> Upload new version
       </button>
-      {error && <div className="docws-err">{error}</div>}
+      {confirmOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => !pending && setConfirmOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(20,22,30,0.5)",
+            zIndex: 80,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 440,
+              background: "#fff",
+              borderRadius: 14,
+              padding: "22px 24px",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.25)",
+            }}
+          >
+            <h3
+              style={{
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                fontSize: 16,
+                fontWeight: 740,
+                margin: "0 0 10px",
+                color: "#12141b",
+              }}
+            >
+              Upload a new version
+            </h3>
+            <div
+              style={{
+                padding: "12px 14px",
+                background: "#f4f6fa",
+                border: "1px solid #e6e9ef",
+                borderRadius: 10,
+                marginBottom: 14,
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: "'DM Sans', system-ui, sans-serif",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  color: "#64687a",
+                  marginBottom: 4,
+                }}
+              >
+                Previous version
+              </div>
+              <div
+                style={{
+                  fontFamily: "'DM Sans', system-ui, sans-serif",
+                  fontSize: 13,
+                  fontWeight: 620,
+                  color: "#12141b",
+                }}
+              >
+                Uploaded by {priorUploadedByName ?? "Unknown"}
+              </div>
+              <div
+                style={{
+                  marginTop: 2,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 11,
+                  color: "#64687a",
+                }}
+              >
+                {formatDate(priorUploadedAt)}
+              </div>
+            </div>
+            <p
+              style={{
+                fontSize: 13,
+                color: "#4a4f60",
+                lineHeight: 1.5,
+                margin: "0 0 16px",
+              }}
+            >
+              Your new file will supersede this one. The category and visibility stay the same across the whole version chain.
+            </p>
+            {error ? (
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#a93930",
+                  padding: "8px 10px",
+                  background: "#fce5e1",
+                  borderRadius: 6,
+                  marginBottom: 12,
+                }}
+              >
+                {error}
+              </div>
+            ) : null}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 8,
+              }}
+            >
+              <button
+                type="button"
+                className="docws-btn ghost"
+                onClick={() => setConfirmOpen(false)}
+                disabled={pending}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="docws-btn"
+                onClick={() => inputRef.current?.click()}
+                disabled={pending}
+              >
+                {pending ? "Uploading…" : "Choose file"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

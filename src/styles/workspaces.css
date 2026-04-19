@@ -346,7 +346,8 @@
 .docws-fn-cell { display:flex;align-items:center;gap:10px;min-width:0; }
 .docws-fn-ic { width:34px;height:34px;border-radius:var(--r-m);display:grid;place-items:center;flex-shrink:0;font-family:var(--fd);font-size:10px;font-weight:700; }
 .docws-fn-txt { min-width:0; }
-.docws-fn-title { font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-family:var(--fb); }
+.docws-fn-title { font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-family:var(--fb);display:flex;align-items:center;gap:6px; }
+.docws-ver-pill { flex-shrink:0;display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:999px;background:var(--sh);color:var(--t2);font-family:var(--fd);font-size:10px;font-weight:700;letter-spacing:0.02em;text-transform:uppercase; }
 .docws-fn-ext { font-size:11px;color:var(--t3);font-family:var(--fm);margin-top:1px; }
 .docws-vis-pl { display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:650;padding:3px 8px;border-radius:999px;white-space:nowrap;font-family:var(--fd); }
 .docws-lk-pl { display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:620;padding:3px 8px;border-radius:999px;white-space:nowrap;font-family:var(--fd); }

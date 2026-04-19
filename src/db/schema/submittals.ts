@@ -1,4 +1,5 @@
 import {
+  boolean,
   date,
   index,
   integer,
@@ -162,6 +163,14 @@ export const submittalDocuments = pgTable(
     attachedByUserId: uuid("attached_by_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
+    // When true, the linking UI shows the exact document version
+    // present at link time rather than walking forward to the chain
+    // head. Set automatically when a submittal transitions to any
+    // terminal/near-terminal status (returned_approved, returned_as_
+    // noted, revise_resubmit, rejected, closed) — at that point the
+    // reviewer's decision is tied to the specific files they stamped,
+    // so downstream displays must not drift to newer versions.
+    pinVersion: boolean("pin_version").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
