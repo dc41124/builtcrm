@@ -896,10 +896,22 @@ export type DocumentLinkRow = {
   linkRole: string;
 };
 
+export type DocumentCategory =
+  | "drawings"
+  | "specifications"
+  | "submittal"
+  | "contracts"
+  | "photos"
+  | "permits"
+  | "compliance"
+  | "billing_backup"
+  | "other";
+
 export type DocumentRow = {
   id: string;
   projectId: string;
   documentType: string;
+  category: DocumentCategory;
   title: string;
   storageKey: string;
   uploadedByUserId: string;
@@ -909,6 +921,7 @@ export type DocumentRow = {
   documentStatus: "active" | "pending_review" | "superseded" | "archived";
   isSuperseded: boolean;
   supersededByDocumentId: string | null;
+  fileSizeBytes: number | null;
   links: DocumentLinkRow[];
   createdAt: Date;
   updatedAt: Date;
@@ -930,6 +943,7 @@ export async function loadDocumentsForProject(
       id: documents.id,
       projectId: documents.projectId,
       documentType: documents.documentType,
+      category: documents.category,
       title: documents.title,
       storageKey: documents.storageKey,
       uploadedByUserId: documents.uploadedByUserId,
@@ -938,6 +952,7 @@ export async function loadDocumentsForProject(
       audienceScope: documents.audienceScope,
       documentStatus: documents.documentStatus,
       isSuperseded: documents.isSuperseded,
+      fileSizeBytes: documents.fileSizeBytes,
       createdAt: documents.createdAt,
       updatedAt: documents.updatedAt,
     })
@@ -1030,6 +1045,7 @@ export async function loadDocumentsForProject(
     id: r.id,
     projectId: r.projectId,
     documentType: r.documentType,
+    category: r.category as DocumentCategory,
     title: r.title,
     storageKey: r.storageKey,
     uploadedByUserId: r.uploadedByUserId,
@@ -1039,6 +1055,7 @@ export async function loadDocumentsForProject(
     documentStatus: r.documentStatus,
     isSuperseded: r.isSuperseded,
     supersededByDocumentId: supersededByMap.get(r.id) ?? null,
+    fileSizeBytes: r.fileSizeBytes,
     links: linksByDoc.get(r.id) ?? [],
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,

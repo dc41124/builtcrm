@@ -673,9 +673,33 @@ async function seedProjectContent(ctx: ProjectContext) {
     const storageKey = `seed/${project.id}/documents/${i + 1}-${slug}.pdf`;
     const isSuperseded = d.title.includes("superseded");
     const createdAt = d.daysAgo ? new Date(Date.now() - d.daysAgo * day) : undefined;
+    // Derive the first-class category from the seed's documentType. Same
+    // mapping as the backfill + API fallback — kept inline instead of
+    // importing the lib helper so seed stays self-contained.
+    const seedCategory: (
+      | "drawings"
+      | "specifications"
+      | "contracts"
+      | "submittal"
+      | "photos"
+      | "other"
+    ) =
+      d.type === "drawing"
+        ? "drawings"
+        : d.type === "specification"
+          ? "specifications"
+          : d.type === "contract"
+            ? "contracts"
+            : d.type === "submittal"
+              ? "submittal"
+              : d.type === "photo_log"
+                ? "photos"
+                : "other";
+
     const doc = await upsert(documents, eq(documents.storageKey, storageKey), {
       projectId: project.id,
       documentType: d.type,
+      category: seedCategory,
       title: d.title,
       storageKey,
       uploadedByUserId: pmUserId,
@@ -739,6 +763,7 @@ async function seedProjectContent(ctx: ProjectContext) {
       .values({
         projectId: project.id,
         documentType: "photo_log",
+        category: "photos" as const,
         title: p.title,
         storageKey,
         uploadedByUserId: pmUserId,

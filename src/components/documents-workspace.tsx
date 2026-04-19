@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 
 import type { DocumentRow } from "@/domain/loaders/project-home";
 import type { LinkableItem } from "@/domain/loaders/documents";
+import {
+  CATEGORY_UPLOAD_DEFAULTS,
+  RESIDENTIAL_HIDDEN_CATEGORIES,
+  RESIDENTIAL_RAIL,
+  type DocumentCategory,
+} from "@/lib/document-categories";
 import { type PortalType } from "@/lib/portal-colors";
 
 type PortalVariant = PortalType;
@@ -20,40 +26,46 @@ type Props = {
   linkableItems: LinkableItem[];
 };
 
-// Canonical category taxonomy. Maps from category id → a set of documentType
-// values that should land in that bucket. Uploads write one of these ids
-// as documentType, and pre-existing free-text values are mapped in when
-// they match (case-insensitive substring match on a keyword).
+// Rail taxonomy for contractor / subcontractor / commercial portals. Maps
+// one-to-one onto the Postgres document_category enum; the residential
+// portal uses RESIDENTIAL_RAIL (from lib/document-categories) which
+// collapses drawings+specifications and hides back-office buckets.
 type CategoryDef = {
-  id: string;
+  id: DocumentCategory;
   label: string;
   group: "Construction" | "Administration" | null;
-  keywords: string[];
-  icon: "drawing" | "spec" | "doc" | "contract" | "shield" | "permit" | "meeting" | "flag" | "folder";
+  icon:
+    | "drawing"
+    | "spec"
+    | "doc"
+    | "contract"
+    | "shield"
+    | "permit"
+    | "folder"
+    | "receipt";
 };
 
 const CATEGORIES: CategoryDef[] = [
-  { id: "drawings", label: "Drawings / Plans", group: "Construction", keywords: ["drawing", "plan", "dwg"], icon: "drawing" },
-  { id: "specifications", label: "Specifications", group: "Construction", keywords: ["spec"], icon: "spec" },
-  { id: "submittals", label: "Submittals", group: "Construction", keywords: ["submittal", "shop_drawing"], icon: "doc" },
-  { id: "photos", label: "Photos", group: "Construction", keywords: ["photo", "image", "progress_photo"], icon: "folder" },
-  { id: "contracts", label: "Contracts", group: "Administration", keywords: ["contract"], icon: "contract" },
-  { id: "insurance", label: "Insurance / Compliance", group: "Administration", keywords: ["insurance", "coi", "compliance", "w9"], icon: "shield" },
-  { id: "permits", label: "Permits", group: "Administration", keywords: ["permit"], icon: "permit" },
-  { id: "meeting_minutes", label: "Meeting Minutes", group: "Administration", keywords: ["meeting", "minute"], icon: "meeting" },
-  { id: "safety", label: "Safety Plans", group: "Administration", keywords: ["safety"], icon: "shield" },
-  { id: "closeout", label: "Closeout", group: "Administration", keywords: ["closeout", "warranty", "o_and_m"], icon: "flag" },
-  { id: "other", label: "Other", group: null, keywords: [], icon: "folder" },
+  { id: "drawings", label: "Drawings / Plans", group: "Construction", icon: "drawing" },
+  { id: "specifications", label: "Specifications", group: "Construction", icon: "spec" },
+  { id: "submittal", label: "Submittals", group: "Construction", icon: "doc" },
+  { id: "photos", label: "Photos", group: "Construction", icon: "folder" },
+  { id: "contracts", label: "Contracts", group: "Administration", icon: "contract" },
+  { id: "permits", label: "Permits", group: "Administration", icon: "permit" },
+  { id: "compliance", label: "Compliance / Insurance", group: "Administration", icon: "shield" },
+  { id: "billing_backup", label: "Billing Backup", group: "Administration", icon: "receipt" },
+  { id: "other", label: "Other", group: null, icon: "folder" },
 ];
 
-function categoryFor(documentType: string): string {
-  const t = documentType.toLowerCase();
-  for (const c of CATEGORIES) {
-    if (c.id === t) return c.id;
-    if (c.keywords.some((k) => t.includes(k))) return c.id;
-  }
-  return "other";
-}
+// Residential-flavored label for the technical rail entries. The top-level
+// "Plans & Specs" merge is handled in grouped[]/filter(); this map is only
+// used when `portal === "residential"` to soften Administration-side text.
+const RESIDENTIAL_CATEGORY_LABEL: Partial<Record<DocumentCategory, string>> = {
+  contracts: "Contracts",
+  permits: "Permits",
+  photos: "Photos",
+  other: "Other",
+};
 
 // File-extension → coloured icon chip. Matches the prototype's dwg/pdf/doc/xls/img buckets.
 function extBucket(title: string, storageKey: string): "dwg" | "pdf" | "doc" | "xls" | "img" {
@@ -154,10 +166,8 @@ function Icon({ name }: { name: string }) {
       return <svg {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" /></svg>;
     case "permit":
       return <svg {...p}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>;
-    case "meeting":
-      return <svg {...p}><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>;
-    case "flag":
-      return <svg {...p}><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" /></svg>;
+    case "receipt":
+      return <svg {...p}><path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 1 2V2l-1 2-3-2-3 2-3-2-3 2-3-2z" /><path d="M8 8h8" /><path d="M8 12h8" /></svg>;
     case "upload":
       return <svg {...p} strokeWidth={2.4}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>;
     case "download":
@@ -175,10 +185,11 @@ function Icon({ name }: { name: string }) {
   }
 }
 
-const UPLOAD_CATEGORY_OPTIONS = CATEGORIES.filter((c) => c.id !== "other").map((c) => ({
-  value: c.id,
-  label: c.label,
-}));
+const UPLOAD_CATEGORY_OPTIONS: Array<{ value: DocumentCategory; label: string }> =
+  CATEGORIES.filter((c) => c.id !== "other").map((c) => ({
+    value: c.id,
+    label: c.label,
+  }));
 
 const VISIBILITY_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "project_wide", label: "Project-Wide (All Members)" },
@@ -247,20 +258,60 @@ export function DocumentsWorkspace({
     [documents, showSuperseded],
   );
 
-  // Category counts off the post-superseded-filter view so the sidebar
-  // counts match what users are actually scrolling through.
+  const isResidential = portal === "residential";
+
+  // Residential portal hides submittal / compliance / billing_backup rows
+  // entirely — they never appear in the rail counts or the main list.
+  // The loader already scopes by audience; this is an additional guardrail
+  // so a back-office row that somehow passes audience filters still stays
+  // out of the homeowner's UI.
+  const portalVisibleDocs = useMemo(() => {
+    if (!isResidential) return visibleDocs;
+    return visibleDocs.filter(
+      (d) => !RESIDENTIAL_HIDDEN_CATEGORIES.includes(d.category),
+    );
+  }, [visibleDocs, isResidential]);
+
+  // Residential rail bundles drawings + specifications under a single
+  // "plans_and_specs" tab. Contractor / sub / commercial rails map each
+  // rail entry one-to-one to a DocumentCategory. `selCat === "all"` and
+  // direct category ids are kept as-is; the "plans_and_specs" id is
+  // residential-only.
+  const residentialRailIdFor = (cat: DocumentCategory): string | null => {
+    for (const entry of RESIDENTIAL_RAIL) {
+      if (entry.matchesCategories.includes(cat)) return entry.id;
+    }
+    return null;
+  };
+
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const d of visibleDocs) {
-      const cat = categoryFor(d.documentType);
-      counts.set(cat, (counts.get(cat) ?? 0) + 1);
+    for (const d of portalVisibleDocs) {
+      if (isResidential) {
+        const railId = residentialRailIdFor(d.category);
+        if (!railId) continue;
+        counts.set(railId, (counts.get(railId) ?? 0) + 1);
+      } else {
+        counts.set(d.category, (counts.get(d.category) ?? 0) + 1);
+      }
     }
     return counts;
-  }, [visibleDocs]);
+  }, [portalVisibleDocs, isResidential]);
 
   const filtered = useMemo(() => {
-    let list = visibleDocs;
-    if (selCat !== "all") list = list.filter((d) => categoryFor(d.documentType) === selCat);
+    let list = portalVisibleDocs;
+    if (selCat !== "all") {
+      if (isResidential) {
+        const entry = RESIDENTIAL_RAIL.find((r) => r.id === selCat);
+        if (entry) {
+          list = list.filter((d) => entry.matchesCategories.includes(d.category));
+        } else {
+          list = list.filter((d) => d.category === selCat);
+        }
+      } else {
+        list = list.filter((d) => d.category === selCat);
+      }
+    }
     if (query.trim()) {
       const q = query.toLowerCase();
       list = list.filter(
@@ -270,7 +321,7 @@ export function DocumentsWorkspace({
       );
     }
     return list;
-  }, [visibleDocs, selCat, query]);
+  }, [portalVisibleDocs, selCat, query, isResidential]);
 
   const selected = useMemo(
     () => documents.find((d) => d.id === selectedId) ?? null,
@@ -318,17 +369,36 @@ export function DocumentsWorkspace({
     window.open(body.downloadUrl, "_blank", "noopener");
   }
 
+  // Rail structure. Contractor / sub / commercial use the full
+  // Construction/Administration grouping. Residential uses a flat five-entry
+  // rail (Plans & Specs, Contracts, Photos, Permits, Other) with no group
+  // headers — homeowners don't need the taxonomy split.
+  type RailEntry = { id: string; label: string; icon: CategoryDef["icon"] };
   const grouped = useMemo(() => {
-    const order: Array<{ group: string | null; items: CategoryDef[] }> = [];
-    const byGroup = new Map<string | null, CategoryDef[]>();
+    if (isResidential) {
+      const entries: RailEntry[] = RESIDENTIAL_RAIL.map((r) => {
+        // Pick an icon from the first underlying category that has one.
+        const firstCat = r.matchesCategories[0];
+        const def = CATEGORIES.find((c) => c.id === firstCat);
+        return {
+          id: r.id,
+          label:
+            RESIDENTIAL_CATEGORY_LABEL[firstCat] ?? r.label ?? def?.label ?? r.id,
+          icon: def?.icon ?? "folder",
+        };
+      });
+      return [{ group: null as string | null, items: entries }];
+    }
+    const order: Array<{ group: string | null; items: RailEntry[] }> = [];
+    const byGroup = new Map<string | null, RailEntry[]>();
     for (const c of CATEGORIES) {
       const arr = byGroup.get(c.group) ?? [];
-      arr.push(c);
+      arr.push({ id: c.id, label: c.label, icon: c.icon });
       byGroup.set(c.group, arr);
     }
     byGroup.forEach((items, group) => order.push({ group, items }));
     return order;
-  }, []);
+  }, [isResidential]);
 
   return (
     <div className={`docws docws-${portal}`}>
@@ -389,7 +459,7 @@ export function DocumentsWorkspace({
               onClick={() => setSelCat("all")}
             >
               <span className="docws-ci-left"><Icon name="folder" /> <span>All Documents</span></span>
-              <span className="docws-ci-ct">{visibleDocs.length}</span>
+              <span className="docws-ci-ct">{portalVisibleDocs.length}</span>
             </button>
             {grouped.map(({ group, items }) => (
               <div key={group ?? "_"}>
@@ -473,7 +543,8 @@ export function DocumentsWorkspace({
                             <div className="docws-fn-txt">
                               <div className="docws-fn-title">{d.title}</div>
                               <div className="docws-fn-ext">
-                                {d.documentType}
+                                {CATEGORIES.find((c) => c.id === d.category)?.label ??
+                                  d.documentType}
                                 {d.isSuperseded ? " · superseded" : ""}
                               </div>
                             </div>
@@ -949,10 +1020,29 @@ function UploadPanel({
 }) {
   const [file, setFile] = useState<File | null>(presetFile ?? null);
   const [title, setTitle] = useState("");
-  const [documentType, setDocumentType] = useState<string>("drawings");
+  // `category` is the first-class enum value; we also echo it to
+  // `documentType` so the legacy free-text column keeps a useful label.
+  // The server re-derives category from documentType as a fallback, but
+  // we always send both so neither side has to guess.
+  const [category, setCategory] = useState<DocumentCategory>("drawings");
   const [visibilityScope, setVisibilityScope] = useState<string>(
     portal === "contractor" ? "project_wide" : "subcontractor_scoped",
   );
+  // When the category changes, cascade defaults for visibility only if the
+  // user hasn't manually overridden it yet. We track that by remembering
+  // whether the last visibility value matched the previous category's
+  // default — a tiny heuristic, but it's the cleanest way to respect
+  // explicit user intent without introducing a separate "touched" flag.
+  useEffect(() => {
+    const next = CATEGORY_UPLOAD_DEFAULTS[category];
+    setVisibilityScope((prev) => {
+      const prevWasDefault = Object.values(CATEGORY_UPLOAD_DEFAULTS).some(
+        (d) => d.visibilityScope === prev,
+      );
+      // If user picked something that isn't any category default, leave it.
+      return prevWasDefault ? next.visibilityScope : prev;
+    });
+  }, [category]);
   const [linkKey, setLinkKey] = useState<string>("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -966,7 +1056,7 @@ function UploadPanel({
     setPending(true);
     setError(null);
     try {
-      const storageKey = await presignAndPut(projectId, file, documentType);
+      const storageKey = await presignAndPut(projectId, file, category);
       let sourceObject: { type: string; id: string; linkRole: string } | undefined;
       if (linkKey) {
         const [type, id] = linkKey.split(":");
@@ -981,7 +1071,8 @@ function UploadPanel({
           projectId,
           storageKey,
           title: title || file.name,
-          documentType,
+          documentType: category,
+          category,
           visibilityScope,
           audienceScope: AUDIENCE_FOR_VISIBILITY[visibilityScope] ?? "mixed",
           sourceObject,
@@ -1040,11 +1131,11 @@ function UploadPanel({
 
       <div className="docws-frow-h">
         <div className="docws-frow">
-          <label className="docws-flbl">Document Type</label>
+          <label className="docws-flbl">Category</label>
           <select
             className="docws-fsel"
-            value={documentType}
-            onChange={(e) => setDocumentType(e.target.value)}
+            value={category}
+            onChange={(e) => setCategory(e.target.value as DocumentCategory)}
           >
             {UPLOAD_CATEGORY_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>

@@ -8,6 +8,10 @@ import { documentLinks, documents } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError, assertCan } from "@/domain/permissions";
+import {
+  DOCUMENT_CATEGORIES,
+  deriveCategoryFromDocumentType,
+} from "@/lib/document-categories";
 import { getObjectSize, objectExists } from "@/lib/storage";
 
 const VISIBILITY_VALUES = [
@@ -34,6 +38,9 @@ const BodySchema = z.object({
   storageKey: z.string().min(1),
   title: z.string().min(1).max(255),
   documentType: z.string().min(1).max(120).default("general"),
+  // Callers may omit `category` — in that case we derive it from
+  // documentType via the same mapping the backfill migration uses.
+  category: z.enum(DOCUMENT_CATEGORIES).optional(),
   visibilityScope: z.enum(VISIBILITY_VALUES).default("project_wide"),
   audienceScope: z.enum(AUDIENCE_VALUES).default("internal"),
   sourceObject: z
@@ -87,12 +94,17 @@ export async function POST(req: Request) {
       }
     }
 
+    const resolvedCategory =
+      parsed.data.category ??
+      deriveCategoryFromDocumentType(parsed.data.documentType);
+
     const result = await db.transaction(async (tx) => {
       const [doc] = await tx
         .insert(documents)
         .values({
           projectId: ctx.project.id,
           documentType: parsed.data.documentType,
+          category: resolvedCategory,
           title: parsed.data.title,
           storageKey: parsed.data.storageKey,
           uploadedByUserId: ctx.user.id,
@@ -128,6 +140,7 @@ export async function POST(req: Request) {
             nextState: {
               storageKey: doc.storageKey,
               documentType: doc.documentType,
+              category: doc.category,
               title: doc.title,
             },
           },

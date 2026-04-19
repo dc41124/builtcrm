@@ -21,11 +21,19 @@ export const documentStatusEnum = pgEnum("document_status", [
   "archived",
 ]);
 
-// Document category. Added inline with Step 20 so submittal docs can be
-// tagged. Step 21 extends this enum with the full taxonomy — drawings,
-// specifications, contracts, photos, permits, compliance, billing_backup.
+// Document category. Taxonomy locked in Step 21 (4B.4 #21). Order is
+// "misc at the bottom" — `other` is the final value so iterating the enum
+// into a dropdown produces sensible UX. `submittal` stays singular to
+// match the pre-existing Step 20 value.
 export const documentCategoryEnum = pgEnum("document_category", [
+  "drawings",
+  "specifications",
   "submittal",
+  "contracts",
+  "photos",
+  "permits",
+  "compliance",
+  "billing_backup",
   "other",
 ]);
 

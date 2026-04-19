@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 
 import type { DocumentRow } from "@/domain/loaders/project-home";
 import type { LinkableItem } from "@/domain/loaders/documents";
+import {
+  RESIDENTIAL_HIDDEN_CATEGORIES,
+  type DocumentCategory,
+} from "@/lib/document-categories";
 
 type Props = {
   projectId: string;
@@ -14,22 +18,30 @@ type Props = {
   linkableItems: LinkableItem[];
 };
 
-// Category definitions matching prototype sidebar
-const CATEGORIES = [
-  { id: "all", label: "All files" },
-  { id: "contract", label: "Contract & agreement", keywords: ["contract", "agreement", "scope_of_work"] },
-  { id: "drawings", label: "Drawings & plans", keywords: ["drawing", "plan", "elevation", "layout"] },
-  { id: "permits", label: "Permits", keywords: ["permit"] },
-  { id: "selections", label: "Selections", keywords: ["selection", "confirmation"] },
-  { id: "yours", label: "Your uploads", keywords: [] },
+// Simplified homeowner rail (Step 21). Merges drawings + specifications
+// under one "Plans & Specs" entry, hides back-office categories entirely
+// (those are filtered from builderDocs via RESIDENTIAL_HIDDEN_CATEGORIES).
+// "yours" is a user-intent bucket, not a category — it stays.
+type ResidentialCat = {
+  id: string;
+  label: string;
+  matches: DocumentCategory[];
+};
+const RESIDENTIAL_CATS: ResidentialCat[] = [
+  { id: "all", label: "All files", matches: [] },
+  { id: "plans_and_specs", label: "Plans & Specs", matches: ["drawings", "specifications"] },
+  { id: "contracts", label: "Contracts", matches: ["contracts"] },
+  { id: "photos", label: "Photos", matches: ["photos"] },
+  { id: "permits", label: "Permits", matches: ["permits"] },
+  { id: "other", label: "Other", matches: ["other"] },
+  { id: "yours", label: "Your uploads", matches: [] },
 ];
 
 function catFor(doc: DocumentRow, currentUserId: string): string {
   if (doc.uploadedByUserId === currentUserId) return "yours";
-  const t = `${doc.documentType} ${doc.title}`.toLowerCase();
-  for (const c of CATEGORIES) {
+  for (const c of RESIDENTIAL_CATS) {
     if (c.id === "all" || c.id === "yours") continue;
-    if (c.keywords?.some((k) => t.includes(k))) return c.id;
+    if (c.matches.includes(doc.category)) return c.id;
   }
   return "all";
 }
@@ -56,10 +68,17 @@ export function ResidentialDocumentsView({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  // Hidden-category guardrail: the documents loader already filters by
+  // audience, but homeowners should never see submittals / compliance /
+  // billing_backup entries even if a visibility misconfiguration lets them
+  // through. Filter by `d.category` as a second line of defense.
   const builderDocs = useMemo(
     () =>
       documents.filter(
-        (d) => d.uploadedByUserId !== currentUserId && !d.isSuperseded,
+        (d) =>
+          d.uploadedByUserId !== currentUserId &&
+          !d.isSuperseded &&
+          !RESIDENTIAL_HIDDEN_CATEGORIES.includes(d.category),
       ),
     [documents, currentUserId],
   );
@@ -73,8 +92,9 @@ export function ResidentialDocumentsView({
 
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    const active = documents.filter((d) => !d.isSuperseded);
-    counts.set("all", active.length);
+    // "All" count reflects what the homeowner actually sees: builder files
+    // (post-hidden-category filter) + their own uploads.
+    counts.set("all", builderDocs.length + ownerDocs.length);
     counts.set("yours", ownerDocs.length);
     for (const d of builderDocs) {
       const cat = catFor(d, currentUserId);
@@ -83,7 +103,7 @@ export function ResidentialDocumentsView({
       }
     }
     return counts;
-  }, [documents, builderDocs, ownerDocs, currentUserId]);
+  }, [builderDocs, ownerDocs, currentUserId]);
 
   const filteredBuilder = useMemo(() => {
     if (selCat === "all") return builderDocs;
@@ -210,8 +230,11 @@ export function ResidentialDocumentsView({
       <div className="rdoc-lay">
         <div className="rdoc-cats">
           <div className="rdoc-dc-title">Categories</div>
-          {CATEGORIES.map((c) => {
+          {RESIDENTIAL_CATS.map((c) => {
             const count = categoryCounts.get(c.id) ?? 0;
+            // Hide the "Other" bucket when empty — homeowners shouldn't see
+            // an empty misc tab unless there's actually something in it.
+            if (c.id === "other" && count === 0) return null;
             return (
               <button
                 key={c.id}

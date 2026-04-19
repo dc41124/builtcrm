@@ -92,6 +92,10 @@ export async function POST(
         .values({
           projectId: prior.projectId,
           documentType: prior.documentType,
+          // Carry the prior row's category forward — a supersede replaces a
+          // specific document, so the category must stay stable across the
+          // chain. If prior had no category set, default to 'other'.
+          category: prior.category,
           title: parsed.data.title ?? prior.title,
           storageKey: parsed.data.storageKey,
           uploadedByUserId: ctx.user.id,
