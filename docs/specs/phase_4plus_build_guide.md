@@ -2510,7 +2510,7 @@ Phase 4C done. Clickthrough: go to Integrations settings → connect Stripe → 
 
 ---
 
-## Step 37 — Contractor Cross-Project Approvals Page
+## Step 37 — Contractor Cross-Project Approvals Page ✅ DONE (2026-04-19)
 
 **Mode:** Require-design-input
 **Item:** 4D #37
@@ -2558,7 +2558,7 @@ git commit -m "Step 37 (4D #37): Contractor cross-project approvals page"
 
 ---
 
-## Step 38 — Contractor Cross-Project Payment Tracking Page
+## Step 38 — Contractor Cross-Project Payment Tracking Page ✅ DONE (2026-04-19)
 
 **Mode:** Require-design-input
 **Item:** 4D #38
@@ -2601,7 +2601,7 @@ git commit -m "Step 38 (4D #38): Contractor cross-project payment tracking"
 
 ---
 
-## Step 39 — Weekly Reports Table + Generation
+## Step 39 — Weekly Reports Table + Generation 
 
 **Mode:** Require-design-input
 **Item:** 4D #39
