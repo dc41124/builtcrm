@@ -2377,7 +2377,7 @@ git commit -m "Step 33 (4C.2 #33): Payment recording + nightly reconciliation"
 
 ---
 
-## Step 34 — QuickBooks Online Connector (Stubbed)
+## Step 34 — QuickBooks Online Connector (Stubbed) ✅ DONE (2026-04-19)
 
 **Mode:** Require-design-input
 **Item:** 4C.3 #34
@@ -2424,7 +2424,7 @@ git commit -m "Step 34 (4C.3 #34): QuickBooks Online connector stub (sandbox OAu
 
 ---
 
-## Step 35 — Xero Connector (Stubbed)
+## Step 35 — Xero Connector (Stubbed) ✅ DONE (2026-04-19)
 
 **Mode:** Safe-to-autorun (clone of Step 34)
 **Item:** 4C.3 #35
@@ -2461,7 +2461,7 @@ git commit -m "Step 35 (4C.3 #35): Xero connector stub"
 
 ---
 
-## Step 36 — Sage Connector (Stubbed)
+## Step 36 — Sage Connector (Stubbed) ✅ DONE (2026-04-19)
 
 **Mode:** Safe-to-autorun (clone of Step 34)
 **Item:** 4C.3 #36
