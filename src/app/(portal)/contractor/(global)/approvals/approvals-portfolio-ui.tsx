@@ -7,6 +7,14 @@ import { Button } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
 import { KpiCard } from "@/components/kpi-card";
 import { Pill, type PillColor } from "@/components/pill";
+import {
+  ChipGroup,
+  ProjectMultiSelect,
+  SingleChipGroup,
+  clearLinkStyle,
+  filterBarStyle,
+  workspaceCardStyle,
+} from "@/components/portfolio-filters";
 import type {
   ContractorCrossProjectApprovalsView,
   CrossProjectApprovalRow,
@@ -241,7 +249,6 @@ export function CrossProjectApprovalsWorkspace({
             options={CATEGORY_FILTER_OPTIONS}
             isActive={(id) => selectedCategories.has(id)}
             onToggle={toggleCategory}
-            multi
           />
           <SingleChipGroup
             label="Age"
@@ -313,176 +320,6 @@ function ByTypeStrip({
         >
           {c.label} · {byCategory[c.id]}
         </span>
-      ))}
-    </div>
-  );
-}
-
-function ProjectMultiSelect({
-  options,
-  selected,
-  onToggle,
-  isOpen,
-  setOpen,
-  onClearAll,
-}: {
-  options: Array<{ id: string; name: string }>;
-  selected: Set<string>;
-  onToggle: (id: string) => void;
-  isOpen: boolean;
-  setOpen: (open: boolean) => void;
-  onClearAll: () => void;
-}) {
-  const buttonLabel =
-    selected.size === 0
-      ? "All projects"
-      : selected.size === 1
-        ? `1 project`
-        : `${selected.size} projects`;
-
-  return (
-    <div style={{ position: "relative" }}>
-      <button
-        type="button"
-        onClick={() => setOpen(!isOpen)}
-        style={chipButtonStyle(selected.size > 0)}
-        aria-haspopup="listbox"
-        aria-expanded={isOpen}
-      >
-        Project: {buttonLabel}
-        <span style={{ marginLeft: 6, opacity: 0.7 }}>{isOpen ? "▴" : "▾"}</span>
-      </button>
-      {isOpen && (
-        <div style={projectPanelStyle} role="listbox">
-          {options.length === 0 ? (
-            <div
-              style={{
-                padding: 12,
-                fontSize: 12,
-                color: "var(--t3)",
-                fontFamily: "var(--fb)",
-              }}
-            >
-              No projects have pending approvals.
-            </div>
-          ) : (
-            <>
-              {options.map((p) => {
-                const isSelected = selected.has(p.id);
-                return (
-                  <label
-                    key={p.id}
-                    style={projectPanelRowStyle(isSelected)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => onToggle(p.id)}
-                      style={visuallyHiddenCheckboxStyle}
-                    />
-                    <CustomCheckbox checked={isSelected} />
-                    <span style={{ flex: 1, minWidth: 0 }}>{p.name}</span>
-                  </label>
-                );
-              })}
-              {selected.size > 0 && (
-                <button
-                  type="button"
-                  onClick={onClearAll}
-                  style={{
-                    ...clearLinkStyle,
-                    width: "100%",
-                    padding: "8px 12px",
-                    borderTop: "1px solid var(--s3)",
-                    textAlign: "left",
-                  }}
-                >
-                  Clear project filter
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// White box always; accent-colored check appears when selected. Ensures the
-// box is visible on the dark dropdown panel even when nothing is picked.
-function CustomCheckbox({ checked }: { checked: boolean }) {
-  return (
-    <span style={customCheckboxStyle} aria-hidden>
-      {checked && (
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          fill="none"
-          stroke="var(--ac)"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M2 5.2L4.2 7.4 8.2 2.8" />
-        </svg>
-      )}
-    </span>
-  );
-}
-
-function ChipGroup({
-  label,
-  options,
-  isActive,
-  onToggle,
-}: {
-  label: string;
-  options: Array<{ id: string; label: string }>;
-  isActive: (id: string) => boolean;
-  onToggle: (id: string) => void;
-  multi?: boolean;
-}) {
-  return (
-    <div style={chipGroupStyle}>
-      <span style={chipGroupLabelStyle}>{label}</span>
-      {options.map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          onClick={() => onToggle(o.id)}
-          style={chipButtonStyle(isActive(o.id))}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function SingleChipGroup<T extends string>({
-  label,
-  options,
-  activeId,
-  onSelect,
-}: {
-  label: string;
-  options: Array<{ id: T; label: string }>;
-  activeId: T;
-  onSelect: (id: T) => void;
-}) {
-  return (
-    <div style={chipGroupStyle}>
-      <span style={chipGroupLabelStyle}>{label}</span>
-      {options.map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          onClick={() => onSelect(o.id)}
-          style={chipButtonStyle(o.id === activeId)}
-        >
-          {o.label}
-        </button>
       ))}
     </div>
   );
@@ -567,121 +404,10 @@ function ApprovalsTable({ rows }: { rows: CrossProjectApprovalRow[] }) {
 }
 
 // --------------------------------------------------------------------------
-// Inline styles — portfolio-specific layout. Shared visual language comes
-// from the workspaces.css apw-* classes and the shared components.
+// Page-specific styles — the filter/panel primitives live in
+// src/components/portfolio-filters.tsx. Everything below is table + by-type
+// chip strip for this surface only.
 // --------------------------------------------------------------------------
-
-const workspaceCardStyle: CSSProperties = {
-  background: "var(--s1)",
-  border: "1px solid var(--s3)",
-  borderRadius: "var(--r-xl)",
-  boxShadow: "var(--shsm)",
-  overflow: "hidden",
-};
-
-const filterBarStyle: CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  alignItems: "center",
-  gap: 16,
-  padding: "14px 20px",
-  borderBottom: "1px solid var(--s3)",
-  fontFamily: "var(--fb)",
-};
-
-const chipGroupStyle: CSSProperties = {
-  display: "flex",
-  gap: 6,
-  alignItems: "center",
-  flexWrap: "wrap",
-};
-
-const chipGroupLabelStyle: CSSProperties = {
-  fontFamily: "var(--fb)",
-  fontSize: 11,
-  fontWeight: 620,
-  color: "var(--t3)",
-  textTransform: "uppercase",
-  letterSpacing: "0.04em",
-  marginRight: 2,
-};
-
-function chipButtonStyle(active: boolean): CSSProperties {
-  return {
-    height: 28,
-    padding: "0 12px",
-    borderRadius: 999,
-    border: `1px solid ${active ? "color-mix(in srgb,var(--ac) 35%,var(--s3))" : "var(--s3)"}`,
-    background: active ? "var(--ac-s)" : "var(--s1)",
-    color: active ? "var(--ac-t)" : "var(--t2)",
-    fontFamily: "var(--fb)",
-    fontSize: 12,
-    fontWeight: 620,
-    cursor: "pointer",
-    transition: "all var(--df) var(--e)",
-    display: "inline-flex",
-    alignItems: "center",
-  };
-}
-
-const clearLinkStyle: CSSProperties = {
-  background: "transparent",
-  border: "none",
-  color: "var(--ac-t)",
-  fontFamily: "var(--fb)",
-  fontSize: 12,
-  fontWeight: 620,
-  cursor: "pointer",
-  padding: "4px 8px",
-};
-
-const visuallyHiddenCheckboxStyle: CSSProperties = {
-  position: "absolute",
-  opacity: 0,
-  pointerEvents: "none",
-  width: 0,
-  height: 0,
-};
-
-const customCheckboxStyle: CSSProperties = {
-  display: "inline-grid",
-  placeItems: "center",
-  width: 14,
-  height: 14,
-  borderRadius: 3,
-  border: "1px solid rgba(0,0,0,0.12)",
-  background: "white",
-  marginRight: 8,
-  flexShrink: 0,
-};
-
-const projectPanelStyle: CSSProperties = {
-  position: "absolute",
-  top: "calc(100% + 6px)",
-  left: 0,
-  minWidth: 240,
-  maxHeight: 320,
-  overflowY: "auto",
-  background: "var(--s1)",
-  border: "1px solid var(--s3)",
-  borderRadius: "var(--r-md)",
-  boxShadow: "var(--shmd)",
-  zIndex: 10,
-};
-
-function projectPanelRowStyle(selected: boolean): CSSProperties {
-  return {
-    display: "flex",
-    alignItems: "center",
-    padding: "8px 12px",
-    fontFamily: "var(--fb)",
-    fontSize: 12.5,
-    fontWeight: 540,
-    color: "var(--t1)",
-    cursor: "pointer",
-    background: selected ? "var(--ac-s)" : "transparent",
-  };
-}
 
 const byTypeStripStyle: CSSProperties = {
   display: "flex",
