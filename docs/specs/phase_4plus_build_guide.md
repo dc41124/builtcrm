@@ -1416,12 +1416,22 @@ git commit -m "Step 20 (4B.3 #20): Submittals module"
 
 ---
 
-## Step 21 — Document Categories
+## Step 21 — Document Categories ✅ DONE (2026-04-18)
 
 **Mode:** Safe-to-autorun
 **Item:** 4B.4 #21
 **Effort:** S–M
 **Priority:** P1
+
+### Completion notes
+- Enum extended in place (not replaced). Step 20 had shipped `document_category` with `['submittal', 'other']` and a `category` column already on `documents`; Step 21 added the remaining 7 values and kept `submittal` singular.
+- Migration split across two files: `0014_document_categories.sql` (ALTER TYPE ADD VALUE × 7, IF NOT EXISTS guards) and `0015_document_categories_backfill.sql` (UPDATE CASE). Split is mandatory — Postgres forbids using a freshly-added enum value in the same transaction, and Drizzle wraps each migration file in one transaction.
+- Backfill went further than the guide's "default existing rows to `other`" — mapped `photo_log`, `daily_log_photo`, `punch_item_photo` → `photos`; `lien_waiver` → `billing_backup`; `compliance`, `insurance` → `compliance`; plus the UI-typed plurals (`drawings`, `submittals`, etc.). Empty Photos bucket on day one would have been bad UX; the obvious mappings are covered.
+- Enum order is "misc at the bottom" (drawings, specifications, submittal, contracts, photos, permits, compliance, billing_backup, other) so iterating enum values into a dropdown produces the right UX.
+- Residential portal rail collapsed to 5 entries: Plans & Specs (drawings + specifications flat-listed), Contracts, Photos, Permits, Other. Back-office categories (`submittal`, `compliance`, `billing_backup`) hidden entirely via `RESIDENTIAL_HIDDEN_CATEGORIES` — enforced as a second-line guard in the residential documents view in addition to the loader's audience filter.
+- Category-based visibility defaults cascade only at upload-modal pre-fill time. The loader reads stored `visibilityScope`/`audienceScope` directly; category is never consulted for access decisions. Explicit user selections in the upload form win over cascaded defaults.
+- Shared helper at `src/lib/document-categories.ts` is the single source of truth — keeps the enum list, labels, derivation fallback, residential rail, hidden categories, and upload defaults in one place for both server and client.
+- Supersede route carries `prior.category` forward so version chains keep a stable category.
 
 ### What this does
 
