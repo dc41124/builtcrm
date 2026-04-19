@@ -2999,6 +2999,58 @@ git commit -m "Step 49 (5.3 #49): Subcontractor prequalification"
 
 ---
 
+## Step 49.5 — Schedule Module Split (milestone.kind enum)
+
+**Mode:** Require-design-input
+**Effort:** M
+**Priority:** P2
+**Depends on:** Step 23 (Gantt view — ships the dual-semantics `milestones` table this step formalises)
+
+### What this does
+
+Step 23 extended the `milestones` table to carry two conceptually different rows — point-in-time markers (`start_date IS NULL`) and duration tasks (`start_date IS NOT NULL`). The advisor flagged this dual-semantics: fine for "basic Gantt" scope, but will confuse future readers of the schema and blocks clean filtering as the scheduling module grows deeper.
+
+This step makes the distinction explicit by adding a `milestone_kind` enum column (`'marker' | 'task'`) derived from whether `start_date` is set at insert/update time. Unblocks:
+
+- **Semantic filtering** in queries and list views ("show me only tasks" / "only inspections and approvals")
+- **Cleaner CPM terminology** — markers = zero-duration nodes, tasks = edges with durations. Matches how downstream scheduling features (baseline comparison, resource leveling, lookahead planning) will need to branch.
+- **Schema readability** — new developers don't need to read a comment to understand the table carries two shapes.
+
+### Tell Claude Code:
+
+> Propose schema change:
+>
+> 1. Add `milestone_kind` enum (`marker`, `task`) to the `milestones` table with a CHECK constraint tying it to `start_date` (kind='task' requires start_date NOT NULL; kind='marker' requires start_date IS NULL). Backfill existing rows based on current `start_date` value.
+> 2. Update Drizzle schema to expose the new column + update the `MilestoneRow` loader type.
+> 3. Schema change — stop and ask before migrating.
+>
+> After confirmation:
+>
+> 1. Migration: add enum + column (NOT NULL after backfill) + CHECK constraint + backfill SQL.
+> 2. Update milestone PATCH action to maintain the invariant — setting `startDate` to null must also flip `kind` to `'marker'`, and vice versa. Either pass both atomically or derive `kind` from `startDate` in the update handler.
+> 3. Update the schedule loader to select + return `kind`.
+> 4. Update the Gantt adapter and timeline UI to branch on `kind` explicitly rather than the nullability of `startDate`. Behavior doesn't change visually; the code reads cleaner.
+> 5. Add filter chips in the Timeline tab: "All / Markers / Tasks." Low effort once the column exists.
+> 6. Remove the inline dual-semantics doc comment on the milestones table — the column and CHECK constraint now carry that meaning.
+
+### What to check
+
+- Existing markers + duration tasks render identically in both Timeline and Gantt views after the migration
+- Filter chips correctly scope the timeline
+- PATCH that clears `startDate` automatically flips `kind` to `marker`
+- PATCH that sets `startDate` automatically flips `kind` to `task`
+- CHECK constraint rejects any direct SQL that violates the invariant
+- `npm run build && npm run lint` clean
+
+### Commit:
+
+```bash
+git add .
+git commit -m "Step 49.5 (5.3.5): Schedule module kind enum split"
+```
+
+---
+
 ## Phase 5 Wrap
 
 ```bash
