@@ -111,17 +111,27 @@ Expanded from minimal test data to audit-ready density across all 4 projects:
 ### Real-time features (deferred — WebSocket/SSE)
 - Typing indicator, online/offline presence dots in messages
 
-### Migration workflow reconciliation (deferred — repo-wide hygiene)
-`src/db/migrations/` contains 17 SQL files (0001–0017), **none of which have ever been applied** (`drizzle.__drizzle_migrations` journal is empty). Live DB was built via `npm run db:push`. An orphan `payment_status` enum exists in the DB that isn't in `src/db/schema/integrations.ts` (so `db:push` isn't reconciling drift — it's additive-only, never drops). Surfaced during Step 25 (OAuth scaffolding) when checking whether a new `0018_*.sql` was needed; answer was no, because the four integration tables already exist via push. Decide before any production deploy touches this DB:
+### Phase 4C integrations — deferred items (all surfaced during Steps 25–26)
 
+**Schema / migration reconciliation (must be resolved before any prod deploy touches this DB).** `src/db/migrations/` contains 17 SQL files (0001–0017), **none of which have ever been applied** (`drizzle.__drizzle_migrations` journal is empty). Live DB was built via `npm run db:push`. An orphan `payment_status` enum exists in the DB that isn't in `src/db/schema/integrations.ts` — `db:push` is additive-only and never drops. Surfaced during Step 25 when checking whether a new `0018_*.sql` was needed; answer was no, because the integration tables already exist via push.
 - **Option (i):** `drizzle-kit introspect` current DB → squash to a single baseline migration → delete `0001`–`0017` → commit to `db:migrate` workflow going forward. Cleanest for production.
 - **Option (ii):** Delete `src/db/migrations/` entirely, update `drizzle.config.ts` to remove `out:` → commit to `db:push` as the intentional workflow. Simplest for current solo-dev cadence but blocks any future prod migration audit.
 
-Either path also needs to drop the orphan `payment_status` enum (or add it back to schema if anything depends on it — grep says no).
+Either path also needs to drop the orphan `payment_status` enum (grep confirms nothing depends on it).
 
-**Schema changes parked behind this reconciliation (Step 26 additions):**
-- `webhook_events.organization_id` should be **nullable** so the inbound webhook handler can log "received but unmatched" rows for forensics. Currently the column is NOT NULL, so unmatched payloads return 202 with an audit event only — the row-level diagnostic trail is lost. Common operational causes for unmatched: disconnected-but-provider-unaware, stored `external_account_id` mismatch from an OAuth bug, race at connection-creation time.
-- Add `UNIQUE (source_provider, event_id) WHERE webhook_direction = 'inbound'` partial unique index on `webhook_events` so the inbound-event dedup path can use `INSERT … ON CONFLICT DO NOTHING` atomically. Today Step 26's handler does `SELECT`-then-`INSERT` with a narrow, operationally-zero race window; the partial unique index collapses that into a single atomic statement and removes the race.
+**Schema changes parked behind the reconciliation above:**
+- **`webhook_events.organization_id` → nullable.** Today the column is NOT NULL so Step 26's handler can't log unmatched inbound payloads — it returns 202 with an audit event only and the row-level diagnostic trail is lost. Common operational causes for unmatched deliveries: disconnected-but-provider-unaware, stored `external_account_id` mismatch from an OAuth bug, race at connection-creation time. Closing this blind spot requires the column to be nullable.
+- **`UNIQUE (source_provider, event_id) WHERE webhook_direction = 'inbound'` partial index on `webhook_events`.** Today Step 26's handler dedupes via `SELECT`-then-`INSERT` with a narrow, operationally-zero race window. The partial unique index collapses that into a single atomic `INSERT … ON CONFLICT DO NOTHING` and eliminates the race.
+
+**Provider scope-specific logic not yet wired (Steps 30–33).** Step 25 shipped OAuth scaffolding + provider configs; Step 26 shipped the webhook receiver + processor. Neither ships real entity-sync logic. Dispatcher stubs in `src/jobs/integration-webhook-processor.ts` just log + ack — real handlers (invoice push, payment reconciliation, Connect transfer tracking) replace those stub bodies in the accounting-connector steps.
+
+**Google Calendar inbound webhooks (`TODO(google-calendar-inbound)`).** The `/api/webhooks/[provider]` handler 501s for `google_calendar` and `verifyGoogleCalendar` returns `provider_not_implemented`. Google Calendar doesn't use HMAC — it uses a channel-token scheme where the watch/subscription creator supplies a per-channel secret that Google echoes on every notification in `X-Goog-Channel-Token`. Forcing that into the HMAC adapter would leak the abstraction; a distinct verifier ships with the Calendar connector. Search both files for `TODO(google-calendar-inbound)` to find the anchors.
+
+**Email provider decision (Postmark vs SendGrid).** Both are in `PROVIDER_CATALOG` with `phase1: true` but neither is wired — `sendResetPassword` currently logs to console. Not blocking until Step 28 (connection UI) wants "your QB token expired, reauth required" emails or any other user-visible transactional mail. In-app notification bell (shipped Step 15) covers the reauth-required case without email, so the decision can defer cleanly. Pick when a feature actually needs SMTP.
+
+**`webhook_direction='outbound'` enum value reserved, not used.** Schema ships the `outbound` value on `webhook_direction_enum`; Step 26 implements inbound only. Reserved for the Phase 8-lite outbound webhook catalog (org-configured endpoints that receive our events). Flagged here so a reviewer grepping the enum doesn't assume it's dead code.
+
+**Stripe exempt from the generic webhook pattern.** `/api/webhooks/stripe` keeps its dedicated static route with inline processing via `stripe.webhooks.constructEvent()`. It handles subscription billing, Connect onboarding, and draw payment charges — 654 lines of live code. The generic `/api/webhooks/[provider]` route excludes Stripe by Next.js static-route precedence. Don't refactor without a concrete reason; pattern symmetry isn't one.
 
 ---
 

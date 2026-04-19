@@ -1799,7 +1799,27 @@ All pass. Phase 4B is done. Optional clickthrough: log in as contractor, ring th
 
 ---
 
-## Step 25 — OAuth 2.0 Generic Connection Flow
+## Step 25 — OAuth 2.0 Generic Connection Flow ✅ DONE (2026-04-19)
+
+**Completion notes**
+- **Zero new deps.** AES-256-GCM and HMAC-SHA256 via Node's built-in `crypto`. No `jose` / `jsonwebtoken`.
+- **PROVIDER_CATALOG extended with `flow` discriminator** (`"oauth2_code" | "stripe_connect" | "none"`) instead of creating a parallel registry. Single source of truth stays in `src/domain/loaders/integrations.ts`.
+- **State parameter is HMAC-signed JSON** (`base64url(payload).base64url(hmac)`), not JWT. 5-minute TTL via `iat`. Constant-time signature compare. Replay-prevention nonce deferred — narrow surface given freshness window + single-use callback URLs.
+- **Tokens encrypted at rest via AES-256-GCM.** Ciphertext stored as `base64(iv || authTag || ciphertext)` in the existing `access_token_enc` / `refresh_token_enc` text columns — no separate `connection_tokens` table (schema consolidated them onto `integration_connections`).
+- **Disconnect uses the tombstone pattern** (revoke provider-side → status=`disconnected` → null tokens → stamp `disconnected_at`). Preserves `sync_events` FKs and audit history.
+- **Stripe stays separate:** registered in PROVIDER_CATALOG with `flow: 'stripe_connect'`. `/api/oauth/stripe/start` redirects to the existing Stripe Connect onboarding route. Generic handler early-returns for any non-`oauth2_code` flow.
+- **Trigger.dev refresh job** at `*/30 * * * *` finds connections with `token_expires_at < now + 5min` and refreshes. Xero's 30-min access tokens are the tightest case; cron can tighten to `*/15` if we see misses in prod.
+- **No `0018` migration written.** Verified live DB state: the four integration tables already exist (via `db:push`); `drizzle.__drizzle_migrations` journal is empty; the SQL migrations folder is vestigial. Writing 0018 would either be theatre (never applied) or fail (tables already exist). Logged as deferred repo-wide cleanup in `HANDOFF.md` with options for resolution, plus the orphan `payment_status` enum the survey surfaced.
+
+**What shipped (files)**
+- `src/lib/integrations/crypto.ts` — AES-256-GCM token encryption
+- `src/lib/integrations/state.ts` — HMAC-signed state parameter
+- `src/lib/integrations/oauth.ts` — `startOAuth`, `handleCallback`, `refreshToken`, `revokeConnection`, `OAuthError`
+- `src/lib/integrations/providers/{types,quickbooks,xero,sage,google,stripe,index}.ts` — OAuth configs + registry. Stripe file is a pointer to the existing Connect route.
+- `src/app/api/oauth/[provider]/{start,callback}/route.ts` — browser-direct entrypoints, redirect back to `/contractor/settings/integrations?provider=…&oauth=connected|failed`
+- `src/jobs/integration-token-refresh.ts` — Trigger.dev 30-min schedule
+- `.env.example` — `INTEGRATION_ENCRYPTION_KEY`, `INTEGRATION_STATE_SECRET`, four client-id/secret pairs with generation recipes
+- `src/domain/loaders/integrations.ts` — added `IntegrationFlow` type + `flow` field on `ProviderCatalogEntry`
 
 **Mode:** Require-design-input
 **Item:** 4C.1 #25
@@ -1858,7 +1878,26 @@ git commit -m "Step 25 (4C.1 #25): OAuth 2.0 generic connection flow + provider 
 
 ---
 
-## Step 26 — Webhook Receiver with HMAC Verification + Retry Queue
+## Step 26 — Webhook Receiver with HMAC Verification + Retry Queue ✅ DONE (2026-04-19)
+
+**Completion notes**
+- **Inbound only.** `webhook_direction='outbound'` enum value stays reserved for the Phase 8-lite outbound webhook catalog — unused here is not dead code.
+- **Stripe exempt.** `/api/webhooks/stripe` keeps its dedicated static route with inline processing via `stripe.webhooks.constructEvent()`. The generic `/api/webhooks/[provider]` route handles QuickBooks / Xero / Sage only. Next.js static-route precedence means Stripe traffic never reaches the generic handler. No refactor of live billing code.
+- **Body read order is load-bearing:** `req.text()` → HMAC verify against raw bytes → `JSON.parse(rawBody)`. Next.js App Router allows exactly one body read; any reversal silently breaks signature verification.
+- **Google Calendar is 501'd** with a `TODO(google-calendar-inbound)` anchor in both the route handler and `verifyGoogleCalendar`. Google uses a channel-token scheme, not HMAC; distinct verifier ships with the Calendar connector.
+- **1-minute cron**, not 30-second. Sub-minute latency is the wrong tool for this — if volume ever demands faster turnaround, migrate to Trigger.dev event-triggered tasks, don't speed up the poll.
+- **Atomic claim** via `UPDATE … WHERE id IN (SELECT id FROM webhook_events … FOR UPDATE SKIP LOCKED)`. Sibling processor runs never see the same row.
+- **Exponential backoff** `2^attempt × 10s` with ±20% jitter. Dead-letter at `max_retries` (schema default 6) → `delivery_status='exhausted'` + `webhook.failed` audit. Step 28's connection UI will surface exhausted events for manual re-drive.
+- **Dedup today via `SELECT`-then-`INSERT`** — narrow ms-scale race window, operationally zero at single-digit-webhooks/day volume. The proper atomic path requires a partial unique index on `(source_provider, event_id) WHERE webhook_direction = 'inbound'` which is parked in the deferred list alongside the migration-workflow reconciliation from Step 25.
+- **Unmatched payloads return 202 + audit-only.** `webhook_events.organization_id` is NOT NULL in the current schema, so inbound deliveries that can't be resolved to a known `integration_connection` can't be stored as rows. The row-level diagnostic trail is lost until the deferred nullable-column migration lands. Both items tracked in `HANDOFF.md`.
+- **All four audit events emitted:** `webhook.received`, `webhook.processed`, `webhook.failed` (both signature-failure and exhausted-retry cases), `webhook.duplicate`.
+
+**What shipped (files)**
+- `src/lib/integrations/webhook-verify.ts` — per-provider HMAC adapters (QB, Xero, Sage base64 HMAC-SHA256) + payload extractors for org resolution (QB realmId, Xero tenantId, Sage stub) + Google placeholder returning `provider_not_implemented`
+- `src/app/api/webhooks/[provider]/route.ts` — verify → extract → dedup → insert → audit, fast 200 ack
+- `src/jobs/integration-webhook-processor.ts` — 1-min Trigger.dev schedule, atomic claim, dispatcher stubs for QB / Xero / Sage (real entity-sync ships with Steps 30–33)
+- `.env.example` — `QUICKBOOKS_WEBHOOK_VERIFIER_TOKEN`, `XERO_WEBHOOK_KEY`, `SAGE_WEBHOOK_SECRET` placeholders
+- Existing `src/app/api/webhooks/stripe/route.ts` untouched (654 lines of live billing code)
 
 **Mode:** Require-design-input
 **Item:** 4C.1 #26
