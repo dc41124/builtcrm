@@ -43,6 +43,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
           defaultOpen: true,
           items: mark([
             { label: "Project Home", href: `${base}` },
+            { label: "Weekly Reports", href: `${base}/weekly-reports` },
             { label: "Schedule", href: `${base}/schedule` },
             { label: "Daily Logs", href: `${base}/daily-logs` },
             { label: "Punch List", href: `${base}/punch-list` },
