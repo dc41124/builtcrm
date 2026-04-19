@@ -900,8 +900,14 @@ function DetailPanel({
 }) {
   const row = detail ?? listRow;
   const isContractor = role === "contractor";
+  const packageDocCount =
+    detail?.documents.filter((d) => d.role === "package").length ?? 0;
   const canSubmitDraft =
     row.status === "draft" && (role === "subcontractor" || isContractor);
+  // Draft can't submit without at least one package document. Server
+  // enforces the same rule; the disabled state here just avoids a round
+  // trip + preserves flow for the sub.
+  const submitDraftBlocked = canSubmitDraft && packageDocCount === 0;
   const canRevise =
     row.status === "revise_resubmit" &&
     (role === "subcontractor" || isContractor);
@@ -1024,7 +1030,16 @@ function DetailPanel({
         }}
       >
         {canSubmitDraft ? (
-          <PrimaryBtn onClick={onSubmitDraft} accent={accent}>
+          <PrimaryBtn
+            onClick={onSubmitDraft}
+            accent={accent}
+            disabled={submitDraftBlocked}
+            tooltip={
+              submitDraftBlocked
+                ? "Attach at least one package document first"
+                : undefined
+            }
+          >
             {I.send} Submit
           </PrimaryBtn>
         ) : null}
@@ -1280,6 +1295,17 @@ function DocumentsGroup({
           }}
         >
           {DOC_ROLE_LABEL[role]}
+          {filtered.length > 0 ? (
+            <span
+              style={{
+                marginLeft: 6,
+                fontWeight: 520,
+                color: "#8a8f9e",
+              }}
+            >
+              ({filtered.length})
+            </span>
+          ) : null}
         </span>
         {canAttach ? (
           <button
@@ -1307,60 +1333,132 @@ function DocumentsGroup({
       {filtered.length === 0 ? (
         <div style={{ fontSize: 12, color: "#8a8f9e" }}>—</div>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
+            gap: 8,
+          }}
+        >
           {filtered.map((d) => (
-            <li key={d.id} style={{ padding: "4px 0" }}>
-              <a
-                href={d.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "inline-flex",
-                  gap: 6,
-                  alignItems: "center",
-                  fontSize: 12,
-                  color: "#2b2f3d",
-                  textDecoration: "none",
-                  fontWeight: 520,
-                }}
-              >
-                {I.file} {d.title}
-              </a>
-            </li>
+            <DocumentThumbnail key={d.id} title={d.title} url={d.url} />
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );
+}
+
+function DocumentThumbnail({ title, url }: { title: string; url: string }) {
+  const isImg = isImageFileName(title);
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        display: "block",
+        border: "1px solid #e6e9ef",
+        borderRadius: 8,
+        overflow: "hidden",
+        textDecoration: "none",
+        background: "#fff",
+      }}
+    >
+      <div
+        style={{
+          aspectRatio: "4 / 3",
+          background: "#f4f6fa",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+        }}
+      >
+        {isImg ? (
+          // Presigned URL; <img> is enough. Next.js <Image> would need
+          // loader config for R2 presigned hosts.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={url}
+            alt={title}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              fontSize: 11,
+              fontWeight: 700,
+              color: "#64687a",
+              letterSpacing: "0.04em",
+            }}
+          >
+            {extensionOf(title)}
+          </div>
+        )}
+      </div>
+      <div
+        style={{
+          padding: "6px 8px",
+          fontFamily: "'Instrument Sans', system-ui, sans-serif",
+          fontSize: 11,
+          color: "#2b2f3d",
+          fontWeight: 520,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {title}
+      </div>
+    </a>
+  );
+}
+
+function extensionOf(name: string): string {
+  const m = name.match(/\.([a-z0-9]+)$/i);
+  return m ? m[1].toUpperCase() : "FILE";
 }
 
 function PrimaryBtn({
   onClick,
   accent,
   children,
+  disabled = false,
+  tooltip,
 }: {
   onClick: () => void | Promise<void>;
   accent: string;
   children: React.ReactNode;
+  disabled?: boolean;
+  tooltip?: string;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      title={tooltip}
       style={{
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
         height: 34,
         padding: "0 14px",
-        background: accent,
+        background: disabled ? "#c3c8d4" : accent,
         color: "#fff",
         border: "none",
         borderRadius: 8,
         fontFamily: "'DM Sans', system-ui, sans-serif",
         fontWeight: 650,
         fontSize: 13,
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.7 : 1,
       }}
     >
       {children}
@@ -1539,6 +1637,8 @@ function NewSubmittalModal({
   const [submittedByOrgId, setSubmittedByOrgId] = useState(
     subOrgs[0]?.id ?? "",
   );
+  // Shop-drawing submittals can run 10+ PDFs. Default to multi-file.
+  const [packageFiles, setPackageFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -1577,6 +1677,37 @@ function NewSubmittalModal({
         return;
       }
       const json = (await res.json()) as { id: string };
+
+      // Upload + attach package docs in parallel. Each upload is its
+      // own presign + PUT + finalize + attach chain; failures are
+      // surfaced but don't unwind the created draft (the sub can retry
+      // the attach step from the detail panel).
+      if (packageFiles.length > 0) {
+        const results = await Promise.all(
+          packageFiles.map(async (f) => {
+            const docId = await uploadToProject({ projectId, file: f });
+            if (!docId) return false;
+            const attach = await fetch(`/api/submittal-documents`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                submittalId: json.id,
+                documentId: docId,
+                role: "package",
+              }),
+            });
+            return attach.ok;
+          }),
+        );
+        const failed = results.filter((r) => !r).length;
+        if (failed > 0) {
+          setErr(
+            `${failed}/${packageFiles.length} files failed to upload. Open the draft to retry.`,
+          );
+          // Continue — draft still exists, user can see it + retry.
+        }
+      }
+
       onCreated(json.id);
     } catch {
       setErr("Network error");
@@ -1640,6 +1771,16 @@ function NewSubmittalModal({
           style={inputStyle}
         />
       </Field>
+      <Field label="Package documents">
+        <FileDropzone
+          files={packageFiles}
+          onChange={setPackageFiles}
+          multiple
+          accent={accent}
+          accept="application/pdf,image/*"
+          hint="PDFs + images · at least one required before you can submit"
+        />
+      </Field>
       {err ? (
         <div
           style={{
@@ -1683,7 +1824,7 @@ function ForwardReviewerModal({
   const [org, setOrg] = useState(defaultReviewer.org);
   const [email, setEmail] = useState(defaultReviewer.email);
   const [notes, setNotes] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [coverFiles, setCoverFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -1707,8 +1848,9 @@ function ForwardReviewerModal({
       });
       // 2. Upload cover doc if supplied.
       let documentId: string | null = null;
-      if (file) {
-        documentId = await uploadToProject({ projectId, file });
+      const cover = coverFiles[0];
+      if (cover) {
+        documentId = await uploadToProject({ projectId, file: cover });
       }
       // 3. Log outgoing transmittal.
       await fetch(`/api/submittals/${submittalId}/transmittals`, {
@@ -1774,10 +1916,11 @@ function ForwardReviewerModal({
         />
       </Field>
       <Field label="Cover sheet document (optional)">
-        <input
-          type="file"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          style={{ fontSize: 12 }}
+        <FileDropzone
+          files={coverFiles}
+          onChange={setCoverFiles}
+          accent={accent}
+          accept="application/pdf,image/*"
         />
       </Field>
       {err ? (
@@ -1821,8 +1964,8 @@ function LogResponseModal({
     useState<SubmittalStatus>("returned_approved");
   const [rejectionReason, setRejectionReason] = useState("");
   const [notes, setNotes] = useState("");
-  const [stampFile, setStampFile] = useState<File | null>(null);
-  const [commentsFile, setCommentsFile] = useState<File | null>(null);
+  const [stampFiles, setStampFiles] = useState<File[]>([]);
+  const [commentsFiles, setCommentsFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -1835,6 +1978,7 @@ function LogResponseModal({
     setErr(null);
     try {
       let stampDocId: string | null = null;
+      const stampFile = stampFiles[0];
       if (stampFile) {
         stampDocId = await uploadToProject({ projectId, file: stampFile });
         if (stampDocId) {
@@ -1849,6 +1993,7 @@ function LogResponseModal({
           });
         }
       }
+      const commentsFile = commentsFiles[0];
       if (commentsFile) {
         const commentsDocId = await uploadToProject({
           projectId,
@@ -1936,17 +2081,19 @@ function LogResponseModal({
         />
       </Field>
       <Field label="Stamp page (optional)">
-        <input
-          type="file"
-          onChange={(e) => setStampFile(e.target.files?.[0] ?? null)}
-          style={{ fontSize: 12 }}
+        <FileDropzone
+          files={stampFiles}
+          onChange={setStampFiles}
+          accent={accent}
+          accept="application/pdf,image/*"
         />
       </Field>
       <Field label="Reviewer comments doc (optional)">
-        <input
-          type="file"
-          onChange={(e) => setCommentsFile(e.target.files?.[0] ?? null)}
-          style={{ fontSize: 12 }}
+        <FileDropzone
+          files={commentsFiles}
+          onChange={setCommentsFiles}
+          accent={accent}
+          accept="application/pdf,image/*"
         />
       </Field>
       {err ? (
@@ -2058,25 +2205,37 @@ function AttachDocumentModal({
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [file, setFile] = useState<File | null>(null);
+  // Package allows multi; stamp/comments are single-file by nature.
+  const multiple = role === "package";
+  const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const submit = async () => {
-    if (!file) {
-      setErr("Pick a file first");
+    if (files.length === 0) {
+      setErr("Pick at least one file");
       return;
     }
     setBusy(true);
     setErr(null);
     try {
-      const documentId = await uploadToProject({ projectId, file });
-      if (!documentId) throw new Error("upload failed");
-      const res = await fetch(`/api/submittal-documents`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ submittalId, documentId, role }),
-      });
-      if (!res.ok) throw new Error("attach failed");
+      const results = await Promise.all(
+        files.map(async (f) => {
+          const docId = await uploadToProject({ projectId, file: f });
+          if (!docId) return false;
+          const res = await fetch(`/api/submittal-documents`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ submittalId, documentId: docId, role }),
+          });
+          return res.ok;
+        }),
+      );
+      const failed = results.filter((r) => !r).length;
+      if (failed > 0) {
+        setErr(`${failed}/${files.length} files failed`);
+        setBusy(false);
+        return;
+      }
       onDone();
     } catch {
       setErr("Upload failed");
@@ -2088,10 +2247,13 @@ function AttachDocumentModal({
       title={`Upload ${DOC_ROLE_LABEL[role].toLowerCase()}`}
       onClose={onClose}
     >
-      <Field label="File">
-        <input
-          type="file"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+      <Field label={multiple ? "Files" : "File"}>
+        <FileDropzone
+          files={files}
+          onChange={setFiles}
+          multiple={multiple}
+          accent={accent}
+          accept="application/pdf,image/*"
         />
       </Field>
       {err ? (
@@ -2116,6 +2278,219 @@ function AttachDocumentModal({
       </div>
     </ModalShell>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// FileDropzone — styled file input that doubles as a drop target.
+//
+// Reused across every upload surface in the module. Single-file or
+// multi-file modes. Drag + drop events are handled at the wrapper
+// level; the underlying <input type=file> is visually hidden but
+// still accessible for keyboard + screen-reader users. The dotted
+// border makes the click target obvious — the native "Choose file /
+// No file chosen" control was the bug Step 20 shipped with.
+// ─────────────────────────────────────────────────────────────────
+
+function FileDropzone({
+  files,
+  onChange,
+  multiple = false,
+  accent,
+  accept,
+  hint,
+}: {
+  files: File[];
+  onChange: (files: File[]) => void;
+  multiple?: boolean;
+  accent: string;
+  accept?: string;
+  hint?: string;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+  const id = useMemo(
+    () => `dz-${Math.random().toString(36).slice(2, 10)}`,
+    [],
+  );
+
+  const handleFiles = (picked: FileList | null) => {
+    if (!picked) return;
+    const arr = Array.from(picked);
+    if (multiple) {
+      // De-dup by (name, size) — common when someone drops the same
+      // file twice.
+      const seen = new Set(files.map((f) => `${f.name}:${f.size}`));
+      const merged = [...files];
+      for (const f of arr) {
+        const key = `${f.name}:${f.size}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(f);
+        }
+      }
+      onChange(merged);
+    } else {
+      onChange(arr.slice(0, 1));
+    }
+  };
+
+  const removeAt = (idx: number) => {
+    const next = files.slice();
+    next.splice(idx, 1);
+    onChange(next);
+  };
+
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          handleFiles(e.dataTransfer.files);
+        }}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "22px 16px",
+          border: `1.5px dashed ${dragOver ? accent : "#c3c8d4"}`,
+          borderRadius: 10,
+          background: dragOver ? `${accent}0d` : "#fafbfd",
+          cursor: "pointer",
+          textAlign: "center",
+          transition: "all 0.12s ease",
+        }}
+      >
+        <div style={{ color: accent, marginBottom: 6 }}>{I.upload}</div>
+        <div
+          style={{
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            fontSize: 13,
+            fontWeight: 620,
+            color: "#2b2f3d",
+          }}
+        >
+          {multiple ? "Drop files here or click to choose" : "Drop a file here or click to choose"}
+        </div>
+        {hint ? (
+          <div
+            style={{
+              marginTop: 4,
+              fontSize: 11,
+              color: "#64687a",
+              fontWeight: 520,
+            }}
+          >
+            {hint}
+          </div>
+        ) : null}
+        <input
+          id={id}
+          type="file"
+          multiple={multiple}
+          accept={accept}
+          onChange={(e) => handleFiles(e.target.files)}
+          // Visually hidden; the label is the clickable surface.
+          style={{
+            position: "absolute",
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: "hidden",
+            clip: "rect(0,0,0,0)",
+            whiteSpace: "nowrap",
+            border: 0,
+          }}
+        />
+      </label>
+      {files.length > 0 ? (
+        <ul
+          style={{
+            listStyle: "none",
+            padding: 0,
+            margin: "10px 0 0",
+          }}
+        >
+          {files.map((f, i) => (
+            <li
+              key={`${f.name}:${f.size}:${i}`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "8px 10px",
+                background: "#fff",
+                border: "1px solid #e6e9ef",
+                borderRadius: 8,
+                marginTop: i === 0 ? 0 : 6,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  minWidth: 0,
+                  flex: 1,
+                }}
+              >
+                <span style={{ color: "#64687a", flexShrink: 0 }}>
+                  {I.file}
+                </span>
+                <span
+                  style={{
+                    fontFamily: "'Instrument Sans', system-ui, sans-serif",
+                    fontSize: 12,
+                    color: "#2b2f3d",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {f.name}
+                </span>
+                <span
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 10,
+                    color: "#8a8f9e",
+                    flexShrink: 0,
+                  }}
+                >
+                  {Math.round(f.size / 1024)} KB
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeAt(i)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#64687a",
+                  cursor: "pointer",
+                  padding: 4,
+                }}
+                aria-label={`Remove ${f.name}`}
+              >
+                {I.x}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function isImageFileName(name: string): boolean {
+  return /\.(jpe?g|png|gif|webp|avif)$/i.test(name);
 }
 
 // ─────────────────────────────────────────────────────────────────

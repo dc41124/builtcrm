@@ -1,11 +1,11 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
-import { submittals } from "@/db/schema";
+import { submittalDocuments, submittals } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -118,6 +118,33 @@ export async function POST(
         { error: "missing_reason", message: "rejectionReason is required" },
         { status: 400 },
       );
+    }
+
+    // draft → submitted requires at least one attached package document.
+    // A submittal with no package is meaningless; enforce here so a
+    // misconfigured client can't skip the UI guard.
+    if (from === "draft" && to === "submitted") {
+      const [{ packageCount }] = await db
+        .select({
+          packageCount: sql<number>`count(*)::int`,
+        })
+        .from(submittalDocuments)
+        .where(
+          and(
+            eq(submittalDocuments.submittalId, id),
+            eq(submittalDocuments.role, "package"),
+          ),
+        );
+      if (packageCount === 0) {
+        return NextResponse.json(
+          {
+            error: "missing_package",
+            message:
+              "Attach at least one package document before submitting.",
+          },
+          { status: 409 },
+        );
+      }
     }
 
     const now = new Date();
