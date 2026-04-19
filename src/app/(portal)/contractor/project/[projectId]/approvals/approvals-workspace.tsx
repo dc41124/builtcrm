@@ -141,10 +141,12 @@ export function ContractorApprovalsWorkspace({
   rows,
   totals,
   nowMs: now,
+  initialSelectedId = null,
 }: {
   rows: ApprovalRow[];
   totals: ApprovalTotals;
   nowMs: number;
+  initialSelectedId?: string | null;
 }) {
 
   const counts = useMemo(() => {
@@ -153,10 +155,21 @@ export function ContractorApprovalsWorkspace({
     return c;
   }, [rows]);
 
-  const [activeTab, setActiveTab] = useState<TabId>(
-    counts.pending > 0 ? "pending" : "all",
+  // When the user deep-links with ?open=<id>, open the tab that row lives
+  // on so the deep-linked item is visible in the queue panel.
+  const initialRow = initialSelectedId
+    ? rows.find((r) => r.id === initialSelectedId)
+    : null;
+  const initialTab: TabId = initialRow
+    ? tabOf(initialRow)
+    : counts.pending > 0
+      ? "pending"
+      : "all";
+
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initialSelectedId,
   );
-  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (activeTab === "all") return rows;
