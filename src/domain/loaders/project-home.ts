@@ -935,7 +935,7 @@ export type DocumentAudience = "contractor" | "subcontractor" | "client";
 // content; clients get only project-wide or explicitly client-visible
 // material. Supersession lives on the `supersedes_document_id` column
 // (Step 22) — the legacy link_role='supersedes' pivot was backfilled
-// and dropped by 0014_document_versioning.sql.
+// and dropped by 0016_document_versioning.sql.
 export async function loadDocumentsForProject(
   projectId: string,
   audience: DocumentAudience,

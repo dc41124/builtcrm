@@ -20,7 +20,7 @@ import { deleteObject, objectExists } from "@/lib/storage";
 //
 // Uses the `supersedes_document_id` column model (Step 22). Previous
 // implementation used a document_links pivot with link_role='supersedes'
-// — that approach is migrated out by 0014_document_versioning.sql.
+// — that approach is migrated out by 0016_document_versioning.sql.
 //
 // Category + visibility/audience scope are LOCKED across a version
 // chain (advisor directive): the whole chain must stay in the same

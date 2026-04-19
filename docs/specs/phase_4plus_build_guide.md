@@ -1483,7 +1483,7 @@ git commit -m "Step 21 (4B.4 #21): Document categories"
 **Priority:** P1
 
 ### Completion notes
-- **Migrated to Option A (column).** The codebase had a pre-existing link-row pattern (`document_links.link_role = 'supersedes'`) with a comment locking it in as a "schema rule." Migration `0014_document_versioning.sql` adds `documents.supersedes_document_id` (self-ref FK + partial unique index + standard walk index), backfills any existing pivot rows into the column, then deletes those rows. Loader + workspace now read the column; no link-role pivot is created on new supersessions.
+- **Migrated to Option A (column).** The codebase had a pre-existing link-row pattern (`document_links.link_role = 'supersedes'`) with a comment locking it in as a "schema rule." Migration `0016_document_versioning.sql` adds `documents.supersedes_document_id` (self-ref FK + partial unique index + standard walk index), backfills any existing pivot rows into the column, then deletes those rows. Loader + workspace now read the column; no link-role pivot is created on new supersessions.
 - **Linearity enforced at the DB.** Partial unique index `documents_supersedes_unique` on `supersedes_document_id WHERE NOT NULL` guarantees one direct successor per document. Branches are impossible.
 - **Cycle + self-ref guards** at the app layer via `src/domain/documents/versioning.ts#isInChain`. Hop cap of 32 everywhere that walks.
 - **Race handling.** The supersede endpoint wraps the insert + predecessor-flip in a transaction that re-reads `is_superseded` inside. On race loss (concurrent supersede) or any transaction failure, the orphan R2 object is deleted via new `deleteObject` helper and the client gets a clean 409 `race_lost` with copy they can show the user.
@@ -1494,7 +1494,7 @@ git commit -m "Step 21 (4B.4 #21): Document categories"
 - **Audit events** `superseded` + `version_created` fire via `writeAuditEvent` inside the same transaction.
 
 ### What shipped (files)
-- `src/db/migrations/0014_document_versioning.sql` — column + index + pin_version + pivot backfill/cleanup
+- `src/db/migrations/0016_document_versioning.sql` — column + index + pin_version + pivot backfill/cleanup
 - `src/db/schema/documents.ts` — `supersedesDocumentId` + `pinVersion` on `documentLinks`
 - `src/db/schema/submittals.ts` — `pinVersion` on `submittalDocuments`
 - `src/domain/documents/versioning.ts` — `resolveCurrentVersionId`, `resolveCurrentVersionMap`, `getVersionChain`, `isInChain`
