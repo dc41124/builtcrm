@@ -368,6 +368,13 @@ export const invitations = pgTable(
       onDelete: "set null",
     }),
     personalMessage: text("personal_message"),
+    // Scoped-invitation fields. When set, the invitation grants access
+    // to a specific object (e.g. a single submittal for an external
+    // reviewer) rather than full project/org access. `scope_object_type`
+    // is free-form text so future object types can opt in without a
+    // schema migration; the API layer enforces valid values.
+    scopeObjectType: varchar("scope_object_type", { length: 64 }),
+    scopeObjectId: uuid("scope_object_id"),
     ...timestamps,
   },
   (table) => ({
@@ -375,5 +382,9 @@ export const invitations = pgTable(
     emailIdx: index("invitations_email_idx").on(table.invitedEmail),
     projectIdx: index("invitations_project_idx").on(table.projectId),
     statusIdx: index("invitations_status_idx").on(table.invitationStatus),
+    scopeIdx: index("invitations_scope_idx").on(
+      table.scopeObjectType,
+      table.scopeObjectId,
+    ),
   }),
 );

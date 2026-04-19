@@ -265,6 +265,26 @@ export function renderNotification(
           : "A reviewer response is ready for you to review.",
         linkUrl: base ? `${base}/submittals` : null,
       };
+    case "submittal_reviewer_responded": {
+      const decision = str(v.decision);
+      const decisionLabel =
+        decision === "returned_approved"
+          ? "approved"
+          : decision === "returned_as_noted"
+            ? "approved as noted"
+            : decision === "revise_resubmit"
+              ? "marked revise & resubmit"
+              : decision === "rejected"
+                ? "rejected"
+                : "responded";
+      return {
+        title: `Submittal ${str(v.number, "?")} — reviewer ${decisionLabel}`,
+        body: str(v.title)
+          ? `${v.title} — ready to forward to the sub.`
+          : "Your reviewer submitted their decision. Forward to the sub when ready.",
+        linkUrl: base ? `${base}/submittals` : null,
+      };
+    }
 
     // ── Messages ─────────────────────────────────────────────────
     case "message_new":

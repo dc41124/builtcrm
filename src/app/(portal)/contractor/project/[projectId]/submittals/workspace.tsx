@@ -1825,10 +1825,77 @@ function ForwardReviewerModal({
   const [email, setEmail] = useState(defaultReviewer.email);
   const [notes, setNotes] = useState("");
   const [coverFiles, setCoverFiles] = useState<File[]>([]);
+  const [expiresInDays, setExpiresInDays] = useState("14");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [inviteResult, setInviteResult] = useState<{
+    inviteUrl: string;
+    expiresAt: string;
+  } | null>(null);
 
-  const submit = async () => {
+  // Primary flow (Step 20.5): send an invitation link so the reviewer
+  // can stamp directly via the portal.
+  const sendInvitation = async () => {
+    if (!name.trim()) {
+      setErr("Reviewer name is required");
+      return;
+    }
+    if (!email.trim()) {
+      setErr("Reviewer email is required to send an invitation");
+      return;
+    }
+    const days = parseInt(expiresInDays, 10);
+    if (!Number.isFinite(days) || days < 1 || days > 180) {
+      setErr("Expiry must be between 1 and 180 days");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      // Upload cover doc first (so the invite includes the id).
+      let coverDocumentId: string | null = null;
+      const cover = coverFiles[0];
+      if (cover) {
+        coverDocumentId = await uploadToProject({ projectId, file: cover });
+      }
+      const res = await fetch(
+        `/api/submittals/${submittalId}/invite-reviewer`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            reviewerName: name.trim(),
+            reviewerOrg: org.trim() || null,
+            reviewerEmail: email.trim(),
+            expiresInDays: days,
+            coverNotes: notes.trim() || null,
+            coverDocumentId,
+          }),
+        },
+      );
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        setErr((j?.message as string) || "Could not send invitation");
+        setBusy(false);
+        return;
+      }
+      const json = (await res.json()) as {
+        inviteUrl: string;
+        expiresAt: string;
+      };
+      setInviteResult(json);
+      setBusy(false);
+    } catch {
+      setErr("Something went wrong");
+      setBusy(false);
+    }
+  };
+
+  // Escape hatch flow (Step 20): record the reviewer as contact-only.
+  // No invitation, no portal link — the GC will log the response
+  // themselves via the "Log reviewer response" modal when the email
+  // arrives.
+  const recordContactOnly = async () => {
     if (!name.trim()) {
       setErr("Reviewer name is required");
       return;
@@ -1836,7 +1903,6 @@ function ForwardReviewerModal({
     setBusy(true);
     setErr(null);
     try {
-      // 1. Update reviewer fields on the submittal.
       await fetch(`/api/submittals/${submittalId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
@@ -1846,13 +1912,11 @@ function ForwardReviewerModal({
           reviewerEmail: email.trim() || null,
         }),
       });
-      // 2. Upload cover doc if supplied.
       let documentId: string | null = null;
       const cover = coverFiles[0];
       if (cover) {
         documentId = await uploadToProject({ projectId, file: cover });
       }
-      // 3. Log outgoing transmittal.
       await fetch(`/api/submittals/${submittalId}/transmittals`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1862,7 +1926,6 @@ function ForwardReviewerModal({
           notes: notes.trim() || null,
         }),
       });
-      // 4. Transition → under_review.
       await fetch(`/api/submittals/${submittalId}/transition`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1874,6 +1937,62 @@ function ForwardReviewerModal({
       setBusy(false);
     }
   };
+
+  // Post-send success state: show the invite URL so the GC can copy
+  // and forward manually if the reviewer didn't get the email.
+  if (inviteResult) {
+    return (
+      <ModalShell title="Invitation sent" onClose={onDone}>
+        <p
+          style={{
+            fontSize: 13,
+            color: "#4a4f60",
+            marginTop: 0,
+            marginBottom: 14,
+          }}
+        >
+          We notified {name} at {email}. The link below is their direct
+          review portal — copy it if you want to forward it yourself.
+        </p>
+        <div
+          style={{
+            padding: "10px 12px",
+            background: "#f4f6fa",
+            border: "1px solid #e6e9ef",
+            borderRadius: 8,
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 11,
+            color: "#12141b",
+            wordBreak: "break-all",
+            marginBottom: 10,
+          }}
+        >
+          {inviteResult.inviteUrl}
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            color: "#64687a",
+            marginBottom: 14,
+          }}
+        >
+          Expires {new Date(inviteResult.expiresAt).toLocaleDateString()}.
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <SecondaryBtn
+            onClick={() =>
+              navigator.clipboard.writeText(inviteResult.inviteUrl)
+            }
+          >
+            Copy link
+          </SecondaryBtn>
+          <PrimaryBtn onClick={onDone} accent={accent}>
+            Done
+          </PrimaryBtn>
+        </div>
+      </ModalShell>
+    );
+  }
 
   return (
     <ModalShell title="Forward to reviewer" onClose={onClose}>
@@ -1923,6 +2042,16 @@ function ForwardReviewerModal({
           accept="application/pdf,image/*"
         />
       </Field>
+      <Field label="Link expires after (days)">
+        <input
+          type="number"
+          value={expiresInDays}
+          min={1}
+          max={180}
+          onChange={(e) => setExpiresInDays(e.target.value)}
+          style={{ ...inputStyle, width: 120 }}
+        />
+      </Field>
       {err ? (
         <div
           style={{
@@ -1937,12 +2066,41 @@ function ForwardReviewerModal({
           {err}
         </div>
       ) : null}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         <SecondaryBtn onClick={onClose}>Cancel</SecondaryBtn>
-        <PrimaryBtn onClick={submit} accent={accent}>
-          {busy ? "Sending…" : "Send to reviewer"}
+        <PrimaryBtn onClick={sendInvitation} accent={accent}>
+          {busy ? "Sending…" : "Send invitation link"}
         </PrimaryBtn>
       </div>
+      <button
+        type="button"
+        onClick={recordContactOnly}
+        disabled={busy}
+        style={{
+          display: "block",
+          marginTop: 12,
+          marginLeft: "auto",
+          background: "transparent",
+          border: "none",
+          color: "#64687a",
+          fontFamily: "'DM Sans', system-ui, sans-serif",
+          fontSize: 12,
+          fontWeight: 580,
+          cursor: busy ? "not-allowed" : "pointer",
+          textDecoration: "underline",
+          textDecorationColor: "#c3c8d4",
+          textUnderlineOffset: 3,
+        }}
+      >
+        Record contact only (no portal)
+      </button>
     </ModalShell>
   );
 }

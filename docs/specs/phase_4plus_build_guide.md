@@ -1333,14 +1333,32 @@ git commit -m "Step 19 (4B.3 #19): Punch list module"
 
 ---
 
-## Step 20.5 — External Reviewer Portal (deferred)
+## Step 20.5 — External Reviewer Portal ✅ DONE (2026-04-18)
 
 **Mode:** Require-design-input
 **Effort:** M
 **Priority:** P2
 **Depends on:** Step 20 (ships the `external_reviewer` portal_type enum value and the submittal_transmittals infrastructure this portal sits on top of).
 
-Adds a scoped reviewer portal so architects/engineers can land on a token URL, view the submittal package, upload a stamped PDF, and select a stamp decision — instead of the GC logging it on their behalf. Needs a new `(portal)` route group, portal shell, invitation token landing page, and scoped membership concept. Until this ships, the GC-logs-reviewer flow from Step 20 handles the workflow end-to-end.
+### Completion notes
+- Schema: migration `0013_submittal_reviewer_invitations.sql` extends the existing `invitations` table with `scope_object_type` + `scope_object_id` columns (generic design so future change-order / RFI reviewer invites plug in without bifurcating invitation logic).
+- Reviewer identity: invite-creation upserts a `users` row by email. No Better Auth account — the token IS the session. That user id appears on `submittal_transmittals.transmitted_by_user_id` and `submittal_documents.attached_by_user_id` for the reviewer's actions → full audit trail anchored to a real user record.
+- Single-use token, configurable expiry (default 14d, min 1d, max 180d). Pending → accepted on decision submission; hard-lock, no edit window. Re-invitation is the escape hatch.
+- New API routes: `POST /api/submittals/[id]/invite-reviewer` (GC-only; creates user + invitation + transmittal + transitions submittal to under_review), `POST /api/reviewer/[token]/upload-request` + `/attach-document` + `/decision` (all token-authenticated via `lib/submittals/reviewer-auth.ts`).
+- New route: `/reviewer/[token]` — unprotected by middleware (the token is auth). Renders the reviewer workspace (metadata header, sender context, package docs, decision radios, dropzones for stamp + comments, submit). Renders the dedicated expired-token screen for `not_found | expired | consumed | revoked | invalid_scope` with inviting-GC contact info.
+- Dual-button ForwardReviewerModal: primary "Send invitation link" (20.5 flow), secondary underlined link "Record contact only (no portal)" (20 escape hatch). Primary renders a success state post-send with the invite URL + copy-to-clipboard for manual forwarding.
+- One new notification: `submittal_reviewer_responded` fires to the GC when the reviewer submits, so the GC knows to come back and forward the result to the sub.
+- Email stub: invite-reviewer logs the URL to console. Trigger.dev email job hook-up is a separate later step.
+
+### What shipped (files)
+- `src/db/migrations/0013_submittal_reviewer_invitations.sql`
+- `src/db/schema/identity.ts` — `invitations.scopeObjectType` + `scopeObjectId`
+- `src/lib/submittals/reviewer-auth.ts` — token validator
+- `src/app/api/submittals/[id]/invite-reviewer/route.ts`
+- `src/app/api/reviewer/[token]/{upload-request,attach-document,decision}/route.ts`
+- `src/app/reviewer/[token]/{page.tsx,workspace.tsx,expired.tsx}`
+- Updated `notification-catalog.ts`, `notifications/recipients.ts`, `notifications/routing.ts`
+- Updated `src/app/(portal)/contractor/project/[projectId]/submittals/workspace.tsx` — dual-button ForwardReviewerModal
 
 ---
 

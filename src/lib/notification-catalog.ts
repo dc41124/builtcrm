@@ -142,6 +142,11 @@ export const NOTIFICATION_GROUPS: Record<
           label: "Submittal submitted",
           desc: "A sub submitted a new submittal package for review",
         },
+        {
+          id: "submittal_reviewer_responded",
+          label: "Reviewer returned a submittal",
+          desc: "Your external reviewer submitted their decision — ready to forward to the sub",
+        },
       ],
     },
   ],
@@ -416,6 +421,7 @@ const CRITICAL_EMAIL_EVENTS = new Set<string>([
   "punch_item_rejected",
   "submittal_submitted",
   "submittal_returned",
+  "submittal_reviewer_responded",
 ]);
 
 export type NotificationPrefState = Record<
