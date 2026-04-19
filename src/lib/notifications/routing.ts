@@ -245,6 +245,27 @@ export function renderNotification(
         linkUrl: base ? `${base}/punch-list` : null,
       };
 
+    // ── Submittals ───────────────────────────────────────────────
+    case "submittal_submitted":
+      return {
+        title: `Submittal ${str(v.number, "?")} submitted`,
+        body: str(v.title)
+          ? `${v.title} — from ${str(v.actorName, "a sub")}.`
+          : `${str(v.actorName, "A sub")} submitted a new submittal package.`,
+        linkUrl: base ? `${base}/submittals` : null,
+      };
+    case "submittal_returned":
+      return {
+        title: `Submittal ${str(v.number, "?")} returned`,
+        body: str(v.title)
+          ? `${v.title} — reviewer response forwarded by ${str(
+              v.actorName,
+              "the GC",
+            )}.`
+          : "A reviewer response is ready for you to review.",
+        linkUrl: base ? `${base}/submittals` : null,
+      };
+
     // ── Messages ─────────────────────────────────────────────────
     case "message_new":
       return {

@@ -21,6 +21,14 @@ export const documentStatusEnum = pgEnum("document_status", [
   "archived",
 ]);
 
+// Document category. Added inline with Step 20 so submittal docs can be
+// tagged. Step 21 extends this enum with the full taxonomy — drawings,
+// specifications, contracts, photos, permits, compliance, billing_backup.
+export const documentCategoryEnum = pgEnum("document_category", [
+  "submittal",
+  "other",
+]);
+
 export const documents = pgTable(
   "documents",
   {
@@ -38,6 +46,7 @@ export const documents = pgTable(
     audienceScope: audienceScopeEnum("audience_scope").notNull(),
     fileSizeBytes: bigint("file_size_bytes", { mode: "number" }),
     documentStatus: documentStatusEnum("document_status").default("active").notNull(),
+    category: documentCategoryEnum("category").default("other").notNull(),
     isSuperseded: boolean("is_superseded").default(false).notNull(),
     ...timestamps,
   },

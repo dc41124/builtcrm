@@ -247,6 +247,7 @@ export async function getEventRecipients(
     case "upload_completed":
     case "daily_log_crew_submitted":
     case "punch_item_ready_to_verify":
+    case "submittal_submitted":
       if (projectId) recipients = await projectContractors(projectId);
       break;
 
@@ -267,6 +268,7 @@ export async function getEventRecipients(
     case "punch_item_assigned":
     case "punch_item_verified":
     case "punch_item_rejected":
+    case "submittal_returned":
       if (projectId)
         recipients = await projectSubs(projectId, targetOrganizationId);
       break;

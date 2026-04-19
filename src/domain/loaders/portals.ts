@@ -66,6 +66,9 @@ export async function loadUserPortalContext(
   const shortcuts: ProjectShortcut[] = [];
 
   for (const a of assignments) {
+    // external_reviewer is schema-reserved for Step 20.5; no rows carry
+    // this value yet and the portal-picker UI has no route for it.
+    if (a.portalType === "external_reviewer") continue;
     const href = portalHref(a.portalType, a.clientSubtype);
 
     let projectCount = 0;

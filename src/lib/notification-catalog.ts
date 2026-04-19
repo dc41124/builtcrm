@@ -137,6 +137,11 @@ export const NOTIFICATION_GROUPS: Record<
           label: "Punch item ready to verify",
           desc: "A sub marked a punch item ready for your check",
         },
+        {
+          id: "submittal_submitted",
+          label: "Submittal submitted",
+          desc: "A sub submitted a new submittal package for review",
+        },
       ],
     },
   ],
@@ -183,6 +188,11 @@ export const NOTIFICATION_GROUPS: Record<
           id: "punch_item_rejected",
           label: "Punch item rejected",
           desc: "A GC sent a punch item back — needs rework",
+        },
+        {
+          id: "submittal_returned",
+          label: "Submittal returned from reviewer",
+          desc: "The GC forwarded a reviewer response on one of your submittals",
         },
       ],
     },
@@ -404,6 +414,8 @@ const CRITICAL_EMAIL_EVENTS = new Set<string>([
   "punch_item_assigned",
   "punch_item_ready_to_verify",
   "punch_item_rejected",
+  "submittal_submitted",
+  "submittal_returned",
 ]);
 
 export type NotificationPrefState = Record<

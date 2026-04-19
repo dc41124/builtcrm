@@ -1313,12 +1313,36 @@ git commit -m "Step 19 (4B.3 #19): Punch list module"
 
 ---
 
-## Step 20 — Submittals Module
+## Step 20 — Submittals Module ✅ DONE (2026-04-18)
 
 **Mode:** Require-design-input
 **Item:** 4B.3 #20
 **Effort:** M
 **Priority:** P1
+
+### Completion notes
+- 3 tables shipped (`submittals`, `submittal_documents`, `submittal_transmittals`) + 4 new enums. `document_category` enum added inline with `submittal` + `other`; Step 21 will extend with the full taxonomy.
+- `portal_type` enum extended with `external_reviewer` — schema prep for Step 20.5. No rows use the value yet.
+- Reviewer identity stored as text fields on `submittals` row (`reviewer_name`, `reviewer_org`, `reviewer_email`) — one reviewer per cycle; advisor-approved deviation from the original per-transmittal design.
+- `submittal_transmittals.notes` (freeform cover-letter body) and nullable `document_id` are deliberate additions beyond the guide — called out explicitly in the migration and commit message.
+- State machine enforced in the action layer per the locked transition table. Revise-and-resubmit spawns a new draft via a separate `POST /api/submittals` call with `revisionOfId` set; the original row stays in `revise_resubmit` until the GC forwards it + closes.
+- Scope decision: Path C. GC logs reviewer activity end-to-end (no reviewer portal). Every `submittal_transmittals` row carries `transmitted_by_user_id` = the GC user → full audit trail. Step 20.5 (below) layers on the external reviewer portal later.
+- 2 notification events wired: `submittal_submitted` (routes to GC), `submittal_returned` (routes to the submitting sub org). Both flagged critical-email.
+- UI: shared workspace component across contractor + subcontractor pages; contractor gets the 6-card summary strip + full action set; sub gets the 4-card version with submit + start-revision only.
+- Nav: Submittals wired into contractor + subcontractor project sidebars (between Punch List and RFIs).
+
+---
+
+## Step 20.5 — External Reviewer Portal (deferred)
+
+**Mode:** Require-design-input
+**Effort:** M
+**Priority:** P2
+**Depends on:** Step 20 (ships the `external_reviewer` portal_type enum value and the submittal_transmittals infrastructure this portal sits on top of).
+
+Adds a scoped reviewer portal so architects/engineers can land on a token URL, view the submittal package, upload a stamped PDF, and select a stamp decision — instead of the GC logging it on their behalf. Needs a new `(portal)` route group, portal shell, invitation token landing page, and scoped membership concept. Until this ships, the GC-logs-reviewer flow from Step 20 handles the workflow end-to-end.
+
+---
 
 ### What this does
 

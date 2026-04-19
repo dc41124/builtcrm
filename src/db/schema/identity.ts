@@ -54,6 +54,9 @@ export const portalTypeEnum = pgEnum("portal_type", [
   "contractor",
   "subcontractor",
   "client",
+  // Schema prep for Step 20.5 (external reviewer portal). No rows use
+  // this value yet; downstream switches treat it as inert.
+  "external_reviewer",
 ]);
 
 export const clientSubtypeEnum = pgEnum("client_subtype", [
