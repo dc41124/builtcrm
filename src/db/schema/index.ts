@@ -15,3 +15,4 @@ export * from "./sso";
 export * from "./dailyLogs";
 export * from "./punchList";
 export * from "./submittals";
+export * from "./weeklyReports";
