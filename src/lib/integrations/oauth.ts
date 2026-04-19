@@ -2,22 +2,19 @@ import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { auditEvents, integrationConnections } from "@/db/schema";
-import {
-  PROVIDER_CATALOG,
-  type IntegrationProviderKey,
-} from "@/domain/loaders/integrations";
 
 import {
   decryptTokenOrNull,
   encryptToken,
   encryptTokenOrNull,
 } from "./crypto";
-import { getOAuth2Provider } from "./providers";
-import type {
-  OAuth2ProviderConfig,
-  OAuth2TokenResponse,
-} from "./providers/types";
+import { getProviderConfig } from "./registry";
 import { decodeState, encodeState } from "./state";
+import type {
+  IntegrationProviderKey,
+  OAuth2Config,
+  OAuth2TokenResponse,
+} from "./types";
 
 // Generic OAuth 2.0 authorization_code handler. One path for four providers
 // (QuickBooks, Xero, Sage, Google Calendar). Stripe uses stripe_connect and
@@ -30,30 +27,33 @@ import { decodeState, encodeState } from "./state";
 
 function mustGetProvider(
   key: IntegrationProviderKey,
-): OAuth2ProviderConfig {
-  const cfg = getOAuth2Provider(key);
-  if (!cfg) {
-    throw new OAuthError("provider_not_oauth2", `Provider ${key} is not an OAuth 2.0 connector`);
+): OAuth2Config {
+  const entry = mustGetCatalog(key);
+  if (!entry.oauth) {
+    throw new OAuthError(
+      "provider_not_oauth2",
+      `Provider ${key} is not an OAuth 2.0 connector (flow: ${entry.flow})`,
+    );
   }
-  return cfg;
+  return entry.oauth;
 }
 
 function mustGetCatalog(key: IntegrationProviderKey) {
-  const entry = PROVIDER_CATALOG.find((p) => p.provider === key);
+  const entry = getProviderConfig(key);
   if (!entry) throw new OAuthError("unknown_provider", `Unknown provider: ${key}`);
   return entry;
 }
 
-function mustGetCredentials(cfg: OAuth2ProviderConfig): {
-  clientId: string;
-  clientSecret: string;
-} {
+function mustGetCredentials(
+  cfg: OAuth2Config,
+  key: IntegrationProviderKey,
+): { clientId: string; clientSecret: string } {
   const clientId = process.env[cfg.clientIdEnvVar];
   const clientSecret = process.env[cfg.clientSecretEnvVar];
   if (!clientId || !clientSecret) {
     throw new OAuthError(
       "missing_credentials",
-      `${cfg.clientIdEnvVar} and ${cfg.clientSecretEnvVar} must be set to connect ${cfg.key}`,
+      `${cfg.clientIdEnvVar} and ${cfg.clientSecretEnvVar} must be set to connect ${key}`,
     );
   }
   return { clientId, clientSecret };
@@ -135,7 +135,7 @@ export async function startOAuth(
   }
 
   const cfg = mustGetProvider(input.providerKey);
-  const { clientId } = mustGetCredentials(cfg);
+  const { clientId } = mustGetCredentials(cfg, input.providerKey);
 
   const state = encodeState({
     org: input.orgId,
@@ -206,7 +206,7 @@ export async function handleCallback(
   }
 
   const cfg = mustGetProvider(input.providerKey);
-  const { clientId, clientSecret } = mustGetCredentials(cfg);
+  const { clientId, clientSecret } = mustGetCredentials(cfg, input.providerKey);
 
   let token: OAuth2TokenResponse;
   try {
@@ -308,14 +308,14 @@ export async function refreshToken(
     throw new OAuthError("connection_not_found", `No connection ${connectionId}`);
   }
 
-  const catalog = PROVIDER_CATALOG.find((p) => p.provider === conn.provider);
+  const catalog = getProviderConfig(conn.provider);
   if (!catalog || catalog.flow !== "oauth2_code") {
     // Not our flow — silently skip.
     return { ok: true };
   }
 
   const cfg = mustGetProvider(conn.provider);
-  const { clientId, clientSecret } = mustGetCredentials(cfg);
+  const { clientId, clientSecret } = mustGetCredentials(cfg, conn.provider);
 
   const refreshPlain = decryptTokenOrNull(conn.refreshTokenEnc);
   if (!refreshPlain) {
@@ -436,18 +436,18 @@ export async function revokeConnection(
     return;
   }
 
-  const catalog = PROVIDER_CATALOG.find((p) => p.provider === conn.provider);
+  const catalog = getProviderConfig(conn.provider);
 
   // Best-effort provider-side revoke. If the provider call fails, we still
   // tombstone locally — user intent is to disconnect. The audit event captures
   // whichever outcome we got.
   let providerRevokeError: string | null = null;
   if (catalog?.flow === "oauth2_code") {
-    const cfg = getOAuth2Provider(conn.provider);
+    const cfg = catalog.oauth ?? null;
     const accessPlain = decryptTokenOrNull(conn.accessTokenEnc);
     if (cfg?.revokeUrl && accessPlain) {
       try {
-        const { clientId, clientSecret } = mustGetCredentials(cfg);
+        const { clientId, clientSecret } = mustGetCredentials(cfg, conn.provider);
         const res = await fetch(cfg.revokeUrl, {
           method: "POST",
           headers: {
@@ -498,7 +498,7 @@ export async function revokeConnection(
 // --------------------------------------------------------------------------
 
 type ExchangeArgs = {
-  cfg: OAuth2ProviderConfig;
+  cfg: OAuth2Config;
   clientId: string;
   clientSecret: string;
 };
@@ -525,7 +525,7 @@ async function exchangeRefresh(
 }
 
 async function postTokenEndpoint(
-  cfg: OAuth2ProviderConfig,
+  cfg: OAuth2Config,
   clientId: string,
   clientSecret: string,
   body: URLSearchParams,

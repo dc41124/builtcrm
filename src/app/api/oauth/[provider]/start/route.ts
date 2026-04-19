@@ -4,11 +4,11 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth/config";
 import {
   getContractorOrgContext,
-  PROVIDER_CATALOG,
   type IntegrationProviderKey,
 } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
 import { OAuthError, startOAuth } from "@/lib/integrations/oauth";
+import { getProviderConfig } from "@/lib/integrations/registry";
 
 // GET /api/oauth/[provider]/start
 //
@@ -56,7 +56,7 @@ export async function GET(
       );
     }
 
-    const catalog = PROVIDER_CATALOG.find((p) => p.provider === providerKey);
+    const catalog = getProviderConfig(providerKey);
     if (!catalog) {
       return NextResponse.json({ error: "unknown_provider" }, { status: 400 });
     }

@@ -604,3 +604,35 @@ These bring the total schema to **36 tables + 2 modifications**.
 - **AI-powered data mapping** — auto-suggest accounting mappings based on SOV descriptions and chart of accounts
 - **Multi-currency support** — for projects spanning CAD/USD (border-area contractors)
 - **Sage 300 (on-prem)** — cloud-only integrations in V1; on-prem connectors deferred
+
+---
+
+## 16. Adding a New Provider (Step 29 registry pattern)
+
+Every provider is defined by a single `ProviderConfig` object that carries its catalog metadata (UI card), OAuth 2.0 transport (when applicable), inbound webhook config, and sync cadence. The authoritative registry is `providers` (Map) in `src/lib/integrations/registry.ts`, composed from per-provider files under `src/lib/integrations/providers/`. Consumers access it via `getProviderConfig(key)` for single lookups or `allProviders()` for iteration — no one imports the Map directly.
+
+### 16.1 Recipe
+
+1. **Create `src/lib/integrations/providers/{key}.ts`** with a default-exported `ProviderConfig`. Use an existing provider as a template:
+   - QuickBooks (`quickbooks.ts`) — OAuth 2.0 + webhook with payload extractor
+   - Stripe (`stripe.ts`) — non-OAuth flow (`stripe_connect`)
+   - Postmark (`postmark.ts`) — API-key flow (`none`)
+   - Google Calendar (`google.ts`) — OAuth 2.0 + non-HMAC webhook (channel token)
+2. **Add the provider key** to the `integration_provider` PG enum in `src/db/schema/integrations.ts`, and to `IntegrationProviderKey` in `src/lib/integrations/types.ts`. Run `npm run db:push` (or generate a migration) once these match.
+3. **Register the config** by importing it at the top of `src/lib/integrations/registry.ts` and adding the default export to the `entries` array. The array order controls the default UI card order.
+4. **Add env-var placeholders** to `.env.example` for any `clientIdEnvVar` / `clientSecretEnvVar` / `secretEnvVar` the config references.
+5. **If OAuth 2.0**, the generic handler at `src/app/api/oauth/[provider]/start` and `/callback` picks up the new provider automatically — no route changes needed.
+6. **If inbound webhooks**, the generic handler at `src/app/api/webhooks/[provider]` also picks it up automatically as long as `webhooks.signatureScheme` is one the verifier knows about (`hmac-sha256-b64`). New schemes require a case in `buildVerifier` in `src/lib/integrations/webhook-verify.ts`.
+7. **Scope-specific logic** (entity sync, payment reconciliation) lives in provider-specific processors under `src/jobs/` or `src/lib/integrations/processors/` — not in the ProviderConfig.
+
+### 16.2 What belongs in the `ProviderConfig`
+
+- **Provider-agnostic metadata** (display name, description, category, tier, flow discriminator).
+- **Transport wiring** (OAuth URLs, scopes, env var names; webhook signature scheme + header + secret env var).
+- **Payload adapters** (OAuth `extractAccount`, webhook `extractIdentity`) — tiny pure functions that live with the config since they know the provider's payload shape.
+
+### 16.3 What does NOT belong in the `ProviderConfig`
+
+- Business logic (how a QuickBooks invoice maps to a draw request, how a Stripe payout maps to a retainage release). Those belong in processor / sync modules.
+- UI copy beyond the `name` / `description` catalog fields. Per-card logos currently live in `PROVIDER_LOGOS` in `integrations-ui.tsx` as inline JSX gradient boxes; the `logoSvg?` field on `ProviderConfig` is the forward-compatible slot for providers that ship with a real SVG mark.
+- Credentials themselves — always in env vars, never in source.

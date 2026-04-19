@@ -2060,7 +2060,39 @@ git commit -m "Step 28 (4C.1 #28): Integration connection UI"
 
 ---
 
-## Step 29 — Provider Registry Pattern
+## Step 29 — Provider Registry Pattern ✅ DONE (2026-04-19)
+
+**Completion notes**
+- **Authoritative registry moved to `src/lib/integrations/registry.ts`** per the Step 29 task prompt. Transport config + catalog metadata + webhook wiring now all co-locate under `/lib/integrations/` alongside `oauth.ts` and `webhook-verify.ts` — the modules that consume them. The old `PROVIDER_CATALOG` export from `src/domain/loaders/integrations.ts` is **gone**; consumers look up providers via `getProviderConfig(key)` or `allProviders()`.
+- **New `src/lib/integrations/types.ts`** defines `ProviderConfig` (the per-provider shape) plus `IntegrationProviderKey`, `IntegrationCategory`, `PlanTier`, `IntegrationFlow`, `OAuth2Config`, `OAuth2TokenResponse`, `PayloadIdentity`, `PayloadExtractor`, `WebhooksConfig`, `WebhookSignatureScheme`. The loader re-exports all of these so existing imports like `import { IntegrationProviderKey, ProviderCatalogEntry } from "@/domain/loaders/integrations"` keep compiling unchanged. `ProviderCatalogEntry` is now an alias for `ProviderConfig`.
+- **New `src/lib/integrations/registry.ts`** imports all 8 per-provider default exports, exposes a `providers` Map (keyed by `IntegrationProviderKey`), and two helpers: `getProviderConfig(key)` for single lookups and `allProviders()` for ordered iteration. Matches the Step 29 prompt's "exports a `providers` Map" shape.
+- **Per-provider files** — each default-exports a `ProviderConfig` merging catalog metadata + OAuth transport (for `oauth2_code`) + webhook config + sync entity list. Payload extractors (QB realmId, Xero tenantId) live inside their own provider files now instead of bunched in `webhook-verify.ts`.
+- **Three new files for previously-inline providers.** `outlook.ts`, `postmark.ts`, `sendgrid.ts` now exist in `providers/` — Step 25 had left these declared inline in PROVIDER_CATALOG only. They ship with catalog metadata + webhook config (HMAC-SHA256 base64 for the email providers; OAuth 2.0 Microsoft Graph for Outlook).
+- **Consumer migration** — four call sites swapped from `PROVIDER_CATALOG.find(...)` to `getProviderConfig(key)`:
+  - `src/lib/integrations/oauth.ts` — `mustGetCatalog`, refresh flow, revoke flow
+  - `src/lib/integrations/webhook-verify.ts` — `getVerifier`, `getExtractor`
+  - `src/app/api/oauth/[provider]/start/route.ts` — flow discriminator
+  - `src/app/api/integrations/connect/route.ts` — legacy non-OAuth connect stub
+  - `src/domain/loaders/integrations.ts` — its own loader iterates via `allProviders()` when building the `cards` array
+- **`oauth.ts` transport lookup** — the old `getOAuth2Provider` helper / `OAUTH2_PROVIDERS` map is gone; `mustGetProvider(key)` looks up the registry entry and returns its `oauth` sub-object, throwing `OAuthError("provider_not_oauth2")` if the flow isn't `oauth2_code`. `mustGetCredentials(cfg, key)` takes the key as a separate arg (the sub-object no longer carries its own key identity).
+- **`webhook-verify.ts` collapsed** from ~200 lines of per-provider verifier functions to ~120 lines of scheme-dispatch helpers. `getVerifier(key)` pulls the `webhooks` sub-object from `getProviderConfig(key)` and builds a verifier on the fly based on `signatureScheme`. The shared `hmacSha256Base64` routine serves QB / Xero / Sage / Postmark / SendGrid; `google-channel-token` and `stripe` paths return `provider_not_implemented` (Google ships with the Calendar connector, Stripe uses its own static route). `getExtractor(key)` just returns `entry.webhooks?.extractIdentity`.
+- **Deleted obsolete files:** `src/lib/integrations/providers/types.ts` (types moved to the new canonical `types.ts` one directory up) and `src/lib/integrations/providers/index.ts` (obsoleted by the new `registry.ts`). Eight per-provider files remain.
+- **UI unchanged.** `integrations-ui.tsx` reads `card.provider`, `card.flow`, `card.phase1`, etc. — exactly the fields it always read, now sourced through the loader's `allProviders()` call. No breaking changes to the view layer.
+- **Documentation appended** to `docs/specs/integration_architecture_spec.md` — new "§16 Adding a New Provider" section with the recipe, what belongs in `ProviderConfig`, and what doesn't.
+- **logoSvg deferred.** The `ProviderConfig.logoSvg?: string` field exists on the type for forward compatibility, but none of the eight provider files populate it yet — the UI still uses the `PROVIDER_LOGOS` inline-JSX gradient map in `integrations-ui.tsx`. A future migration can move existing providers onto `logoSvg` when real SVG marks arrive.
+
+**What shipped (files)**
+- `src/lib/integrations/types.ts` — NEW (type definitions + shared enums)
+- `src/lib/integrations/registry.ts` — NEW (authoritative registry: `providers` Map + `getProviderConfig` + `allProviders`)
+- `src/lib/integrations/providers/{quickbooks,xero,sage,google,stripe}.ts` — REWRITTEN to default-export `ProviderConfig`
+- `src/lib/integrations/providers/{outlook,postmark,sendgrid}.ts` — NEW, filling the three previously-inline providers
+- `src/domain/loaders/integrations.ts` — `PROVIDER_CATALOG` **removed**; loader iterates via `allProviders()`; types re-exported from `lib/integrations/types`
+- `src/lib/integrations/oauth.ts` — lookup via `getProviderConfig(...).oauth`; dropped dependency on the deleted `providers/index.ts`
+- `src/lib/integrations/webhook-verify.ts` — scheme-dispatch verifier factory; extractors come from registry lookup
+- `src/app/api/oauth/[provider]/start/route.ts` — migrated to `getProviderConfig`
+- `src/app/api/integrations/connect/route.ts` — migrated to `getProviderConfig`
+- `src/lib/integrations/providers/{index,types}.ts` — DELETED
+- `docs/specs/integration_architecture_spec.md` — appended "§16 Adding a New Provider"
 
 **Mode:** Safe-to-autorun
 **Item:** 4C.1 #29

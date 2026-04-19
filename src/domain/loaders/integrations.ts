@@ -89,122 +89,52 @@ export async function getContractorOrgContext(
 }
 
 // ---- Provider catalog ---------------------------------------------------
+//
+// Step 29 refactor (plan A): the authoritative provider registry lives at
+// `src/lib/integrations/registry.ts` and is composed from per-provider
+// files under `src/lib/integrations/providers/`. This module re-exports
+// the shared types so existing imports like
+// `{ IntegrationProviderKey, ProviderCatalogEntry } from "@/domain/loaders/integrations"`
+// keep compiling unchanged.
+//
+// The loader itself iterates over `allProviders()` rather than maintaining
+// its own array. `PROVIDER_CATALOG` is no longer exported — callers that
+// need the full list go through `allProviders()` from the registry;
+// callers that look up a single provider use `getProviderConfig(key)`.
+// `ProviderCatalogEntry` stays as an alias for `ProviderConfig` so UI
+// code that references the older name keeps working.
 
-export type IntegrationProviderKey =
-  | "quickbooks_online"
-  | "xero"
-  | "sage_business_cloud"
-  | "stripe"
-  | "google_calendar"
-  | "outlook_365"
-  | "postmark"
-  | "sendgrid";
+import { allProviders } from "@/lib/integrations/registry";
 
-export type IntegrationCategory =
-  | "accounting"
-  | "payments"
-  | "calendar"
-  | "email";
+import type {
+  IntegrationCategory,
+  IntegrationFlow,
+  IntegrationProviderKey,
+  OAuth2Config,
+  OAuth2TokenResponse,
+  PayloadExtractor,
+  PayloadIdentity,
+  PlanTier,
+  ProviderCatalogEntry,
+  ProviderConfig,
+  WebhookSignatureScheme,
+  WebhooksConfig,
+} from "@/lib/integrations/types";
 
-export type PlanTier = "starter" | "professional" | "enterprise";
-
-// Connection-flow discriminator (Step 25). Different providers use different
-// flows — the generic OAuth 2.0 handler only owns `oauth2_code`. Stripe Connect
-// is its own entrypoint (src/app/api/contractor/stripe/connect/onboard/route.ts)
-// and the generic handler early-returns when it sees `stripe_connect`. `none`
-// is for providers where the UI still lists them but the connector is a stub
-// with no live flow yet.
-export type IntegrationFlow = "oauth2_code" | "stripe_connect" | "none";
-
-export type ProviderCatalogEntry = {
-  provider: IntegrationProviderKey;
-  name: string;
-  category: IntegrationCategory;
-  description: string;
-  minTier: PlanTier;
-  phase1: boolean; // true when the integration is implemented in Phase 1
-  flow: IntegrationFlow;
+export type {
+  IntegrationCategory,
+  IntegrationFlow,
+  IntegrationProviderKey,
+  OAuth2Config,
+  OAuth2TokenResponse,
+  PayloadExtractor,
+  PayloadIdentity,
+  PlanTier,
+  ProviderCatalogEntry,
+  ProviderConfig,
+  WebhookSignatureScheme,
+  WebhooksConfig,
 };
-
-export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
-  {
-    provider: "postmark",
-    name: "Postmark Email",
-    category: "email",
-    description:
-      "Outbound notifications and reply-by-email for conversations, RFIs, approvals, and draws.",
-    minTier: "starter",
-    phase1: true,
-    flow: "none",
-  },
-  {
-    provider: "sendgrid",
-    name: "SendGrid Email",
-    category: "email",
-    description: "Alternative transactional email provider.",
-    minTier: "starter",
-    phase1: true,
-    flow: "none",
-  },
-  {
-    provider: "quickbooks_online",
-    name: "QuickBooks Online",
-    category: "accounting",
-    description:
-      "Push approved draws as invoices, pull payment status, reconcile retainage.",
-    minTier: "professional",
-    phase1: false,
-    flow: "oauth2_code",
-  },
-  {
-    provider: "xero",
-    name: "Xero",
-    category: "accounting",
-    description:
-      "Bidirectional invoice and payment sync with Xero accounting.",
-    minTier: "professional",
-    phase1: false,
-    flow: "oauth2_code",
-  },
-  {
-    provider: "sage_business_cloud",
-    name: "Sage Business Cloud",
-    category: "accounting",
-    description: "Sage accounting connector with scheduled reconciliation.",
-    minTier: "professional",
-    phase1: false,
-    flow: "oauth2_code",
-  },
-  {
-    provider: "stripe",
-    name: "Stripe Connect",
-    category: "payments",
-    description:
-      "ACH and card payments routed to your connected Stripe account.",
-    minTier: "professional",
-    phase1: false,
-    flow: "stripe_connect",
-  },
-  {
-    provider: "google_calendar",
-    name: "Google Calendar",
-    category: "calendar",
-    description:
-      "Push milestones and inspections directly to a Google Calendar.",
-    minTier: "enterprise",
-    phase1: false,
-    flow: "oauth2_code",
-  },
-  {
-    provider: "outlook_365",
-    name: "Outlook / Microsoft 365",
-    category: "calendar",
-    description: "Push milestones to Outlook calendars via Microsoft Graph.",
-    minTier: "enterprise",
-    phase1: false,
-    flow: "oauth2_code",
-  },
-];
 
 // ---- Loader -------------------------------------------------------------
 
@@ -371,7 +301,7 @@ export async function getContractorIntegrationsView(input: {
     }
   }
 
-  const cards: IntegrationCardRow[] = PROVIDER_CATALOG.map((entry) => ({
+  const cards: IntegrationCardRow[] = allProviders().map((entry) => ({
     ...entry,
     connection: byProvider.get(entry.provider) ?? null,
   }));

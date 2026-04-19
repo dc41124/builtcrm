@@ -7,10 +7,10 @@ import { db } from "@/db/client";
 import { auditEvents, integrationConnections } from "@/db/schema";
 import {
   getContractorOrgContext,
-  PROVIDER_CATALOG,
   type IntegrationProviderKey,
 } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
+import { getProviderConfig } from "@/lib/integrations/registry";
 
 const ProviderEnum = z.enum([
   "quickbooks_online",
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     }
 
     const provider = parsed.data.provider as IntegrationProviderKey;
-    const catalog = PROVIDER_CATALOG.find((p) => p.provider === provider);
+    const catalog = getProviderConfig(provider);
     if (!catalog) {
       return NextResponse.json({ error: "unknown_provider" }, { status: 400 });
     }

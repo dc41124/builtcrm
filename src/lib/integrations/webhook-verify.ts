@@ -1,18 +1,37 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import type { IntegrationProviderKey } from "@/domain/loaders/integrations";
+import { getProviderConfig } from "./registry";
+import type {
+  IntegrationProviderKey,
+  PayloadExtractor,
+  PayloadIdentity,
+  WebhooksConfig,
+} from "./types";
 
-// Provider-specific inbound webhook signature verification.
+// Re-export for legacy importers (Step 26 route handler pulls PayloadIdentity
+// from here). Canonical source is `@/lib/integrations/types`.
+export type { PayloadIdentity };
+
+// Inbound webhook signature verification.
 //
-// Every adapter takes the RAW request body (a string of the exact bytes the
-// provider signed) plus the request headers. The raw body MUST be read before
-// any JSON parsing — Next.js App Router allows exactly one body read, so the
-// caller must: req.text() → verify → JSON.parse. Reversing any of these steps
-// leaves the signature check operating on re-encoded text and the verification
-// will fail silently.
+// Step 29 refactor (plan A): this module no longer owns a per-provider map of
+// hand-rolled verifiers. Instead it reads each provider's `webhooks`
+// sub-object via `getProviderConfig()` from the authoritative registry
+// (`src/lib/integrations/registry.ts`) and dispatches on `signatureScheme`.
+// The shared HMAC-SHA256 base64 path handles QuickBooks, Xero, Sage, and
+// anything else that signs with the same primitive — only the header name
+// and env-var key differ.
 //
-// Result shape carries `verified: false` with a machine-readable `reason` so
-// the route handler can audit the failure without trusting the payload.
+// Caller contract (unchanged from Step 26):
+//   const rawBody = await req.text();
+//   const verifier = getVerifier(providerKey);
+//   const result = verifier({ rawBody, headers: req.headers });
+//   if (!result.verified) return 400;
+//   const payload = JSON.parse(rawBody);
+//   const identity = getExtractor(providerKey)?.(payload);
+//
+// The raw body MUST be read before any JSON parsing — Next.js App Router
+// allows exactly one body read.
 
 export type VerifyResult =
   | { verified: true }
@@ -30,77 +49,60 @@ export type Verifier = (args: {
 }) => VerifyResult;
 
 // --------------------------------------------------------------------------
-// QuickBooks Online
-// --------------------------------------------------------------------------
-// Intuit's webhook verifier: base64(HMAC-SHA256(rawBody, verifierToken)),
-// delivered in the `intuit-signature` header.
-// https://developer.intuit.com/app/developer/qbo/docs/develop/webhooks
-export const verifyQuickbooks: Verifier = ({ rawBody, headers }) => {
-  const sig = headers.get("intuit-signature");
-  if (!sig) return { verified: false, reason: "missing_header" };
-  const secret = process.env.QUICKBOOKS_WEBHOOK_VERIFIER_TOKEN;
-  if (!secret) return { verified: false, reason: "missing_secret" };
-  return hmacSha256Base64(rawBody, secret, sig);
-};
-
-// --------------------------------------------------------------------------
-// Xero
-// --------------------------------------------------------------------------
-// Xero's webhook key: base64(HMAC-SHA256(rawBody, webhookKey)),
-// delivered in the `x-xero-signature` header.
-// https://developer.xero.com/documentation/guides/webhooks/overview
-export const verifyXero: Verifier = ({ rawBody, headers }) => {
-  const sig = headers.get("x-xero-signature");
-  if (!sig) return { verified: false, reason: "missing_header" };
-  const secret = process.env.XERO_WEBHOOK_KEY;
-  if (!secret) return { verified: false, reason: "missing_secret" };
-  return hmacSha256Base64(rawBody, secret, sig);
-};
-
-// --------------------------------------------------------------------------
-// Sage Business Cloud
-// --------------------------------------------------------------------------
-// Sage docs on webhook HMAC are sparse; assume base64 HMAC-SHA256 pattern
-// with header `x-sage-signature`. Revisit when the live endpoint is wired.
-export const verifySage: Verifier = ({ rawBody, headers }) => {
-  const sig = headers.get("x-sage-signature");
-  if (!sig) return { verified: false, reason: "missing_header" };
-  const secret = process.env.SAGE_WEBHOOK_SECRET;
-  if (!secret) return { verified: false, reason: "missing_secret" };
-  return hmacSha256Base64(rawBody, secret, sig);
-};
-
-// --------------------------------------------------------------------------
-// Google Calendar — NOT IMPLEMENTED
-// --------------------------------------------------------------------------
-// Google Calendar push notifications don't use HMAC. They use a channel-
-// token scheme: when creating a watch/subscription, the caller supplies a
-// per-channel secret token; Google echoes it back on every notification in
-// the `X-Goog-Channel-Token` header. Verification means "this channel was
-// created by us with this token." Forcing that into the HMAC adapter shape
-// would leak abstraction boundaries; wire it separately when the Calendar
-// connector ships.
-// TODO(google-calendar-inbound): distinct verifier that reads
-//   integration_connections.mapping_config.channelToken and compares against
-//   the X-Goog-Channel-Token header. Route handler should 501 until then.
-export const verifyGoogleCalendar: Verifier = () => ({
-  verified: false,
-  reason: "provider_not_implemented",
-});
-
-// --------------------------------------------------------------------------
-// Registry
+// Public registry lookups — everything else is helpers
 // --------------------------------------------------------------------------
 
-const VERIFIERS: Partial<Record<IntegrationProviderKey, Verifier>> = {
-  quickbooks_online: verifyQuickbooks,
-  xero: verifyXero,
-  sage_business_cloud: verifySage,
-  google_calendar: verifyGoogleCalendar,
-};
+export function getVerifier(
+  provider: IntegrationProviderKey,
+): Verifier | null {
+  const cfg = getProviderConfig(provider)?.webhooks;
+  if (!cfg) return null;
+  return buildVerifier(cfg);
+}
 
-export function getVerifier(provider: IntegrationProviderKey): Verifier | null {
-  return VERIFIERS[provider] ?? null;
+export function getExtractor(
+  provider: IntegrationProviderKey,
+): PayloadExtractor | null {
+  return getProviderConfig(provider)?.webhooks?.extractIdentity ?? null;
+}
+
+// --------------------------------------------------------------------------
+// Scheme dispatch
+// --------------------------------------------------------------------------
+
+function buildVerifier(cfg: WebhooksConfig): Verifier {
+  switch (cfg.signatureScheme) {
+    case "hmac-sha256-b64":
+      return buildHmacB64Verifier(cfg);
+    case "google-channel-token":
+      // TODO(google-calendar-inbound): replace with a channel-token verifier
+      // that compares the X-Goog-Channel-Token header against the per-channel
+      // secret stored on integration_connections.mapping_config at watch-
+      // creation time. Ships with the Calendar connector.
+      return () => ({ verified: false, reason: "provider_not_implemented" });
+    case "stripe":
+      // Stripe's inbound webhook uses its own static route at
+      // /api/webhooks/stripe with stripe.webhooks.constructEvent(). If this
+      // path fires, the generic route was pointed at a Stripe provider —
+      // which shouldn't happen because Next.js static-route precedence
+      // sends /api/webhooks/stripe to the dedicated handler. Fail loud.
+      return () => ({ verified: false, reason: "provider_not_implemented" });
+    case "custom":
+      return () => ({ verified: false, reason: "provider_not_implemented" });
+  }
+}
+
+function buildHmacB64Verifier(cfg: WebhooksConfig): Verifier {
+  const header = cfg.signatureHeader;
+  const secretEnv = cfg.secretEnvVar;
+  return ({ rawBody, headers }) => {
+    const sig = headers.get(header);
+    if (!sig) return { verified: false, reason: "missing_header" };
+    if (!secretEnv) return { verified: false, reason: "missing_secret" };
+    const secret = process.env[secretEnv];
+    if (!secret) return { verified: false, reason: "missing_secret" };
+    return hmacSha256Base64(rawBody, secret, sig);
+  };
 }
 
 // --------------------------------------------------------------------------
@@ -125,106 +127,4 @@ function hmacSha256Base64(
   return timingSafeEqual(provided, expected)
     ? { verified: true }
     : { verified: false, reason: "bad_signature" };
-}
-
-// --------------------------------------------------------------------------
-// Payload → (organizationId, eventId) extraction
-// --------------------------------------------------------------------------
-//
-// Inbound payloads don't carry a user session; we resolve the target org by
-// looking up integration_connections where (provider, external_account_id)
-// matches the identifier in the payload. Each provider names that identifier
-// differently, so extraction lives here alongside verification.
-//
-// If an adapter can't extract an identifier, the route handler returns 202
-// and writes an audit-only event — the row-level diagnostic trail is lost
-// until the deferred nullable-org_id migration (see HANDOFF.md) lands.
-
-export type PayloadIdentity = {
-  externalAccountId: string | null; // provider-side account / realm / tenant
-  eventId: string | null; // provider's idempotency key for this delivery
-  eventType: string; // best-effort label (e.g. "invoice.created")
-};
-
-export type PayloadExtractor = (payload: unknown) => PayloadIdentity;
-
-export const extractQuickbooks: PayloadExtractor = (payload) => {
-  // Intuit payload shape: { eventNotifications: [{ realmId, dataChangeEvent: {...} }] }
-  const p = asRecord(payload);
-  const first = asRecordArray(p.eventNotifications)[0] ?? {};
-  const realmId = typeof first.realmId === "string" ? first.realmId : null;
-  const entities = asRecordArray(
-    asRecord(first.dataChangeEvent).entities,
-  );
-  const firstEntity = entities[0] ?? {};
-  return {
-    externalAccountId: realmId,
-    // QB doesn't send a globally-unique delivery id; synthesize one from the
-    // realm + first entity id + operation so retries hash the same.
-    eventId:
-      realmId && typeof firstEntity.id === "string"
-        ? `${realmId}:${firstEntity.id}:${firstEntity.operation ?? "unknown"}`
-        : null,
-    eventType:
-      typeof firstEntity.name === "string"
-        ? `qbo.${firstEntity.name}.${firstEntity.operation ?? "event"}`
-        : "qbo.unknown",
-  };
-};
-
-export const extractXero: PayloadExtractor = (payload) => {
-  // Xero payload shape: { events: [{ resourceUrl, tenantId, eventCategory, eventType, eventDateUtc }], firstEventSequence, lastEventSequence }
-  const p = asRecord(payload);
-  const events = asRecordArray(p.events);
-  const first = events[0] ?? {};
-  const tenantId = typeof first.tenantId === "string" ? first.tenantId : null;
-  const category = typeof first.eventCategory === "string" ? first.eventCategory : "unknown";
-  const eventType = typeof first.eventType === "string" ? first.eventType : "unknown";
-  const resourceId = typeof first.resourceId === "string" ? first.resourceId : "";
-  const seq = typeof p.firstEventSequence === "number" ? p.firstEventSequence : null;
-  return {
-    externalAccountId: tenantId,
-    eventId:
-      tenantId && seq !== null
-        ? `${tenantId}:${seq}`
-        : tenantId && resourceId
-          ? `${tenantId}:${resourceId}:${eventType}`
-          : null,
-    eventType: `xero.${category.toLowerCase()}.${eventType.toLowerCase()}`,
-  };
-};
-
-export const extractSage: PayloadExtractor = () => ({
-  // Sage payload shape is TBD — stub extractor returns nulls so unmatched
-  // events audit and no-op until the real connector lands.
-  externalAccountId: null,
-  eventId: null,
-  eventType: "sage.unknown",
-});
-
-const EXTRACTORS: Partial<Record<IntegrationProviderKey, PayloadExtractor>> = {
-  quickbooks_online: extractQuickbooks,
-  xero: extractXero,
-  sage_business_cloud: extractSage,
-};
-
-export function getExtractor(
-  provider: IntegrationProviderKey,
-): PayloadExtractor | null {
-  return EXTRACTORS[provider] ?? null;
-}
-
-function asRecord(x: unknown): Record<string, unknown> {
-  return x && typeof x === "object" && !Array.isArray(x)
-    ? (x as Record<string, unknown>)
-    : {};
-}
-
-function asRecordArray(x: unknown): Record<string, unknown>[] {
-  return Array.isArray(x)
-    ? x.filter(
-        (item): item is Record<string, unknown> =>
-          item != null && typeof item === "object" && !Array.isArray(item),
-      )
-    : [];
 }
