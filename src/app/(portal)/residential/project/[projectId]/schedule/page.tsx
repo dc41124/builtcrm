@@ -38,6 +38,8 @@ export default async function ResidentialSchedulePage({
         projectName={view.project.name}
         role={view.role}
         canWrite={view.canWrite}
+        milestones={view.milestones}
+        dependencies={view.dependencies}
         phases={view.phases}
         stats={view.stats}
         overallProgressPct={view.overallProgressPct}

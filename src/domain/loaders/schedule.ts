@@ -1,7 +1,12 @@
 import { and, asc, eq, inArray, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { milestones, organizations, users } from "@/db/schema";
+import {
+  milestoneDependencies,
+  milestones,
+  organizations,
+  users,
+} from "@/db/schema";
 
 import {
   getEffectiveContext,
@@ -15,6 +20,7 @@ import { assertCan } from "../permissions";
 export * from "./schedule.shared";
 
 import type {
+  MilestoneDependency,
   MilestoneRow,
   MilestoneStatus,
   MilestoneType,
@@ -65,6 +71,7 @@ export async function getScheduleView(
       description: milestones.description,
       milestoneType: milestones.milestoneType,
       milestoneStatus: milestones.milestoneStatus,
+      startDate: milestones.startDate,
       scheduledDate: milestones.scheduledDate,
       completedDate: milestones.completedDate,
       phase: milestones.phase,
@@ -94,6 +101,7 @@ export async function getScheduleView(
     description: r.description,
     milestoneType: r.milestoneType as MilestoneType,
     milestoneStatus: r.milestoneStatus as MilestoneStatus,
+    startDate: r.startDate,
     scheduledDate: r.scheduledDate,
     completedDate: r.completedDate,
     phase: r.phase,
@@ -104,6 +112,17 @@ export async function getScheduleView(
     sortOrder: r.sortOrder,
     visibilityScope: r.visibilityScope as MilestoneVisibility,
   }));
+
+  // Dependency edges scoped to the milestones we're returning. Even
+  // if a user can't see the predecessor (role filter), we don't leak
+  // it — the edge only surfaces if BOTH endpoints are in the visible
+  // set. Without this, subs would see dangling arrows to unknown
+  // predecessors in the Gantt.
+  const visibleIds = milestoneRows.map((r) => r.id);
+  const dependencies: MilestoneDependency[] =
+    visibleIds.length === 0
+      ? []
+      : await loadScopedDependencies(visibleIds);
 
   const phases = groupByPhase(milestoneRows);
   const stats = computeStats(milestoneRows);
@@ -116,10 +135,32 @@ export async function getScheduleView(
     role,
     canWrite: context.permissions.can("milestone", "write"),
     milestones: milestoneRows,
+    dependencies,
     phases,
     stats,
     overallProgressPct,
   };
+}
+
+// Edges where BOTH endpoints are in the provided id set. An edge
+// dangles visually if one endpoint is filtered out by role, so we
+// intersect here. Called inline from the loader above.
+async function loadScopedDependencies(
+  visibleIds: string[],
+): Promise<MilestoneDependency[]> {
+  const rows = await db
+    .select({
+      predecessorId: milestoneDependencies.predecessorId,
+      successorId: milestoneDependencies.successorId,
+    })
+    .from(milestoneDependencies)
+    .where(
+      and(
+        inArray(milestoneDependencies.predecessorId, visibleIds),
+        inArray(milestoneDependencies.successorId, visibleIds),
+      ),
+    );
+  return rows;
 }
 
 // ---- Grouping & stats ---------------------------------------------------

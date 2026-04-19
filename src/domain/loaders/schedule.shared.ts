@@ -50,6 +50,10 @@ export type MilestoneRow = {
   description: string | null;
   milestoneType: MilestoneType;
   milestoneStatus: MilestoneStatus;
+  // Step 23: nullable. When set, the milestone is a duration task
+  // from startDate → scheduledDate. When null, it's a zero-duration
+  // marker (historic behaviour).
+  startDate: Date | null;
   scheduledDate: Date;
   completedDate: Date | null;
   phase: string | null;
@@ -59,6 +63,12 @@ export type MilestoneRow = {
   assignedToOrganizationName: string | null;
   sortOrder: number;
   visibilityScope: MilestoneVisibility;
+};
+
+// Directed edge in the dependency graph. Step 23 addition.
+export type MilestoneDependency = {
+  predecessorId: string;
+  successorId: string;
 };
 
 export type PhaseGroup = {
@@ -85,6 +95,9 @@ export type ScheduleView = {
   role: EffectiveContext["role"];
   canWrite: boolean;
   milestones: MilestoneRow[];
+  // Step 23: directed dep edges scoped to the returned milestones.
+  // Loaded alongside for Gantt tab + critical-path computation.
+  dependencies: MilestoneDependency[];
   phases: PhaseGroup[];
   stats: ScheduleStats;
   overallProgressPct: number;

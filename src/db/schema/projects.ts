@@ -1,4 +1,5 @@
 import {
+  check,
   index,
   integer,
   numeric,
@@ -7,9 +8,11 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { timestamps } from "./_shared";
 import {
   clientSubtypeEnum,
@@ -206,6 +209,25 @@ export const projectUserMemberships = pgTable(
 
 // -----------------------------------------------------------------------------
 // Milestones
+//
+// Dual-semantics heads up (Step 23): this table stores two conceptually
+// different things.
+//
+//   - Point-in-time markers (start_date IS NULL) — inspections, deliveries,
+//     approvals. Zero-duration nodes in CPM (critical-path-method) terms.
+//     These are what the table was originally designed for; existing seed
+//     data is all in this shape.
+//
+//   - Duration tasks (start_date IS NOT NULL) — excavation, framing,
+//     drywall. Rendered as bars in the Gantt view from start_date →
+//     scheduled_date. When start_date is set, treat scheduled_date as the
+//     TERMINAL / TARGET date of the task.
+//
+// If scheduling grows deeper in a later phase we can split these into
+// separate tables or add a `kind` enum. For now the nullability of
+// start_date carries the distinction, and the loader + Gantt adapter
+// branch on it. Dependencies live in the `milestoneDependencies` edge
+// table below and apply to both shapes uniformly.
 // -----------------------------------------------------------------------------
 
 export const milestones = pgTable(
@@ -219,6 +241,10 @@ export const milestones = pgTable(
     description: text("description"),
     milestoneType: milestoneTypeEnum("milestone_type").default("custom").notNull(),
     milestoneStatus: milestoneStatusEnum("milestone_status").default("scheduled").notNull(),
+    // Nullable. When set, the milestone is a duration task rendered as
+    // a Gantt bar from startDate → scheduledDate. When null, the row is
+    // a zero-duration marker (existing behaviour).
+    startDate: timestamp("start_date", { withTimezone: true }),
     scheduledDate: timestamp("scheduled_date", { withTimezone: true }).notNull(),
     completedDate: timestamp("completed_date", { withTimezone: true }),
     phase: varchar("phase", { length: 60 }),
@@ -240,6 +266,51 @@ export const milestones = pgTable(
     projectScheduleIdx: index("milestones_project_schedule_idx").on(
       table.projectId,
       table.scheduledDate,
+    ),
+    startDateIdx: index("milestones_start_date_idx").on(table.startDate),
+  }),
+);
+
+// -----------------------------------------------------------------------------
+// Milestone dependencies — directed edges for CPM / Gantt (Step 23)
+//
+// One row per (predecessor → successor) pair. Multi-predecessor by
+// design: a successor can have many predecessors, all of which must
+// complete before it starts. Cycle + self-reference guards live at
+// both the DB level (CHECK + partial unique) and the action layer
+// (graph walks in src/domain/schedule/dependencies.ts).
+// -----------------------------------------------------------------------------
+
+export const milestoneDependencies = pgTable(
+  "milestone_dependencies",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    predecessorId: uuid("predecessor_id")
+      .notNull()
+      .references(() => milestones.id, { onDelete: "cascade" }),
+    successorId: uuid("successor_id")
+      .notNull()
+      .references(() => milestones.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    // CPM disallows self-loops; enforced at the row level so direct
+    // SQL can't bypass the app-layer guard either.
+    noSelfEdge: check(
+      "milestone_dependencies_no_self",
+      sql`${table.predecessorId} <> ${table.successorId}`,
+    ),
+    edgeUnique: uniqueIndex("milestone_dependencies_edge_unique").on(
+      table.predecessorId,
+      table.successorId,
+    ),
+    predecessorIdx: index("milestone_dependencies_predecessor_idx").on(
+      table.predecessorId,
+    ),
+    successorIdx: index("milestone_dependencies_successor_idx").on(
+      table.successorId,
     ),
   }),
 );

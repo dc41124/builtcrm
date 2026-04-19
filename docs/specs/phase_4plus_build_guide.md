@@ -1551,7 +1551,37 @@ git commit -m "Step 22 (4B.4 #22): Document versioning with supersedes chain"
 
 ---
 
-## Step 23 — Basic Gantt View
+## Step 23 — Basic Gantt View ✅ DONE (2026-04-19)
+
+**Completion notes**
+- **Library choice reversed.** Build guide recommended `gantt-task-react`; advisor pushback + npm maintenance check confirmed it's been stalled since 2022 (v0.3.9, pre-React-18). Shipped `frappe-gantt` (core engine, actively maintained, last release ~25 days ago) behind a ~150-line hand-rolled React wrapper at `src/components/gantt/FrappeGantt.tsx`. Engine stays current without being pinned to an abandoned wrapper.
+- **Path C schema (minimal addition).** `milestones.start_date` (nullable) carries duration for tasks; null = zero-duration marker (historic shape). New `milestone_dependencies` edge table with `(predecessor, successor)` + CHECK no-self + unique index + both-direction lookup indexes. Category + visibility advisor-refinement re-applies: dual-semantics is documented inline on the schema so readers understand both marker and task rows share the table.
+- **Cycle + self-ref + linearity guards.** Partial unique at DB prevents duplicate edges; CHECK constraint rejects self-edges. App-layer `wouldCreateCycle` + `getValidPredecessorCandidates` in `src/domain/schedule/dependencies.ts` prevent loops at insert time and filter the candidate picker so invalid options never surface.
+- **Critical-path math client-side.** Forward pass earliest-finish + backward pass latest-finish, per connected component (advisor-flagged disconnected subgraphs get independent critical paths). Memoized in `ScheduleGanttPanel` via `useMemo` keyed on the milestones+dependencies arrays. Trivial singletons skipped — lone nodes aren't "critical" in any meaningful sense.
+- **Drag-to-reschedule.** Gantt `on_date_change` → PATCH `/api/milestones/[id]` with both `startDate` and `scheduledDate`. Schema-level refinement rejects inverted endpoints. Audit events fire via the existing milestone PATCH flow.
+- **Authorization.** `canWrite` gates drag: contractor_admin + contractor_pm edit; subs + clients see the Gantt read-only. Subs still filtered to their assigned milestones (loader scope unchanged).
+- **Dependency picker (multi-select, cycle-filtered).** In the Gantt side panel, clicking a bar opens a detail view with a "Predecessors" section — add via candidate select (pre-filtered to rule out cycles and duplicates), remove via inline button. Multi-predecessor from day one per advisor directive. Edit-form approach, not drag-to-connect.
+- **Responsive policy.** <900px viewports get a fallback notice pointing users to the Timeline tab (frappe-gantt doesn't compress well on phones). 900–1200px renders the Gantt without the side detail panel (stack below on click). ≥1200px gets the full side-by-side layout.
+- **Dynamic import.** `ScheduleGanttPanel` is `next/dynamic`-loaded so the library bytes only hit the client bundle when someone switches to the Gantt tab. Timeline-only users pay nothing.
+- **Vendor CSS.** frappe-gantt's package `exports` blocks `./dist/*.css` imports, so the library's CSS is vendored at `src/styles/frappe-gantt.css` and imported from the wrapper as a side effect. TypeScript shim at `src/types/frappe-gantt.d.ts` (upstream has no typings).
+
+**What shipped (files)**
+- `src/db/migrations/0017_milestone_gantt.sql` — `start_date` column + `milestone_dependencies` table
+- `src/db/schema/projects.ts` — `startDate` + `milestoneDependencies` + dual-semantics doc comment
+- `src/domain/schedule/dependencies.ts` — graph helpers (`buildAdjacency`, `getValidPredecessorCandidates`, `wouldCreateCycle`, `computeCriticalPath`, `topologicalSort`)
+- `src/lib/ganttAdapter.ts` — milestone ↔ frappe-gantt Task shape + inverse date-change mapping
+- `src/components/gantt/FrappeGantt.tsx` — React wrapper (mount once, refresh on task change, view-mode switching, read-only revert)
+- `src/components/gantt/ScheduleGanttPanel.tsx` — Gantt tab body with critical-path + detail panel + drag wiring
+- `src/styles/frappe-gantt.css` — vendored library CSS
+- `src/types/frappe-gantt.d.ts` — module shim for the library's missing typings
+- `src/domain/loaders/schedule.ts` + `.shared.ts` — `dependencies` in ScheduleView, `startDate` in MilestoneRow
+- `src/app/api/milestones/[id]/route.ts` — PATCH schema + update logic extended with `startDate`
+- `src/app/api/milestones/[id]/dependencies/route.ts` — POST / DELETE edge endpoints
+- `src/components/schedule-ui.tsx` — Timeline / Gantt tab switcher, new props threaded through
+- `src/styles/workspaces.css` — switcher + Gantt panel + responsive rules
+- All four project-scoped schedule pages (contractor / sub / commercial / residential / client) pass the new props through
+
+
 
 **Mode:** Require-design-input
 **Item:** 4B.5 #23

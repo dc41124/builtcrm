@@ -34,6 +34,11 @@ type ScheduleViewProps = {
   projectName: string;
   role: ScheduleRole;
   canWrite: boolean;
+  // Step 23: raw milestone + dependency arrays fuel the Gantt tab.
+  // Existing phase-grouped `phases` + `stats` continue to drive the
+  // timeline view; the Gantt computes from these flat arrays.
+  milestones: import("@/domain/loaders/schedule.shared").MilestoneRow[];
+  dependencies: import("@/domain/loaders/schedule.shared").MilestoneDependency[];
   phases: PhaseGroup[];
   stats: ScheduleStats;
   overallProgressPct: number;
@@ -123,6 +128,8 @@ function StandardSchedule({
   projectId,
   projectName,
   canWrite,
+  milestones,
+  dependencies,
   phases,
   stats,
   overallProgressPct,
@@ -131,6 +138,9 @@ function StandardSchedule({
 }: ScheduleViewProps & { portal: PortalVariant }) {
   const [filter, setFilter] = useState<FilterKey>("all");
   const [showCreate, setShowCreate] = useState(false);
+  // Step 23: "Timeline" (existing grouped phase view) vs "Gantt"
+  // (new chart tab). Default stays as timeline per the build guide.
+  const [viewMode, setViewMode] = useState<"timeline" | "gantt">("timeline");
 
   const filteredPhases = useMemo(
     () => applyFilter(phases, filter, nowMs),
@@ -178,38 +188,106 @@ function StandardSchedule({
         />
       )}
 
-      <FilterTabs filter={filter} setFilter={setFilter} stats={stats} />
+      <ScheduleViewModeSwitcher mode={viewMode} setMode={setViewMode} />
 
-      {showCreate && canWrite && <CreateMilestoneForm projectId={projectId} />}
+      {viewMode === "timeline" ? (
+        <>
+          <FilterTabs filter={filter} setFilter={setFilter} stats={stats} />
 
-      <div className="sch-phases">
-        {filteredPhases.length === 0 ? (
-          <div className="sch-empty">No milestones match this filter.</div>
-        ) : isContractor ? (
-          filteredPhases.map((phase) => (
-            <PhaseBlock
-              key={phase.name}
-              phase={phase}
-              readOnly={!canWrite}
-              isContractor
-            />
-          ))
-        ) : (
-          <div className="sch-phase">
-            {filteredPhases.flatMap((p) => p.milestones).map((m) => (
-              <MilestoneCard
-                key={m.id}
-                milestone={m}
-                readOnly={!canWrite}
-                isContractor={false}
-              />
-            ))}
+          {showCreate && canWrite && (
+            <CreateMilestoneForm projectId={projectId} />
+          )}
+
+          <div className="sch-phases">
+            {filteredPhases.length === 0 ? (
+              <div className="sch-empty">
+                No milestones match this filter.
+              </div>
+            ) : isContractor ? (
+              filteredPhases.map((phase) => (
+                <PhaseBlock
+                  key={phase.name}
+                  phase={phase}
+                  readOnly={!canWrite}
+                  isContractor
+                />
+              ))
+            ) : (
+              <div className="sch-phase">
+                {filteredPhases.flatMap((p) => p.milestones).map((m) => (
+                  <MilestoneCard
+                    key={m.id}
+                    milestone={m}
+                    readOnly={!canWrite}
+                    isContractor={false}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      ) : (
+        <>
+          <div className="gantt-mobile-fallback">
+            Gantt needs more room than a phone gives it. Use the Timeline
+            tab on mobile.
+          </div>
+          <GanttPanelMount
+            projectId={projectId}
+            milestones={milestones}
+            dependencies={dependencies}
+            canWrite={canWrite}
+          />
+        </>
+      )}
     </>
   );
 }
+
+// Two-tab switcher between Timeline and Gantt. Visual shape mirrors
+// the FilterTabs component to stay consistent within the workspace.
+function ScheduleViewModeSwitcher({
+  mode,
+  setMode,
+}: {
+  mode: "timeline" | "gantt";
+  setMode: (m: "timeline" | "gantt") => void;
+}) {
+  return (
+    <div className="sch-view-switcher" role="tablist">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={mode === "timeline"}
+        className={`sch-view-tab ${mode === "timeline" ? "on" : ""}`}
+        onClick={() => setMode("timeline")}
+      >
+        Timeline
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={mode === "gantt"}
+        className={`sch-view-tab ${mode === "gantt" ? "on" : ""}`}
+        onClick={() => setMode("gantt")}
+      >
+        Gantt
+      </button>
+    </div>
+  );
+}
+
+// Lazy-mount the Gantt panel so frappe-gantt's CSS + imperative DOM
+// setup only load once someone switches tabs. Keeps initial page
+// weight lean for users who never leave the Timeline default.
+import dynamic from "next/dynamic";
+const GanttPanelMount = dynamic(
+  () =>
+    import("@/components/gantt/ScheduleGanttPanel").then(
+      (m) => m.ScheduleGanttPanel,
+    ),
+  { ssr: false, loading: () => <div className="gantt-loading">Loading Gantt…</div> },
+);
 
 function StatsRow({
   stats,

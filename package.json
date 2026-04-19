@@ -26,6 +26,7 @@
     "archiver": "^7.0.1",
     "better-auth": "^1.0.0",
     "drizzle-orm": "^0.41.0",
+    "frappe-gantt": "^1.2.2",
     "nanoid": "^5.0.7",
     "next": "^14.2.15",
     "postgres": "^3.4.5",

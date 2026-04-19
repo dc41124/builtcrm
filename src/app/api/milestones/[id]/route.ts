@@ -22,6 +22,10 @@ const PatchSchema = z
     description: z.string().max(10000).nullable().optional(),
     milestoneType: z.enum(MILESTONE_TYPE_VALUES).optional(),
     milestoneStatus: z.enum(MILESTONE_STATUS_VALUES).optional(),
+    // Step 23: nullable start for duration tasks; set via Gantt drag
+    // or milestone edit form. When null, the row reverts to marker
+    // semantics.
+    startDate: z.string().datetime().nullable().optional(),
     scheduledDate: z.string().datetime().optional(),
     phase: z.string().max(60).nullable().optional(),
     visibilityScope: z.enum(MILESTONE_VISIBILITY_VALUES).optional(),
@@ -29,7 +33,18 @@ const PatchSchema = z
     assignedToOrganizationId: z.string().uuid().nullable().optional(),
     sortOrder: z.number().int().optional(),
   })
-  .refine((v) => Object.keys(v).length > 0, { message: "no_fields" });
+  .refine((v) => Object.keys(v).length > 0, { message: "no_fields" })
+  .refine(
+    (v) => {
+      // If both are provided in one update, start must be <= scheduled.
+      // Guard against a drag that inverted the endpoints.
+      if (v.startDate && v.scheduledDate) {
+        return new Date(v.startDate).getTime() <= new Date(v.scheduledDate).getTime();
+      }
+      return true;
+    },
+    { message: "start_after_end" },
+  );
 
 // Valid state transitions. `missed` is NOT terminal: a late finish can still
 // flip it to `completed`. `cancelled` is terminal.
@@ -136,6 +151,9 @@ export async function PATCH(
         }),
         ...(updates.scheduledDate !== undefined && {
           scheduledDate: new Date(updates.scheduledDate),
+        }),
+        ...(updates.startDate !== undefined && {
+          startDate: updates.startDate ? new Date(updates.startDate) : null,
         }),
         ...(updates.phase !== undefined && { phase: updates.phase }),
         ...(updates.visibilityScope !== undefined && {
