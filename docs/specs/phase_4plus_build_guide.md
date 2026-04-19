@@ -782,6 +782,8 @@ git commit -m "Step 12 (4A.3 #12): Subcontractor Settings landing page"
 
 ## Step 13 — Export Endpoints: Payment PDF, Photo ZIP, Receipt Links
 
+> **Status: ✅ Done** (2026-04-18) — commit `0846922`. Payment PDF via `@react-pdf/renderer`, photo ZIP via streaming `archiver`, receipt links resolved with auth. See the detailed completion notes at the end of this step.
+
 **Mode:** Safe-to-autorun (after design review)
 **Item:** 4A.4 #13
 **Effort:** M (**larger than it looks** — PDF + ZIP + auth across three surfaces)
@@ -868,6 +870,8 @@ Notes on deviations from the spec above:
 ---
 
 ## Step 14 — Project Navigation Dropdown in Top Bar
+
+> **Status: ✅ Done** (2026-04-18) — project switcher shipped in the AppShell topbar, keyboard-navigable, search-filterable, portal-scoped via `loadUserPortalContext`. See the detailed completion notes at the end of this step.
 
 **Mode:** Safe-to-autorun
 **Item:** 4A.5 #14
@@ -960,6 +964,8 @@ Optional sanity clickthrough (30 minutes): log in as each of the four roles, cli
 
 ## Step 15 — Notification Center UI
 
+> **Status: ✅ Done** (2026-04-18) — commit `2a84e0d`. Bell + dropdown + persistent `/notifications` page across all four portals, with unread badge, mark-read/mark-all-read, and `emit.ts` helper wired into route handlers. See the detailed completion notes at the end of this step.
+
 **Mode:** Require-design-input
 **Item:** 4B.1 #15
 **Effort:** S (in scope terms — UI only; data model is done)
@@ -1041,6 +1047,8 @@ Notes on deviations from the spec above:
 
 ## Step 16 — Notification Preferences
 
+> **Status: ✅ Done** (2026-04-18) — commit `cb27453`. Per-channel (email/in-app) × per-event-type preferences live in the Settings "Notifications" tab; `emit.ts` respects `inApp === false` at emit time; audit writes are always preserved. Settings tabs now deep-link via `?tab=...`. See the detailed completion notes at the end of this step.
+
 **Mode:** Safe-to-autorun
 **Item:** 4B.1 #16
 **Effort:** S
@@ -1107,6 +1115,8 @@ Not in scope (future work):
 ---
 
 ## Step 17 — Global Command Palette (cmd+K Search)
+
+> **Status: ✅ Done** (2026-04-18) — commits `409ffe2` + `aa11641`. Global cmd/ctrl+K palette with portal-scoped search across projects, RFIs, change orders, documents, messages, and people; keyboard navigation; follow-up fix removed a duplicate sidebar trigger and unbroke search.
 
 **Mode:** Require-design-input
 **Item:** 4B.2 #17

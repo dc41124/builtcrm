@@ -53,6 +53,8 @@ const I = {
 
 const ALL_PROJECTS_TAB = "__all__";
 
+type ViewMode = "timeline" | "calendar" | "report";
+
 export function SubcontractorDailyLogsWorkspace({
   view,
 }: {
@@ -61,6 +63,8 @@ export function SubcontractorDailyLogsWorkspace({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<string>(ALL_PROJECTS_TAB);
   const [submitOpen, setSubmitOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("timeline");
+  const [monthCursor, setMonthCursor] = useState(() => view.today.slice(0, 7));
 
   const todayEntries = useMemo(
     () => view.crewEntries.filter((c) => c.logDate === view.today),
@@ -222,19 +226,61 @@ export function SubcontractorDailyLogsWorkspace({
           <div className="sdl-cd">
             <div className="sdl-cd-h">
               <div>
-                <div className="sdl-cd-title">Daily logs &amp; your entries</div>
-                <div className="sdl-cd-sub">
-                  {filteredLogs.length} GC log{filteredLogs.length === 1 ? "" : "s"} ·{" "}
-                  {filteredEntries.length} of your entries in range
+                <div className="sdl-cd-title">
+                  {viewMode === "timeline"
+                    ? "Daily logs & your entries"
+                    : viewMode === "calendar"
+                      ? "Your activity calendar"
+                      : "Crew-hours report"}
                 </div>
+                <div className="sdl-cd-sub">
+                  {viewMode === "timeline"
+                    ? `${filteredLogs.length} GC log${filteredLogs.length === 1 ? "" : "s"} · ${filteredEntries.length} of your entries in range`
+                    : viewMode === "calendar"
+                      ? "Days your crew was on site across all projects"
+                      : "Per-project rollup · last 30 / 60 / 90 days"}
+                </div>
+              </div>
+              <div className="sdl-vt">
+                <button
+                  className={`sdl-vt-btn${viewMode === "timeline" ? " on" : ""}`}
+                  onClick={() => setViewMode("timeline")}
+                >
+                  Timeline
+                </button>
+                <button
+                  className={`sdl-vt-btn${viewMode === "calendar" ? " on" : ""}`}
+                  onClick={() => setViewMode("calendar")}
+                >
+                  Calendar
+                </button>
+                <button
+                  className={`sdl-vt-btn${viewMode === "report" ? " on" : ""}`}
+                  onClick={() => setViewMode("report")}
+                >
+                  Report
+                </button>
               </div>
             </div>
             <div className="sdl-cd-body">
-              <GcLogList
-                logs={filteredLogs}
-                crewEntries={filteredEntries}
-                today={view.today}
-              />
+              {viewMode === "timeline" && (
+                <GcLogList
+                  logs={filteredLogs}
+                  crewEntries={filteredEntries}
+                  today={view.today}
+                />
+              )}
+              {viewMode === "calendar" && (
+                <SubCalendar
+                  monthCursor={monthCursor}
+                  onChangeCursor={setMonthCursor}
+                  crewEntries={filteredEntries}
+                  today={view.today}
+                />
+              )}
+              {viewMode === "report" && (
+                <CrewHoursReport crewEntries={view.crewEntries} projects={view.projects} />
+              )}
             </div>
           </div>
         </div>
@@ -515,6 +561,386 @@ function ReconciliationRow({
           {acking ? "Acking…" : "Acknowledge"}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ── Calendar view ───────────────────────────────────────────────
+//
+// Sub-specific calendar: shows days where the sub's crew had an entry
+// (green = submitted, amber = reconciliation pending). Missed/non-
+// activity days are greyed out — we don't mark weekdays as "missed"
+// here because the sub can be on zero projects some days and that's
+// a valid state, unlike the contractor's "must log every work day"
+// model.
+
+type SubCalendarCell = {
+  key: string;
+  day: number;
+  inMonth: boolean;
+  state: "none" | "submitted" | "pending" | "today" | "weekend" | "future";
+  entries: SubDailyLogsCrewEntry[];
+};
+
+function SubCalendar({
+  monthCursor,
+  onChangeCursor,
+  crewEntries,
+  today,
+}: {
+  monthCursor: string;
+  onChangeCursor: (next: string) => void;
+  crewEntries: SubDailyLogsCrewEntry[];
+  today: string;
+}) {
+  const [year, month] = monthCursor.split("-").map((s) => parseInt(s, 10));
+  const monthLabel = new Date(Date.UTC(year, month - 1, 1)).toLocaleString(
+    "en-US",
+    { month: "long", year: "numeric", timeZone: "UTC" },
+  );
+
+  const shiftMonth = (delta: number) => {
+    const d = new Date(Date.UTC(year, month - 1 + delta, 1));
+    onChangeCursor(
+      `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`,
+    );
+  };
+
+  const firstDay = new Date(Date.UTC(year, month - 1, 1));
+  const startDow = firstDay.getUTCDay();
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const prevMonthDays = new Date(Date.UTC(year, month - 1, 0)).getUTCDate();
+
+  const entriesByDate = new Map<string, SubDailyLogsCrewEntry[]>();
+  for (const e of crewEntries) {
+    const arr = entriesByDate.get(e.logDate) ?? [];
+    arr.push(e);
+    entriesByDate.set(e.logDate, arr);
+  }
+
+  const cells: SubCalendarCell[] = [];
+  for (let i = startDow - 1; i >= 0; i--) {
+    const day = prevMonthDays - i;
+    cells.push({
+      key: `prev-${day}`,
+      day,
+      inMonth: false,
+      state: "none",
+      entries: [],
+    });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const dow = new Date(Date.UTC(year, month - 1, d)).getUTCDay();
+    const dayEntries = entriesByDate.get(iso) ?? [];
+    let state: SubCalendarCell["state"];
+    if (iso === today) {
+      state =
+        dayEntries.length > 0
+          ? dayEntries.some((e) => e.requiresAck)
+            ? "pending"
+            : "submitted"
+          : "today";
+    } else if (dayEntries.length > 0) {
+      state = dayEntries.some((e) => e.requiresAck) ? "pending" : "submitted";
+    } else if (dow === 0 || dow === 6) {
+      state = "weekend";
+    } else if (iso > today) {
+      state = "future";
+    } else {
+      state = "none";
+    }
+    cells.push({ key: iso, day: d, inMonth: true, state, entries: dayEntries });
+  }
+  while (cells.length % 7 !== 0) {
+    const offset = cells.length - (startDow + daysInMonth);
+    cells.push({
+      key: `next-${offset}`,
+      day: offset + 1,
+      inMonth: false,
+      state: "none",
+      entries: [],
+    });
+  }
+
+  return (
+    <>
+      <div className="sdl-cal-head">
+        <div className="sdl-cal-nav">
+          <button
+            className="sdl-cal-arrow"
+            onClick={() => shiftMonth(-1)}
+            aria-label="Previous month"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+          <div className="sdl-cal-month">{monthLabel}</div>
+          <button
+            className="sdl-cal-arrow"
+            onClick={() => shiftMonth(1)}
+            aria-label="Next month"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="m9 18 6-6-6-6" />
+            </svg>
+          </button>
+        </div>
+        <div className="sdl-cal-legend">
+          <span>
+            <span
+              className="sw"
+              style={{
+                background: "var(--sdl-ok-s)",
+                border: "1px solid rgba(45,138,94,.3)",
+              }}
+            />
+            Submitted
+          </span>
+          <span>
+            <span
+              className="sw"
+              style={{
+                background: "var(--sdl-wr-s)",
+                border: "1px solid rgba(193,122,26,.3)",
+              }}
+            />
+            Review required
+          </span>
+          <span>
+            <span
+              className="sw"
+              style={{
+                background: "var(--sdl-ac-s)",
+                border: "1.5px solid var(--sdl-ac)",
+              }}
+            />
+            Today
+          </span>
+        </div>
+      </div>
+      <div className="sdl-cal-grid">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+          <div key={d} className="sdl-cal-dow">
+            {d}
+          </div>
+        ))}
+        {cells.map((c) => {
+          const totalHours = c.entries.reduce(
+            (a, e) => a + (e.reconciledHours ?? e.hours),
+            0,
+          );
+          const cls = !c.inMonth
+            ? "prev"
+            : c.state === "weekend"
+              ? "weekend"
+              : c.state === "submitted"
+                ? "submitted"
+                : c.state === "pending"
+                  ? "pending"
+                  : c.state === "today"
+                    ? "today"
+                    : c.state === "future"
+                      ? "future"
+                      : "none";
+          return (
+            <div
+              key={c.key}
+              className={`sdl-cal-day ${cls}`}
+              title={
+                c.entries.length > 0
+                  ? c.entries
+                      .map(
+                        (e) =>
+                          `${e.projectName}: ${e.reconciledHeadcount ?? e.headcount} × ${e.reconciledHours ?? e.hours}h`,
+                      )
+                      .join("\n")
+                  : undefined
+              }
+            >
+              <span className="d-num">{c.day}</span>
+              {c.entries.length > 0 && (
+                <span className="d-foot">{formatNumber(totalHours)}h</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+// ── Report view ─────────────────────────────────────────────────
+//
+// Per-project rollup of the sub's crew-hours. Works off the 30-day
+// window the loader returns today; slider toggles which subset (7 /
+// 30 / 60 — can't exceed what's loaded without extending the loader).
+// Provides a one-click CSV export for payroll handoff.
+
+function CrewHoursReport({
+  crewEntries,
+  projects,
+}: {
+  crewEntries: SubDailyLogsCrewEntry[];
+  projects: SubDailyLogsProject[];
+}) {
+  const [rangeDays, setRangeDays] = useState<7 | 30 | 60>(30);
+  const cutoff = useMemo(() => {
+    const d = new Date();
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCDate(d.getUTCDate() - (rangeDays - 1));
+    return d.toISOString().slice(0, 10);
+  }, [rangeDays]);
+
+  const inRange = crewEntries.filter((e) => e.logDate >= cutoff);
+
+  const byProject = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        projectId: string;
+        projectName: string;
+        daysOnSite: number;
+        totalHeadcount: number;
+        totalHours: number;
+        reconciledCount: number;
+      }
+    >();
+    for (const p of projects) {
+      map.set(p.id, {
+        projectId: p.id,
+        projectName: p.name,
+        daysOnSite: 0,
+        totalHeadcount: 0,
+        totalHours: 0,
+        reconciledCount: 0,
+      });
+    }
+    for (const e of inRange) {
+      const curr = map.get(e.projectId);
+      if (!curr) continue;
+      curr.daysOnSite += 1;
+      curr.totalHeadcount += e.reconciledHeadcount ?? e.headcount;
+      curr.totalHours += e.reconciledHours ?? e.hours;
+      if (e.reconciledAt) curr.reconciledCount += 1;
+    }
+    return Array.from(map.values()).sort((a, b) => b.totalHours - a.totalHours);
+  }, [inRange, projects]);
+
+  const grandTotal = byProject.reduce(
+    (acc, p) => ({
+      days: acc.days + p.daysOnSite,
+      hours: acc.hours + p.totalHours,
+    }),
+    { days: 0, hours: 0 },
+  );
+
+  const exportCsv = () => {
+    const rows: string[] = [
+      "Date,Project,Headcount,Hours,Note,Reconciled",
+    ];
+    for (const e of inRange.slice().sort((a, b) =>
+      a.logDate < b.logDate ? -1 : 1,
+    )) {
+      const note = (e.submittedNote ?? "").replace(/"/g, '""');
+      rows.push(
+        [
+          e.logDate,
+          `"${e.projectName.replace(/"/g, '""')}"`,
+          e.reconciledHeadcount ?? e.headcount,
+          e.reconciledHours ?? e.hours,
+          `"${note}"`,
+          e.reconciledAt ? "yes" : "no",
+        ].join(","),
+      );
+    }
+    const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `crew-hours-${cutoff}-to-today.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  return (
+    <div>
+      <div className="sdl-report-toolbar">
+        <div className="sdl-vt">
+          <button
+            className={`sdl-vt-btn${rangeDays === 7 ? " on" : ""}`}
+            onClick={() => setRangeDays(7)}
+          >
+            Last 7 days
+          </button>
+          <button
+            className={`sdl-vt-btn${rangeDays === 30 ? " on" : ""}`}
+            onClick={() => setRangeDays(30)}
+          >
+            Last 30 days
+          </button>
+          <button
+            className={`sdl-vt-btn${rangeDays === 60 ? " on" : ""}`}
+            onClick={() => setRangeDays(60)}
+            disabled
+            title="Loader currently returns the last 30 days. Widening the range is Phase 6 scope."
+          >
+            Last 60 days
+          </button>
+        </div>
+        <button
+          className="sdl-btn sm"
+          onClick={exportCsv}
+          disabled={inRange.length === 0}
+        >
+          Export CSV
+        </button>
+      </div>
+
+      {byProject.length === 0 || inRange.length === 0 ? (
+        <p className="sdl-empty">No crew-hours in this range.</p>
+      ) : (
+        <table className="sdl-report-tbl">
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Days on site</th>
+              <th>Total crew</th>
+              <th>Total hours</th>
+              <th>Reconciled</th>
+            </tr>
+          </thead>
+          <tbody>
+            {byProject.map((p) => (
+              <tr key={p.projectId}>
+                <td className="project">{p.projectName}</td>
+                <td className="num">{p.daysOnSite}</td>
+                <td className="num">{p.totalHeadcount}</td>
+                <td className="num">{formatNumber(p.totalHours)}</td>
+                <td className="num">
+                  {p.reconciledCount > 0 ? (
+                    <span className="sdl-pl amber">
+                      {p.reconciledCount} reconciled
+                    </span>
+                  ) : (
+                    <span className="sdl-muted-head">none</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+            <tr className="total">
+              <td>Total</td>
+              <td className="num">{grandTotal.days}</td>
+              <td />
+              <td className="num">{formatNumber(grandTotal.hours)}</td>
+              <td />
+            </tr>
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
@@ -850,6 +1276,45 @@ const SUB_DAILY_LOG_CSS = `
 .sdl-error{color:var(--sdl-dg-t);font-size:11.5px;margin-top:6px}
 
 .sdl-empty{font-size:13px;color:var(--sdl-t2);padding:20px 0;text-align:center}
+
+/* View toggle (Timeline / Calendar / Report) */
+.sdl-vt{display:inline-flex;background:var(--sdl-s2);border-radius:10px;padding:3px;gap:2px}
+.sdl-vt-btn{height:28px;padding:0 10px;border-radius:7px;font-size:12px;font-weight:600;color:var(--sdl-t2);background:transparent;border:none;cursor:pointer;font-family:var(--sdl-fb);display:inline-flex;align-items:center;gap:5px}
+.sdl-vt-btn:disabled{opacity:.4;cursor:not-allowed}
+.sdl-vt-btn.on{background:var(--sdl-s1);color:var(--sdl-t1);font-weight:700;box-shadow:0 1px 3px rgba(26,23,20,.05)}
+
+/* Calendar view */
+.sdl-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:0 4px}
+.sdl-cal-nav{display:flex;align-items:center;gap:8px}
+.sdl-cal-month{font-family:var(--sdl-fd);font-size:17px;font-weight:740;letter-spacing:-.02em}
+.sdl-cal-arrow{width:28px;height:28px;border-radius:6px;border:1px solid var(--sdl-s3);background:var(--sdl-s1);color:var(--sdl-t2);display:grid;place-items:center;cursor:pointer}
+.sdl-cal-arrow:hover{background:var(--sdl-sh);color:var(--sdl-t1)}
+.sdl-cal-arrow svg{width:12px;height:12px}
+.sdl-cal-legend{display:flex;gap:14px;font-size:11.5px;color:var(--sdl-t2);font-weight:550}
+.sdl-cal-legend span{display:inline-flex;align-items:center;gap:5px}
+.sdl-cal-legend .sw{width:10px;height:10px;border-radius:3px}
+
+.sdl-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.sdl-cal-dow{font-family:var(--sdl-fd);font-size:10.5px;font-weight:700;color:var(--sdl-t3);text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:4px 0;margin-bottom:2px}
+.sdl-cal-day{aspect-ratio:1;border-radius:10px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:8px 10px;transition:all 120ms cubic-bezier(.16,1,.3,1);border:1px solid transparent}
+.sdl-cal-day .d-num{font-family:var(--sdl-fd);font-size:13px;font-weight:700}
+.sdl-cal-day .d-foot{font-size:10px;font-weight:700;letter-spacing:.02em;font-family:var(--sdl-fm)}
+.sdl-cal-day.prev,.sdl-cal-day.none,.sdl-cal-day.future{color:var(--sdl-t3);opacity:.5}
+.sdl-cal-day.weekend{background:var(--sdl-s2);color:var(--sdl-t3)}
+.sdl-cal-day.submitted{background:var(--sdl-ok-s);color:var(--sdl-ok-t);border-color:rgba(45,138,94,.2)}
+.sdl-cal-day.pending{background:var(--sdl-wr-s);color:var(--sdl-wr-t);border-color:rgba(193,122,26,.25)}
+.sdl-cal-day.today{background:var(--sdl-ac-s);color:var(--sdl-ac-t);border:1.5px solid var(--sdl-ac);font-weight:820}
+
+/* Report view */
+.sdl-report-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap}
+.sdl-report-tbl{width:100%;border-collapse:collapse}
+.sdl-report-tbl th{font-family:var(--sdl-fd);font-size:11px;font-weight:700;color:var(--sdl-t3);text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:10px 12px;background:var(--sdl-sic);border-bottom:1px solid var(--sdl-s3)}
+.sdl-report-tbl th:nth-child(n+2),.sdl-report-tbl td.num{text-align:right}
+.sdl-report-tbl td{padding:12px;border-bottom:1px solid var(--sdl-s3);font-size:13px}
+.sdl-report-tbl tr:last-child td{border-bottom:none}
+.sdl-report-tbl td.project{font-family:var(--sdl-fd);font-weight:620}
+.sdl-report-tbl td.num{font-family:var(--sdl-fm);font-weight:600}
+.sdl-report-tbl tr.total td{background:var(--sdl-sic);font-weight:740;border-bottom:none}
 
 .sdl-drawer-ovl{position:fixed;inset:0;background:rgba(20,18,14,.4);backdrop-filter:blur(3px);z-index:100}
 .sdl-drawer{position:fixed;top:0;right:0;width:560px;max-width:100vw;height:100vh;background:var(--sdl-s1);z-index:101;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(26,23,20,.14);border-left:1px solid var(--sdl-s3);animation:sdl-slide 280ms cubic-bezier(.16,1,.3,1)}
