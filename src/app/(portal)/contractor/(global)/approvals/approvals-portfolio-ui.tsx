@@ -378,8 +378,9 @@ function ProjectMultiSelect({
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => onToggle(p.id)}
-                      style={{ marginRight: 8, accentColor: "var(--ac)" }}
+                      style={visuallyHiddenCheckboxStyle}
                     />
+                    <CustomCheckbox checked={isSelected} />
                     <span style={{ flex: 1, minWidth: 0 }}>{p.name}</span>
                   </label>
                 );
@@ -404,6 +405,29 @@ function ProjectMultiSelect({
         </div>
       )}
     </div>
+  );
+}
+
+// White box always; accent-colored check appears when selected. Ensures the
+// box is visible on the dark dropdown panel even when nothing is picked.
+function CustomCheckbox({ checked }: { checked: boolean }) {
+  return (
+    <span style={customCheckboxStyle} aria-hidden>
+      {checked && (
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          fill="none"
+          stroke="var(--ac)"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M2 5.2L4.2 7.4 8.2 2.8" />
+        </svg>
+      )}
+    </span>
   );
 }
 
@@ -609,6 +633,26 @@ const clearLinkStyle: CSSProperties = {
   fontWeight: 620,
   cursor: "pointer",
   padding: "4px 8px",
+};
+
+const visuallyHiddenCheckboxStyle: CSSProperties = {
+  position: "absolute",
+  opacity: 0,
+  pointerEvents: "none",
+  width: 0,
+  height: 0,
+};
+
+const customCheckboxStyle: CSSProperties = {
+  display: "inline-grid",
+  placeItems: "center",
+  width: 14,
+  height: 14,
+  borderRadius: 3,
+  border: "1px solid rgba(0,0,0,0.12)",
+  background: "white",
+  marginRight: 8,
+  flexShrink: 0,
 };
 
 const projectPanelStyle: CSSProperties = {
