@@ -38,7 +38,7 @@ import { FrappeGantt, type FrappeGanttViewMode } from "./FrappeGantt";
 // Gantt — the FrappeGantt wrapper honours `readOnly` by reverting any
 // bar the user tries to drag.
 
-const VIEW_MODES: FrappeGanttViewMode[] = ["Day", "Week", "Month", "Quarter"];
+const VIEW_MODES: FrappeGanttViewMode[] = ["Day", "Week", "Month", "Year"];
 
 export function ScheduleGanttPanel({
   projectId,

@@ -29,12 +29,12 @@ import type { GanttTask } from "@/lib/ganttAdapter";
 //     re-render the task back to its server-side shape (frappe-gantt
 //     has no first-class read-only flag, so this is the idiomatic dodge).
 
-export type FrappeGanttViewMode =
-  | "Day"
-  | "Week"
-  | "Month"
-  | "Quarter"
-  | "Year";
+// Subset of frappe-gantt's DEFAULT_VIEW_MODES we expose. The library
+// also defines "Hour", "Quarter Day", and "Half Day" — those are
+// too fine-grained for construction schedules; we skip them. Note
+// the library has NO 3-month-quarter mode; "Quarter Day" is a
+// 6-hour bucket, not what most users mean by "Quarter."
+export type FrappeGanttViewMode = "Day" | "Week" | "Month" | "Year";
 
 export type DateChangePayload = {
   taskId: string;
