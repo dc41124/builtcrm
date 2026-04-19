@@ -76,6 +76,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
         defaultOpen: true,
         items: mark([
           { label: "Dashboard", href: "/contractor/dashboard" },
+          { label: "Reports", href: "/contractor/reports" },
           { label: "Approvals", href: "/contractor/approvals" },
           { label: "Messages", href: "/contractor/messages" },
         ]),

@@ -528,6 +528,71 @@
         .gantt .bar-wrapper.gantt-status-completed .bar-progress { fill:var(--ok); }
         .gantt .bar-wrapper.gantt-seed { display:none; }
 
+        /* Reports dashboard (Step 24) — contractor portfolio surface. */
+        .rpt { padding:24px 32px 64px;display:flex;flex-direction:column;gap:28px;font-family:var(--fb); }
+        .rpt-hdr { display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap; }
+        .rpt-hdr h1 { font-family:var(--fd);font-size:26px;font-weight:820;letter-spacing:-.025em;margin:0;color:var(--t1); }
+        .rpt-sub { margin-top:6px;font-size:13px;color:var(--t3);font-weight:520; }
+        .rpt-btn { height:36px;padding:0 16px;border:none;border-radius:var(--r-m);font-family:var(--fd);font-weight:650;font-size:13px;cursor:pointer; }
+        .rpt-btn.primary { background:var(--ac);color:#fff; }
+        .rpt-btn.primary:disabled { opacity:.6;cursor:wait; }
+
+        .rpt-kpi-groups { display:grid;grid-template-columns:1fr;gap:16px; }
+        @media (min-width:900px) { .rpt-kpi-groups { grid-template-columns:repeat(3,1fr); } }
+        .rpt-kpi-group { background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:14px 16px 16px; }
+        .rpt-kpi-group.risk { border-color:#f1bbb3;background:#fdf5f3; }
+        .rpt-kpi-group-label { font-family:var(--fd);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-bottom:12px; }
+        .rpt-kpi-group.risk .rpt-kpi-group-label { color:#a93930; }
+        .rpt-kpi-group-cards { display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px; }
+        .rpt-kpi-card { background:var(--s2);border-radius:var(--r-m);padding:12px 14px; }
+        .rpt-kpi-card.risk { background:#fce5e1;color:#a93930; }
+        .rpt-kpi-value { font-family:var(--fd);font-size:22px;font-weight:820;letter-spacing:-.02em;color:var(--t1);line-height:1.1; }
+        .rpt-kpi-card.risk .rpt-kpi-value { color:#a93930; }
+        .rpt-kpi-label { margin-top:4px;font-size:11px;font-weight:620;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;font-family:var(--fd); }
+        .rpt-kpi-link { display:block;text-decoration:none;transition:transform var(--df); }
+        .rpt-kpi-link:hover { transform:translateY(-1px); }
+
+        .rpt-projects { display:flex;flex-direction:column;gap:12px; }
+        .rpt-projects h2, .rpt-aging h2 { font-family:var(--fd);font-size:17px;font-weight:740;letter-spacing:-.015em;margin:0;color:var(--t1); }
+        .rpt-section-sub { font-size:12.5px;color:var(--t3);margin:0;max-width:620px;line-height:1.5; }
+        .rpt-empty { padding:40px 24px;text-align:center;background:var(--s1);border:1px dashed var(--s3);border-radius:var(--r-l);color:var(--t3);font-size:13px; }
+        .rpt-tbl-wrap { background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);overflow:hidden; }
+        .rpt-tbl { width:100%;border-collapse:collapse;font-size:13px; }
+        .rpt-tbl thead tr { background:var(--s2); }
+        .rpt-tbl th { text-align:left;padding:10px 14px;font-family:var(--fd);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--t3); }
+        .rpt-tbl tbody tr { border-top:1px solid var(--s3);cursor:pointer;transition:background var(--df); }
+        .rpt-tbl tbody tr:hover { background:var(--sh); }
+        .rpt-tbl td { padding:12px 14px;color:var(--t1);font-weight:520;vertical-align:middle; }
+        /* Tablet collapse: hide the three lower-priority columns. No
+           horizontal scroll — content stays scannable at iPad width. */
+        @media (max-width:1200px) { .rpt-tbl .rpt-col-wide { display:none; } }
+
+        .rpt-tbl-project { display:flex;flex-direction:column;gap:2px;min-width:0; }
+        .rpt-tbl-project-name { font-weight:640;color:var(--t1); }
+        .rpt-tbl-project-phase { font-family:var(--fm);font-size:11px;color:var(--t3); }
+
+        .rpt-pill { display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-family:var(--fd);font-weight:700;font-size:10.5px;letter-spacing:.02em;text-transform:capitalize; }
+        .rpt-pill.status { background:var(--s2);color:var(--t2); }
+        .rpt-pill.status.status-active { background:#e0f2e6;color:#2f7d48; }
+        .rpt-pill.status.status-on_hold { background:#fcefdc;color:#9a5711; }
+        .rpt-pill.status.status-completed { background:#e7eefb;color:#2a5aa3; }
+        .rpt-pill.variance.variance-ahead { background:#e0f2e6;color:#2f7d48; }
+        .rpt-pill.variance.variance-onTrack { background:var(--s2);color:var(--t2); }
+        .rpt-pill.variance.variance-slip { background:#fce5e1;color:#a93930; }
+        .rpt-pill.variance.variance-neutral { background:var(--s2);color:var(--t3); }
+        .rpt-pill.compliance.compliance-ok { background:#e0f2e6;color:#2f7d48; }
+        .rpt-pill.compliance.compliance-expiring { background:#fcefdc;color:#9a5711; }
+        .rpt-pill.compliance.compliance-alert { background:#fce5e1;color:#a93930; }
+
+        .rpt-pct-wrap { display:flex;align-items:center;gap:8px;min-width:90px; }
+        .rpt-pct-bar { flex:1;min-width:40px;height:6px;background:var(--s2);border-radius:999px;overflow:hidden; }
+        .rpt-pct-fill { height:100%;background:var(--ac);border-radius:999px; }
+        .rpt-pct-label { font-family:var(--fd);font-size:11.5px;font-weight:650;color:var(--t2);min-width:36px;text-align:right; }
+
+        .rpt-open-count { font-family:var(--fd);font-weight:700;font-size:13px;color:var(--t1); }
+
+        .rpt-aging { background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:18px 20px;display:flex;flex-direction:column;gap:10px; }
+
         .sch-tabs { display:inline-flex;gap:2px;background:var(--s2);border-radius:var(--r-m);padding:3px;width:fit-content; }
         .sch-tab { height:30px;padding:0 12px;border-radius:6px;font-size:12px;font-weight:620;color:var(--t3);background:transparent;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-family:var(--fb);transition:all var(--df); }
         .sch-tab.on { background:var(--s1);color:var(--t1);box-shadow:var(--shsm); }

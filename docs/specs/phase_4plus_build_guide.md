@@ -1640,7 +1640,32 @@ git commit -m "Step 23 (4B.5 #23): Basic Gantt view with critical path + drag-to
 
 ---
 
-## Step 24 — Reports Dashboard
+## Step 24 — Reports Dashboard ✅ DONE (2026-04-19)
+
+**Completion notes**
+- **Charts: recharts v3.8.1 installed** after maintenance check (last release ~3 weeks ago, React 18 fully supported, active maintainers). Wrappers centralized at `src/components/charts/` with a barrel — raw `<BarChart>` / `<LineChart>` calls are forbidden outside that directory so a future library swap stays contained.
+- **KPIs grouped into Financial / Operational / Risk** per advisor directive. Risk group tints red (container + text) whenever compliance alerts OR schedule-at-risk count > 0 so a scanning PM lands on problem signals first.
+- **Per-project table: 8 columns desktop, 5 on tablet** (≤1200px). Collapsed columns (contract, variance, compliance) marked `.rpt-col-wide` and hidden via CSS media query — no horizontal scroll.
+- **% complete: milestone-based with duration weighting** when any milestone in the project has `startDate` set (Step 23 addition), unweighted fallback otherwise. Weighting mode exposed via tooltip on the cell. Empty/all-cancelled → "—".
+- **Schedule variance**: averages delta across two populations — completed milestones (`completedDate - scheduledDate`) AND incomplete milestones past their scheduled date (`today - scheduledDate`). Not-yet-due incompletes excluded. Catches current slippage, not just historical. Schedule-at-risk KPI thresholds at >7 days.
+- **Aging buckets** 0–7 / 8–14 / 15–30 / 30+ rendered as a grouped recharts bar chart (RFIs + change orders, side-by-side). 30+ bar escalates to warning red when non-zero — same signal in the PDF export via `Helvetica-Bold` red text.
+- **Query performance**: one SELECT per metric filtered via `inArray(projectIds)` + `groupBy` aggregates where applicable. Seven parallel queries via `Promise.all`. Per-project rollups computed in-memory from the flat result sets — no N+1. Page-level `revalidate = 60` caches the aggregate so PMs hammering refresh hit cache rather than the DB.
+- **Scope locked to current-state only.** No date-range filtering (historical aggregates + time-series storage = a much bigger step; flagged out of scope by advisor).
+- **PDF export** reuses `@react-pdf/renderer` and `renderToBuffer` from the payment-receipt / G702 / G703 exports. Template at `src/lib/pdf/reports-template.tsx`, endpoint at `/api/export/reports`. Risk signals flagged in bold red. Portrait LETTER with automatic page wrapping for large portfolios.
+- **Sidebar**: "Reports" added to the contractor Core group between Dashboard and Approvals (global nav only; not shown inside project-scoped nav).
+- **Mobile**: single-column stack via CSS grid; recharts handles its own responsive sizing through `ResponsiveContainer`. Chart doesn't collapse to numbers — a simplified responsive bar chart stays visible (advisor refinement).
+
+**What shipped (files)**
+- `src/lib/reports/math.ts` — pure helpers (`computePercentComplete`, `computeScheduleVariance`, aging buckets)
+- `src/domain/loaders/reports.ts` — `getContractorReportsData` batched loader
+- `src/components/charts/AgingBarChart.tsx` + `src/components/charts/index.ts` — recharts wrapper barrel
+- `src/app/(portal)/contractor/(global)/reports/page.tsx` — server page with `revalidate = 60`
+- `src/app/(portal)/contractor/(global)/reports/reports-ui.tsx` — client workspace (KPI groups, table, chart, export)
+- `src/lib/pdf/reports-template.tsx` + `src/app/api/export/reports/route.ts` — PDF export
+- `src/lib/portal-nav.ts` — Reports nav entry (contractor Core group)
+- `src/styles/workspaces.css` — `.rpt-*` design-system styles
+
+
 
 **Mode:** Require-design-input
 **Item:** 4B.6 #24
