@@ -273,6 +273,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
       defaultOpen: true,
       items: mark([
         { label: "Project Home", href: `${base}` },
+        { label: "This week", href: `${base}/weekly-reports` },
         { label: "Progress & Photos", href: `${base}/progress` },
         { label: "Journal", href: `${base}/journal` },
         { label: "Walkthrough Items", href: `${base}/walkthrough-items` },
