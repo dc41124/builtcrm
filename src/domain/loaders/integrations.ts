@@ -108,6 +108,14 @@ export type IntegrationCategory =
 
 export type PlanTier = "starter" | "professional" | "enterprise";
 
+// Connection-flow discriminator (Step 25). Different providers use different
+// flows — the generic OAuth 2.0 handler only owns `oauth2_code`. Stripe Connect
+// is its own entrypoint (src/app/api/contractor/stripe/connect/onboard/route.ts)
+// and the generic handler early-returns when it sees `stripe_connect`. `none`
+// is for providers where the UI still lists them but the connector is a stub
+// with no live flow yet.
+export type IntegrationFlow = "oauth2_code" | "stripe_connect" | "none";
+
 export type ProviderCatalogEntry = {
   provider: IntegrationProviderKey;
   name: string;
@@ -115,6 +123,7 @@ export type ProviderCatalogEntry = {
   description: string;
   minTier: PlanTier;
   phase1: boolean; // true when the integration is implemented in Phase 1
+  flow: IntegrationFlow;
 };
 
 export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
@@ -126,6 +135,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
       "Outbound notifications and reply-by-email for conversations, RFIs, approvals, and draws.",
     minTier: "starter",
     phase1: true,
+    flow: "none",
   },
   {
     provider: "sendgrid",
@@ -134,6 +144,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     description: "Alternative transactional email provider.",
     minTier: "starter",
     phase1: true,
+    flow: "none",
   },
   {
     provider: "quickbooks_online",
@@ -143,6 +154,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
       "Push approved draws as invoices, pull payment status, reconcile retainage.",
     minTier: "professional",
     phase1: false,
+    flow: "oauth2_code",
   },
   {
     provider: "xero",
@@ -152,6 +164,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
       "Bidirectional invoice and payment sync with Xero accounting.",
     minTier: "professional",
     phase1: false,
+    flow: "oauth2_code",
   },
   {
     provider: "sage_business_cloud",
@@ -160,6 +173,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     description: "Sage accounting connector with scheduled reconciliation.",
     minTier: "professional",
     phase1: false,
+    flow: "oauth2_code",
   },
   {
     provider: "stripe",
@@ -169,6 +183,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
       "ACH and card payments routed to your connected Stripe account.",
     minTier: "professional",
     phase1: false,
+    flow: "stripe_connect",
   },
   {
     provider: "google_calendar",
@@ -178,6 +193,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
       "Push milestones and inspections directly to a Google Calendar.",
     minTier: "enterprise",
     phase1: false,
+    flow: "oauth2_code",
   },
   {
     provider: "outlook_365",
@@ -186,6 +202,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     description: "Push milestones to Outlook calendars via Microsoft Graph.",
     minTier: "enterprise",
     phase1: false,
+    flow: "oauth2_code",
   },
 ];
 

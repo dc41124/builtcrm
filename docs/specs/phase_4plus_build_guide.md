@@ -1620,7 +1620,7 @@ Schedule table already exists from Phase 1/2. Gantt is the visualization — tim
 > 6. Subs see Gantt too (read-only), scoped to tasks their org is assigned.
 > 7. Saving a drag calls an existing schedule-update action; that action logs an audit event.
 > 8. If the project has no schedule data, Gantt view shows empty state with "Add tasks in the Schedule tab" CTA.
-> 9. Desktop-first; mobile renders a compact list view instead of Gantt (too narrow).
+> 9. Desktop-first; mobile renders a compact list view instead of Gantt (too narrow).=]
 
 ### What to check
 

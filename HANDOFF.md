@@ -111,11 +111,19 @@ Expanded from minimal test data to audit-ready density across all 4 projects:
 ### Real-time features (deferred — WebSocket/SSE)
 - Typing indicator, online/offline presence dots in messages
 
+### Migration workflow reconciliation (deferred — repo-wide hygiene)
+`src/db/migrations/` contains 17 SQL files (0001–0017), **none of which have ever been applied** (`drizzle.__drizzle_migrations` journal is empty). Live DB was built via `npm run db:push`. An orphan `payment_status` enum exists in the DB that isn't in `src/db/schema/integrations.ts` (so `db:push` isn't reconciling drift — it's additive-only, never drops). Surfaced during Step 25 (OAuth scaffolding) when checking whether a new `0018_*.sql` was needed; answer was no, because the four integration tables already exist via push. Decide before any production deploy touches this DB:
+
+- **Option (i):** `drizzle-kit introspect` current DB → squash to a single baseline migration → delete `0001`–`0017` → commit to `db:migrate` workflow going forward. Cleanest for production.
+- **Option (ii):** Delete `src/db/migrations/` entirely, update `drizzle.config.ts` to remove `out:` → commit to `db:push` as the intentional workflow. Simplest for current solo-dev cadence but blocks any future prod migration audit.
+
+Either path also needs to drop the orphan `payment_status` enum (or add it back to schema if anything depends on it — grep says no).
+
 ---
 
 ## DB State
 
-- Neon has all schema changes applied (36 tables + 2 mods)
+- Neon has all schema changes applied (36 tables + 2 mods; Phase 4 integration tables + enums also present via `db:push`)
 - Seed data is fully populated — `npm run db:seed` is idempotent
 - Seed photos uploaded to R2 (SVG placeholders)
 
