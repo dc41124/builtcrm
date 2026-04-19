@@ -18,7 +18,21 @@ export type GanttTask = {
   end: string; // YYYY-MM-DD
   progress: number; // 0–100
   dependencies: string; // comma-separated ids, "" = none
+  // MUST be a single class token — frappe-gantt's bar.js does
+  // `classList.add(custom_class)` which rejects spaces. Extra class
+  // hooks go through `GanttTaskBundle.extraClasses` and are applied
+  // by the wrapper's post-render DOM walk.
   custom_class: string;
+};
+
+// Bundle returned by buildGanttTasks. `tasks` is what frappe-gantt
+// consumes verbatim; `extraClasses` is the post-render overlay the
+// FrappeGantt wrapper applies via classList to each bar-wrapper's
+// data-id node. Splitting this up is how we keep multi-class styling
+// working despite the library's single-token custom_class API.
+export type GanttTaskBundle = {
+  tasks: GanttTask[];
+  extraClasses: Record<string, string[]>;
 };
 
 export type GanttEdge = { predecessorId: string; successorId: string };
@@ -42,11 +56,15 @@ function isoDate(d: Date): string {
   return `${y}-${m}-${dd}`;
 }
 
+// Builds one task plus the extra-class overlay for its bar-wrapper.
+// The primary class is the most visually important one (critical
+// wins, otherwise marker vs task); secondary hooks (status color,
+// the other half of marker/task) live in `extraClasses`.
 export function milestoneToGanttTask(input: {
   milestone: MilestoneRow;
   edges: GanttEdge[];
   isCritical: boolean;
-}): GanttTask {
+}): { task: GanttTask; extraClasses: string[] } {
   const { milestone: m, edges, isCritical } = input;
   const isMarker = !m.startDate;
   const start = m.startDate ?? m.scheduledDate;
@@ -61,37 +79,57 @@ export function milestoneToGanttTask(input: {
     .map((e) => e.predecessorId)
     .join(",");
 
-  const classes: string[] = [];
-  classes.push(isMarker ? "gantt-marker" : "gantt-task");
-  classes.push(`gantt-status-${m.milestoneStatus}`);
-  if (isCritical) classes.push("gantt-critical");
+  // Primary class goes to frappe-gantt's custom_class. Critical is
+  // the most visually important so it wins; otherwise the
+  // marker/task distinction drives the primary.
+  const primary = isCritical
+    ? "gantt-critical"
+    : isMarker
+      ? "gantt-marker"
+      : "gantt-task";
+  // Everything else is post-applied via the wrapper. We always
+  // include the status class + the marker/task class (when it isn't
+  // already the primary) so CSS rules can compose off either.
+  const extras: string[] = [`gantt-status-${m.milestoneStatus}`];
+  if (isCritical) {
+    extras.push(isMarker ? "gantt-marker" : "gantt-task");
+  }
 
   return {
-    id: m.id,
-    name: m.title,
-    start: isoDate(start),
-    end: isoDate(end),
-    progress: PROGRESS_BY_STATUS[m.milestoneStatus] ?? 0,
-    dependencies: deps,
-    custom_class: classes.join(" "),
+    task: {
+      id: m.id,
+      name: m.title,
+      start: isoDate(start),
+      end: isoDate(end),
+      progress: PROGRESS_BY_STATUS[m.milestoneStatus] ?? 0,
+      dependencies: deps,
+      custom_class: primary,
+    },
+    extraClasses: extras,
   };
 }
 
 // Bulk shape: convert the full milestone set to frappe-gantt tasks
 // with critical-path classes pre-applied. Caller passes the result of
-// computeCriticalPath().
+// computeCriticalPath(). Returns a bundle — tasks go into the library,
+// extraClasses overlay gets applied by the wrapper post-render.
 export function buildGanttTasks(input: {
   milestones: MilestoneRow[];
   edges: GanttEdge[];
   criticalIds: Set<string>;
-}): GanttTask[] {
-  return input.milestones.map((m) =>
-    milestoneToGanttTask({
+}): GanttTaskBundle {
+  const tasks: GanttTask[] = [];
+  const extraClasses: Record<string, string[]> = {};
+  for (const m of input.milestones) {
+    const { task, extraClasses: extras } = milestoneToGanttTask({
       milestone: m,
       edges: input.edges,
       isCritical: input.criticalIds.has(m.id),
-    }),
-  );
+    });
+    tasks.push(task);
+    if (extras.length > 0) extraClasses[task.id] = extras;
+  }
+  return { tasks, extraClasses };
 }
 
 // Inverse mapping for the drag-to-reschedule callback. The library

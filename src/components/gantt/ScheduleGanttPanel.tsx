@@ -78,7 +78,7 @@ export function ScheduleGanttPanel({
     [graphNodes, dependencies],
   );
 
-  const tasks = useMemo(
+  const { tasks, extraClasses } = useMemo(
     () =>
       buildGanttTasks({
         milestones,
@@ -235,6 +235,7 @@ export function ScheduleGanttPanel({
         <div className="gantt-chart">
           <FrappeGantt
             tasks={tasks}
+            extraClasses={extraClasses}
             viewMode={viewMode}
             readOnly={!canWrite}
             onDateChange={handleDragChange}

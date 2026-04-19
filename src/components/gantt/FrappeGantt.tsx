@@ -68,12 +68,18 @@ type GanttConstructor = new (
 
 export function FrappeGantt({
   tasks,
+  extraClasses,
   viewMode = "Week",
   readOnly = false,
   onDateChange,
   onTaskClick,
 }: {
   tasks: GanttTask[];
+  // Task-id → extra class tokens to apply to the rendered
+  // bar-wrapper. Needed because frappe-gantt's custom_class is a
+  // single token (classList.add chokes on spaces); this overlay
+  // lets us layer status / critical / marker classes independently.
+  extraClasses?: Record<string, string[]>;
   viewMode?: FrappeGanttViewMode;
   readOnly?: boolean;
   onDateChange?: (payload: DateChangePayload) => void;
@@ -150,7 +156,20 @@ export function FrappeGantt({
     tasksRef.current = tasks;
     if (!instanceRef.current) return;
     instanceRef.current.refresh(tasks);
-  }, [tasks]);
+    // After refresh, apply secondary class tokens per task. Each
+    // rendered bar carries `data-id="<task.id>"` on its group
+    // element — we scope to wrapperRef so we don't accidentally
+    // touch bars from another Gantt instance on the page.
+    if (extraClasses && wrapperRef.current) {
+      for (const [taskId, classes] of Object.entries(extraClasses)) {
+        if (classes.length === 0) continue;
+        const node = wrapperRef.current.querySelector(
+          `.bar-wrapper[data-id="${cssEscape(taskId)}"]`,
+        );
+        if (node) node.classList.add(...classes);
+      }
+    }
+  }, [tasks, extraClasses]);
 
   useEffect(() => {
     if (!instanceRef.current) return;
@@ -158,4 +177,15 @@ export function FrappeGantt({
   }, [viewMode]);
 
   return <div ref={wrapperRef} />;
+}
+
+// Task IDs are UUIDs (no special characters), but CSS.escape is the
+// correct tool for any attribute-selector value. Falls back to a
+// no-op if CSS.escape is somehow unavailable in the runtime — we
+// know our IDs are selector-safe.
+function cssEscape(value: string): string {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+    return CSS.escape(value);
+  }
+  return value;
 }
