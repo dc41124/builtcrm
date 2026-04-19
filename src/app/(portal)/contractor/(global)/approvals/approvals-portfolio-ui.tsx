@@ -378,7 +378,7 @@ function ProjectMultiSelect({
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => onToggle(p.id)}
-                      style={{ marginRight: 8 }}
+                      style={{ marginRight: 8, accentColor: "var(--ac)" }}
                     />
                     <span style={{ flex: 1, minWidth: 0 }}>{p.name}</span>
                   </label>
