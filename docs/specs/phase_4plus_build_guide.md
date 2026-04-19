@@ -1949,7 +1949,21 @@ git commit -m "Step 26 (4C.1 #26): Webhook receiver with HMAC verification + ret
 
 ---
 
-## Step 27 — Sync Event Audit Log
+## Step 27 — Sync Event Audit Log ✅ DONE (2026-04-19)
+
+**Completion notes**
+- **No migration.** `sync_events` table already exists in the schema (`src/db/schema/integrations.ts:138`) and in the live DB (verified during Step 25's introspection). Step 27 adds pure application helpers.
+- **Two primary functions + umbrella.** `startSyncEvent(input)` inserts an `in_progress` row and returns the id; `completeSyncEvent({ id, status, … })` updates. An overloaded `logSyncEvent` umbrella forwards based on whether `id` is present, for callers who prefer the task-prompt's single-entrypoint shape.
+- **Prompt field `payload` mapped to schema column `resultData`** (jsonb). No `payload` column exists on `sync_events`; `resultData` is the closest fit and is what `withIdempotency` pulls from on cache hit.
+- **`providerKey` resolves to `integrationConnectionId` inside the helper.** `integration_connections.organization_id + provider` lookup picks the most-recent connection regardless of status so an in-flight sync can finalize against a just-revoked connection. Throws `SyncLogError("no_connection")` if the org has never connected that provider.
+- **`withIdempotency<T>(input, fn)`** returns `{ result, cached, eventId }`. Cache hit condition: a prior `sync_events` row matches `(organizationId, integrationConnectionId, idempotencyKey)` AND `syncEventStatus = 'succeeded'`. Prior failures do NOT short-circuit — retries re-execute. On cache miss: starts a new event, runs `fn`, logs outcome. On fn throw: logs `failed` and re-throws so caller's existing error handling still runs.
+- **Cache-hit result cast.** `withIdempotency` casts `resultData` (jsonb) back to `T`. Callers are responsible for ensuring T is JSON-serializable — class identity, Dates, BigInts round-trip as strings.
+- **Cleanup cron: `30 3 * * *`** (03:30 UTC daily). Prunes only `syncEventStatus = 'succeeded'` rows older than 90 days; every other status kept indefinitely (`failed`, `skipped`, `partial`, `mapping_error`, `pending`, `in_progress`) because they carry diagnostic signal. Matches the prompt's literal wording.
+- **Off-peak scheduling.** Picked 03:30 UTC so the cleanup doesn't collide with the 30-min `integration-token-refresh` (runs on :00, :30) or the 1-min `integration-webhook-processor` (every minute).
+
+**What shipped (files)**
+- `src/lib/integrations/sync-log.ts` — `startSyncEvent`, `completeSyncEvent`, `logSyncEvent` umbrella, `withIdempotency`, `SyncLogError`
+- `src/jobs/integration-sync-event-cleanup.ts` — Trigger.dev daily schedule
 
 **Mode:** Safe-to-autorun
 **Item:** 4C.1 #27
