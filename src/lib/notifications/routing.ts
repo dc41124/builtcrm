@@ -209,6 +209,42 @@ export function renderNotification(
         linkUrl: base ? `${base}/daily-logs` : null,
       };
 
+    // ── Punch list ───────────────────────────────────────────────
+    case "punch_item_assigned":
+      return {
+        title: `Punch item assigned${str(v.number) ? ` (${v.number})` : ""}`,
+        body: str(v.title)
+          ? `${v.title} — assigned by ${str(v.actorName, "the GC")}.`
+          : `${str(v.actorName, "The GC")} assigned a new punch item to your crew.`,
+        linkUrl: base ? `${base}/punch-list` : null,
+      };
+    case "punch_item_ready_to_verify":
+      return {
+        title: `Punch item ready to verify${str(v.number) ? ` (${v.number})` : ""}`,
+        body: str(v.title)
+          ? `${v.title} — marked ready by ${str(v.actorName, "the sub")}.`
+          : "A punch item is ready for your check.",
+        linkUrl: base ? `${base}/punch-list` : null,
+      };
+    case "punch_item_verified":
+      return {
+        title: `Punch item verified${str(v.number) ? ` (${v.number})` : ""}`,
+        body: str(v.title)
+          ? `${v.title} — closed out. Nice work.`
+          : "A GC verified your work and closed the item.",
+        linkUrl: base ? `${base}/punch-list` : null,
+      };
+    case "punch_item_rejected":
+      return {
+        title: `Punch item rejected${str(v.number) ? ` (${v.number})` : ""}`,
+        body: str(v.reason)
+          ? `${str(v.title, "An item")} — sent back: "${v.reason}"`
+          : str(v.title)
+            ? `${v.title} — sent back for rework.`
+            : "A punch item was sent back for rework.",
+        linkUrl: base ? `${base}/punch-list` : null,
+      };
+
     // ── Messages ─────────────────────────────────────────────────
     case "message_new":
       return {

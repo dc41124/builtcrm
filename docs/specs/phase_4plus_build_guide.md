@@ -1175,12 +1175,21 @@ git commit -m "Step 17 (4B.2 #17): Global command palette / cmd+K search"
 
 ---
 
-## Step 18 — Daily Logs Module
+## Step 18 — Daily Logs Module ✅ DONE
 
 **Mode:** Require-design-input
 **Item:** 4B.3 #18
 **Effort:** M
 **Priority:** P1
+**Shipped:** commit `60eb92a` (Apr 18 2026)
+
+### Completion notes
+
+Delivered to spec across all four portals. Contractor creates + authors with weather autofill (Open-Meteo + lazy Nominatim geocoding), 24hr edit window, amendment workflow with approve/reject review, per-sub crew entries with reconciliation ack flow. Subs submit their own crew entries (cross-project view), acknowledge GC reconciliations. Commercial client sees redacted list + detail. Residential client gets the friendlier "Journal" feed with mood pills + team notes + progress bar. PDF export (role-aware, three templates via `@react-pdf/renderer`). Photo upload drawer reuses R2 presign flow; photos render via presigned URLs across all detail views. Seed populates ~24 logs across four projects.
+
+Schema: 6 tables (`daily_logs`, `daily_log_crew_entries`, `daily_log_delays`, `daily_log_issues`, `daily_log_photos`, `daily_log_amendments`) + `projects.timezone` / `latitude` / `longitude` / `geocodedAt`. Migrations `0009_daily_logs.sql` + `0010_project_coordinates.sql`.
+
+Deferred to later phases: offline capture (Phase 6, Step 51), client sign-off workflow (not shipping this product), drawing-coord location attach (Phase 6).
 
 ### What this does
 
@@ -1233,12 +1242,25 @@ git commit -m "Step 18 (4B.3 #18): Daily logs module"
 
 ---
 
-## Step 19 — Punch List Module
+## Step 19 — Punch List Module ✅ DONE
 
 **Mode:** Require-design-input
 **Item:** 4B.3 #19
 **Effort:** M
 **Priority:** P1
+**Shipped:** Apr 18 2026
+
+### Completion notes
+
+Delivered spec-exact to `builtcrm_punch_list_workflow_paired.jsx` (contractor + sub) and `builtcrm_walkthrough_items_residential.jsx` (residential). `clientFacingNote` column shipped as approved; commercial view deferred to Phase 5 per handoff doc; residential uses "Walkthrough Items" label and is phase-gated to `currentPhase === 'closeout'`. State machine enforced in the action layer with locked system-comment phrasing matching the handoff doc verbatim.
+
+Schema: 3 tables (`punch_items`, `punch_item_photos`, `punch_item_comments`) + 2 enums (`punch_item_priority`, `punch_item_status`). Migration `0011_punch_list.sql`.
+
+UIs: shared contractor/subcontractor workspace switches accent (purple ↔ warm orange `#c17a1a`) + summary-strip layout (6 cards ↔ 4 cards) + available transitions per role. Residential walkthrough-items page shows empty-state help card when not in closeout, otherwise groups items into Ready-to-check / Being-worked-on / All-done buckets with friendly labels (raw enum names never appear). Photo lightbox and R2 photo-upload drawer shared with daily-logs infra. Assignee dropdown filters to active subcontractor memberships only.
+
+Notifications: 4 new events (`punch_item_assigned`, `punch_item_ready_to_verify`, `punch_item_verified`, `punch_item_rejected`) with per-portal copy. All four flagged as critical-email.
+
+Seed: 6 items per commercial project spanning all statuses (incl. one rejected + one voided) + 4 items per residential project with `clientFacingNote` populated. Harper Residence Kitchen Remodel flipped to `closeout` phase so the residential UI has data; the other residential project (Harper ADU) stays in `phase_1` so the empty-state path is also demonstrable.
 
 ### What this does
 

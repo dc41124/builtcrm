@@ -53,6 +53,8 @@ import {
   dailyLogDelays,
   dailyLogIssues,
   dailyLogAmendments,
+  punchItems,
+  punchItemComments,
 } from "./schema";
 
 // ---------------------------------------------------------------------------
@@ -329,7 +331,11 @@ async function seed() {
     projectType: "residential_remodel",
     clientSubtype: "residential" as const,
     projectStatus: "active" as const,
-    currentPhase: "phase_1" as const,
+    // Flipped to closeout so the residential Walkthrough Items view
+    // has punch items to show. Keeps the other residential project
+    // (SUM-2026-004 Harper ADU) in phase_1 so the empty-state path
+    // is also demonstrable.
+    currentPhase: "closeout" as const,
     startDate: new Date("2026-03-02T00:00:00Z"),
     targetCompletionDate: new Date("2026-06-15T00:00:00Z"),
     contractorOrganizationId: summitOrg.id,
@@ -1860,6 +1866,9 @@ async function seedProjectContent(ctx: ProjectContext) {
 
   // ---- Daily logs (Step 18 — field records) ----------------------------
   await seedDailyLogs(ctx);
+
+  // ---- Punch list (Step 19 — closeout items) ---------------------------
+  await seedPunchItems(ctx);
 }
 
 // ---------------------------------------------------------------------------
@@ -2296,6 +2305,276 @@ async function seedDailyLogs(ctx: ProjectContext): Promise<void> {
         status: seed.amendment.status,
         requestedByUserId: pmUserId,
         requestedAt: new Date(submittedAt.getTime() + 2 * 60 * 60 * 1000),
+      });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Punch list seed (Step 19)
+// ---------------------------------------------------------------------------
+//
+// Creates 6 items on commercial projects (mix of all statuses including
+// one rejected + one voided) and 4 items on residential projects. The
+// residential project Harper Residence Kitchen Remodel (SUM-2026-002)
+// is flipped to currentPhase='closeout' above so the residential
+// Walkthrough Items view has data to render.
+//
+// For existing seeded projects we force currentPhase='closeout' on
+// SUM-2026-002 with an explicit UPDATE (upsert only inserts, never
+// updates the phase). Idempotent.
+
+type PunchSeed = {
+  title: string;
+  description: string;
+  location: string;
+  priority: "low" | "normal" | "high" | "urgent";
+  status: "open" | "in_progress" | "ready_to_verify" | "verified" | "rejected" | "void";
+  dueDaysFromNow: number;
+  assignedTo: "sub" | "sub2" | null;
+  createdDaysAgo: number;
+  rejectionReason?: string;
+  voidReason?: string;
+  clientFacingNote?: string;
+};
+
+const COMMERCIAL_PUNCH_SEEDS: PunchSeed[] = [
+  {
+    title: "Paint runs on east lobby wall",
+    description:
+      "Two visible paint runs on the east-facing lobby wall near the reception desk. Need to be sanded flush and repainted to match.",
+    location: "Lobby — east wall, near reception desk (grid B-3)",
+    priority: "high",
+    status: "ready_to_verify",
+    dueDaysFromNow: -2,
+    assignedTo: "sub",
+    createdDaysAgo: 5,
+  },
+  {
+    title: "Loose trim at entry 2B",
+    description:
+      "Door casing is separating from frame at the top corner. Needs to be re-secured and caulked.",
+    location: "Floor 2 — corridor entry 2B, door frame upper-left",
+    priority: "normal",
+    status: "in_progress",
+    dueDaysFromNow: 2,
+    assignedTo: "sub2",
+    createdDaysAgo: 3,
+  },
+  {
+    title: "Outlet plate crooked — kitchenette",
+    description:
+      "Outlet cover plate is rotated ~5°. Needs to be adjusted to level.",
+    location: "Floor 3 — kitchenette, counter-height outlet above sink",
+    priority: "low",
+    status: "open",
+    dueDaysFromNow: 6,
+    assignedTo: "sub",
+    createdDaysAgo: 1,
+  },
+  {
+    title: "Caulk bead missing — window sill 3F",
+    description:
+      "Exterior caulk bead missing along the bottom of the floor-3 south window.",
+    location: "Floor 3 — south exterior window, sill condition",
+    priority: "urgent",
+    status: "rejected",
+    dueDaysFromNow: -4,
+    assignedTo: "sub2",
+    createdDaysAgo: 6,
+    rejectionReason:
+      "Caulk applied unevenly, still gaps at the two mitered corners. Needs full redo — not spot fix.",
+  },
+  {
+    title: "Baseboard scuff — corridor 2C",
+    description: "Baseboard has a black scuff approximately 4 inches long.",
+    location: "Floor 2 — corridor 2C, west side, ~6m from stairwell",
+    priority: "normal",
+    status: "verified",
+    dueDaysFromNow: -8,
+    assignedTo: "sub",
+    createdDaysAgo: 10,
+  },
+  {
+    title: "Missing door stop — office 305",
+    description: "Door stop was not installed on door 305.",
+    location: "Floor 3 — office 305, behind door",
+    priority: "low",
+    status: "void",
+    dueDaysFromNow: -6,
+    assignedTo: "sub2",
+    createdDaysAgo: 9,
+    voidReason: "Duplicate of PI-007. Consolidated.",
+  },
+];
+
+const RESIDENTIAL_PUNCH_SEEDS: PunchSeed[] = [
+  {
+    title: "Touch up paint — kitchen trim near window",
+    description:
+      "Small paint scuff on the upper trim. Your painter will sand flush and recoat to match.",
+    location: "Kitchen — crown molding above the south-facing window",
+    priority: "normal",
+    status: "ready_to_verify",
+    dueDaysFromNow: -1,
+    assignedTo: "sub",
+    createdDaysAgo: 4,
+    clientFacingNote:
+      "Re-coated yesterday afternoon. Dry and ready for your check.",
+  },
+  {
+    title: "Caulk around master bath tub",
+    description:
+      "The caulk bead along the back of the tub has a small gap. Your plumber will redo the bead for a clean seal.",
+    location: "Master bathroom — tub surround, back wall seam",
+    priority: "normal",
+    status: "ready_to_verify",
+    dueDaysFromNow: -1,
+    assignedTo: "sub",
+    createdDaysAgo: 5,
+    clientFacingNote:
+      "Clean silicone bead applied. 24 hours to fully cure — safe to look at but please don't touch until tomorrow.",
+  },
+  {
+    title: "Replace cracked outlet cover — guest bedroom",
+    description:
+      "The cover plate on one outlet has a hairline crack. Your electrician is swapping it for a new plate.",
+    location: "Guest bedroom — outlet behind nightstand wall",
+    priority: "low",
+    status: "in_progress",
+    dueDaysFromNow: 3,
+    assignedTo: "sub",
+    createdDaysAgo: 1,
+    clientFacingNote: "New plate ordered — should arrive tomorrow.",
+  },
+  {
+    title: "Baseboard scuff — hallway outside guest room",
+    description:
+      "Black scuff on the baseboard, likely from moving equipment. Painter to touch up.",
+    location: "Upstairs hallway — baseboard, ~3m from guest bedroom door",
+    priority: "normal",
+    status: "verified",
+    dueDaysFromNow: -5,
+    assignedTo: "sub",
+    createdDaysAgo: 8,
+    clientFacingNote: "All done — you confirmed this one during the last walk.",
+  },
+];
+
+async function seedPunchItems(ctx: ProjectContext): Promise<void> {
+  const seeds = ctx.residential ? RESIDENTIAL_PUNCH_SEEDS : COMMERCIAL_PUNCH_SEEDS;
+
+  // Force Harper Residence (the residential seed project with punch
+  // items) into closeout phase so the residential UI has data to show.
+  // Idempotent: running the seed twice just keeps it in closeout.
+  if (ctx.residential && ctx.project.name === "Harper Residence Kitchen Remodel") {
+    await db
+      .update(projects)
+      .set({ currentPhase: "closeout" })
+      .where(eq(projects.id, ctx.project.id));
+  }
+
+  const day = 86400000;
+  const pmUserId = ctx.pmUserId;
+
+  // Skip the whole seed block if any punch items already exist for this
+  // project — keeps re-runs idempotent without needing per-row checks.
+  const existing = await db
+    .select({ id: punchItems.id })
+    .from(punchItems)
+    .where(eq(punchItems.projectId, ctx.project.id))
+    .limit(1);
+  if (existing.length > 0) return;
+
+  let seq = 0;
+  for (const s of seeds) {
+    seq += 1;
+    const createdAt = new Date(Date.now() - s.createdDaysAgo * day);
+    const dueDate = new Date(Date.now() + s.dueDaysFromNow * day)
+      .toISOString()
+      .slice(0, 10);
+    const assigneeOrgId =
+      s.assignedTo === "sub2"
+        ? ctx.sub2OrgId ?? ctx.subOrgId
+        : s.assignedTo === "sub"
+          ? ctx.subOrgId
+          : null;
+
+    const [row] = await db
+      .insert(punchItems)
+      .values({
+        projectId: ctx.project.id,
+        sequentialNumber: seq,
+        title: s.title,
+        description: s.description,
+        location: s.location,
+        priority: s.priority,
+        status: s.status,
+        assigneeOrgId,
+        assigneeUserId: null,
+        dueDate,
+        createdByUserId: pmUserId,
+        rejectionReason: s.rejectionReason ?? null,
+        voidReason: s.voidReason ?? null,
+        verifiedByUserId: s.status === "verified" ? pmUserId : null,
+        verifiedAt:
+          s.status === "verified"
+            ? new Date(createdAt.getTime() + 3 * day)
+            : null,
+        lastTransitionAt: createdAt,
+        clientFacingNote: s.clientFacingNote ?? null,
+        createdAt,
+        updatedAt: createdAt,
+      })
+      .returning();
+
+    // Seed a plausible system comment trail matching the status so the
+    // thread view isn't empty. Keep it short — no need for every
+    // transition back-and-forth.
+    const actorName = "Devon Tremblay";
+    const comments: Array<{ body: string; isSystem: boolean; offsetDays: number }> = [
+      { body: `${actorName} marked item as In Progress`, isSystem: true, offsetDays: 1 },
+    ];
+    if (
+      s.status === "ready_to_verify" ||
+      s.status === "verified" ||
+      s.status === "rejected"
+    ) {
+      comments.push({
+        body: `${actorName} marked item as Ready to Verify`,
+        isSystem: true,
+        offsetDays: 2,
+      });
+    }
+    if (s.status === "verified") {
+      comments.push({
+        body: `${actorName} verified item. Closed.`,
+        isSystem: true,
+        offsetDays: 3,
+      });
+    }
+    if (s.status === "rejected" && s.rejectionReason) {
+      comments.push({
+        body: `${actorName} rejected — "${s.rejectionReason}"`,
+        isSystem: true,
+        offsetDays: 3,
+      });
+    }
+    if (s.status === "void" && s.voidReason) {
+      comments.push({
+        body: `${actorName} voided — "${s.voidReason}"`,
+        isSystem: true,
+        offsetDays: 1,
+      });
+    }
+
+    for (const c of comments) {
+      await db.insert(punchItemComments).values({
+        punchItemId: row.id,
+        authorUserId: null,
+        body: c.body,
+        isSystem: c.isSystem,
+        createdAt: new Date(createdAt.getTime() + c.offsetDays * day),
       });
     }
   }

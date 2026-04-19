@@ -132,6 +132,11 @@ export const NOTIFICATION_GROUPS: Record<
           label: "Sub submitted crew entry",
           desc: "A sub filed their crew entry for today's log",
         },
+        {
+          id: "punch_item_ready_to_verify",
+          label: "Punch item ready to verify",
+          desc: "A sub marked a punch item ready for your check",
+        },
       ],
     },
   ],
@@ -163,6 +168,21 @@ export const NOTIFICATION_GROUPS: Record<
           id: "daily_log_crew_reconciled",
           label: "Crew hours reconciled by the GC",
           desc: "The GC adjusted your submitted headcount or hours — review required",
+        },
+        {
+          id: "punch_item_assigned",
+          label: "Punch item assigned",
+          desc: "A GC assigned a new punch item to your org",
+        },
+        {
+          id: "punch_item_verified",
+          label: "Punch item verified",
+          desc: "A GC verified your work and closed the item",
+        },
+        {
+          id: "punch_item_rejected",
+          label: "Punch item rejected",
+          desc: "A GC sent a punch item back — needs rework",
         },
       ],
     },
@@ -381,6 +401,9 @@ const CRITICAL_EMAIL_EVENTS = new Set<string>([
   "payment_milestone",
   "payment_processed",
   "daily_log_crew_reconciled",
+  "punch_item_assigned",
+  "punch_item_ready_to_verify",
+  "punch_item_rejected",
 ]);
 
 export type NotificationPrefState = Record<
