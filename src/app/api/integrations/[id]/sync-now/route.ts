@@ -7,6 +7,7 @@ import { db } from "@/db/client";
 import { auditEvents, integrationConnections, syncEvents } from "@/db/schema";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
+import { syncToQuickBooks } from "@/lib/integrations/providers/quickbooks-sync";
 
 export async function POST(
   _req: Request,
@@ -47,6 +48,33 @@ export async function POST(
         { error: "disconnected", message: "Connection is disconnected" },
         { status: 409 },
       );
+    }
+
+    // QuickBooks runs through the stubbed connector (Step 34) — writes its
+    // own sync_events + audit rows with the would-send payload attached.
+    // Real push is gated on Intuit app review; see README § Third-party
+    // integrations.
+    if (existing.provider === "quickbooks_online") {
+      const result = await syncToQuickBooks({
+        orgId: ctx.organization.id,
+        actorUserId: ctx.user.id,
+        entityType: "reconciliation",
+      });
+      await db
+        .update(integrationConnections)
+        .set({
+          lastSyncAt: new Date(),
+          lastSyncStatus: "skipped",
+          lastErrorMessage: null,
+          consecutiveErrors: 0,
+        })
+        .where(eq(integrationConnections.id, existing.id));
+      return NextResponse.json({
+        id,
+        ok: true,
+        stubbed: true,
+        syncEventId: result.eventId,
+      });
     }
 
     const now = new Date();
