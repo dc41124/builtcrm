@@ -43,7 +43,30 @@ This is deliberate. Production sync against QuickBooks, Xero, or Sage requires e
 | App published on Intuit marketplace | No | After review, the app is published and production OAuth scopes (`com.intuit.quickbooks.accounting`) become available. |
 | Real data mappers | Stubbed | The `syncToQuickBooks` function in `src/lib/integrations/providers/quickbooks-sync.ts` emits a shape-accurate payload but does not execute the HTTP call. Production work replaces the stub body with the actual push and swaps `status='skipped'` for `status='succeeded'`. |
 
-Xero and Sage follow the same sandbox-only pattern and will be documented here as their connector steps land.
+### Xero
+
+**Sandbox (today):**
+
+1. Register a free developer account at [developer.xero.com](https://developer.xero.com).
+2. Create a new app. Under "Configuration", copy the **Client ID** and **Client Secret** into `.env`:
+   - `XERO_CLIENT_ID`
+   - `XERO_CLIENT_SECRET`
+3. Set the redirect URI in the Xero app config to `<your-app-base>/api/oauth/xero/callback`.
+4. Optional — to exercise the webhook signature verifier, configure a webhook subscription in the Xero portal pointing at `<your-app-base>/api/webhooks/xero` and copy the webhook key into `XERO_WEBHOOK_KEY`.
+5. In the integrations page, click **Connect Xero**. You'll land on Xero's login screen, approve tenant access (Xero's "demo company" works fine for sandbox), and return to the integrations page with a *Connected* card. Clicking **Sync now** writes a stubbed sync event with a Xero-shaped `wouldSend` payload (Accounting API 2.0 `POST /Invoices`, `/Payments`, `/Contacts`).
+
+**Production deployment — what is currently missing:**
+
+| Requirement | Status | Notes |
+|---|---|---|
+| Xero app review application | Not submitted | Required to move from sandbox to published. Review covers security, UX, and OAuth scope usage. |
+| Business entity verification | Not completed | Same underlying requirement as QuickBooks — a registered business entity with a verifiable contact. |
+| Privacy policy URL | Not published | Must describe how Xero tenant data is stored, used, and deleted. |
+| Terms of service URL | Not published | Customer-facing terms covering the connector. |
+| App published on Xero marketplace | No | After review, the app is published and production OAuth scopes become available. |
+| Real data mappers | Stubbed | `syncToXero` in `src/lib/integrations/providers/xero-sync.ts` emits a shape-accurate Accounting API 2.0 payload but does not execute the HTTP call. Production work replaces the stub body with the actual push and swaps `status='skipped'` for `status='succeeded'`. |
+
+Sage follows the same sandbox-only pattern and will be documented here when its connector step lands.
 
 ## Repository layout
 

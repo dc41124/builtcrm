@@ -1,23 +1,20 @@
-import { and, desc, eq } from "drizzle-orm";
-
-import { db } from "@/db/client";
-import { auditEvents, integrationConnections } from "@/db/schema";
-
-import { completeSyncEvent, startSyncEvent, SyncLogError } from "../sync-log";
+import { runStubSync, type StubSyncResult } from "../stub-sync";
 
 // QuickBooks Online sync — STUBBED. Production sync against Intuit's
 // Accounting API requires app review, which requires a registered business
 // entity and a published marketplace app. Until that happens, this function
-// writes a `sync_events` row with status='skipped' and `resultData.stubbed`
-// = true, plus an `integration.sync.stubbed` audit event, and returns the
-// would-send payload. No HTTP call hits Intuit.
+// delegates to `runStubSync` (which writes a `sync_events` row with
+// status='skipped' + resultData.stubbed, plus an `integration.sync.stubbed`
+// audit event) with a QB-shaped `wouldSend` payload showing what we would
+// push to the Accounting API v3.
 //
-// When production connector work starts, the body of `buildWouldSendPayload`
-// becomes the real push mapper and `completeSyncEvent` transitions to
-// status='succeeded' on POST to the Accounting API. The event row + audit
-// scaffolding does not change.
+// When production connector work starts, replace `buildWouldSendPayload`
+// with the real push mapper, POST it to the Accounting API, and switch
+// the delegate from `runStubSync` to a live implementation that flips
+// status to 'succeeded'.
 
 const PROVIDER_KEY = "quickbooks_online" as const;
+const REVIEW_GATE = "Intuit app review";
 
 export type QuickBooksEntityType =
   | "invoice"
@@ -32,97 +29,39 @@ export type SyncToQuickBooksInput = {
   entityId?: string;
 };
 
-export type SyncToQuickBooksResult = {
-  eventId: string;
-  stubbed: true;
-  wouldSend: WouldSendPayload;
-};
-
-export type WouldSendPayload = {
-  api: "intuit-quickbooks-online-accounting-v3";
-  operation: "reconcile" | "push";
-  entities: Array<{
-    entityType: Exclude<QuickBooksEntityType, "reconciliation">;
-    entityId: string | null;
-    path: string;
-    method: "POST" | "PUT";
-    body: Record<string, unknown>;
-  }>;
-  note: string;
-};
-
 export async function syncToQuickBooks(
   input: SyncToQuickBooksInput,
-): Promise<SyncToQuickBooksResult> {
-  const [conn] = await db
-    .select({
-      id: integrationConnections.id,
-      status: integrationConnections.connectionStatus,
-    })
-    .from(integrationConnections)
-    .where(
-      and(
-        eq(integrationConnections.organizationId, input.orgId),
-        eq(integrationConnections.provider, PROVIDER_KEY),
-      ),
-    )
-    .orderBy(desc(integrationConnections.createdAt))
-    .limit(1);
-  if (!conn) {
-    throw new SyncLogError(
-      "no_connection",
-      `No ${PROVIDER_KEY} connection on record for organization ${input.orgId}`,
-    );
-  }
-
-  const wouldSend = buildWouldSendPayload(input);
+): Promise<StubSyncResult> {
   const direction =
     input.entityType === "reconciliation" ? "reconciliation" : "push";
-
-  const { id: eventId } = await startSyncEvent({
-    orgId: input.orgId,
+  return runStubSync({
     providerKey: PROVIDER_KEY,
+    orgId: input.orgId,
+    actorUserId: input.actorUserId,
     direction,
     entityType:
       input.entityType === "reconciliation" ? undefined : input.entityType,
     entityId: input.entityId,
-    summary: "Stubbed — production sync requires Intuit app review",
+    wouldSend: buildWouldSendPayload(input),
+    reviewGate: REVIEW_GATE,
   });
-
-  await completeSyncEvent({
-    id: eventId,
-    status: "skipped",
-    summary: "Stubbed — production sync requires Intuit app review",
-    resultData: {
-      stubbed: true,
-      reason:
-        "Production sync against Intuit requires app review. See README § Third-party integrations.",
-      wouldSend,
-    },
-  });
-
-  await db.insert(auditEvents).values({
-    actorUserId: input.actorUserId,
-    organizationId: input.orgId,
-    objectType: "integration_connection",
-    objectId: conn.id,
-    actionName: "integration.sync.stubbed",
-    metadataJson: {
-      provider: PROVIDER_KEY,
-      entityType: input.entityType,
-      entityId: input.entityId ?? null,
-      syncEventId: eventId,
-    },
-  });
-
-  return { eventId, stubbed: true, wouldSend };
 }
 
-// Produces a plausible Intuit Accounting API payload for the requested
-// entity. For a reconciliation call (no specific entity), emits one example
-// per supported entity type so a developer can see the full surface. The
-// IDs and amounts are placeholders — the real mapper will resolve them from
-// the source objects (invoices table, payments table, org contacts).
+type WouldSendEntity = {
+  entityType: Exclude<QuickBooksEntityType, "reconciliation">;
+  entityId: string | null;
+  path: string;
+  method: "POST" | "PUT";
+  body: Record<string, unknown>;
+};
+
+type WouldSendPayload = {
+  api: "intuit-quickbooks-online-accounting-v3";
+  operation: "reconcile" | "push";
+  entities: WouldSendEntity[];
+  note: string;
+};
+
 function buildWouldSendPayload(input: SyncToQuickBooksInput): WouldSendPayload {
   if (input.entityType === "reconciliation") {
     return {
@@ -147,7 +86,7 @@ function buildWouldSendPayload(input: SyncToQuickBooksInput): WouldSendPayload {
 function exampleFor(
   entityType: Exclude<QuickBooksEntityType, "reconciliation">,
   entityId: string | null,
-): WouldSendPayload["entities"][number] {
+): WouldSendEntity {
   const method: "POST" | "PUT" = entityId ? "PUT" : "POST";
   switch (entityType) {
     case "invoice":
