@@ -7,3 +7,52 @@ body {
   margin: 0;
   padding: 0;
 }
+
+/* ---------------------------------------------------------------------------
+   Print stylesheet — used by client weekly-report views (Step 39). Browser
+   "Print → Save as PDF" yields a passable single-page export of a sent
+   report. Hides chrome (sidebar, topbar, KPI strip, action buttons), strips
+   shadows/rounded edges, and forces single-column layout.
+   --------------------------------------------------------------------------- */
+@media print {
+  /* Hide app chrome and any element opted-out of print. */
+  aside,
+  .tb,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Layout: fill the page, no sidebar offset. */
+  body,
+  .rw,
+  main {
+    background: white !important;
+    color: black !important;
+    display: block !important;
+  }
+
+  /* Article container: no shadow / no rounded corners; full width. */
+  article,
+  section,
+  div {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  /* Page break hint: each weekly-report doc body renders cleanly. */
+  .apw-head,
+  .apw-kpis {
+    display: none !important;
+  }
+
+  /* Photos and tables — let images break across pages cleanly. */
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+  table,
+  tr,
+  td {
+    page-break-inside: avoid;
+  }
+}
