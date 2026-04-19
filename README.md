@@ -66,7 +66,29 @@ This is deliberate. Production sync against QuickBooks, Xero, or Sage requires e
 | App published on Xero marketplace | No | After review, the app is published and production OAuth scopes become available. |
 | Real data mappers | Stubbed | `syncToXero` in `src/lib/integrations/providers/xero-sync.ts` emits a shape-accurate Accounting API 2.0 payload but does not execute the HTTP call. Production work replaces the stub body with the actual push and swaps `status='skipped'` for `status='succeeded'`. |
 
-Sage follows the same sandbox-only pattern and will be documented here when its connector step lands.
+### Sage Business Cloud Accounting
+
+**Sandbox (today):**
+
+1. Register a developer account at [developer.sage.com](https://developer.sage.com). Sage provides a free sandbox business tied to your developer account.
+2. Create a new app under "My Apps". Copy the **Client ID** and **Client Secret** into `.env`:
+   - `SAGE_CLIENT_ID`
+   - `SAGE_CLIENT_SECRET`
+3. Set the redirect URI in the Sage app config to `<your-app-base>/api/oauth/sage_business_cloud/callback`.
+4. The provider config defaults to `country=CA, locale=en-CA` on the authorize URL (see `src/lib/integrations/providers/sage.ts`). Switch the `extraAuthorizeParams` for a different region if you're testing against a US/UK/IE/DE/FR/ES sandbox.
+5. Optional — set `SAGE_WEBHOOK_SECRET` if you configure a webhook subscription. Sage's webhook signing is documented sparsely; the verifier assumes HMAC-SHA256/base64 with header `x-sage-signature`. Revisit when the live endpoint ships.
+6. In the integrations page, click **Connect Sage**. You'll land on Sage's authorize screen, approve the sandbox business, and return *Connected*. **Sync now** writes a stubbed sync event with a Sage Accounting v3.1 `wouldSend` payload (`/sales_invoices`, `/contact_payments`, `/contacts`).
+
+**Production deployment — what is currently missing:**
+
+| Requirement | Status | Notes |
+|---|---|---|
+| Sage partner program approval | Not submitted | Production apps go through Sage's partner program — a higher bar than Sage's developer portal. |
+| Business entity verification | Not completed | Required by the partner program. |
+| Privacy policy URL | Not published | Must describe how Sage business data is stored, used, and deleted. |
+| Terms of service URL | Not published | Customer-facing terms covering the connector. |
+| Multi-region configuration | Single-region (CA) | `extraAuthorizeParams` hardcodes country/locale. Production needs per-connection region selection (UK/IE/US/CA/DE/FR/ES) exposed in the connect flow. |
+| Real data mappers | Stubbed | `syncToSage` in `src/lib/integrations/providers/sage-sync.ts` emits a shape-accurate Sage Accounting v3.1 payload but does not execute the HTTP call. Production work replaces the stub body with the actual push and swaps `status='skipped'` for `status='succeeded'`. |
 
 ## Repository layout
 

@@ -8,6 +8,7 @@ import { auditEvents, integrationConnections, syncEvents } from "@/db/schema";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
 import { syncToQuickBooks } from "@/lib/integrations/providers/quickbooks-sync";
+import { syncToSage } from "@/lib/integrations/providers/sage-sync";
 import { syncToXero } from "@/lib/integrations/providers/xero-sync";
 
 export async function POST(
@@ -51,27 +52,28 @@ export async function POST(
       );
     }
 
-    // Stubbed accounting connectors (Steps 34–36): QuickBooks + Xero route
-    // through their provider-specific stub functions, which write sync_events
-    // + audit rows with status='skipped' + resultData.stubbed=true and the
-    // would-send payload. Real push is gated on each provider's app review;
-    // see README § Third-party integrations.
+    // Stubbed accounting connectors (Steps 34–36): QuickBooks, Xero, and
+    // Sage route through their provider-specific stub functions, which
+    // write sync_events + audit rows with status='skipped' +
+    // resultData.stubbed=true and the would-send payload. Real push is
+    // gated on each provider's app review; see README § Third-party
+    // integrations.
     if (
       existing.provider === "quickbooks_online" ||
-      existing.provider === "xero"
+      existing.provider === "xero" ||
+      existing.provider === "sage_business_cloud"
     ) {
+      const stubArgs = {
+        orgId: ctx.organization.id,
+        actorUserId: ctx.user.id,
+        entityType: "reconciliation" as const,
+      };
       const result =
         existing.provider === "quickbooks_online"
-          ? await syncToQuickBooks({
-              orgId: ctx.organization.id,
-              actorUserId: ctx.user.id,
-              entityType: "reconciliation",
-            })
-          : await syncToXero({
-              orgId: ctx.organization.id,
-              actorUserId: ctx.user.id,
-              entityType: "reconciliation",
-            });
+          ? await syncToQuickBooks(stubArgs)
+          : existing.provider === "xero"
+            ? await syncToXero(stubArgs)
+            : await syncToSage(stubArgs);
       await db
         .update(integrationConnections)
         .set({
