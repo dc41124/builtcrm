@@ -75,12 +75,21 @@ export type AgingChartData = Array<{
   changeOrders: number;
 }>;
 
+import {
+  getPaymentTrackingReport,
+  type PaymentTrackingReportSummary,
+} from "./cross-project-payments";
+
 export type ReportsView = {
   context: ContractorOrgContext;
   generatedAtIso: string;
   kpis: ReportsKpis;
   projects: ProjectReportRow[];
   aging: AgingChartData;
+  // Step 38 wiring — live cross-project payment tracking summary. Null
+  // when loading the report slice fails so the Reports page still renders
+  // every other built tile.
+  paymentTracking: PaymentTrackingReportSummary | null;
 };
 
 // ---------------------------------------------------------------
@@ -132,6 +141,7 @@ export async function getContractorReportsData(
       kpis: emptyKpis(),
       projects: [],
       aging: emptyAging(),
+      paymentTracking: null,
     };
   }
 
@@ -355,6 +365,17 @@ export async function getContractorReportsData(
 
   const aging = computeAging(rfiRows, coRows, now);
 
+  // ---- Payment tracking slice (Step 38) ----
+  // Reuses the full cross-project payments loader; strips to the
+  // summary shape. Isolated in a try so an unrelated failure here
+  // doesn't black out the Reports page.
+  let paymentTracking: PaymentTrackingReportSummary | null = null;
+  try {
+    paymentTracking = await getPaymentTrackingReport(input);
+  } catch {
+    paymentTracking = null;
+  }
+
   return {
     context,
     generatedAtIso: now.toISOString(),
@@ -370,6 +391,7 @@ export async function getContractorReportsData(
     },
     projects: projectReports,
     aging,
+    paymentTracking,
   };
 }
 

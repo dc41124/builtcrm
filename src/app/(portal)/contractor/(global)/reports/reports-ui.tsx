@@ -114,7 +114,7 @@ const REPORTS: ReportDef[] = [
   { id: "ar", category: "financial", label: "AR Aging", Icon: IconReceipt, desc: "Unpaid invoices by age", built: true, origin: "Step 24.5" },
   { id: "cost", category: "financial", label: "Job Cost", Icon: IconCalculator, desc: "Budget vs committed vs actual vs projected", built: true, origin: "Step 24.5" },
   { id: "cashflow", category: "financial", label: "Cashflow Projection", Icon: IconWallet, desc: "12-week inflow, outflow, and balance forecast", built: true, origin: "Step 24.5" },
-  { id: "payments", category: "financial", label: "Payment Tracking", Icon: IconDollarSign, desc: "Inbound draws and outbound sub payments", built: false, origin: "Step 38" },
+  { id: "payments", category: "financial", label: "Payment Tracking", Icon: IconDollarSign, desc: "Inbound draws and outbound sub payments", built: true, origin: "Step 38" },
   { id: "labor", category: "operational", label: "Labor & Productivity", Icon: IconUsers, desc: "Hours and labor cost by project and trade", built: true, origin: "Step 24.5" },
   { id: "schedule", category: "operational", label: "Schedule Performance", Icon: IconCalendarClock, desc: "SPI and planned-vs-actual timeline", built: true, origin: "Step 24.5" },
   { id: "daily-logs", category: "operational", label: "Daily Logs Rollup", Icon: IconFileBarChart, desc: "Cross-project daily log activity", built: false, origin: "Phase 4B" },
@@ -734,6 +734,8 @@ function renderReport(id: string, view: ReportsView) {
       return <CostReport />;
     case "cashflow":
       return <CashflowReport />;
+    case "payments":
+      return <PaymentTrackingReport view={view} />;
     case "labor":
       return <LaborReport />;
     case "schedule":
@@ -2082,6 +2084,105 @@ function CashflowChart({
     </svg>
   );
 }
+
+// ----------------------------------------------------------------
+// Payment Tracking (Step 38) — compact summary backed by live data.
+// The full interactive surface lives at /contractor/payment-tracking.
+// ----------------------------------------------------------------
+
+function PaymentTrackingReport({ view }: { view: ReportsView }) {
+  const summary = view.paymentTracking;
+  if (!summary) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        Payment tracking summary unavailable. Open the full page for live data.
+        <div style={{ marginTop: 12 }}>
+          <a href="/contractor/payment-tracking" style={paymentTrackingLinkStyle}>
+            Go to Payment Tracking →
+          </a>
+        </div>
+      </div>
+    );
+  }
+  const outstandingK = Math.round(summary.inbound.totalOutstandingCents / 1000) / 100;
+  return (
+    <div>
+      <div className="rpt-k-row four">
+        <KPI
+          label="Outstanding (inbound)"
+          value={fmt(outstandingK * 1000)}
+          sub={`${summary.inbound.totalDraws} draws`}
+          tone={summary.inbound.totalOutstandingCents > 0 ? "warn" : "neutral"}
+          Icon={IconReceipt}
+        />
+        <KPI
+          label="Delinquent"
+          value={summary.inbound.delinquentCount.toString()}
+          sub={
+            summary.inbound.delinquentCount === 0
+              ? "None past 30 days"
+              : "Past the 30-day threshold"
+          }
+          tone={summary.inbound.delinquentCount > 0 ? "crit" : "ok"}
+          Icon={IconAlertTriangle}
+        />
+        <KPI
+          label="Sub payments"
+          value={summary.outbound.totalWaivers.toString()}
+          sub={`${summary.outbound.pendingWaiverCount} waivers pending`}
+          Icon={IconDollarSign}
+        />
+        <KPI
+          label="Retainage held"
+          value={fmt(summary.outbound.totalRetainageHeldCents / 100)}
+          sub="Portfolio-wide"
+          Icon={IconWallet}
+        />
+      </div>
+
+      {summary.topDelinquentProjects.length > 0 && (
+        <Card padded={false}>
+          <div className="rpt-tbl-scroll">
+            <table className="rpt-data-tbl">
+              <thead>
+                <tr>
+                  <th>Top delinquent projects</th>
+                  <th className="rpt-right">Delinquent draws</th>
+                  <th className="rpt-right">Outstanding</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.topDelinquentProjects.map((p) => (
+                  <tr key={p.projectId}>
+                    <td>{p.projectName}</td>
+                    <td className="rpt-right">{p.delinquentCount}</td>
+                    <td className="rpt-right">
+                      {fmt(p.delinquentOutstandingCents / 100)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      <div style={{ marginTop: 16 }}>
+        <a href="/contractor/payment-tracking" style={paymentTrackingLinkStyle}>
+          Open full payment tracking →
+        </a>
+      </div>
+    </div>
+  );
+}
+
+const paymentTrackingLinkStyle: React.CSSProperties = {
+  fontFamily: "var(--fb)",
+  fontSize: 13,
+  fontWeight: 620,
+  color: "var(--ac-t)",
+  textDecoration: "none",
+};
 
 // ----------------------------------------------------------------
 // Labor & Productivity
