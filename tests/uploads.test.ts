@@ -61,20 +61,41 @@ describe("upload request — presigned URL", () => {
     expect(res.status).toBe(200);
   });
 
-  it("rejects a client writing documents (no write permission)", async () => {
+  it("returns a presigned URL for a commercial client uploading their own doc", async () => {
+    // Clients have document.write in the policy (per
+    // src/domain/permissions.ts) so they can upload their own artifacts —
+    // insurance certs, tax exemptions, etc. Per-doc ownership is enforced
+    // at edit/supersede/archive time, not at upload.
     ASSUME.commercial();
     const res = await uploadRequest(
       jsonRequest({
         projectId: PROJECT_A,
-        filename: "notes.pdf",
+        filename: "insurance.pdf",
+        contentType: "application/pdf",
+        documentType: "insurance",
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.storageKey.startsWith(`${IDS.orgs.contractor}/${PROJECT_A}/`)).toBe(true);
+  });
+
+  it("rejects a subcontractor on Project B (no membership)", async () => {
+    ASSUME.subcontractor();
+    const res = await uploadRequest(
+      jsonRequest({
+        projectId: PROJECT_B,
+        filename: "x.pdf",
         contentType: "application/pdf",
       }),
     );
     expect(res.status).toBe(403);
   });
 
-  it("rejects a subcontractor on Project B (no membership)", async () => {
-    ASSUME.subcontractor();
+  it("rejects a commercial client on Project B (no membership)", async () => {
+    // Project-membership gate still applies even though the resource-level
+    // policy lets clients write documents.
+    ASSUME.commercial();
     const res = await uploadRequest(
       jsonRequest({
         projectId: PROJECT_B,
@@ -154,13 +175,39 @@ describe("upload finalize — documents + audit", () => {
     expect(body.error).toBe("invalid_storage_key");
   });
 
-  it("rejects a client finalizing an upload (no write permission)", async () => {
+  it("allows a commercial client to finalize their own upload", async () => {
+    // Mirrors the presign-URL case above: clients are in the
+    // document.write policy, so finalize succeeds when they're a project
+    // member. `uploadedByUserId` on the created row pins ownership for
+    // later edit/supersede/archive checks.
     ASSUME.commercial();
     const res = await uploadFinalize(
       jsonRequest({
         projectId: PROJECT_A,
-        storageKey: `${IDS.orgs.contractor}/${PROJECT_A}/drawing/c.pdf`,
-        title: "Client upload",
+        storageKey: `${IDS.orgs.contractor}/${PROJECT_A}/insurance/client-cert.pdf`,
+        title: "Client insurance certificate",
+        documentType: "insurance",
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    createdDocIds.push(body.documentId);
+
+    const [doc] = await db
+      .select()
+      .from(documents)
+      .where(eq(documents.id, body.documentId));
+    expect(doc.uploadedByUserId).toBe(IDS.users.commercialClient);
+  });
+
+  it("rejects a commercial client on Project B (no membership)", async () => {
+    ASSUME.commercial();
+    const res = await uploadFinalize(
+      jsonRequest({
+        projectId: PROJECT_B,
+        storageKey: `${IDS.orgs.contractor}/${PROJECT_B}/insurance/b.pdf`,
+        title: "Client upload on foreign project",
+        documentType: "insurance",
       }),
     );
     expect(res.status).toBe(403);
