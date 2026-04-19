@@ -1377,6 +1377,9 @@ const CSS = `
 @media(max-width:1200px){.md{grid-template-columns:1fr}.ss{grid-template-columns:repeat(3,1fr)}.ss.sub{grid-template-columns:repeat(2,1fr)}}
 
 .tl{display:flex;flex-direction:column;gap:6px;max-height:720px;overflow-y:auto;padding-right:4px}
+.tl::-webkit-scrollbar{width:4px}
+.tl::-webkit-scrollbar-track{background:transparent}
+.tl::-webkit-scrollbar-thumb{background:var(--s4);border-radius:2px}
 .tl-empty{padding:24px;text-align:center;font-size:13px;color:var(--t3)}
 .cc{background:var(--s1);border:1px solid var(--s3);border-radius:var(--r-l);padding:12px 14px;cursor:pointer;transition:all 200ms cubic-bezier(.16,1,.3,1)}
 .cc:hover{border-color:var(--s4);box-shadow:var(--shsm)}
