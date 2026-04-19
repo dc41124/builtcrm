@@ -174,7 +174,16 @@ export type IntegrationConnectionRow = {
   errorCount: number;
 };
 
-export type IntegrationCardRow = ProviderCatalogEntry & {
+// Serializable subset of ProviderCatalogEntry for passing to Client Components.
+// ProviderCatalogEntry's `oauth`/`webhooks` sub-objects contain server-only
+// callbacks (e.g. `extractAccount`, `extractIdentity`) that React Server
+// Components cannot serialize across the server/client boundary.
+export type IntegrationCardCatalogFields = Pick<
+  ProviderCatalogEntry,
+  "provider" | "name" | "description" | "category" | "minTier" | "phase1" | "flow"
+>;
+
+export type IntegrationCardRow = IntegrationCardCatalogFields & {
   connection: IntegrationConnectionRow | null;
 };
 
@@ -302,7 +311,13 @@ export async function getContractorIntegrationsView(input: {
   }
 
   const cards: IntegrationCardRow[] = allProviders().map((entry) => ({
-    ...entry,
+    provider: entry.provider,
+    name: entry.name,
+    description: entry.description,
+    category: entry.category,
+    minTier: entry.minTier,
+    phase1: entry.phase1,
+    flow: entry.flow,
     connection: byProvider.get(entry.provider) ?? null,
   }));
 
