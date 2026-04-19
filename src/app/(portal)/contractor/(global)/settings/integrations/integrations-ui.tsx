@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, type CSSProperties, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { Modal } from "@/components/modal";
 import type {
   ContractorIntegrationsView,
   IntegrationCardRow,
@@ -199,9 +200,101 @@ export function IntegrationsView({
         title="Integrations"
         subtitle="Connect your accounting, payment, and productivity tools. Integrations sync automatically — no manual data entry required."
       />
+      <OAuthReturnBanner />
       <IntegrationsSection view={view} canManage={canManage} nowMs={nowMs} />
     </div>
   );
+}
+
+// OAuth callback from Step 25 redirects back here with
+// ?provider=…&oauth=connected|failed&reason=…. Show a flash banner once,
+// then clean the query string so a refresh doesn't re-show it.
+function OAuthReturnBanner() {
+  const search = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const provider = search.get("provider");
+  const oauth = search.get("oauth");
+  const reason = search.get("reason");
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    if (!provider || !oauth) return;
+    // Defer the URL clean-up to the next tick so the effect doesn't race
+    // with the state we just read.
+    const t = window.setTimeout(() => {
+      router.replace(pathname);
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [provider, oauth, router, pathname]);
+
+  if (dismissed || !provider || !oauth) return null;
+
+  const success = oauth === "connected";
+  const label = providerCatalogName(provider);
+  return (
+    <div
+      role="status"
+      style={{
+        padding: "12px 16px",
+        borderRadius: 12,
+        background: success ? C.successSoft : C.dangerSoft,
+        border: `1px solid ${success ? C.success : C.danger}33`,
+        color: success ? C.successText : C.dangerText,
+        fontSize: 13,
+        fontWeight: 560,
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 12,
+      }}
+    >
+      <div>
+        {success
+          ? `${label} connected. First sync will run shortly.`
+          : `${label} connection failed${reason ? ` — ${reason}` : ""}. Please try again or contact support.`}
+      </div>
+      <button
+        onClick={() => setDismissed(true)}
+        aria-label="Dismiss"
+        style={{
+          background: "transparent",
+          border: "none",
+          color: "inherit",
+          cursor: "pointer",
+          fontWeight: 620,
+          fontSize: 18,
+          lineHeight: 1,
+          padding: 0,
+        }}
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+function providerCatalogName(key: string): string {
+  switch (key) {
+    case "quickbooks_online":
+      return "QuickBooks Online";
+    case "xero":
+      return "Xero";
+    case "sage_business_cloud":
+      return "Sage Business Cloud";
+    case "stripe":
+      return "Stripe Connect";
+    case "google_calendar":
+      return "Google Calendar";
+    case "outlook_365":
+      return "Outlook / Microsoft 365";
+    case "postmark":
+      return "Postmark";
+    case "sendgrid":
+      return "SendGrid";
+    default:
+      return key;
+  }
 }
 
 function PageHeader({
@@ -367,8 +460,20 @@ function NotConnectedPanel({
   const [error, setError] = useState<string | null>(null);
 
   async function connect() {
-    setPending(true);
     setError(null);
+    // OAuth 2.0 providers (QB / Xero / Sage / Google) + Stripe Connect kick
+    // off with a browser navigation to /api/oauth/[provider]/start (Step 25),
+    // which 302s to the provider's authorize URL. We never return to this
+    // handler — the callback brings the user back to this page with
+    // ?oauth=connected|failed query params picked up by OAuthReturnBanner.
+    if (card.flow === "oauth2_code" || card.flow === "stripe_connect") {
+      setPending(true);
+      window.location.href = `/api/oauth/${card.provider}/start`;
+      return;
+    }
+    // flow === 'none' (postmark / sendgrid): legacy stub endpoint. Real wiring
+    // lands when those connectors ship.
+    setPending(true);
     const res = await fetch("/api/integrations/connect", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -532,8 +637,10 @@ function NotConnectedPanel({
           }}
         >
           <span style={pillStyle("gray")}>{card.minTier}</span>
-          {card.phase1 ? (
+          {card.phase1 || card.provider === "stripe" ? (
             <span style={pillStyle("green")}>Available</span>
+          ) : card.flow === "oauth2_code" ? (
+            <span style={pillStyle("orange")}>Sandbox</span>
           ) : (
             <span style={pillStyle("orange")}>Stub · Phase 2</span>
           )}
@@ -544,7 +651,9 @@ function NotConnectedPanel({
               fontWeight: 520,
             }}
           >
-            No data will sync until you connect.
+            {card.flow === "oauth2_code" && !card.phase1 && card.provider !== "stripe"
+              ? "Sandbox connection only — production sync requires provider app review."
+              : "No data will sync until you connect."}
           </span>
         </div>
 
@@ -766,8 +875,17 @@ function IntegrationCard({
 
   async function connect(e: React.MouseEvent) {
     e.stopPropagation();
-    setPending(true);
     setError(null);
+    // OAuth 2.0 + Stripe Connect kick off with a browser navigation to the
+    // Step-25 start route. The callback brings us back with a query-string
+    // result that OAuthReturnBanner picks up.
+    if (card.flow === "oauth2_code" || card.flow === "stripe_connect") {
+      setPending(true);
+      window.location.href = `/api/oauth/${card.provider}/start`;
+      return;
+    }
+    // flow === 'none' — stubbed in-place connect for postmark/sendgrid.
+    setPending(true);
     const res = await fetch("/api/integrations/connect", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -788,10 +906,20 @@ function IntegrationCard({
       ? C.accentMuted
       : C.surface3;
 
+  const expiringSoon = isTokenExpiringSoon(connection, nowMs);
+  const isSandbox =
+    card.flow === "oauth2_code" && !card.phase1 && card.provider !== "stripe";
+
   // Context pills computed from real data.
-  const contextPills: Array<{ text: string; tone?: "green" }> = [];
+  const contextPills: Array<{ text: string; tone?: "green" | "orange" }> = [];
   if (isConnected && connection) {
-    if (connection.consecutiveErrors === 0 && !connection.lastErrorMessage) {
+    if (expiringSoon) {
+      // Show expiring warning first so it's the most prominent signal.
+      contextPills.push({ text: "Token expiring soon", tone: "orange" });
+    } else if (
+      connection.consecutiveErrors === 0 &&
+      !connection.lastErrorMessage
+    ) {
       contextPills.push({ text: "Healthy", tone: "green" });
     }
     if (connection.projectMappings.length > 0) {
@@ -944,8 +1072,10 @@ function IntegrationCard({
         }}
       >
         <span style={pillStyle("gray")}>{card.minTier}</span>
-        {card.phase1 ? (
+        {card.phase1 || card.provider === "stripe" ? (
           <span style={pillStyle("green")}>Available</span>
+        ) : isSandbox ? (
+          <span style={pillStyle("orange")}>Sandbox</span>
         ) : (
           <span style={pillStyle("orange")}>Stub · Phase 2</span>
         )}
@@ -960,6 +1090,20 @@ function IntegrationCard({
           </button>
         )}
       </div>
+      {isSandbox && !isConnected && (
+        <div
+          style={{
+            fontSize: 10.5,
+            color: C.textTertiary,
+            marginTop: 10,
+            fontWeight: 520,
+            lineHeight: 1.45,
+          }}
+        >
+          Sandbox connection only — production sync requires provider app
+          review.
+        </div>
+      )}
       {error && (
         <div
           style={{
@@ -983,6 +1127,19 @@ function statusLabel(card: IntegrationCardRow): string {
   if (s === "error") return "Error";
   if (s === "connecting") return "Connecting…";
   return "Not connected";
+}
+
+// Token is "expiring soon" when its remaining lifetime is under 24 hours.
+// Populated only for OAuth 2.0 providers (QB / Xero / Sage / Google);
+// postmark, sendgrid, and Stripe Connect have null tokenExpiresAt.
+const EXPIRY_WARNING_MS = 24 * 60 * 60 * 1000;
+function isTokenExpiringSoon(
+  connection: { tokenExpiresAt: Date | null } | null,
+  nowMs: number,
+): boolean {
+  if (!connection?.tokenExpiresAt) return false;
+  const remaining = connection.tokenExpiresAt.getTime() - nowMs;
+  return remaining > 0 && remaining < EXPIRY_WARNING_MS;
 }
 
 function formatRelative(d: Date | string, now: number): string {
@@ -1018,6 +1175,7 @@ function IntegrationDetailPanel({
   const [tab, setTab] = useState<DetailTab>("overview");
   const [syncPending, setSyncPending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
   if (!connection) return null;
 
@@ -1055,6 +1213,7 @@ function IntegrationDetailPanel({
       setActionError(body.message ?? body.error ?? "disconnect_failed");
       return;
     }
+    setConfirmDisconnect(false);
     router.refresh();
   }
 
@@ -1140,7 +1299,7 @@ function IntegrationDetailPanel({
             Edit mapping
           </button>
           <button
-            onClick={disconnect}
+            onClick={() => setConfirmDisconnect(true)}
             disabled={!canManage || syncPending}
             style={smBtnStyle(true)}
           >
@@ -1196,7 +1355,7 @@ function IntegrationDetailPanel({
           <SettingsTab card={card} canManage={canManage} />
         )}
 
-        {!card.phase1 && (
+        {!card.phase1 && card.provider !== "stripe" && (
           <div
             style={{
               marginTop: 16,
@@ -1209,7 +1368,9 @@ function IntegrationDetailPanel({
               fontWeight: 520,
             }}
           >
-            Stub connector — full OAuth and sync loops ship in Phase 2.
+            {card.flow === "oauth2_code"
+              ? "Sandbox connection only — the OAuth handshake and token lifecycle are live, but production data sync requires provider app review."
+              : "Stub connector — full OAuth and sync loops ship with the provider's Phase 2 release."}
           </div>
         )}
 
@@ -1226,6 +1387,47 @@ function IntegrationDetailPanel({
           </div>
         )}
       </div>
+
+      <Modal
+        open={confirmDisconnect}
+        onClose={() => (syncPending ? undefined : setConfirmDisconnect(false))}
+        title={`Disconnect ${card.name}?`}
+        subtitle={
+          connection.externalAccountName
+            ? `This revokes the connection to "${connection.externalAccountName}" and clears the stored tokens. Past sync history is kept.`
+            : `This revokes the stored credentials. Past sync history is kept.`
+        }
+        width={460}
+        footer={
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <button
+              onClick={() => setConfirmDisconnect(false)}
+              disabled={syncPending}
+              style={smBtnStyle(false)}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={disconnect}
+              disabled={syncPending}
+              style={{
+                ...smBtnStyle(true),
+                background: C.danger,
+                color: "#fff",
+                borderColor: C.danger,
+              }}
+            >
+              {syncPending ? "Disconnecting…" : "Disconnect"}
+            </button>
+          </div>
+        }
+      >
+        <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.55 }}>
+          You can reconnect at any time — sync mappings and preferences are
+          preserved across reconnects. Any in-flight sync will be allowed to
+          finish and then stop.
+        </div>
+      </Modal>
     </div>
   );
 }

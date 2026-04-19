@@ -2001,7 +2001,22 @@ git commit -m "Step 27 (4C.1 #27): Sync event audit log with idempotency"
 
 ---
 
-## Step 28 — Integration Connection UI
+## Step 28 — Integration Connection UI ✅ DONE (2026-04-19)
+
+**Completion notes**
+- **Enhancement, not rebuild.** The existing 2870-line `integrations-ui.tsx` (Phase 3) stayed intact; edits were surgical.
+- **Loader extended** with `tokenExpiresAt: Date | null` on `IntegrationConnectionRow` and its SELECT list. No schema change — the column exists on `integration_connections` (Step 25) and already populates via the OAuth callback.
+- **Connect button now branches on `flow`.** `oauth2_code` / `stripe_connect` → browser-navigates to `/api/oauth/{provider}/start` (GET → 302). `flow: 'none'` (postmark / sendgrid) keeps the legacy POST to `/api/integrations/connect`. Both `IntegrationCard` and `NotConnectedPanel` share the same branch.
+- **OAuth callback banner** renders when the URL carries `?provider=…&oauth=connected|failed&reason=…` (from the Step 25 callback). Uses `useSearchParams()` + `router.replace(pathname)` in a `useEffect` to clean the URL after showing, so a refresh doesn't re-show. Dismiss button covers the narrow window between render and replace. Success tone when `oauth=connected`, danger tone otherwise, with the failure reason surfaced when present.
+- **Disconnect confirmation modal** uses the existing `Modal` component (`src/components/modal.tsx`) — Escape / click-outside dismiss. Confirm button has danger styling; Cancel and Confirm both disable while the request is in flight. Modal closes on success via the existing `disconnect()` handler.
+- **"Token expiring soon" pill.** New helper `isTokenExpiringSoon(connection, nowMs)` triggers when remaining lifetime < 24h. Rendered as an orange context pill on the card; preempts the "Healthy" pill when it fires so the operator sees the action signal first. Stripe Connect and postmark/sendgrid have `tokenExpiresAt = null` and never trip it.
+- **Sandbox pill + footer note** for `flow === 'oauth2_code'` providers that aren't phase1 (QB / Xero / Sage / Google / Outlook). Replaced the legacy "Stub · Phase 2" label with "Sandbox" since the OAuth handshake + token lifecycle are genuinely live after Steps 25–27 — only production entity-sync is deferred to Steps 30–33. Stripe stays "Available" because the task prompt says it's fully working. The detail-panel warning strip also updates to the sandbox wording for these providers.
+- **Step 5 placeholder** (task item 8): doesn't exist. The settings hub (`/contractor/settings`) already routes to the fully-wired Integrations page, no coming-soon placeholder anywhere in `/src/app/(portal)/contractor/(global)/settings/`. Flagged verified, no edit needed.
+- **Auth gating** unchanged. Page is contractor-only (subs + clients never hit this route — verified no `/subcontractor/.../integrations` or `/<client>/.../integrations` routes exist). Inside the page, `canManage = role === "contractor_admin"` already gates connect / disconnect / edit buttons; PMs see read-only.
+
+**What shipped (files)**
+- `src/domain/loaders/integrations.ts` — added `tokenExpiresAt` to type + SELECT + mapping
+- `src/app/(portal)/contractor/(global)/settings/integrations/integrations-ui.tsx` — added `OAuthReturnBanner`, `isTokenExpiringSoon`, confirmDisconnect state + Modal render; wired both connect handlers to `/api/oauth/[provider]/start`; swapped "Stub · Phase 2" → "Sandbox" for oauth2_code providers; sandbox footer notes on card + detail panel
 
 **Mode:** Safe-to-autorun
 **Item:** 4C.1 #28

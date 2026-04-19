@@ -231,6 +231,11 @@ export type IntegrationConnectionRow = {
   lastSyncStatus: string | null;
   lastErrorMessage: string | null;
   consecutiveErrors: number;
+  // Expiry timestamp on the access token (for OAuth 2.0 providers) — the UI
+  // derives a "Token expiring soon" warning when this is within 24 hours.
+  // Null for providers without access-token expiry (postmark/sendgrid,
+  // Stripe Connect) or while connecting.
+  tokenExpiresAt: Date | null;
   syncPreferences: Record<string, unknown> | null;
   mappingConfig: Record<string, unknown> | null;
   projectMappings: ProjectMapping[];
@@ -288,6 +293,7 @@ export async function getContractorIntegrationsView(input: {
       lastSyncStatus: integrationConnections.lastSyncStatus,
       lastErrorMessage: integrationConnections.lastErrorMessage,
       consecutiveErrors: integrationConnections.consecutiveErrors,
+      tokenExpiresAt: integrationConnections.tokenExpiresAt,
       syncPreferences: integrationConnections.syncPreferences,
       mappingConfig: integrationConnections.mappingConfig,
     })
@@ -354,6 +360,7 @@ export async function getContractorIntegrationsView(input: {
         lastSyncStatus: c.lastSyncStatus,
         lastErrorMessage: c.lastErrorMessage,
         consecutiveErrors: c.consecutiveErrors,
+        tokenExpiresAt: c.tokenExpiresAt,
         syncPreferences: c.syncPreferences,
         mappingConfig: c.mappingConfig,
         projectMappings,
