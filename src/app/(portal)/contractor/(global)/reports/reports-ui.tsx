@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ComponentType } from "react";
 
 import { AgingBarChart } from "@/components/charts";
@@ -118,7 +118,7 @@ const REPORTS: ReportDef[] = [
   { id: "labor", category: "operational", label: "Labor & Productivity", Icon: IconUsers, desc: "Hours and labor cost by project and trade", built: true, origin: "Step 24.5" },
   { id: "schedule", category: "operational", label: "Schedule Performance", Icon: IconCalendarClock, desc: "SPI and planned-vs-actual timeline", built: true, origin: "Step 24.5" },
   { id: "daily-logs", category: "operational", label: "Daily Logs Rollup", Icon: IconFileBarChart, desc: "Cross-project daily log activity", built: false, origin: "Phase 4B" },
-  { id: "weekly-reports", category: "operational", label: "Weekly Reports", Icon: IconFileText, desc: "Aggregated weekly progress reports", built: false, origin: "Step 39" },
+  { id: "weekly-reports", category: "operational", label: "Weekly Reports", Icon: IconFileText, desc: "Aggregated weekly progress reports", built: true, origin: "Step 39" },
   { id: "safety", category: "operational", label: "Safety Forms Summary", Icon: IconShieldCheck, desc: "Toolbox talks, JHAs, incidents", built: false, origin: "Step 52" },
   { id: "time", category: "operational", label: "Time Tracking Rollup", Icon: IconClock, desc: "Sub hours by project and crew", built: false, origin: "Step 53" },
   { id: "co-log", category: "operational", label: "Change Order Log", Icon: IconHammer, desc: "All COs with status and aging", built: false, origin: "Phase 4B" },
@@ -227,10 +227,10 @@ export function ReportsWorkspace({ view }: { view: ReportsView }) {
     }
   };
 
-  const updatedLabel = useMemo(
-    () => new Date(view.generatedAtIso).toLocaleString(),
-    [view.generatedAtIso],
-  );
+  const [updatedLabel, setUpdatedLabel] = useState("");
+  useEffect(() => {
+    setUpdatedLabel(new Date(view.generatedAtIso).toLocaleString());
+  }, [view.generatedAtIso]);
 
   return (
     <main className="rpt-hub">
@@ -736,6 +736,8 @@ function renderReport(id: string, view: ReportsView) {
       return <CashflowReport />;
     case "payments":
       return <PaymentTrackingReport view={view} />;
+    case "weekly-reports":
+      return <WeeklyReportsAggregateReport view={view} />;
     case "labor":
       return <LaborReport />;
     case "schedule":
@@ -2183,6 +2185,118 @@ const paymentTrackingLinkStyle: React.CSSProperties = {
   color: "var(--ac-t)",
   textDecoration: "none",
 };
+
+// ----------------------------------------------------------------
+// Weekly Reports aggregate (Step 39) — recent sent reports across the
+// portfolio. The full per-project surface lives at
+// /contractor/project/<id>/weekly-reports; this tile is a glance.
+// ----------------------------------------------------------------
+
+function WeeklyReportsAggregateReport({ view }: { view: ReportsView }) {
+  const summary = view.weeklyReports;
+  if (!summary || summary.recentSent.length === 0) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        {summary
+          ? "No weekly reports sent yet across the portfolio."
+          : "Weekly-reports summary unavailable."}
+        <div style={{ marginTop: 12, fontSize: 12 }}>
+          Reports auto-generate Monday morning per project. Open a project to
+          review or send.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="rpt-k-row four">
+        <KPI
+          label="Sent this quarter"
+          value={summary.totalSent.toString()}
+          sub="Across all projects"
+          Icon={IconFileText}
+        />
+        <KPI
+          label="Most recent"
+          value={
+            summary.recentSent[0]
+              ? formatWeeklyReportShort(
+                  summary.recentSent[0].weekStart,
+                  summary.recentSent[0].weekEnd,
+                )
+              : "—"
+          }
+          sub={
+            summary.recentSent[0]
+              ? summary.recentSent[0].projectName
+              : "Nothing sent yet"
+          }
+          Icon={IconCalendarClock}
+        />
+      </div>
+
+      <Card padded={false}>
+        <div className="rpt-tbl-scroll">
+          <table className="rpt-data-tbl">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Week</th>
+                <th>Sent by</th>
+                <th>Sent at</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {summary.recentSent.map((r) => (
+                <tr key={r.reportId}>
+                  <td>{r.projectName}</td>
+                  <td>{formatWeeklyReportShort(r.weekStart, r.weekEnd)}</td>
+                  <td>{r.sentByName ?? "—"}</td>
+                  <td>{formatWeeklyReportSentAt(r.sentAt)}</td>
+                  <td className="rpt-right">
+                    <a
+                      href={`/contractor/project/${r.projectId}/weekly-reports?report=${r.reportId}`}
+                      style={paymentTrackingLinkStyle}
+                    >
+                      Open →
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function formatWeeklyReportShort(weekStart: string, weekEnd: string): string {
+  const a = parseWeeklyDate(weekStart);
+  const b = parseWeeklyDate(weekEnd);
+  const sameMonth = a.getUTCMonth() === b.getUTCMonth();
+  const fmtMD = (d: Date) =>
+    d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  return sameMonth
+    ? `${fmtMD(a)} – ${b.getUTCDate()}`
+    : `${fmtMD(a)} – ${fmtMD(b)}`;
+}
+
+function parseWeeklyDate(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+function formatWeeklyReportSentAt(d: Date): string {
+  return new Date(d).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 // ----------------------------------------------------------------
 // Labor & Productivity

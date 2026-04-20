@@ -79,6 +79,10 @@ import {
   getPaymentTrackingReport,
   type PaymentTrackingReportSummary,
 } from "./cross-project-payments";
+import {
+  getWeeklyReportsAggregate,
+  type WeeklyReportsAggregate,
+} from "./weekly-reports";
 
 export type ReportsView = {
   context: ContractorOrgContext;
@@ -90,6 +94,8 @@ export type ReportsView = {
   // when loading the report slice fails so the Reports page still renders
   // every other built tile.
   paymentTracking: PaymentTrackingReportSummary | null;
+  // Step 39 wiring — recent sent weekly reports across the portfolio.
+  weeklyReports: WeeklyReportsAggregate | null;
 };
 
 // ---------------------------------------------------------------
@@ -142,6 +148,7 @@ export async function getContractorReportsData(
       projects: [],
       aging: emptyAging(),
       paymentTracking: null,
+      weeklyReports: null,
     };
   }
 
@@ -376,6 +383,14 @@ export async function getContractorReportsData(
     paymentTracking = null;
   }
 
+  // ---- Weekly reports aggregate (Step 39) ----
+  let weeklyReportsAggregate: WeeklyReportsAggregate | null = null;
+  try {
+    weeklyReportsAggregate = await getWeeklyReportsAggregate(input);
+  } catch {
+    weeklyReportsAggregate = null;
+  }
+
   return {
     context,
     generatedAtIso: now.toISOString(),
@@ -392,6 +407,7 @@ export async function getContractorReportsData(
     projects: projectReports,
     aging,
     paymentTracking,
+    weeklyReports: weeklyReportsAggregate,
   };
 }
 

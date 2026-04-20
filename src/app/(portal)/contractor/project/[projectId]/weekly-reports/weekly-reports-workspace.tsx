@@ -233,10 +233,11 @@ function ReportEditor({
   detail: ContractorWeeklyReportDetailView;
   onChanged: () => void;
 }) {
-  const { report } = detail;
+  const { report, recipients } = detail;
   const isLocked = report.status === "sent" || report.status === "archived";
   const [summaryDraft, setSummaryDraft] = useState(report.summaryText ?? "");
   const [savingSummary, setSavingSummary] = useState(false);
+  const [sending, setSending] = useState(false);
 
   async function saveSummary() {
     if (savingSummary || isLocked) return;
@@ -255,6 +256,30 @@ function ReportEditor({
       onChanged();
     } finally {
       setSavingSummary(false);
+    }
+  }
+
+  async function sendReport() {
+    if (sending || isLocked || recipients.length === 0) return;
+    if (
+      !confirm(
+        `Send this report to ${recipients.length === 1 ? recipients[0].name : `${recipients.length} client members`}? This cannot be undone.`,
+      )
+    )
+      return;
+    setSending(true);
+    try {
+      const res = await fetch(`/api/weekly-reports/${report.id}/send`, {
+        method: "POST",
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(`Send failed: ${body.message ?? body.error ?? res.status}`);
+        return;
+      }
+      onChanged();
+    } finally {
+      setSending(false);
     }
   }
 
@@ -340,16 +365,45 @@ function ReportEditor({
       <div style={editorFooterStyle}>
         <div style={editorFooterMetaStyle}>
           {isLocked ? (
-            <>This report is {report.status} — no further edits allowed.</>
+            <>
+              This report is <strong>{report.status}</strong>
+              {report.sentAt
+                ? ` — sent ${formatDateTime(report.sentAt)}${report.sentByName ? ` by ${report.sentByName}` : ""}`
+                : " — no further edits allowed"}
+              .
+            </>
+          ) : recipients.length === 0 ? (
+            <>
+              <strong>No client recipient configured.</strong> Add a commercial or
+              residential client member in{" "}
+              <Link
+                href={`/contractor/project/${projectId}`}
+                style={{ color: "var(--ac-t)", textDecoration: "none" }}
+              >
+                Team
+              </Link>
+              {" "}before sending.
+            </>
           ) : (
             <>
-              Send action wires up next commit. For now, edit summary + section
-              overlays. Status will flip to <strong>editing</strong> on first edit.
+              Sending to:{" "}
+              <strong>
+                {recipients
+                  .map((r) => `${r.name}${r.roleKey ? ` (${r.roleKey})` : ""}`)
+                  .join(", ")}
+              </strong>
+              <br />
+              Email notification fires immediately · status flips to Sent.
             </>
           )}
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <Button variant="primary" disabled>
+          <Button
+            variant="primary"
+            disabled={isLocked || recipients.length === 0}
+            loading={sending}
+            onClick={sendReport}
+          >
             Send to client
           </Button>
         </div>

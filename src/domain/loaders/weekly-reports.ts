@@ -2,6 +2,8 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
+  projectUserMemberships,
+  roleAssignments,
   weeklyReportSections,
   weeklyReports,
   users,
@@ -67,10 +69,22 @@ export type ContractorWeeklyReportsView = {
   reports: WeeklyReportSummaryRow[];
 };
 
+export type WeeklyReportRecipient = {
+  userId: string;
+  name: string;
+  email: string;
+  roleKey: string;
+  portalSubtype: "commercial" | "residential";
+};
+
 export type ContractorWeeklyReportDetailView = {
   context: EffectiveContext;
   project: EffectiveContext["project"];
   report: WeeklyReportDetail;
+  // Active client members on this project. Drives the editor's
+  // "Sending to: ..." footer. Empty list disables the Send button
+  // with a "configure team" message — never silently no-op a send.
+  recipients: WeeklyReportRecipient[];
 };
 
 type ProjectInput = {
@@ -120,18 +134,135 @@ export async function getContractorWeeklyReportDetail(
     );
   }
 
-  const report = await loadReportDetail({
-    projectId: context.project.id,
-    reportId: input.reportId,
-    sentOnly: false,
-  });
+  const [report, recipients] = await Promise.all([
+    loadReportDetail({
+      projectId: context.project.id,
+      reportId: input.reportId,
+      sentOnly: false,
+    }),
+    loadWeeklyReportRecipients(context.project.id),
+  ]);
   if (!report) {
     throw new AuthorizationError(
       "Weekly report not found in this project",
       "not_found",
     );
   }
-  return { context, project: context.project, report };
+  return { context, project: context.project, report, recipients };
+}
+
+// Cross-project aggregate for the contractor Reports page tile. Recent
+// sent reports across every project the caller's contractor org owns.
+// Scoped via the contractor-org context (no per-project membership join
+// needed — the contractor sees everything their org runs).
+export type WeeklyReportsAggregate = {
+  recentSent: Array<{
+    reportId: string;
+    projectId: string;
+    projectName: string;
+    weekStart: string;
+    weekEnd: string;
+    sentAt: Date;
+    sentByName: string | null;
+  }>;
+  totalSent: number;
+};
+
+export async function getWeeklyReportsAggregate(input: {
+  session: SessionLike | null | undefined;
+}): Promise<WeeklyReportsAggregate> {
+  // Lazy import keeps the contractor-org context module out of the
+  // residential / client path of this file.
+  const { getContractorOrgContext } = await import("./integrations");
+  const ctx = await getContractorOrgContext(input.session);
+
+  const { projects } = await import("@/db/schema");
+  const projectRows = await db
+    .select({ id: projects.id, name: projects.name })
+    .from(projects)
+    .where(eq(projects.contractorOrganizationId, ctx.organization.id));
+  const projectIds = projectRows.map((p) => p.id);
+  if (projectIds.length === 0) {
+    return { recentSent: [], totalSent: 0 };
+  }
+  const projectNameById = new Map(projectRows.map((p) => [p.id, p.name]));
+
+  const rows = await db
+    .select({
+      id: weeklyReports.id,
+      projectId: weeklyReports.projectId,
+      weekStart: weeklyReports.weekStart,
+      weekEnd: weeklyReports.weekEnd,
+      sentAt: weeklyReports.sentAt,
+      sentByName: users.displayName,
+    })
+    .from(weeklyReports)
+    .leftJoin(users, eq(users.id, weeklyReports.sentByUserId))
+    .where(
+      and(
+        inArray(weeklyReports.projectId, projectIds),
+        eq(weeklyReports.status, "sent"),
+      ),
+    )
+    .orderBy(desc(weeklyReports.sentAt))
+    .limit(20);
+
+  const recentSent = rows
+    .filter((r): r is typeof r & { sentAt: Date } => r.sentAt != null)
+    .map((r) => ({
+      reportId: r.id,
+      projectId: r.projectId,
+      projectName: projectNameById.get(r.projectId) ?? "Unknown project",
+      weekStart: r.weekStart,
+      weekEnd: r.weekEnd,
+      sentAt: r.sentAt,
+      sentByName: r.sentByName,
+    }));
+
+  return {
+    recentSent,
+    totalSent: recentSent.length,
+  };
+}
+
+// Public — also used by the send route to validate "is there anyone to
+// send to" and emit notifications to a known target list.
+export async function loadWeeklyReportRecipients(
+  projectId: string,
+): Promise<WeeklyReportRecipient[]> {
+  const rows = await db
+    .select({
+      userId: users.id,
+      name: users.displayName,
+      email: users.email,
+      roleKey: roleAssignments.roleKey,
+      clientSubtype: roleAssignments.clientSubtype,
+    })
+    .from(projectUserMemberships)
+    .innerJoin(
+      roleAssignments,
+      eq(roleAssignments.id, projectUserMemberships.roleAssignmentId),
+    )
+    .innerJoin(users, eq(users.id, projectUserMemberships.userId))
+    .where(
+      and(
+        eq(projectUserMemberships.projectId, projectId),
+        eq(projectUserMemberships.membershipStatus, "active"),
+        eq(projectUserMemberships.accessState, "active"),
+        eq(roleAssignments.portalType, "client"),
+        eq(users.isActive, true),
+      ),
+    );
+
+  return rows
+    .filter((r) => r.clientSubtype === "commercial" || r.clientSubtype === "residential")
+    .map((r) => ({
+      userId: r.userId,
+      name: r.name ?? r.email,
+      email: r.email,
+      roleKey: r.roleKey,
+      portalSubtype: r.clientSubtype as "commercial" | "residential",
+    }));
 }
 
 // --------------------------------------------------------------------------

@@ -209,6 +209,32 @@ export function renderNotification(
         linkUrl: base ? `${base}/daily-logs` : null,
       };
 
+    // ── Weekly reports ───────────────────────────────────────────
+    case "weekly_update": {
+      const weekLabel = str(v.weekRange) || str(v.weekStart) || "this week";
+      const link =
+        base && relatedObjectId
+          ? `${base}/weekly-reports?report=${relatedObjectId}`
+          : base
+            ? `${base}/weekly-reports`
+            : null;
+      return portalType === "residential"
+        ? {
+            title: "This week at your home",
+            body: str(v.actorName)
+              ? `${v.actorName} sent your recap for ${weekLabel}.`
+              : `Your recap for ${weekLabel} is ready to read.`,
+            linkUrl: link,
+          }
+        : {
+            title: `Weekly report — ${weekLabel}`,
+            body: str(v.actorName)
+              ? `${v.actorName} sent the weekly progress report.`
+              : "Your contractor sent this week's progress report.",
+            linkUrl: link,
+          };
+    }
+
     // ── Punch list ───────────────────────────────────────────────
     case "punch_item_assigned":
       return {

@@ -280,6 +280,13 @@ export async function getEventRecipients(
       if (projectId) recipients = await projectClients(projectId);
       break;
 
+    case "weekly_update":
+      // Weekly progress reports go to all client members (both
+      // commercial + residential). The contractor's send action also
+      // surfaces this list in the "Sending to" footer.
+      if (projectId) recipients = await projectClients(projectId);
+      break;
+
     case "message_new":
       if (conversationId)
         recipients = await conversationParticipantsFor(conversationId);
