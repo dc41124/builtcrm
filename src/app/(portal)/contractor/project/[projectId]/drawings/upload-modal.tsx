@@ -346,7 +346,10 @@ export function UploadModal({
             </div>
           ) : null}
 
-          {/* Form fields */}
+          {/* Form fields — prototype layout: Set Name + Set Type in a
+              two-column grid, Notes below. The Set Type dropdown carries
+              the underlying "family" code; the actual version number is
+              auto-assigned by the server and surfaced as a hint. */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div className="dr-field">
               <label>Set Name</label>
@@ -358,15 +361,23 @@ export function UploadModal({
               />
             </div>
             <div className="dr-field">
-              <label>Family</label>
-              <input
+              <label>Set Type</label>
+              <select
                 value={family}
                 onChange={(e) => setFamily(e.target.value)}
                 disabled={isBusy || step === "done"}
-                placeholder="cd, shell, dd, as_built"
-              />
+              >
+                <option value="cd">CD Set (Construction Documents)</option>
+                <option value="dd">DD Set (Design Development)</option>
+                <option value="sd">SD Set (Schematic Design)</option>
+                <option value="shell">Shell Permit Set</option>
+                <option value="tenant">Tenant Improvement Set</option>
+                <option value="as_built">As-Built Record Set</option>
+                <option value="other">Other / Custom</option>
+              </select>
               <span className="dr-field-hint">
-                Short code that groups versions together
+                Groups versions together — uploads with the same type
+                auto-chain as new revisions.
               </span>
             </div>
           </div>
