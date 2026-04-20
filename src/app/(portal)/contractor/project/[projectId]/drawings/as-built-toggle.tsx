@@ -4,6 +4,11 @@
 // route. Lives inline in the contractor sets list — contractors only.
 // The server-rendered parent receives the initial value as a prop; the
 // toggle optimistically flips local state and rolls back on error.
+//
+// Visual rule from the prototype: when a set is NOT as-built, the pill
+// reads as an actionable "Mark as-built" CTA with a white background +
+// dashed border (inviting the click). When as-built, it switches to the
+// solid green confirmation pill.
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -35,7 +40,6 @@ export function AsBuiltToggle({
       if (!res.ok) throw new Error(`${res.status}`);
       router.refresh();
     } catch {
-      // rollback
       setAsBuilt(!next);
     } finally {
       setPending(false);
@@ -44,15 +48,24 @@ export function AsBuiltToggle({
 
   return (
     <button
-      className={`dr-pill ${asBuilt ? "green" : "gray"}`}
+      className={`dr-pill${asBuilt ? " green" : ""}`}
       onClick={toggle}
       disabled={pending}
       title={
         asBuilt
           ? "As-built (feeds closeout). Click to unmark."
-          : "Mark this set as as-built. Feeds closeout package (Step 48)."
+          : "Mark this set as as-built. Feeds closeout package."
       }
-      style={{ cursor: "pointer", border: asBuilt ? undefined : "1px dashed var(--surface-4)" }}
+      style={
+        asBuilt
+          ? { cursor: "pointer" }
+          : {
+              cursor: "pointer",
+              background: "#ffffff",
+              color: "var(--text-secondary)",
+              border: "1px dashed var(--surface-4)",
+            }
+      }
     >
       {asBuilt ? "As-built" : "Mark as-built"}
     </button>

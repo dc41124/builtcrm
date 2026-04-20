@@ -55,6 +55,11 @@ import {
   dailyLogAmendments,
   punchItems,
   punchItemComments,
+  drawingSets,
+  drawingSheets,
+  drawingMarkups,
+  drawingMeasurements,
+  drawingComments,
 } from "./schema";
 
 // ---------------------------------------------------------------------------
@@ -1913,6 +1918,16 @@ async function seedProjectContent(ctx: ProjectContext) {
 
   // ---- Punch list (Step 19 — closeout items) ---------------------------
   await seedPunchItems(ctx);
+
+  // ---- Drawings (Step 44 — sheet sets, markup, comments) ---------------
+  // Commercial projects get a full three-set chain mirroring the prototype
+  // (current CD v3, superseded CD v2, current shell permit set) plus a
+  // sprinkle of per-user markup / measurements / pinned comments and one
+  // calibrated sheet. Residential projects skip this — the prototype is
+  // commercial-GC-focused and the residential portal hides drawings.
+  if (!residential) {
+    await seedDrawings(ctx);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -2621,6 +2636,333 @@ async function seedPunchItems(ctx: ProjectContext): Promise<void> {
         createdAt: new Date(createdAt.getTime() + c.offsetDays * day),
       });
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Drawings seed (Step 44)
+//
+// Mirrors the prototype's Riverside Office Complex data — three sets (CD
+// v3 current, CD v2 superseded, Shell Permit v1 current) across the
+// commercial project with a full sheet list per discipline. We don't
+// generate the actual PDF bytes here (R2 stays empty for these rows);
+// the detail viewer renders a placeholder for null source_file_key and
+// everything else — sheet list, overlays, markup, comments, version
+// chain, compare — demos correctly.
+// ---------------------------------------------------------------------------
+
+type DrawingSheetSeed = {
+  number: string;
+  title: string;
+  discipline: "A" | "S" | "E" | "M" | "P";
+  changed?: boolean;
+  calibration?: { scale: string; manual?: boolean };
+};
+
+// 15-sheet CD set — narrower than the prototype's 42 but wide enough to
+// exercise every discipline. Marked "changed" on a handful to populate
+// the "Changed in v3" summary card.
+const CD_SHEETS: DrawingSheetSeed[] = [
+  { number: "A-001", title: "Cover Sheet & Index", discipline: "A" },
+  { number: "A-100", title: "First Floor Plan", discipline: "A" },
+  { number: "A-101", title: "Second Floor Plan", discipline: "A", changed: true, calibration: { scale: '1/8" = 1\'-0"' } },
+  { number: "A-102", title: "Third Floor Plan", discipline: "A" },
+  { number: "A-201", title: "North & East Elevations", discipline: "A" },
+  { number: "A-501", title: "Wall Type Details", discipline: "A" },
+  { number: "S-101", title: "First Floor Framing Plan", discipline: "S" },
+  { number: "S-102", title: "Second Floor Framing Plan", discipline: "S", changed: true, calibration: { scale: '1/4" = 1\'-0"', manual: true } },
+  { number: "S-201", title: "Foundation Plan", discipline: "S" },
+  { number: "S-502", title: "Connection Details", discipline: "S", changed: true },
+  { number: "E-101", title: "First Floor Lighting Plan", discipline: "E" },
+  { number: "E-201", title: "First Floor Power Plan", discipline: "E" },
+  { number: "M-101", title: "First Floor HVAC Plan", discipline: "M" },
+  { number: "M-201", title: "Rooftop Equipment Plan", discipline: "M" },
+  { number: "P-101", title: "First Floor Plumbing Plan", discipline: "P" },
+];
+
+const SHELL_SHEETS: DrawingSheetSeed[] = [
+  { number: "A-001", title: "Shell Cover Sheet", discipline: "A" },
+  { number: "A-100", title: "Shell Floor Plan", discipline: "A" },
+  { number: "A-201", title: "Shell Elevations", discipline: "A" },
+  { number: "S-101", title: "Shell Framing Plan", discipline: "S" },
+  { number: "S-201", title: "Shell Foundation Plan", discipline: "S" },
+  { number: "E-001", title: "Shell Electrical Legend", discipline: "E" },
+  { number: "M-001", title: "Shell Mechanical Legend", discipline: "M" },
+  { number: "P-001", title: "Shell Plumbing Notes", discipline: "P" },
+];
+
+async function seedDrawings(ctx: ProjectContext): Promise<void> {
+  const { project, pmUserId, subUserId, sub2UserId } = ctx;
+  const day = 86400000;
+  const now = Date.now();
+
+  // Pre-clear any prior drawing data for this project. The seed is
+  // idempotent elsewhere but a rerun after a schema change is easier to
+  // debug with a clean slate on the drawings side. Cascading FKs mean
+  // deleting sets wipes sheets/markups/measurements/comments too.
+  await db
+    .delete(drawingSets)
+    .where(eq(drawingSets.projectId, project.id));
+
+  async function insertSet(input: {
+    family: string;
+    name: string;
+    version: number;
+    status: "current" | "superseded" | "historical";
+    uploadedByUserId: string;
+    uploadedAt: Date;
+    supersedesId: string | null;
+    note: string;
+    asBuilt?: boolean;
+    sheets: DrawingSheetSeed[];
+  }): Promise<string> {
+    const [set] = await db
+      .insert(drawingSets)
+      .values({
+        projectId: project.id,
+        family: input.family,
+        name: input.name,
+        version: input.version,
+        status: input.status,
+        asBuilt: input.asBuilt ?? false,
+        supersedesId: input.supersedesId,
+        sourceFileKey: null, // seed-only — viewer renders placeholder
+        fileSizeBytes: 48_200_000 + Math.round(Math.random() * 4_000_000),
+        sheetCount: input.sheets.length,
+        uploadedByUserId: input.uploadedByUserId,
+        uploadedAt: input.uploadedAt,
+        processingStatus: "ready",
+        note: input.note,
+      })
+      .returning({ id: drawingSets.id });
+
+    // Sheets land in order so page_index = array index.
+    const sheetRows = await db
+      .insert(drawingSheets)
+      .values(
+        input.sheets.map((s, i) => ({
+          setId: set.id,
+          pageIndex: i,
+          sheetNumber: s.number,
+          sheetTitle: s.title,
+          discipline: s.discipline,
+          autoDetected: true,
+          changedFromPriorVersion: !!s.changed,
+          calibrationScale: s.calibration?.scale ?? null,
+          calibrationSource: s.calibration
+            ? ((s.calibration.manual ? "manual" : "title_block") as
+                | "manual"
+                | "title_block")
+            : null,
+          calibratedByUserId: s.calibration ? pmUserId : null,
+          calibratedAt: s.calibration
+            ? new Date(input.uploadedAt.getTime() + 2 * day)
+            : null,
+        })),
+      )
+      .returning({ id: drawingSheets.id, sheetNumber: drawingSheets.sheetNumber });
+
+    return set.id
+      .concat(":")
+      .concat(sheetRows.map((r) => `${r.sheetNumber}=${r.id}`).join(";"));
+  }
+
+  // Version chain: v1 → v2 (superseded) → v3 (current).
+  const v1Result = await insertSet({
+    family: "cd",
+    name: "100% CD Set",
+    version: 1,
+    status: "historical",
+    uploadedByUserId: pmUserId,
+    uploadedAt: new Date(now - 90 * day),
+    supersedesId: null,
+    note: "Initial issue for pricing.",
+    sheets: CD_SHEETS,
+  });
+  const v1SetId = v1Result.split(":")[0];
+
+  const v2Result = await insertSet({
+    family: "cd",
+    name: "100% CD Set",
+    version: 2,
+    status: "superseded",
+    uploadedByUserId: pmUserId,
+    uploadedAt: new Date(now - 60 * day),
+    supersedesId: v1SetId,
+    note: "Bid set — structural revisions from RFI-014.",
+    sheets: CD_SHEETS,
+  });
+  const v2SetId = v2Result.split(":")[0];
+
+  const v3Result = await insertSet({
+    family: "cd",
+    name: "100% CD Set",
+    version: 3,
+    status: "current",
+    uploadedByUserId: pmUserId,
+    uploadedAt: new Date(now - 2 * day),
+    supersedesId: v2SetId,
+    note: "Issued for construction — revision supersedes v2. 3 sheets changed.",
+    sheets: CD_SHEETS,
+  });
+
+  // Parse the "setId:sheetNum=sheetId;..." summary into a usable map
+  // for markup/comment seeding against the current CD v3 sheets.
+  const [, sheetMapText] = v3Result.split(":");
+  const v3SheetIds = new Map<string, string>();
+  for (const pair of sheetMapText.split(";")) {
+    const [num, id] = pair.split("=");
+    if (num && id) v3SheetIds.set(num, id);
+  }
+
+  // Shell permit set — independent family, marked as-built so it seeds
+  // the closeout integration pathway.
+  await insertSet({
+    family: "shell",
+    name: "Shell Permit Set",
+    version: 1,
+    status: "current",
+    uploadedByUserId: pmUserId,
+    uploadedAt: new Date(now - 120 * day),
+    supersedesId: null,
+    asBuilt: true,
+    note: "Permit-ready shell package. Stamped Dec 10.",
+    sheets: SHELL_SHEETS,
+  });
+
+  // ---- Markup / measurement / comment seed on the current CD set ----
+  const a101 = v3SheetIds.get("A-101");
+  const s102 = v3SheetIds.get("S-102");
+
+  if (a101) {
+    // PM (contractor) markup on A-101
+    await db.insert(drawingMarkups).values({
+      sheetId: a101,
+      userId: pmUserId,
+      markupData: [
+        { id: "mk1", tool: "rect", x: 22, y: 34, w: 18, h: 14, label: "Verify room size" },
+        { id: "mk2", tool: "pen", path: "M 55,40 L 62,42 L 68,40 L 74,43 L 80,41" },
+        { id: "mk3", tool: "text", x: 45, y: 68, text: "Check dim" },
+      ],
+    });
+
+    // Sub-1 (Northline Electrical) markup on A-101 — discipline mismatch
+    // on purpose (demo cross-scope read-only visibility).
+    await db.insert(drawingMarkups).values({
+      sheetId: a101,
+      userId: subUserId,
+      markupData: [
+        { id: "mk4", tool: "circle", x: 72, y: 55, r: 6 },
+        { id: "mk5", tool: "rect", x: 65, y: 72, w: 12, h: 10, label: "Electrical scope" },
+      ],
+    });
+
+    // PM measurements on A-101 (A-101 is calibrated, so labels reflect scale).
+    await db.insert(drawingMeasurements).values({
+      sheetId: a101,
+      userId: pmUserId,
+      measurementData: [
+        { id: "ms1", type: "linear", x1: 14, y1: 30, x2: 40, y2: 30, label: "24'-6\"" },
+        { id: "ms2", type: "linear", x1: 42, y1: 33, x2: 42, y2: 56, label: "14'-0\"" },
+        {
+          id: "ms3",
+          type: "area",
+          points: [
+            [55, 62],
+            [78, 62],
+            [78, 82],
+            [55, 82],
+          ],
+          label: "348 SF",
+        },
+      ],
+    });
+
+    // Pinned comments on A-101 — mix of authors, one resolved.
+    await db.insert(drawingComments).values([
+      {
+        sheetId: a101,
+        parentCommentId: null,
+        userId: pmUserId,
+        pinNumber: 1,
+        x: "32.00",
+        y: "42.00",
+        text: "Confirm ceiling height here is 10'-0\" per spec §09200.",
+        resolved: false,
+        createdAt: new Date(now - 1 * day),
+      },
+      {
+        sheetId: a101,
+        parentCommentId: null,
+        userId: subUserId,
+        pinNumber: 2,
+        x: "68.00",
+        y: "58.00",
+        text: "Panel EP-04 location conflicts with stair rail detail on A-401.",
+        resolved: false,
+        createdAt: new Date(now - 2 * day),
+      },
+      {
+        sheetId: a101,
+        parentCommentId: null,
+        userId: pmUserId,
+        pinNumber: 3,
+        x: "50.00",
+        y: "28.00",
+        text: "Door swing revised per RFI-014 response.",
+        resolved: true,
+        resolvedByUserId: pmUserId,
+        resolvedAt: new Date(now - 30 * day),
+        createdAt: new Date(now - 45 * day),
+      },
+    ]);
+  }
+
+  if (s102 && sub2UserId) {
+    // Sub-2 (Pacific) markup on S-102 (structural — this sub is plumbing
+    // so in the real scope filter this would be read-only; here it's
+    // handy demo data anyway).
+    await db.insert(drawingMarkups).values({
+      sheetId: s102,
+      userId: sub2UserId,
+      markupData: [
+        { id: "mk6", tool: "circle", x: 45, y: 38, r: 7 },
+        { id: "mk7", tool: "rect", x: 30, y: 55, w: 20, h: 12, label: "Beam callout" },
+      ],
+    });
+
+    await db.insert(drawingMeasurements).values({
+      sheetId: s102,
+      userId: sub2UserId,
+      measurementData: [
+        { id: "ms4", type: "linear", x1: 18, y1: 78, x2: 78, y2: 78, label: "28'-4\" · W18×35" },
+      ],
+    });
+
+    await db.insert(drawingComments).values([
+      {
+        sheetId: s102,
+        parentCommentId: null,
+        userId: sub2UserId,
+        pinNumber: 1,
+        x: "40.00",
+        y: "35.00",
+        text: "Beam W18x35 — confirm depth fits above MEP zone.",
+        resolved: false,
+        createdAt: new Date(now - 3 * day),
+      },
+      {
+        sheetId: s102,
+        parentCommentId: null,
+        userId: sub2UserId,
+        pinNumber: 2,
+        x: "62.00",
+        y: "60.00",
+        text: "Connection type TC-3 — verify with S-502.",
+        resolved: false,
+        createdAt: new Date(now - 3 * day),
+      },
+    ]);
   }
 }
 

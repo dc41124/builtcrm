@@ -477,7 +477,12 @@ export type DrawingSheetDetailView = {
     calibratedAt: string | null;
     calibratedByName: string | null;
   };
-  presignedSourceUrl: string;
+  // Null when the set hasn't been uploaded yet (seed data, or in-flight
+  // before the client-to-R2 PUT finishes). The viewer renders a
+  // "PDF preview unavailable" placeholder in that case — everything else
+  // (markup overlay, measurements, comment pins, version dropdown)
+  // still works.
+  presignedSourceUrl: string | null;
   // Compare target: the immediately-preceding version of this sheet,
   // matched on sheet_number. Null when the current set has no
   // supersedesId or when no sheet with the same number exists in the
@@ -614,14 +619,14 @@ export async function getDrawingSheetDetail(input: {
     .from(drawingSets)
     .where(eq(drawingSets.id, input.setId))
     .limit(1);
-  if (!setRow?.sourceFileKey)
-    throw new Error("set has no source PDF in storage");
 
   const { presignDownloadUrl } = await import("@/lib/storage");
-  const presignedSourceUrl = await presignDownloadUrl({
-    key: setRow.sourceFileKey,
-    expiresInSeconds: 60 * 30,
-  });
+  const presignedSourceUrl = setRow?.sourceFileKey
+    ? await presignDownloadUrl({
+        key: setRow.sourceFileKey,
+        expiresInSeconds: 60 * 30,
+      })
+    : null;
 
   // Compare target resolution — the "prior version" of this sheet is the
   // sheet_number-matching row in the set the current one supersedes. If

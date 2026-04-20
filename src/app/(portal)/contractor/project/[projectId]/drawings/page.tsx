@@ -8,6 +8,7 @@ import { AuthorizationError } from "@/domain/permissions";
 
 import { AsBuiltToggle } from "./as-built-toggle";
 import { DisciplineTag } from "./sheet-thumbnail";
+import { UploadSetButton } from "./upload-button";
 import "./drawings.css";
 
 function formatFileSize(bytes: number | null): string {
@@ -89,23 +90,6 @@ const EyeIcon = () => (
   </svg>
 );
 
-const UploadIcon = () => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-    <polyline points="17 8 12 3 7 8" />
-    <line x1="12" y1="3" x2="12" y2="15" />
-  </svg>
-);
-
 export default async function ContractorDrawingsSetsPage({
   params,
 }: {
@@ -160,12 +144,7 @@ export default async function ContractorDrawingsSetsPage({
             </p>
           </div>
           <div className="dr-page-actions">
-            {view.canUpload ? (
-              <Link className="dr-btn primary" href={`${portalBase}/drawings/new`}>
-                <UploadIcon />
-                Upload Set
-              </Link>
-            ) : null}
+            {view.canUpload ? <UploadSetButton projectId={projectId} /> : null}
           </div>
         </div>
 
@@ -229,12 +208,7 @@ export default async function ContractorDrawingsSetsPage({
                   are auto-detected from the title block; misses can be edited
                   on the index page.
                 </p>
-                {view.canUpload ? (
-                  <Link className="dr-btn primary" href={`${portalBase}/drawings/new`}>
-                    <UploadIcon />
-                    Upload sheet set
-                  </Link>
-                ) : null}
+                {view.canUpload ? <UploadSetButton projectId={projectId} /> : null}
               </div>
             ) : (
               view.sets.map((s) => {
@@ -352,7 +326,7 @@ export default async function ContractorDrawingsSetsPage({
 
           {/* Rail: version chain + recent activity */}
           <div className="dr-rail">
-            {longestChain.length > 1 ? (
+            {longestChain.length > 0 ? (
               <div className="dr-card">
                 <div className="dr-card-hdr">
                   <h3>Version Chain</h3>
@@ -361,16 +335,16 @@ export default async function ContractorDrawingsSetsPage({
                   </span>
                 </div>
                 <div className="dr-chain">
-                  {longestChain.map((v, i) => (
+                  {longestChain.map((v) => (
                     <div
                       key={v.id}
-                      className={`dr-chain-step${i === 0 ? " current" : ""}`}
+                      className={`dr-chain-step${v.status === "current" ? " current" : ""}`}
                     >
                       <div className="dr-chain-dot">v{v.version}</div>
                       <div className="dr-chain-info">
                         <h5>
                           {v.name} v{v.version}
-                          {i === 0 ? " — current" : ""}
+                          {v.status === "current" ? " — current" : ""}
                         </h5>
                         <p>
                           {formatDate(v.uploadedAt)}

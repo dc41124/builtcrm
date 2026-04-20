@@ -326,7 +326,7 @@ export function SheetDetailWorkspace(props: {
     calibratedAt: string | null;
     calibratedByName: string | null;
   };
-  presignedSourceUrl: string;
+  presignedSourceUrl: string | null;
   compare: {
     priorSet: { id: string; name: string; version: number } | null;
     priorSheet: {
@@ -1307,11 +1307,30 @@ export function SheetDetailWorkspace(props: {
               )}
             </button>
 
-            <button className="dr-btn sm icon" aria-label="Download" title="Download" onClick={() => window.open(presignedSourceUrl, "_blank")}>
+            <button
+              className="dr-btn sm icon"
+              aria-label="Download"
+              title={presignedSourceUrl ? "Download source PDF" : "Source PDF not yet available"}
+              onClick={() => presignedSourceUrl && window.open(presignedSourceUrl, "_blank")}
+              disabled={!presignedSourceUrl}
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
                 <polyline points="7 10 12 15 17 10" />
                 <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
+
+            <button
+              className="dr-btn sm icon"
+              aria-label="More actions"
+              title="More actions"
+              onClick={() => alert("More actions — wired in a follow-up")}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="5" r="1" />
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="12" cy="19" r="1" />
               </svg>
             </button>
           </div>
@@ -1428,6 +1447,19 @@ export function SheetDetailWorkspace(props: {
                 </svg>
                 <span className="dr-tool-label">Comment pin</span>
               </button>
+              <div className="dr-tool-sep" />
+              <button
+                className="dr-tool"
+                onClick={() => setMyMarkup((m) => m.slice(0, -1))}
+                disabled={myMarkup.length === 0}
+                style={myMarkup.length === 0 ? { opacity: 0.4, cursor: "not-allowed" } : undefined}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 4v6h6" />
+                  <path d="M3.51 15a9 9 0 102.13-9.36L1 10" />
+                </svg>
+                <span className="dr-tool-label">Undo last markup</span>
+              </button>
             </div>
           ) : null}
 
@@ -1479,16 +1511,22 @@ export function SheetDetailWorkspace(props: {
                   >
                     v{set.version} (current)
                   </div>
-                  <PdfDocument
-                    file={presignedSourceUrl}
-                    loading={<div style={{ padding: 40, textAlign: "center" }}>Loading…</div>}
-                  >
-                    <PdfPage
-                      pageNumber={pageNumber}
-                      width={Math.floor(containerWidth / 2) - 8}
-                      onRenderSuccess={() => setLeftRendered(true)}
-                    />
-                  </PdfDocument>
+                  {presignedSourceUrl ? (
+                    <PdfDocument
+                      file={presignedSourceUrl}
+                      loading={<div style={{ padding: 40, textAlign: "center" }}>Loading…</div>}
+                    >
+                      <PdfPage
+                        pageNumber={pageNumber}
+                        width={Math.floor(containerWidth / 2) - 8}
+                        onRenderSuccess={() => setLeftRendered(true)}
+                      />
+                    </PdfDocument>
+                  ) : (
+                    <div style={{ padding: 40, textAlign: "center", color: "var(--text-tertiary)", fontSize: 12.5 }}>
+                      PDF unavailable
+                    </div>
+                  )}
                 </div>
                 <div
                   ref={rightPdfWrapRef}
@@ -1575,22 +1613,67 @@ export function SheetDetailWorkspace(props: {
                 className="dr-pdf-wrap"
                 style={{ width: containerWidth * zoom, minHeight: 600 }}
               >
-                <PdfDocument
-                  file={presignedSourceUrl}
-                  loading={<div style={{ padding: 40, textAlign: "center" }}>Loading PDF…</div>}
-                  onLoadError={(err: Error) => console.error("pdf load error", err)}
-                >
-                  <PdfPage
-                    pageNumber={pageNumber}
-                    width={containerWidth * zoom}
-                    onRenderSuccess={() => {
-                      const canvas = canvasWrapRef.current?.querySelector("canvas");
-                      if (canvas && !pageSize) {
-                        setPageSize({ w: canvas.width, h: canvas.height });
-                      }
+                {presignedSourceUrl ? (
+                  <PdfDocument
+                    file={presignedSourceUrl}
+                    loading={
+                      <div style={{ padding: 40, textAlign: "center" }}>
+                        Loading PDF…
+                      </div>
+                    }
+                    onLoadError={(err: Error) =>
+                      console.error("pdf load error", err)
+                    }
+                  >
+                    <PdfPage
+                      pageNumber={pageNumber}
+                      width={containerWidth * zoom}
+                      onRenderSuccess={() => {
+                        const canvas = canvasWrapRef.current?.querySelector("canvas");
+                        if (canvas && !pageSize) {
+                          setPageSize({ w: canvas.width, h: canvas.height });
+                        }
+                      }}
+                    />
+                  </PdfDocument>
+                ) : (
+                  // Seed data or in-flight upload — no source PDF in R2 yet.
+                  // Render a labeled placeholder so the overlay still has
+                  // something to sit on top of and the UI doesn't look broken.
+                  <div
+                    style={{
+                      width: "100%",
+                      aspectRatio: "11 / 8.5",
+                      background:
+                        "repeating-linear-gradient(45deg,#fafaf8 0 14px,#f3f4f6 14px 28px)",
+                      display: "grid",
+                      placeItems: "center",
+                      color: "var(--text-secondary)",
+                      textAlign: "center",
+                      padding: 24,
                     }}
-                  />
-                </PdfDocument>
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontFamily: "DM Sans, system-ui",
+                          fontSize: 18,
+                          fontWeight: 750,
+                          letterSpacing: "-0.02em",
+                          color: "var(--text-primary)",
+                          marginBottom: 6,
+                        }}
+                      >
+                        {sheet.sheetNumber} · {sheet.sheetTitle}
+                      </div>
+                      <div style={{ fontSize: 12.5, maxWidth: 380 }}>
+                        PDF preview unavailable — source file not yet uploaded.
+                        Markup, measurements, and comments still work against
+                        this sheet&apos;s coordinate space.
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <svg
                   ref={svgRef}
@@ -2046,6 +2129,10 @@ export function SheetDetailWorkspace(props: {
                   disabled={!panelCompose.trim() || panelPosting}
                   onClick={postPanelComment}
                 >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 2 11 13" />
+                    <path d="M22 2 15 22l-4-9-9-4 20-7z" />
+                  </svg>
                   {panelPosting ? "Posting…" : "Post"}
                 </button>
               </div>
