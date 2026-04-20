@@ -391,6 +391,7 @@ async function seed() {
     organizationId: string;
     membershipType: "contractor" | "subcontractor" | "client" | "consultant";
     workScope?: string;
+    scopeDiscipline?: string;
   }> = [
     { projectId: commercial.id, organizationId: summitOrg.id, membershipType: "contractor" },
     {
@@ -398,12 +399,14 @@ async function seed() {
       organizationId: northlineOrg.id,
       membershipType: "subcontractor",
       workScope: "Electrical rough-in, panel upgrades, lighting",
+      scopeDiscipline: "E",
     },
     {
       projectId: commercial.id,
       organizationId: pacificOrg.id,
       membershipType: "subcontractor",
       workScope: "Mechanical, domestic water, fixtures",
+      scopeDiscipline: "M",
     },
     { projectId: commercial.id, organizationId: meridianOrg.id, membershipType: "client" },
     { projectId: residential.id, organizationId: summitOrg.id, membershipType: "contractor" },
@@ -412,6 +415,7 @@ async function seed() {
       organizationId: pacificOrg.id,
       membershipType: "subcontractor",
       workScope: "Kitchen plumbing rough-in and fixture installation",
+      scopeDiscipline: "P",
     },
     { projectId: residential.id, organizationId: harperHousehold.id, membershipType: "client" },
 
@@ -421,6 +425,7 @@ async function seed() {
       organizationId: northlineOrg.id,
       membershipType: "subcontractor",
       workScope: "Medical-grade electrical, emergency power, lighting",
+      scopeDiscipline: "E",
     },
     { projectId: commercial2.id, organizationId: meridianOrg.id, membershipType: "client" },
 
@@ -430,6 +435,7 @@ async function seed() {
       organizationId: pacificOrg.id,
       membershipType: "subcontractor",
       workScope: "ADU plumbing rough-in, water service tie-in",
+      scopeDiscipline: "P",
     },
     { projectId: residential2.id, organizationId: harperHousehold.id, membershipType: "client" },
   ];
@@ -442,6 +448,19 @@ async function seed() {
       )!,
       { ...m, membershipStatus: "active" as const },
     );
+    // upsert is insert-only; ensure scope_discipline reflects the current
+    // seed mapping for existing rows as well (safe idempotent update).
+    if (m.scopeDiscipline !== undefined) {
+      await db
+        .update(projectOrganizationMemberships)
+        .set({ scopeDiscipline: m.scopeDiscipline })
+        .where(
+          and(
+            eq(projectOrganizationMemberships.projectId, m.projectId),
+            eq(projectOrganizationMemberships.organizationId, m.organizationId),
+          )!,
+        );
+    }
   }
 
   // ---- Project-user memberships ----------------------------------------

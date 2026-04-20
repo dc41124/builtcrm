@@ -20,7 +20,9 @@ export type Resource =
   | "message"
   | "membership"
   | "invitation"
-  | "audit_log";
+  | "audit_log"
+  | "drawing"
+  | "drawing_markup";
 
 export type Action = "read" | "write" | "approve";
 
@@ -97,6 +99,19 @@ const POLICY: Record<Resource, Policy> = {
   membership: { read: ALL_CONTRACTOR, write: ALL_CONTRACTOR },
   invitation: { read: ALL_CONTRACTOR, write: ALL_CONTRACTOR },
   audit_log: { read: ALL_CONTRACTOR },
+  // Drawing sets + sheets: contractor staff manage uploads and version
+  // chains; subs + clients view. Per-project sub scoping (show only the
+  // discipline the sub is on) lives in the loader, not here.
+  drawing: { read: EVERYONE, write: ALL_CONTRACTOR },
+  // Per-user annotations on sheets (markup vectors, measurements, pinned
+  // comments). Subs can annotate sheets in their scope; contractors can
+  // annotate any sheet. Per-row ownership (a user can only mutate their
+  // own markup/comment row) is enforced inside each endpoint — the coarse
+  // gate here just admits the role to the resource.
+  drawing_markup: {
+    read: EVERYONE,
+    write: new Set([...ALL_CONTRACTOR, "subcontractor_user"]),
+  },
 };
 
 export type Permissions = {

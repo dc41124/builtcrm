@@ -1,4 +1,5 @@
 import {
+  char,
   check,
   index,
   integer,
@@ -155,6 +156,11 @@ export const projectOrganizationMemberships = pgTable(
     relationshipScope: text("relationship_scope"),
     phaseScope: text("phase_scope"),
     workScope: text("work_scope"),
+    // Drawings discipline this org is scoped to on this project. Single-char
+    // code matching drawing_sheets.discipline (A/S/E/M/P/…). NULL = no
+    // discipline-based filter (contractor + consultant + client default).
+    // Used by the drawings loader to restrict sheet visibility for subs.
+    scopeDiscipline: char("scope_discipline", { length: 1 }),
     membershipStatus: membershipStatusEnum("membership_status").default("active").notNull(),
     ...timestamps,
   },

@@ -18,3 +18,4 @@ export * from "./submittals";
 export * from "./weeklyReports";
 export * from "./procurement";
 export * from "./savedReports";
+export * from "./drawings";
