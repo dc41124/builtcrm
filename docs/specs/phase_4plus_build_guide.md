@@ -2837,7 +2837,7 @@ git commit -m "Step 42.5 (4D #42.5): wired pendingFinancialsCents in sub-scoped 
 
 ---
 
-## Step 43 — `pendingFinancialsCenter` for Contractor Financial View
+## Step 43 — `pendingFinancialsCenter` for Contractor Financial View ✅ DONE (2026-04-19)
 
 **Mode:** Safe-to-autorun
 **Item:** 4D #43

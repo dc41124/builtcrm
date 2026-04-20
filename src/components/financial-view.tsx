@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import type {
@@ -82,10 +83,11 @@ export function ContractorFinancialPanel({
 }: {
   view: ContractorFinancialView;
 }) {
-  const { contract, progress, draws, subPayments, retainage } = view;
+  const { contract, progress, draws, subPayments, retainage, pendingFinancials } = view;
   // Residential projects use "Scope" instead of "Trade" per the project-wide
   // copy rule (see builtcrm_residential_client_portal_pages.jsx).
   const scopeLabel = view.isResidential ? "Scope" : "Trade";
+  const projectBase = `/contractor/project/${view.project.id}`;
 
   const totalForBar =
     Math.max(0, progress.paidCents) +
@@ -114,6 +116,45 @@ export function ContractorFinancialPanel({
           </button>
         </div>
       </header>
+
+      {/* Pending Financials (Step 43) — four actionable tiles at a glance.
+          Each tile deep-links to the relevant list view. */}
+      <Card className="fv-card-pad">
+        <div className="fv-card-top">
+          <div className="fv-card-title">Pending Financials</div>
+          <div className="fv-card-meta">What needs attention right now</div>
+        </div>
+        <div className="fv-pf-grid">
+          <PendingTile
+            href={`${projectBase}/billing`}
+            label="Draws awaiting client review"
+            count={pendingFinancials.drawsUnderReview.count}
+            totalCents={pendingFinancials.drawsUnderReview.totalCents}
+            tone="amber"
+          />
+          <PendingTile
+            href={`${projectBase}/billing`}
+            label="Invoices awaiting payment"
+            count={pendingFinancials.invoicesAwaitingPayment.count}
+            totalCents={pendingFinancials.invoicesAwaitingPayment.totalCents}
+            tone="blue"
+          />
+          <PendingTile
+            href={`${projectBase}/financials#retainage`}
+            label="Retainage releasing in <30 days"
+            count={pendingFinancials.retainageReleasingSoon.count}
+            totalCents={pendingFinancials.retainageReleasingSoon.totalCents}
+            tone="accent"
+          />
+          <PendingTile
+            href={`${projectBase}/change-orders`}
+            label="Change orders awaiting approval"
+            count={pendingFinancials.changeOrdersPendingApproval.count}
+            totalCents={pendingFinancials.changeOrdersPendingApproval.totalCents}
+            tone="warn"
+          />
+        </div>
+      </Card>
 
       {/* Contract Summary */}
       <Card className="fv-card-pad">
@@ -307,7 +348,7 @@ export function ContractorFinancialPanel({
       </div>
 
       {/* Retainage Summary */}
-      <Card>
+      <Card id="retainage">
         <SectionHead
           title="Retainage Summary"
           subtitle={`${retainage.defaultPercent}% retainage on all work completed`}
@@ -560,11 +601,49 @@ export function SubcontractorFinancialPanel({
 function Card({
   children,
   className = "",
+  id,
 }: {
   children: ReactNode;
   className?: string;
+  id?: string;
 }) {
-  return <section className={`fv-card ${className}`}>{children}</section>;
+  return (
+    <section id={id} className={`fv-card ${className}`}>
+      {children}
+    </section>
+  );
+}
+
+type PendingTileTone = "amber" | "blue" | "accent" | "warn";
+
+function PendingTile({
+  href,
+  label,
+  count,
+  totalCents,
+  tone,
+}: {
+  href: string;
+  label: string;
+  count: number;
+  totalCents: number;
+  tone: PendingTileTone;
+}) {
+  const empty = count === 0;
+  return (
+    <Link href={href} className={`fv-pf-tile fv-pf-tile-${tone}${empty ? " fv-pf-tile-empty" : ""}`}>
+      <div className="fv-pf-label">{label}</div>
+      <div className="fv-pf-count">
+        {count}
+        <span className="fv-pf-count-unit">
+          {count === 1 ? " item" : " items"}
+        </span>
+      </div>
+      <div className="fv-pf-total">
+        {empty ? "All clear" : formatMoneyCents(totalCents)}
+      </div>
+    </Link>
+  );
 }
 
 function SectionHead({

@@ -8,6 +8,7 @@ import { db } from "@/db/client";
 import {
   drawLineItems,
   drawRequests,
+  milestones,
   retainageReleases,
   scheduleOfValues,
   sovLineItems,
@@ -16,11 +17,25 @@ import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
 
-const BodySchema = z.object({
-  projectId: z.string().uuid(),
-  releaseAmountCents: z.number().int().positive(),
-  sovLineItemId: z.string().uuid().optional(),
-});
+const BodySchema = z
+  .object({
+    projectId: z.string().uuid(),
+    releaseAmountCents: z.number().int().positive(),
+    sovLineItemId: z.string().uuid().optional(),
+    // Exactly one of these two release-date hooks may be set. Both null
+    // is legal (release date unknown; row is invisible to the "<30 days"
+    // Pending Financials card until the GC later fills it in).
+    scheduledReleaseAt: z.string().datetime().optional(),
+    releaseTriggerMilestoneId: z.string().uuid().optional(),
+  })
+  .refine(
+    (v) => !(v.scheduledReleaseAt && v.releaseTriggerMilestoneId),
+    {
+      message:
+        "Pick either a scheduled release date or a trigger milestone, not both.",
+      path: ["releaseTriggerMilestoneId"],
+    },
+  );
 
 const RELEASE_COUNTED_DRAW_STATUSES = [
   "approved",
@@ -147,6 +162,21 @@ export async function POST(req: Request) {
       );
     }
 
+    // Trigger milestone, if passed, must belong to the same project.
+    if (parsed.data.releaseTriggerMilestoneId) {
+      const [ms] = await db
+        .select({ id: milestones.id, projectId: milestones.projectId })
+        .from(milestones)
+        .where(eq(milestones.id, parsed.data.releaseTriggerMilestoneId))
+        .limit(1);
+      if (!ms || ms.projectId !== ctx.project.id) {
+        return NextResponse.json(
+          { error: "invalid_trigger_milestone" },
+          { status: 400 },
+        );
+      }
+    }
+
     const result = await db.transaction(async (tx) => {
       const [row] = await tx
         .insert(retainageReleases)
@@ -157,6 +187,11 @@ export async function POST(req: Request) {
           releaseAmountCents: parsed.data.releaseAmountCents,
           totalRetainageHeldCents: heldCents,
           requestedByUserId: ctx.user.id,
+          scheduledReleaseAt: parsed.data.scheduledReleaseAt
+            ? new Date(parsed.data.scheduledReleaseAt)
+            : null,
+          releaseTriggerMilestoneId:
+            parsed.data.releaseTriggerMilestoneId ?? null,
         })
         .returning();
 

@@ -23,6 +23,12 @@ export type SovLineOption = {
   description: string;
 };
 
+export type MilestoneOption = {
+  id: string;
+  title: string;
+  scheduledDate: Date | string;
+};
+
 function formatCents(c: number): string {
   return `$${(c / 100).toFixed(2)}`;
 }
@@ -44,14 +50,20 @@ export function ContractorRetainagePanel({
   projectId,
   releases,
   sovLines,
+  milestones = [],
 }: {
   projectId: string;
   releases: RetainageRelease[];
   sovLines: SovLineOption[];
+  milestones?: MilestoneOption[];
 }) {
   return (
     <>
-      <CreateReleaseForm projectId={projectId} sovLines={sovLines} />
+      <CreateReleaseForm
+        projectId={projectId}
+        sovLines={sovLines}
+        milestones={milestones}
+      />
       {releases.length === 0 ? (
         <p>No retainage release requests yet.</p>
       ) : (
@@ -66,9 +78,11 @@ export function ContractorRetainagePanel({
 function CreateReleaseForm({
   projectId,
   sovLines,
+  milestones,
 }: {
   projectId: string;
   sovLines: SovLineOption[];
+  milestones: MilestoneOption[];
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -76,6 +90,15 @@ function CreateReleaseForm({
   const [scope, setScope] = useState<"project" | "line">("project");
   const [sovLineItemId, setSovLineItemId] = useState<string>("");
   const [amount, setAmount] = useState("");
+  // Step 43 trigger mode: milestone-tied (release date auto-derived from
+  // the milestone's scheduledDate), or a free-form calendar date, or
+  // neither (release date is TBD and the row stays invisible to the
+  // "<30 days" card until filled in later).
+  const [triggerMode, setTriggerMode] = useState<"none" | "date" | "milestone">(
+    "none",
+  );
+  const [scheduledDate, setScheduledDate] = useState<string>(""); // yyyy-mm-dd
+  const [triggerMilestoneId, setTriggerMilestoneId] = useState<string>("");
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -88,6 +111,14 @@ function CreateReleaseForm({
       setError("select_a_line");
       return;
     }
+    if (triggerMode === "date" && !scheduledDate) {
+      setError("pick_a_date");
+      return;
+    }
+    if (triggerMode === "milestone" && !triggerMilestoneId) {
+      setError("pick_a_milestone");
+      return;
+    }
     setPending(true);
     setError(null);
     const res = await fetch("/api/retainage-releases", {
@@ -97,6 +128,12 @@ function CreateReleaseForm({
         projectId,
         releaseAmountCents: cents,
         sovLineItemId: scope === "line" ? sovLineItemId : undefined,
+        scheduledReleaseAt:
+          triggerMode === "date" && scheduledDate
+            ? new Date(scheduledDate).toISOString()
+            : undefined,
+        releaseTriggerMilestoneId:
+          triggerMode === "milestone" ? triggerMilestoneId : undefined,
       }),
     });
     setPending(false);
@@ -106,6 +143,9 @@ function CreateReleaseForm({
       return;
     }
     setAmount("");
+    setScheduledDate("");
+    setTriggerMilestoneId("");
+    setTriggerMode("none");
     router.refresh();
   }
 
@@ -156,6 +196,73 @@ function CreateReleaseForm({
           onChange={(e) => setAmount(e.target.value)}
         />
       </label>
+
+      {/* Step 43 trigger — optional, but pick one if set. Drives the
+          "<30 days" card metric once the release is logged. */}
+      <fieldset style={{ border: "1px solid #ddd", padding: 8 }}>
+        <legend style={{ fontSize: 12 }}>
+          When is this expected to release? (optional)
+        </legend>
+        <label style={{ display: "block" }}>
+          <input
+            type="radio"
+            checked={triggerMode === "none"}
+            onChange={() => setTriggerMode("none")}
+          />{" "}
+          TBD — set later
+        </label>
+        <label style={{ display: "block" }}>
+          <input
+            type="radio"
+            checked={triggerMode === "date"}
+            onChange={() => setTriggerMode("date")}
+          />{" "}
+          Specific date
+          {triggerMode === "date" && (
+            <input
+              type="date"
+              value={scheduledDate}
+              onChange={(e) => setScheduledDate(e.target.value)}
+              style={{ marginLeft: 8 }}
+            />
+          )}
+        </label>
+        <label style={{ display: "block" }}>
+          <input
+            type="radio"
+            checked={triggerMode === "milestone"}
+            onChange={() => setTriggerMode("milestone")}
+            disabled={milestones.length === 0}
+          />{" "}
+          Tied to a milestone
+          {triggerMode === "milestone" && (
+            <select
+              value={triggerMilestoneId}
+              onChange={(e) => setTriggerMilestoneId(e.target.value)}
+              style={{ marginLeft: 8 }}
+            >
+              <option value="">— select —</option>
+              {milestones.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.title} ({new Date(m.scheduledDate).toLocaleDateString()})
+                </option>
+              ))}
+            </select>
+          )}
+          {milestones.length === 0 && (
+            <span
+              style={{
+                marginLeft: 8,
+                fontSize: 11,
+                color: "#888",
+              }}
+            >
+              (no milestones on this project)
+            </span>
+          )}
+        </label>
+      </fieldset>
+
       <button type="submit" disabled={pending}>
         {pending ? "Creating…" : "Create release request"}
       </button>

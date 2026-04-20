@@ -78,6 +78,24 @@
 .fv-sub-main{flex:1;min-width:0}
 .fv-sub-name{font-family:var(--fm);font-size:12.5px;font-weight:560;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fv-sub-scope{font-family:var(--fb);font-size:11px;color:var(--t3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Step 43 Pending Financials tiles */
+.fv-pf-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+@media (max-width:960px){.fv-pf-grid{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:520px){.fv-pf-grid{grid-template-columns:1fr}}
+.fv-pf-tile{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border:1px solid var(--s3);border-radius:var(--r-l);background:var(--s1);color:var(--t1);text-decoration:none;transition:border-color 120ms,box-shadow 120ms,transform 120ms}
+.fv-pf-tile:hover{border-color:var(--s4);box-shadow:0 2px 10px rgba(26,23,20,.06);transform:translateY(-1px)}
+.fv-pf-tile-empty{opacity:.65}
+.fv-pf-tile-empty:hover{opacity:1}
+.fv-pf-tile-amber{border-left:3px solid var(--wr)}
+.fv-pf-tile-blue{border-left:3px solid var(--in)}
+.fv-pf-tile-accent{border-left:3px solid var(--ac)}
+.fv-pf-tile-warn{border-left:3px solid var(--dg)}
+.fv-pf-label{font-family:var(--fd);font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em}
+.fv-pf-count{font-family:var(--fd);font-size:24px;font-weight:820;letter-spacing:-.03em;color:var(--t1)}
+.fv-pf-count-unit{font-family:var(--fb);font-size:12px;font-weight:540;color:var(--t3);margin-left:4px;letter-spacing:0}
+.fv-pf-total{font-family:var(--fm);font-size:12px;color:var(--t2)}
+.fv-pf-tile-empty .fv-pf-total{color:var(--ok)}
 .fv-sub-money{text-align:right;flex-shrink:0}
 .fv-sub-val{font-family:var(--fd);font-size:13px;font-weight:700;color:var(--t1)}
 .fv-sub-lbl{font-size:10px;color:var(--t3);font-weight:600;margin-top:1px}

@@ -354,6 +354,19 @@ export const retainageReleases = pgTable(
       { onDelete: "set null" },
     ),
     consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    // Step 43: scheduled-release hook. The release's expected date comes
+    // from (in priority order): releaseTriggerMilestoneId →
+    // milestones.scheduledDate, else scheduledReleaseAt, else unknown.
+    // Drives the "<30 days" filter on the Pending Financials card and
+    // will feed the Step 68 Holdback Ledger report.
+    scheduledReleaseAt: timestamp("scheduled_release_at", {
+      withTimezone: true,
+    }),
+    // Nullable FK — milestones live in projects.ts; circular import is
+    // avoided by declaring the column untyped and relying on the raw SQL
+    // constraint added in migration 0022. (Same pattern as invitations
+    // → projects in identity.ts.)
+    releaseTriggerMilestoneId: uuid("release_trigger_milestone_id"),
     ...timestamps,
   },
   (table) => ({
@@ -363,5 +376,11 @@ export const retainageReleases = pgTable(
     consumedByIdx: index("retainage_releases_consumed_by_idx").on(
       table.consumedByDrawRequestId,
     ),
+    scheduledReleaseIdx: index(
+      "retainage_releases_scheduled_release_at_idx",
+    ).on(table.scheduledReleaseAt),
+    triggerMilestoneIdx: index(
+      "retainage_releases_trigger_milestone_idx",
+    ).on(table.releaseTriggerMilestoneId),
   }),
 );

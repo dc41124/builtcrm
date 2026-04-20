@@ -5,6 +5,7 @@ import {
   changeOrders,
   drawRequests,
   lienWaivers,
+  milestones,
   organizations,
   projectOrganizationMemberships,
   projects,
@@ -48,12 +49,29 @@ export type SubPaymentRollupRow = {
   status: "current" | "outstanding" | "held";
 };
 
+// Step 43: "Pending Financials" summary card. Four action-oriented
+// metrics the contractor PM wants to triage at a glance. Each pair is
+// count + total; the UI renders them as clickable tiles.
+export type PendingFinancialsSummary = {
+  drawsUnderReview: { count: number; totalCents: number };
+  invoicesAwaitingPayment: { count: number; totalCents: number };
+  // Retainage releases (held or release_requested) whose resolved
+  // scheduled date falls within the next 30 days. Resolution: milestone
+  // trigger date first (retainage_releases.release_trigger_milestone_id
+  // → milestones.scheduled_date), free-form retainage_releases
+  // .scheduled_release_at second, null (invisible) third. See migration
+  // 0022 context.
+  retainageReleasingSoon: { count: number; totalCents: number };
+  changeOrdersPendingApproval: { count: number; totalCents: number };
+};
+
 export type ContractorFinancialView = {
   context: EffectiveContext;
   project: EffectiveContext["project"];
   role: EffectiveContext["role"];
   // Drives the "Trade" vs "Scope" label on the sub payment rollup.
   isResidential: boolean;
+  pendingFinancials: PendingFinancialsSummary;
   contract: {
     originalContractCents: number;
     approvedChangeOrderCents: number;
@@ -229,6 +247,10 @@ export async function getContractorFinancialView(
   let completedDrawCount = 0;
   let draftCount = 0;
 
+  // Step 43 pending-financials counts (paired with the cent sums above).
+  let drawsUnderReviewCount = 0;
+  let invoicesAwaitingPaymentCount = 0;
+
   for (const r of drawRows) {
     if (r.status === "draft" || r.status === "returned") {
       if (r.status === "draft") draftCount++;
@@ -250,8 +272,11 @@ export async function getContractorFinancialView(
     ) {
       approvedUnpaidCents += r.currentPaymentDueCents;
       completedDrawCount++;
+      // Approved but not yet paid → "invoice awaiting payment"
+      if (!r.paidAt) invoicesAwaitingPaymentCount++;
     } else if ((UNDER_REVIEW_STATUSES as readonly string[]).includes(r.status)) {
       underReviewCents += r.currentPaymentDueCents;
+      drawsUnderReviewCount++;
     }
 
     if (
@@ -284,6 +309,73 @@ export async function getContractorFinancialView(
     );
   const releasedCents = Number(releaseAgg?.releasedCents ?? 0);
   const retainageHeldCents = Math.max(0, retainageOnBooksCents - releasedCents);
+
+  // Step 43: two extra pending aggregates — retainage releases expected
+  // in the next 30 days (resolver rule: milestone-tied date wins, else
+  // the free-form scheduled_release_at), and change orders with a
+  // non-zero financial impact in pending statuses.
+  //
+  // Resolver sql: `coalesce(milestones.scheduled_date, scheduled_release_at)`
+  // returns null when neither hook is set, keeping those rows out of the
+  // card until the GC configures a trigger.
+  const now = new Date();
+  const thirtyDaysOut = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const resolvedReleaseDate = sql<Date>`coalesce(${milestones.scheduledDate}, ${retainageReleases.scheduledReleaseAt})`;
+  const [retainagePendingAgg] = await db
+    .select({
+      count: sql<number>`count(*)::int`,
+      total: sql<number>`coalesce(sum(${retainageReleases.releaseAmountCents}), 0)::int`,
+    })
+    .from(retainageReleases)
+    .leftJoin(
+      milestones,
+      eq(milestones.id, retainageReleases.releaseTriggerMilestoneId),
+    )
+    .where(
+      and(
+        eq(retainageReleases.projectId, projectId),
+        inArray(retainageReleases.releaseStatus, ["held", "release_requested"]),
+        sql`${resolvedReleaseDate} is not null`,
+        sql`${resolvedReleaseDate} <= ${thirtyDaysOut}`,
+      ),
+    );
+  const [coPendingAgg] = await db
+    .select({
+      count: sql<number>`count(*)::int`,
+      total: sql<number>`coalesce(sum(${changeOrders.amountCents}), 0)::int`,
+    })
+    .from(changeOrders)
+    .where(
+      and(
+        eq(changeOrders.projectId, projectId),
+        inArray(changeOrders.changeOrderStatus, [
+          "pending_review",
+          "pending_client_approval",
+        ]),
+        // "Financial impact" filter — zero-dollar COs (pure scope/schedule
+        // changes) don't belong on a money-focused summary card.
+        sql`${changeOrders.amountCents} <> 0`,
+      ),
+    );
+
+  const pendingFinancials: PendingFinancialsSummary = {
+    drawsUnderReview: {
+      count: drawsUnderReviewCount,
+      totalCents: underReviewCents,
+    },
+    invoicesAwaitingPayment: {
+      count: invoicesAwaitingPaymentCount,
+      totalCents: approvedUnpaidCents,
+    },
+    retainageReleasingSoon: {
+      count: Number(retainagePendingAgg?.count ?? 0),
+      totalCents: Number(retainagePendingAgg?.total ?? 0),
+    },
+    changeOrdersPendingApproval: {
+      count: Number(coPendingAgg?.count ?? 0),
+      totalCents: Number(coPendingAgg?.total ?? 0),
+    },
+  };
 
   const revisedContractCents = originalContractCents + approvedChangeOrderCents;
   const remainingToBillCents = Math.max(
@@ -397,6 +489,7 @@ export async function getContractorFinancialView(
     project: context.project,
     role: context.role,
     isResidential,
+    pendingFinancials,
     contract: {
       originalContractCents,
       approvedChangeOrderCents,
