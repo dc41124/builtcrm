@@ -3,31 +3,18 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export type RetainageRelease = {
-  id: string;
-  sovLineItemId: string | null;
-  releaseStatus: "held" | "release_requested" | "released" | "forfeited";
-  releaseAmountCents: number;
-  totalRetainageHeldCents: number;
-  approvalNote: string | null;
-  requestedAt: Date | null;
-  approvedAt: Date | null;
-  consumedByDrawRequestId: string | null;
-  consumedAt: Date | null;
-  createdAt: Date;
-};
+import type {
+  MilestoneOption,
+  RetainageReleaseRow,
+  SovLineOption,
+} from "@/domain/loaders/financial";
 
-export type SovLineOption = {
-  id: string;
-  itemNumber: string;
-  description: string;
-};
-
-export type MilestoneOption = {
-  id: string;
-  title: string;
-  scheduledDate: Date | string;
-};
+// Backwards-compatible local alias — many prior call sites reference
+// `RetainageRelease` by that name. The authoritative shape lives on the
+// financial loader (RetainageReleaseRow) so the UI and loader never
+// drift.
+export type RetainageRelease = RetainageReleaseRow;
+export type { MilestoneOption, SovLineOption } from "@/domain/loaders/financial";
 
 function formatCents(c: number): string {
   return `$${(c / 100).toFixed(2)}`;

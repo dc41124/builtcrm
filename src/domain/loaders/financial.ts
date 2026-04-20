@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -11,6 +11,7 @@ import {
   projects,
   retainageReleases,
   scheduleOfValues,
+  sovLineItems,
 } from "@/db/schema";
 
 import {
@@ -99,6 +100,39 @@ export type ContractorFinancialView = {
     balanceCents: number;
     defaultPercent: number;
   };
+  // Step 43 wire-up: data for the ContractorRetainagePanel's release log
+  // + create form. Panel renders below the Retainage Summary card.
+  retainageReleases: RetainageReleaseRow[];
+  sovLineOptions: SovLineOption[];
+  milestoneOptions: MilestoneOption[];
+};
+
+export type RetainageReleaseRow = {
+  id: string;
+  sovLineItemId: string | null;
+  releaseStatus: "held" | "release_requested" | "released" | "forfeited";
+  releaseAmountCents: number;
+  totalRetainageHeldCents: number;
+  approvalNote: string | null;
+  requestedAt: Date | null;
+  approvedAt: Date | null;
+  consumedByDrawRequestId: string | null;
+  consumedAt: Date | null;
+  scheduledReleaseAt: Date | null;
+  releaseTriggerMilestoneId: string | null;
+  createdAt: Date;
+};
+
+export type SovLineOption = {
+  id: string;
+  itemNumber: string;
+  description: string;
+};
+
+export type MilestoneOption = {
+  id: string;
+  title: string;
+  scheduledDate: Date;
 };
 
 export type SubLienWaiverRow = {
@@ -484,6 +518,76 @@ export async function getContractorFinancialView(
         ? "As of latest draw"
         : "No draws submitted";
 
+  // Step 43 wire-up: retainage release log + dropdown options for the
+  // create form. Three parallel queries: releases (all states, newest
+  // first), SOV lines (for "per-line" scoping), and milestones (for the
+  // trigger-milestone option).
+  const [releaseRows, sovLineRows, milestoneRows] = await Promise.all([
+    db
+      .select({
+        id: retainageReleases.id,
+        sovLineItemId: retainageReleases.sovLineItemId,
+        releaseStatus: retainageReleases.releaseStatus,
+        releaseAmountCents: retainageReleases.releaseAmountCents,
+        totalRetainageHeldCents: retainageReleases.totalRetainageHeldCents,
+        approvalNote: retainageReleases.approvalNote,
+        requestedAt: retainageReleases.requestedAt,
+        approvedAt: retainageReleases.approvedAt,
+        consumedByDrawRequestId: retainageReleases.consumedByDrawRequestId,
+        consumedAt: retainageReleases.consumedAt,
+        scheduledReleaseAt: retainageReleases.scheduledReleaseAt,
+        releaseTriggerMilestoneId: retainageReleases.releaseTriggerMilestoneId,
+        createdAt: retainageReleases.createdAt,
+      })
+      .from(retainageReleases)
+      .where(eq(retainageReleases.projectId, projectId))
+      .orderBy(desc(retainageReleases.createdAt)),
+    db
+      .select({
+        id: sovLineItems.id,
+        itemNumber: sovLineItems.itemNumber,
+        description: sovLineItems.description,
+        sovId: sovLineItems.sovId,
+      })
+      .from(sovLineItems)
+      .innerJoin(
+        scheduleOfValues,
+        eq(scheduleOfValues.id, sovLineItems.sovId),
+      )
+      .where(
+        and(
+          eq(scheduleOfValues.projectId, projectId),
+          eq(sovLineItems.isActive, true),
+        ),
+      )
+      .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber)),
+    db
+      .select({
+        id: milestones.id,
+        title: milestones.title,
+        scheduledDate: milestones.scheduledDate,
+      })
+      .from(milestones)
+      .where(eq(milestones.projectId, projectId))
+      .orderBy(asc(milestones.scheduledDate)),
+  ]);
+
+  const retainageReleasesView: RetainageReleaseRow[] = releaseRows.map((r) => ({
+    id: r.id,
+    sovLineItemId: r.sovLineItemId,
+    releaseStatus: r.releaseStatus,
+    releaseAmountCents: r.releaseAmountCents,
+    totalRetainageHeldCents: r.totalRetainageHeldCents,
+    approvalNote: r.approvalNote,
+    requestedAt: r.requestedAt,
+    approvedAt: r.approvedAt,
+    consumedByDrawRequestId: r.consumedByDrawRequestId,
+    consumedAt: r.consumedAt,
+    scheduledReleaseAt: r.scheduledReleaseAt,
+    releaseTriggerMilestoneId: r.releaseTriggerMilestoneId,
+    createdAt: r.createdAt,
+  }));
+
   return {
     context,
     project: context.project,
@@ -527,6 +631,17 @@ export async function getContractorFinancialView(
       balanceCents: retainageHeldCents,
       defaultPercent: defaultRetainagePercent,
     },
+    retainageReleases: retainageReleasesView,
+    sovLineOptions: sovLineRows.map((r) => ({
+      id: r.id,
+      itemNumber: r.itemNumber,
+      description: r.description,
+    })),
+    milestoneOptions: milestoneRows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      scheduledDate: r.scheduledDate,
+    })),
   };
 }
 

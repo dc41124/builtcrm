@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { ContractorRetainagePanel } from "@/app/(portal)/contractor/project/[projectId]/retainage-releases-ui";
 import type {
   ContractorFinancialView,
   SubcontractorFinancialView,
@@ -83,7 +84,17 @@ export function ContractorFinancialPanel({
 }: {
   view: ContractorFinancialView;
 }) {
-  const { contract, progress, draws, subPayments, retainage, pendingFinancials } = view;
+  const {
+    contract,
+    progress,
+    draws,
+    subPayments,
+    retainage,
+    pendingFinancials,
+    retainageReleases,
+    sovLineOptions,
+    milestoneOptions,
+  } = view;
   // Residential projects use "Scope" instead of "Trade" per the project-wide
   // copy rule (see builtcrm_residential_client_portal_pages.jsx).
   const scopeLabel = view.isResidential ? "Scope" : "Trade";
@@ -353,9 +364,9 @@ export function ContractorFinancialPanel({
           title="Retainage Summary"
           subtitle={`${retainage.defaultPercent}% retainage on all work completed`}
           action={
-            <button type="button" className="fv-btn mini">
+            <a href="#retainage-releases" className="fv-btn mini">
               Request Release
-            </button>
+            </a>
           }
         />
         <div className="fv-retainage">
@@ -395,6 +406,25 @@ export function ContractorFinancialPanel({
             </div>
           </div>
         </div>
+      </Card>
+
+      {/* Retainage Releases — list of existing requests + create form
+          with the Step 43 scheduled-release hooks (date or milestone). */}
+      <Card id="retainage-releases" className="fv-card-pad">
+        <div className="fv-card-top">
+          <div className="fv-card-title">Retainage Releases</div>
+          <div className="fv-card-meta">
+            {retainageReleases.length === 0
+              ? "No release requests yet"
+              : `${retainageReleases.length} request${retainageReleases.length === 1 ? "" : "s"} on file`}
+          </div>
+        </div>
+        <ContractorRetainagePanel
+          projectId={view.project.id}
+          releases={retainageReleases}
+          sovLines={sovLineOptions}
+          milestones={milestoneOptions}
+        />
       </Card>
     </div>
   );
