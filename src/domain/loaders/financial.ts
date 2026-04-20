@@ -589,6 +589,47 @@ export async function getSubcontractorFinancialView(
   };
 }
 
+// ---- Sub pending-financials helper --------------------------------------
+//
+// Canonical definition (see phase_4plus_build_guide.md Step 42.5):
+//   "pending financials" for a sub = sum of the sub's lien waiver amounts
+//   where the parent draw's status is in UNDER_REVIEW_STATUSES
+//   ('submitted' or 'under_review').
+//
+// The sub doesn't own draw line items directly — the GC authors the draw
+// at the GC→client layer. The sub's attribution into a draw comes through
+// lien_waivers.organizationId + lien_waivers.draw_request_id. So the
+// "draw line-item amount" the spec refers to is the sub's lien waiver
+// amount on that draw. Waiver-status filter matches the sub payment
+// rollup: `submitted` or `accepted`, excluding `rejected`/`waived`/
+// `requested` (those aren't active claims against the draw).
+//
+// Scope:
+//   - subOrgId required
+//   - projectId optional — pass to scope to one project; omit for a
+//     cross-project sum across every project the sub has a membership on.
+export async function getSubPendingFinancialsCents(opts: {
+  subOrgId: string;
+  projectId?: string;
+}): Promise<number> {
+  const filters = [
+    eq(lienWaivers.organizationId, opts.subOrgId),
+    inArray(lienWaivers.lienWaiverStatus, ["submitted", "accepted"]),
+    inArray(drawRequests.drawRequestStatus, [...UNDER_REVIEW_STATUSES]),
+  ];
+  if (opts.projectId) {
+    filters.push(eq(lienWaivers.projectId, opts.projectId));
+  }
+  const [agg] = await db
+    .select({
+      total: sql<number>`coalesce(sum(${lienWaivers.amountCents}), 0)::int`,
+    })
+    .from(lienWaivers)
+    .innerJoin(drawRequests, eq(drawRequests.id, lienWaivers.drawRequestId))
+    .where(and(...filters));
+  return agg?.total ?? 0;
+}
+
 // ---- Formatting helpers (pure) ------------------------------------------
 
 export function formatMoneyCents(cents: number): string {

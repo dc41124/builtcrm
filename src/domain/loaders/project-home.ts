@@ -35,6 +35,7 @@ import {
 } from "@/db/schema";
 
 import { presignDownloadUrl } from "@/lib/storage";
+import { getSubPendingFinancialsCents } from "./financial";
 
 import {
   getEffectiveContext,
@@ -2041,12 +2042,17 @@ export async function getSubcontractorProjectView(
     (sum, c) => sum + (c.unreadCount ?? 0),
     0,
   );
+  // Project-scoped: sum this sub's pending lien-waiver amounts against
+  // draws in submitted/under_review on THIS project only. (Cross-project
+  // sum lives on the Today Board.)
+  const pendingFinancialsCents = await getSubPendingFinancialsCents({
+    subOrgId,
+    projectId,
+  });
   const quickAccessCounts: SubProjectQuickAccessCounts = {
     unreadMessages,
     documentCount: subProjectDocuments.length,
-    // Draws are GC→client scoped, not sub-scoped; leave 0 until sub-payment
-    // tracking lands in a follow-up.
-    pendingFinancialsCents: 0,
+    pendingFinancialsCents,
   };
 
   return {

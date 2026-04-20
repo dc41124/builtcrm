@@ -13,6 +13,7 @@ import {
   uploadRequests,
   users,
 } from "@/db/schema";
+import { getSubPendingFinancialsCents } from "./financial";
 
 export type SubTodayKpis = {
   activeProjects: number;
@@ -154,6 +155,13 @@ export async function getSubcontractorTodayData(input: {
   const projectNameById = new Map(activeProjects.map((p) => [p.id, p.name]));
 
   if (projectIds.length === 0) {
+    // A sub with no *active* memberships may still have pending waivers
+    // from historical projects (membership became inactive while a draw
+    // was still in flight). Cross-project helper covers that case
+    // correctly.
+    const pendingFinancialsCents = await getSubPendingFinancialsCents({
+      subOrgId,
+    });
     return {
       kpis: {
         activeProjects: 0,
@@ -170,7 +178,7 @@ export async function getSubcontractorTodayData(input: {
       quickAccessCounts: {
         unreadMessages: 0,
         documentCount: 0,
-        pendingFinancialsCents: 0,
+        pendingFinancialsCents,
       },
       recentDocuments: [],
       recentConversations: [],
@@ -427,10 +435,16 @@ export async function getSubcontractorTodayData(input: {
       : Promise.resolve([{ count: 0 }]),
   ]);
 
+  // Cross-project sum: sum lien-waiver amounts for this sub across every
+  // project whose parent draw is in submitted/under_review.
+  const pendingFinancialsCents = await getSubPendingFinancialsCents({
+    subOrgId,
+  });
+
   const quickAccessCounts: SubTodayQuickAccessCounts = {
     unreadMessages: unreadRows[0]?.count ?? 0,
     documentCount: docCountRow[0]?.count ?? 0,
-    pendingFinancialsCents: 0,
+    pendingFinancialsCents,
   };
 
   // Recent documents across projects

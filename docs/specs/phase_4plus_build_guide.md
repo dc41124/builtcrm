@@ -2781,7 +2781,7 @@ git commit -m "Step 42 (4D #42): tradeScope field on SubPaymentRollupRow"
 
 ---
 
-## Step 42.5 — Wire `pendingFinancialsCents` for Sub-Scoped Views
+## Step 42.5 — Wire `pendingFinancialsCents` for Sub-Scoped Views ✅ DONE (2026-04-19)
 
 **Mode:** Safe-to-autorun
 **Item:** 4D #42.5
@@ -2832,7 +2832,7 @@ Pending financials for a sub = **sum of the sub's line-item amounts on draws cur
 
 ```bash
 git add .
-git commit -m "Step 42.5 (4D #42.5): wire pendingFinancialsCents in sub-scoped loaders"
+git commit -m "Step 42.5 (4D #42.5): wired pendingFinancialsCents in sub-scoped loaders"
 ```
 
 ---
