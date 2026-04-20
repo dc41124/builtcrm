@@ -37,6 +37,7 @@ export default async function ContractorSheetDetailPage({
         comments={view.comments}
         calibration={view.calibration}
         presignedSourceUrl={view.presignedSourceUrl}
+        compare={view.compare}
         portal={view.portal}
         canAnnotate={view.canAnnotate}
         canCalibrate={view.canCalibrate}

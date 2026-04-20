@@ -316,6 +316,22 @@ export type DrawingSheetDetailView = {
     calibratedByName: string | null;
   };
   presignedSourceUrl: string;
+  // Compare target: the immediately-preceding version of this sheet,
+  // matched on sheet_number. Null when the current set has no
+  // supersedesId or when no sheet with the same number exists in the
+  // prior set (the sheet was added in this version). The viewer renders
+  // an "Added in this version" card in that case.
+  compare: {
+    priorSet: { id: string; name: string; version: number } | null;
+    priorSheet: {
+      id: string;
+      pageIndex: number;
+      sheetNumber: string;
+      sheetTitle: string;
+    } | null;
+    priorPresignedSourceUrl: string | null;
+    unmatched: boolean;
+  };
   scopeDiscipline: string | null;
   canAnnotate: boolean;
   canCalibrate: boolean;
@@ -445,6 +461,79 @@ export async function getDrawingSheetDetail(input: {
     expiresInSeconds: 60 * 30,
   });
 
+  // Compare target resolution — the "prior version" of this sheet is the
+  // sheet_number-matching row in the set the current one supersedes. If
+  // there is no supersedesId, compare mode is simply unavailable. If the
+  // supersedesId is set but the sheet doesn't exist there (the sheet was
+  // added in this version), we still tell the viewer about the prior set
+  // so the toolbar can render an "Added in this version" state card
+  // instead of silently hiding the button.
+  let compare: DrawingSheetDetailView["compare"] = {
+    priorSet: null,
+    priorSheet: null,
+    priorPresignedSourceUrl: null,
+    unmatched: false,
+  };
+  const [currentSetFull] = await db
+    .select({
+      supersedesId: drawingSets.supersedesId,
+    })
+    .from(drawingSets)
+    .where(eq(drawingSets.id, input.setId))
+    .limit(1);
+  if (currentSetFull?.supersedesId) {
+    const [priorSetRow] = await db
+      .select({
+        id: drawingSets.id,
+        name: drawingSets.name,
+        version: drawingSets.version,
+        sourceFileKey: drawingSets.sourceFileKey,
+      })
+      .from(drawingSets)
+      .where(eq(drawingSets.id, currentSetFull.supersedesId))
+      .limit(1);
+    if (priorSetRow) {
+      const [priorSheetRow] = await db
+        .select({
+          id: drawingSheets.id,
+          pageIndex: drawingSheets.pageIndex,
+          sheetNumber: drawingSheets.sheetNumber,
+          sheetTitle: drawingSheets.sheetTitle,
+        })
+        .from(drawingSheets)
+        .where(
+          and(
+            eq(drawingSheets.setId, priorSetRow.id),
+            eq(drawingSheets.sheetNumber, sheet.sheetNumber),
+          ),
+        )
+        .limit(1);
+      const priorPresigned = priorSetRow.sourceFileKey
+        ? await presignDownloadUrl({
+            key: priorSetRow.sourceFileKey,
+            expiresInSeconds: 60 * 30,
+          })
+        : null;
+      compare = {
+        priorSet: {
+          id: priorSetRow.id,
+          name: priorSetRow.name,
+          version: priorSetRow.version,
+        },
+        priorSheet: priorSheetRow
+          ? {
+              id: priorSheetRow.id,
+              pageIndex: priorSheetRow.pageIndex,
+              sheetNumber: priorSheetRow.sheetNumber,
+              sheetTitle: priorSheetRow.sheetTitle,
+            }
+          : null,
+        priorPresignedSourceUrl: priorPresigned,
+        unmatched: !priorSheetRow,
+      };
+    }
+  }
+
   return {
     context: ctx,
     portal: portalFor(ctx),
@@ -464,6 +553,7 @@ export async function getDrawingSheetDetail(input: {
       calibratedByName,
     },
     presignedSourceUrl,
+    compare,
     scopeDiscipline: scope,
     canAnnotate: ctx.permissions.can("drawing_markup", "write"),
     canCalibrate: ctx.permissions.can("drawing", "write"),

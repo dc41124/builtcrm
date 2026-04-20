@@ -218,6 +218,50 @@ function formatAreaLabel(
   return `${Math.round(areaPxSq)} px²`;
 }
 
+// ---- Compare-mode pixel diff ------------------------------------------
+//
+// Both canvases render at the same width (rendered by react-pdf). We pull
+// imageData, compute a luminance delta per pixel, and paint a red tint on
+// any pixel whose delta exceeds the threshold. 3% of the 0-255 luminance
+// range = ~7.65; we use 10 to absorb a bit more anti-aliasing noise
+// without losing real vector changes. A 1px gaussian pre-blur would help
+// further but adds substantial cost — deferred.
+const DIFF_THRESHOLD = 10;
+
+function computeLuminanceDiff(
+  left: HTMLCanvasElement,
+  right: HTMLCanvasElement,
+  target: HTMLCanvasElement,
+): void {
+  // Downscale the target to the smaller of the two source widths to avoid
+  // false positives from differing rendered dimensions.
+  const w = Math.min(left.width, right.width);
+  const h = Math.min(left.height, right.height);
+  target.width = w;
+  target.height = h;
+  const lctx = left.getContext("2d");
+  const rctx = right.getContext("2d");
+  const tctx = target.getContext("2d");
+  if (!lctx || !rctx || !tctx) return;
+  const la = lctx.getImageData(0, 0, w, h).data;
+  const ra = rctx.getImageData(0, 0, w, h).data;
+  const out = tctx.createImageData(w, h);
+  const o = out.data;
+  for (let i = 0; i < la.length; i += 4) {
+    const lumL = 0.299 * la[i] + 0.587 * la[i + 1] + 0.114 * la[i + 2];
+    const lumR = 0.299 * ra[i] + 0.587 * ra[i + 1] + 0.114 * ra[i + 2];
+    if (Math.abs(lumL - lumR) > DIFF_THRESHOLD) {
+      o[i] = 201; // #c93b3b, the "changed" red from the prototype
+      o[i + 1] = 59;
+      o[i + 2] = 59;
+      o[i + 3] = 110; // ~43% opacity
+    } else {
+      o[i + 3] = 0;
+    }
+  }
+  tctx.putImageData(out, 0, 0);
+}
+
 // ---- The component ----------------------------------------------------
 
 export function SheetDetailWorkspace(props: {
@@ -236,6 +280,17 @@ export function SheetDetailWorkspace(props: {
     calibratedByName: string | null;
   };
   presignedSourceUrl: string;
+  compare: {
+    priorSet: { id: string; name: string; version: number } | null;
+    priorSheet: {
+      id: string;
+      pageIndex: number;
+      sheetNumber: string;
+      sheetTitle: string;
+    } | null;
+    priorPresignedSourceUrl: string | null;
+    unmatched: boolean;
+  };
   portal: DrawingsPortal;
   canAnnotate: boolean;
   canCalibrate: boolean;
@@ -252,6 +307,7 @@ export function SheetDetailWorkspace(props: {
     comments,
     calibration,
     presignedSourceUrl,
+    compare,
     portal,
     canAnnotate,
     canCalibrate,
@@ -292,10 +348,57 @@ export function SheetDetailWorkspace(props: {
   const [showMeasurements, setShowMeasurements] = useState(true);
   const [layerFilter, setLayerFilter] = useState<"all" | "mine" | "contractor" | "subs">("all");
 
+  // Compare mode. Available only when the loader found a prior version
+  // (same sheet_number on the set this one supersedes). When the prior
+  // version exists but the sheet itself doesn't match (new sheet added
+  // in this version), compareUnmatched is true and we render a state
+  // card instead of the right-pane PDF.
+  const compareAvailable =
+    compare.priorSet !== null && compare.priorSheet !== null;
+  const compareUnmatchedAvailable =
+    compare.priorSet !== null && compare.unmatched;
+  const [compareMode, setCompareMode] = useState(false);
+  const [diffReady, setDiffReady] = useState(false);
+  const leftPdfWrapRef = useRef<HTMLDivElement>(null);
+  const rightPdfWrapRef = useRef<HTMLDivElement>(null);
+  const diffCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [leftRendered, setLeftRendered] = useState(false);
+  const [rightRendered, setRightRendered] = useState(false);
+
   const canvasWrapRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(800);
   const [pageSize, setPageSize] = useState<{ w: number; h: number } | null>(null);
+
+  // Recompute diff whenever both panes finish rendering at the current
+  // width. The diff canvas is absolutely positioned over the right pane;
+  // its imageData tints pixels whose luminance delta exceeds the threshold.
+  useEffect(() => {
+    if (!compareMode) {
+      setDiffReady(false);
+      return;
+    }
+    if (!leftRendered || !rightRendered) return;
+    const leftCanvas = leftPdfWrapRef.current?.querySelector("canvas");
+    const rightCanvas = rightPdfWrapRef.current?.querySelector("canvas");
+    const diffCanvas = diffCanvasRef.current;
+    if (!leftCanvas || !rightCanvas || !diffCanvas) return;
+    // Browsers throw SecurityError on cross-origin reads; the presigned
+    // URLs come from the same R2 endpoint as the page, same origin for
+    // dev but a separate domain in prod. Guard with try/catch so a
+    // tainted canvas doesn't blow up the page.
+    try {
+      computeLuminanceDiff(
+        leftCanvas as HTMLCanvasElement,
+        rightCanvas as HTMLCanvasElement,
+        diffCanvas,
+      );
+      setDiffReady(true);
+    } catch (err) {
+      console.error("diff failed", err);
+      setDiffReady(false);
+    }
+  }, [compareMode, leftRendered, rightRendered, containerWidth]);
 
   const pageHeightPx = pageSize
     ? (containerWidth / pageSize.w) * pageSize.h
@@ -800,11 +903,189 @@ export function SheetDetailWorkspace(props: {
             <option value="contractor">Contractor</option>
             <option value="subs">Subs</option>
           </select>
+
+          {compareAvailable || compareUnmatchedAvailable ? (
+            <button
+              className={`dr-btn sm ${compareMode ? "primary" : ""}`}
+              onClick={() => {
+                setCompareMode((v) => !v);
+                // Reset render flags so the diff effect re-runs on toggle.
+                setLeftRendered(false);
+                setRightRendered(false);
+              }}
+              title={
+                compare.priorSet
+                  ? `Compare against ${compare.priorSet.name} v${compare.priorSet.version}`
+                  : "Compare versions"
+              }
+            >
+              {compareMode ? "Exit compare" : "Compare"}
+            </button>
+          ) : null}
         </div>
       </div>
 
       {/* Canvas */}
       <div className="dr-detail-canvas" ref={canvasWrapRef}>
+        {compareMode ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 16,
+              width: "100%",
+              alignItems: "start",
+            }}
+          >
+            {/* Left = current version */}
+            <div
+              ref={leftPdfWrapRef}
+              className="dr-detail-pdf-wrap"
+              style={{ background: "#fff", position: "relative" }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: 6,
+                  left: 8,
+                  fontFamily: "DM Sans, system-ui",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "#4a3fb0",
+                  background: "#eeedfb",
+                  border: "1px solid #c7c2ea",
+                  borderRadius: 6,
+                  padding: "2px 8px",
+                  zIndex: 5,
+                }}
+              >
+                v{set.version} (current)
+              </div>
+              <PdfDocument
+                file={presignedSourceUrl}
+                loading={<div style={{ padding: 40, textAlign: "center" }}>Loading…</div>}
+              >
+                <PdfPage
+                  pageNumber={pageNumber}
+                  width={Math.floor(containerWidth / 2) - 8}
+                  onRenderSuccess={() => setLeftRendered(true)}
+                />
+              </PdfDocument>
+            </div>
+
+            {/* Right = prior version (or "not in prior version" card) */}
+            <div
+              ref={rightPdfWrapRef}
+              className="dr-detail-pdf-wrap"
+              style={{ background: "#fff", position: "relative" }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: 6,
+                  left: 8,
+                  fontFamily: "DM Sans, system-ui",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "var(--text-secondary)",
+                  background: "var(--surface-2)",
+                  border: "1px solid var(--surface-3)",
+                  borderRadius: 6,
+                  padding: "2px 8px",
+                  zIndex: 5,
+                }}
+              >
+                {compare.priorSet
+                  ? `v${compare.priorSet.version} (prior)`
+                  : "No prior version"}
+              </div>
+              {compare.priorSheet &&
+              compare.priorPresignedSourceUrl &&
+              compareAvailable ? (
+                <>
+                  <PdfDocument
+                    file={compare.priorPresignedSourceUrl}
+                    loading={<div style={{ padding: 40, textAlign: "center" }}>Loading…</div>}
+                  >
+                    <PdfPage
+                      pageNumber={compare.priorSheet.pageIndex + 1}
+                      width={Math.floor(containerWidth / 2) - 8}
+                      onRenderSuccess={() => setRightRendered(true)}
+                    />
+                  </PdfDocument>
+                  {/* Diff overlay — positioned over the right pane's canvas.
+                      canvas:first-of-type targets the pdf canvas; our diff
+                      canvas sits absolutely on top of it. Opacity lives in
+                      the pixel alpha so we don't double-dim. */}
+                  <canvas
+                    ref={diffCanvasRef}
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      pointerEvents: "none",
+                      opacity: diffReady ? 1 : 0,
+                    }}
+                  />
+                </>
+              ) : (
+                <div
+                  style={{
+                    padding: 40,
+                    textAlign: "center",
+                    color: "var(--text-secondary)",
+                    background:
+                      "repeating-linear-gradient(45deg,#fafaf8 0 10px,#f3f4f6 10px 20px)",
+                    minHeight: 400,
+                    display: "grid",
+                    placeItems: "center",
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontFamily: "DM Sans, system-ui",
+                        fontSize: 15,
+                        fontWeight: 700,
+                        color: "var(--text-primary)",
+                        marginBottom: 6,
+                      }}
+                    >
+                      Not in prior version
+                    </div>
+                    <div style={{ fontSize: 12.5, maxWidth: 340 }}>
+                      {sheet.sheetNumber} was added in v{set.version}.
+                      {compare.priorSet
+                        ? ` No sheet with this number exists in ${compare.priorSet.name} v${compare.priorSet.version}.`
+                        : ""}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Diff summary strip */}
+            <div
+              style={{
+                gridColumn: "1 / span 2",
+                fontSize: 11.5,
+                color: "var(--text-secondary)",
+                textAlign: "center",
+                padding: "4px 0",
+                fontWeight: 520,
+              }}
+            >
+              {compareAvailable
+                ? diffReady
+                  ? `Differences highlighted in red (${DIFF_THRESHOLD}/255 luminance threshold).`
+                  : leftRendered && rightRendered
+                    ? "Computing diff…"
+                    : "Rendering both versions…"
+                : "Sheet added in this version — nothing to diff."}
+            </div>
+          </div>
+        ) : (
         <div
           className="dr-detail-pdf-wrap"
           style={{
@@ -1061,6 +1342,7 @@ export function SheetDetailWorkspace(props: {
             </div>
           ) : null}
         </div>
+        )}
       </div>
 
       {/* Side panel */}
