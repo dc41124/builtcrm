@@ -73,6 +73,15 @@ docs/            # Architecture specs and reference docs
 - Paired workflow pattern: contractor + response side built together
 - UUIDs for primary keys, created_at/updated_at on all mutable tables
 - Soft-state fields where business history matters over hard deletion
+- **FK constraint naming**: use drizzle-kit's auto-naming pattern
+  `{srcTable}_{srcCol}_{refTable}_{refCol}_fk`. Don't shorten to the older
+  `{srcTable}_{srcCol}_fk` form — `db:push` introspection looks for the
+  long form and will propose to add "missing" duplicates if the DB carries
+  the short form. Migration `0019_fk_naming_normalization.sql` aligned the
+  existing inventory; new migrations should declare the long form from
+  the start. Postgres truncates names > 63 chars silently, so very long
+  table+column combos may end up shorter — that's fine, drizzle hits the
+  same truncation on introspection.
 
 ## Reference Documents (read when relevant)
 - **Architecture overview:** `@docs/specs/builtcrm_master_module_map.md` — full module inventory, design decisions, build strategy
