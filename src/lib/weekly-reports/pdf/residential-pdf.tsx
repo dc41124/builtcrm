@@ -1,6 +1,10 @@
-/* eslint-disable react/jsx-key */
+/* eslint-disable react/jsx-key, jsx-a11y/alt-text */
+// jsx-a11y/alt-text is disabled because @react-pdf/renderer's `<Image>` is
+// not the HTML img element — it doesn't accept an `alt` prop. The lint
+// rule fires regardless.
 import {
   Document,
+  Image,
   Page,
   StyleSheet,
   Text,
@@ -8,6 +12,10 @@ import {
 } from "@react-pdf/renderer";
 
 import type { ResidentialReshapedReport } from "@/domain/loaders/weekly-reports-residential";
+
+// Same shape as commercial-pdf: documentId → presigned download URL.
+// Falls back to caption tile when a documentId isn't in the map.
+export type PhotoUrlMap = Map<string, string>;
 
 // Residential weekly-report PDF document. Warmer treatment matching the
 // on-screen "This week at your home" view: warm header gradient (solid
@@ -54,14 +62,14 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     color: COLORS.warm,
     letterSpacing: 1.5,
-    marginBottom: 8,
+    marginBottom: 14,
   },
   heroTitle: {
     fontSize: 18,
     fontFamily: "Helvetica-Bold",
     color: COLORS.text,
-    marginBottom: 8,
-    lineHeight: 1.2,
+    marginBottom: 10,
+    lineHeight: 1.25,
   },
   heroBody: {
     fontSize: 11,
@@ -181,10 +189,35 @@ const styles = StyleSheet.create({
     height: 75,
     backgroundColor: COLORS.warmSoft,
     border: `0.5 solid ${COLORS.warmBorder}`,
-    padding: 6,
-    justifyContent: "flex-end",
+    position: "relative",
   },
-  photoCaption: { fontSize: 8, color: COLORS.textMuted },
+  photoImage: {
+    width: 110,
+    height: 75,
+    objectFit: "cover",
+  },
+  photoCaptionOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  photoCaptionText: {
+    fontSize: 7,
+    color: "#ffffff",
+  },
+  photoCaptionFallback: {
+    fontSize: 8,
+    color: COLORS.textMuted,
+    padding: 6,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
   footer: {
     position: "absolute",
     bottom: 24,
@@ -217,10 +250,13 @@ function progressPillStyle(status: keyof typeof PROGRESS_LABEL) {
 export function ResidentialReportDocument({
   reshaped,
   homeName,
+  photoUrls,
 }: {
   reshaped: ResidentialReshapedReport;
   homeName: string;
+  photoUrls?: PhotoUrlMap;
 }) {
+  const urlMap = photoUrls ?? new Map<string, string>();
   return (
     <Document
       title={`This week at your home — ${formatWeekRange(reshaped.weekStart, reshaped.weekEnd)}`}
@@ -285,11 +321,12 @@ export function ResidentialReportDocument({
             <Text style={styles.cardHeading}>Photos from your home</Text>
             <View style={styles.photoGrid}>
               {reshaped.photos.slice(0, 8).map((p) => (
-                <View key={p.photoId} style={styles.photoTile}>
-                  <Text style={styles.photoCaption}>
-                    {p.caption ?? "Untitled"}
-                  </Text>
-                </View>
+                <PhotoTile
+                  key={p.photoId}
+                  documentId={p.documentId}
+                  caption={p.caption}
+                  urlMap={urlMap}
+                />
               ))}
             </View>
           </View>
@@ -330,6 +367,35 @@ export function ResidentialReportDocument({
         />
       </Page>
     </Document>
+  );
+}
+
+function PhotoTile({
+  documentId,
+  caption,
+  urlMap,
+}: {
+  documentId: string;
+  caption: string | null;
+  urlMap: PhotoUrlMap;
+}) {
+  const url = urlMap.get(documentId);
+  if (url) {
+    return (
+      <View style={styles.photoTile}>
+        <Image src={url} style={styles.photoImage} />
+        {caption && (
+          <View style={styles.photoCaptionOverlay}>
+            <Text style={styles.photoCaptionText}>{caption}</Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+  return (
+    <View style={styles.photoTile}>
+      <Text style={styles.photoCaptionFallback}>{caption ?? "Untitled"}</Text>
+    </View>
   );
 }
 

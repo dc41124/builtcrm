@@ -371,8 +371,14 @@ function ReportEditor({
               : " · Not yet sent"}
           </div>
         </div>
-        {/* Header actions intentionally lean — Preview is deferred until
-            the @react-pdf/renderer client view is wired (Step 39 polish). */}
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          <a
+            href={`/api/weekly-reports/${report.id}/pdf?portal=contractor`}
+            style={{ textDecoration: "none" }}
+          >
+            <Button variant="secondary">Export PDF</Button>
+          </a>
+        </div>
       </div>
 
       <div style={{ padding: "18px 22px 22px" }}>

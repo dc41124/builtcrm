@@ -1,16 +1,39 @@
-/* eslint-disable react/jsx-key */
+/* eslint-disable react/jsx-key, jsx-a11y/alt-text */
+// jsx-a11y/alt-text is disabled because @react-pdf/renderer's `<Image>` is
+// not the HTML img element — it doesn't accept an `alt` prop. The lint
+// rule fires regardless.
 import {
   Document,
+  Image,
   Page,
   StyleSheet,
   Text,
   View,
 } from "@react-pdf/renderer";
 
-import type {
-  ClientWeeklyReportDetailView,
-  WeeklyReportSection,
-} from "@/domain/loaders/weekly-reports";
+import type { WeeklyReportSection } from "@/domain/loaders/weekly-reports";
+
+// Loose input shape — accepts the contractor + client view variants
+// (which differ only in extra fields like recipients). The PDF only
+// needs project + report.
+export type PdfInput = {
+  project: { id: string; name: string };
+  report: {
+    id: string;
+    weekStart: string;
+    weekEnd: string;
+    summaryText: string | null;
+    sentAt: Date | null;
+    sentByName: string | null;
+    sections: WeeklyReportSection[];
+  };
+};
+
+// Map of photo documentId → presigned download URL. Built in the route
+// handler so the PDF lib doesn't need to know about R2. When a photo's
+// id isn't in the map (or the value is null), we fall back to a caption
+// tile — keeps the PDF rendering robust to missing/expired URLs.
+export type PhotoUrlMap = Map<string, string>;
 
 // Commercial weekly-report PDF document. Document-style layout matching
 // the on-screen commercial doc view: kicker + week title + project meta
@@ -32,25 +55,27 @@ const styles = StyleSheet.create({
   },
   header: {
     borderBottom: "1 solid #d1d5db",
-    paddingBottom: 14,
-    marginBottom: 18,
+    paddingBottom: 16,
+    marginBottom: 22,
   },
   kicker: {
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
     color: "#4a3fb0",
     letterSpacing: 1.2,
-    marginBottom: 6,
+    marginBottom: 12,
   },
   title: {
     fontSize: 18,
     fontFamily: "Helvetica-Bold",
     color: "#1a1714",
-    marginBottom: 4,
+    marginBottom: 10,
+    lineHeight: 1.2,
   },
   meta: {
     fontSize: 9,
     color: "#6b655b",
+    marginBottom: 2,
   },
   section: { marginBottom: 16 },
   sectionTitle: {
@@ -115,12 +140,34 @@ const styles = StyleSheet.create({
     width: 110,
     height: 75,
     backgroundColor: "#e2e5e9",
-    padding: 6,
-    justifyContent: "flex-end",
+    position: "relative",
   },
-  photoCaption: {
+  photoImage: {
+    width: 110,
+    height: 75,
+    objectFit: "cover",
+  },
+  photoCaptionOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  photoCaptionText: {
+    fontSize: 7,
+    color: "#ffffff",
+  },
+  photoCaptionFallback: {
     fontSize: 8,
     color: "#6b655b",
+    padding: 6,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   footer: {
     position: "absolute",
@@ -142,10 +189,13 @@ const styles = StyleSheet.create({
 
 export function CommercialReportDocument({
   detail,
+  photoUrls,
 }: {
-  detail: ClientWeeklyReportDetailView;
+  detail: PdfInput;
+  photoUrls?: PhotoUrlMap;
 }) {
   const { report, project } = detail;
+  const urlMap = photoUrls ?? new Map<string, string>();
   return (
     <Document
       title={`Weekly Report — ${formatWeekRange(report.weekStart, report.weekEnd)}`}
@@ -171,7 +221,7 @@ export function CommercialReportDocument({
         )}
 
         {report.sections.map((section) => (
-          <SectionRenderer key={section.id} section={section} />
+          <SectionRenderer key={section.id} section={section} urlMap={urlMap} />
         ))}
 
         <View style={styles.footer} fixed>
@@ -206,12 +256,18 @@ function DocSection({
   );
 }
 
-function SectionRenderer({ section }: { section: WeeklyReportSection }) {
+function SectionRenderer({
+  section,
+  urlMap,
+}: {
+  section: WeeklyReportSection;
+  urlMap: PhotoUrlMap;
+}) {
   switch (section.sectionType) {
     case "milestones":
       return <MilestonesSection section={section} />;
     case "photos":
-      return <PhotosSection section={section} />;
+      return <PhotosSection section={section} urlMap={urlMap} />;
     case "rfis":
       return <RfisSection section={section} />;
     case "change_orders":
@@ -268,21 +324,60 @@ type PhotoItem = {
   caption: string | null;
 };
 
-function PhotosSection({ section }: { section: WeeklyReportSection }) {
+function PhotosSection({
+  section,
+  urlMap,
+}: {
+  section: WeeklyReportSection;
+  urlMap: PhotoUrlMap;
+}) {
   const items = (section.content.items as PhotoItem[] | undefined) ?? [];
   if (items.length === 0) return null;
-  // Real image rendering needs a presigned URL per documentId — deferred
-  // to a follow-up. For now: caption tiles in a grid.
   return (
     <DocSection title="Photos from site">
       <View style={styles.photoGrid}>
         {items.slice(0, 12).map((p) => (
-          <View key={p.photoId} style={styles.photoTile}>
-            <Text style={styles.photoCaption}>{p.caption ?? "Untitled"}</Text>
-          </View>
+          <PhotoTile
+            key={p.photoId}
+            documentId={p.documentId}
+            caption={p.caption}
+            urlMap={urlMap}
+          />
         ))}
       </View>
     </DocSection>
+  );
+}
+
+// Render the photo as a real image when we have a presigned URL;
+// otherwise fall back to a caption-only tile so the PDF stays readable
+// when an image fetch would fail (URL expired, R2 hiccup, etc).
+function PhotoTile({
+  documentId,
+  caption,
+  urlMap,
+}: {
+  documentId: string;
+  caption: string | null;
+  urlMap: PhotoUrlMap;
+}) {
+  const url = urlMap.get(documentId);
+  if (url) {
+    return (
+      <View style={styles.photoTile}>
+        <Image src={url} style={styles.photoImage} />
+        {caption && (
+          <View style={styles.photoCaptionOverlay}>
+            <Text style={styles.photoCaptionText}>{caption}</Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+  return (
+    <View style={styles.photoTile}>
+      <Text style={styles.photoCaptionFallback}>{caption ?? "Untitled"}</Text>
+    </View>
   );
 }
 

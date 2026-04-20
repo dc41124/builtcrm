@@ -2,30 +2,40 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { createElement, type ReactElement } from "react";
 import type { DocumentProps } from "@react-pdf/renderer";
+import { eq, inArray } from "drizzle-orm";
 
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
-import { weeklyReports } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { documents, weeklyReports } from "@/db/schema";
 import { getEffectiveContext } from "@/domain/context";
-import { getClientWeeklyReportDetail } from "@/domain/loaders/weekly-reports";
+import {
+  getClientWeeklyReportDetail,
+  getContractorWeeklyReportDetail,
+  type WeeklyReportDetail,
+} from "@/domain/loaders/weekly-reports";
 import { getResidentialWeeklyReportDetail } from "@/domain/loaders/weekly-reports-residential";
 import { AuthorizationError } from "@/domain/permissions";
+import { presignDownloadUrl } from "@/lib/storage";
 
-// GET /api/weekly-reports/[reportId]/pdf?portal=commercial|residential
+// GET /api/weekly-reports/[reportId]/pdf?portal=commercial|residential|contractor
 //
 // Server-side renders the report via @react-pdf/renderer and returns the
-// PDF binary as an attachment. Clients only see status='sent' reports
-// (matches the read-loader gate).
+// PDF binary as an attachment. Three rendering modes:
+//
+//   commercial   — sent-only filter, document-style PDF
+//   residential  — sent-only filter, warm card-style PDF (uses reshaper)
+//   contractor   — any status (incl. drafts), document-style PDF for
+//                  contractor preview / archival
 //
 // PDF components live under src/lib/weekly-reports/pdf/ and are
 // dynamic-imported here so @react-pdf/renderer's substantial bundle
-// stays out of the client. Auth + load are done before the dynamic
+// stays out of the client. Auth + load happen before the dynamic
 // import so unauthenticated requests fail fast.
 //
-// `portal` query param picks which renderer + which loader (residential
-// goes through the reshaper). Inferred from the caller's role if not
-// supplied — contractor previews currently route to commercial.
+// Photo rendering: the route walks the report's photos section,
+// presigns a 60-second R2 download URL per documentId, and passes a
+// Map<documentId, url> to the PDF component. Missing URLs fall back
+// to caption tiles so an R2 hiccup doesn't kill the whole render.
 
 export const runtime = "nodejs"; // @react-pdf/renderer needs Node, not edge
 
@@ -78,23 +88,34 @@ export async function GET(
     throw err;
   }
 
-  // Determine effective portal for the render. Explicit ?portal= wins
-  // (lets the contractor preview either client variant); otherwise infer.
-  const effectivePortal: "commercial" | "residential" =
-    portalParam === "commercial"
-      ? "commercial"
-      : portalParam === "residential"
-        ? "residential"
-        : ctx.role === "residential_client"
-          ? "residential"
-          : "commercial";
+  // Determine effective portal for the render. Explicit ?portal= wins;
+  // otherwise infer from role.
+  let effectivePortal: "commercial" | "residential" | "contractor";
+  if (portalParam === "commercial") effectivePortal = "commercial";
+  else if (portalParam === "residential") effectivePortal = "residential";
+  else if (portalParam === "contractor") effectivePortal = "contractor";
+  else if (ctx.role === "residential_client") effectivePortal = "residential";
+  else if (ctx.role === "contractor_admin" || ctx.role === "contractor_pm")
+    effectivePortal = "contractor";
+  else effectivePortal = "commercial";
+
+  // Contractor mode requires a contractor caller — clients can't preview
+  // unsent drafts via the contractor renderer.
+  if (
+    effectivePortal === "contractor" &&
+    ctx.role !== "contractor_admin" &&
+    ctx.role !== "contractor_pm"
+  ) {
+    return NextResponse.json(
+      { error: "forbidden", message: "Contractor preview requires a contractor role" },
+      { status: 403 },
+    );
+  }
 
   let pdfBuffer: Buffer;
   let filenameStem: string;
 
   try {
-    // Dynamic-import the PDF lib so it only ships in this route's
-    // server bundle, never in client pages.
     const { pdf } = await import("@react-pdf/renderer");
 
     if (effectivePortal === "residential") {
@@ -103,6 +124,9 @@ export async function GET(
         projectId: report.projectId,
         reportId,
       });
+      const photoUrls = await buildPhotoUrlMap(
+        collectPhotoDocumentIdsFromReshaped(detail.reshaped),
+      );
       const { ResidentialReportDocument } = await import(
         "@/lib/weekly-reports/pdf/residential-pdf"
       );
@@ -110,26 +134,42 @@ export async function GET(
         createElement(ResidentialReportDocument, {
           reshaped: detail.reshaped,
           homeName: detail.project.name,
+          photoUrls,
         }) as ReactElement<DocumentProps>,
       ).toBuffer();
       pdfBuffer = await streamToBuffer(stream);
       filenameStem = `this-week-${report.weekStart}`;
     } else {
-      const detail = await getClientWeeklyReportDetail({
-        session: sessionLike,
-        projectId: report.projectId,
-        reportId,
-      });
+      // commercial OR contractor: same renderer, different loader.
+      const detail =
+        effectivePortal === "contractor"
+          ? await getContractorWeeklyReportDetail({
+              session: sessionLike,
+              projectId: report.projectId,
+              reportId,
+            })
+          : await getClientWeeklyReportDetail({
+              session: sessionLike,
+              projectId: report.projectId,
+              reportId,
+            });
+      const photoUrls = await buildPhotoUrlMap(
+        collectPhotoDocumentIds(detail.report),
+      );
       const { CommercialReportDocument } = await import(
         "@/lib/weekly-reports/pdf/commercial-pdf"
       );
       const stream = await pdf(
         createElement(CommercialReportDocument, {
-          detail,
+          detail: { project: detail.project, report: detail.report },
+          photoUrls,
         }) as ReactElement<DocumentProps>,
       ).toBuffer();
       pdfBuffer = await streamToBuffer(stream);
-      filenameStem = `weekly-report-${report.weekStart}`;
+      filenameStem =
+        effectivePortal === "contractor"
+          ? `weekly-report-draft-${report.weekStart}`
+          : `weekly-report-${report.weekStart}`;
     }
   } catch (err) {
     if (err instanceof AuthorizationError) {
@@ -155,6 +195,62 @@ export async function GET(
       "Cache-Control": "private, no-store",
     },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+type PhotoLite = { documentId: string };
+
+function collectPhotoDocumentIds(report: WeeklyReportDetail): string[] {
+  const photosSection = report.sections.find(
+    (s) => s.sectionType === "photos",
+  );
+  if (!photosSection) return [];
+  const items = (photosSection.content.items as PhotoLite[] | undefined) ?? [];
+  return items.map((p) => p.documentId).filter(Boolean);
+}
+
+function collectPhotoDocumentIdsFromReshaped(
+  reshaped: { photos: Array<{ documentId: string }> },
+): string[] {
+  return reshaped.photos.map((p) => p.documentId).filter(Boolean);
+}
+
+// Look up storage_keys for the requested documentIds and presign each.
+// Returns an empty map on any failure so the PDF still renders (with
+// caption-tile fallbacks). 60-second TTL is plenty for the render to
+// complete.
+async function buildPhotoUrlMap(
+  documentIds: string[],
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (documentIds.length === 0) return map;
+
+  try {
+    const rows = await db
+      .select({ id: documents.id, storageKey: documents.storageKey })
+      .from(documents)
+      .where(inArray(documents.id, documentIds));
+
+    await Promise.all(
+      rows.map(async (r) => {
+        try {
+          const url = await presignDownloadUrl({
+            key: r.storageKey,
+            expiresInSeconds: 60,
+          });
+          map.set(r.id, url);
+        } catch {
+          // skip — PDF falls back to caption tile for this photo
+        }
+      }),
+    );
+  } catch {
+    // skip — empty map → all photos render as caption tiles
+  }
+  return map;
 }
 
 // `pdf().toBuffer()` returns a Node Readable stream in @react-pdf/renderer
