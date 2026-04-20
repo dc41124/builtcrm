@@ -2899,7 +2899,7 @@ Phase 4D done. Clickthrough: open contractor cross-project approvals and payment
 
 ---
 
-## Step 44 — Drawings Module
+## Step 44 — Drawings Module ✅ DONE (2026-04-20)
 
 **Mode:** Require-design-input (**the single biggest item in the whole plan — timebox ruthlessly**)
 **Item:** 5.1 #44
@@ -2969,7 +2969,7 @@ git commit -m "Step 44 (5.1 #44): Drawings module — upload, viewer, markup, ve
 
 ---
 
-## Step 45 — Inspections Module
+## Step 45 — Inspections Module ✅ DONE (2026-04-20)
 
 **Mode:** Require-design-input
 **Item:** 5.1 #45

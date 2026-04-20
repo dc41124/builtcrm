@@ -8,7 +8,7 @@
  * inserting duplicates.
  */
 
-import { and, eq, type SQL } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 
 import { hashPassword } from "better-auth/crypto";
@@ -61,6 +61,10 @@ import {
   drawingMarkups,
   drawingMeasurements,
   drawingComments,
+  inspectionTemplates,
+  inspections,
+  inspectionResults,
+  type InspectionLineItemDef,
 } from "./schema";
 
 // ---------------------------------------------------------------------------
@@ -538,6 +542,9 @@ async function seed() {
       c,
     );
   }
+
+  // ---- Inspection templates (org-scoped library, Step 45) --------------
+  await seedInspectionTemplates(summitOrg.id, summitPm.id);
 
   // ---- Per-project content ---------------------------------------------
   await seedProjectContent({
@@ -1929,6 +1936,13 @@ async function seedProjectContent(ctx: ProjectContext) {
   if (!residential) {
     await seedDrawings(ctx);
   }
+
+  // ---- Inspections (Step 45 — QA/QC checklists) ------------------------
+  // Commercial only — the prototype mirrors a commercial GC workflow and
+  // the residential portal doesn't surface inspections in Phase 4+.
+  if (!residential) {
+    await seedInspections(ctx);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -3003,6 +3017,538 @@ async function seedDrawings(ctx: ProjectContext): Promise<void> {
         createdAt: new Date(now - 3 * day),
       },
     ]);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Inspection templates seed (Step 45)
+//
+// Ten seeded templates per contractor org covering the common trade-by-phase
+// combinations from the JSX prototype. `isCustom=false` on seeds; the template
+// grid UI uses that flag to hide the "CUSTOM" badge on library entries. Line
+// items carry realistic spec/code refs so the demo detail view looks populated.
+// ---------------------------------------------------------------------------
+
+type TemplateSeed = {
+  slug: string;
+  name: string;
+  tradeCategory: string;
+  phase: "rough" | "final";
+  description: string;
+  lineItems: InspectionLineItemDef[];
+};
+
+const TEMPLATE_SEEDS: TemplateSeed[] = [
+  {
+    slug: "framing-rough",
+    name: "Framing — Rough",
+    tradeCategory: "framing",
+    phase: "rough",
+    description:
+      "Structural framing walkthrough prior to concealment. Covers wall plumb, anchorage, headers, fire blocking, sheathing pattern, and rough openings.",
+    lineItems: [
+      { key: "fr-01", orderIndex: 1, label: "All exterior walls plumb and square (±1/4\" in 10')", ref: "Spec 06 10 00 §3.2" },
+      { key: "fr-02", orderIndex: 2, label: "Wall plates anchored per structural engineering", ref: "Spec 06 10 00 §3.3" },
+      { key: "fr-03", orderIndex: 3, label: "Headers sized and installed per plan", ref: "Structural S-2.1" },
+      { key: "fr-04", orderIndex: 4, label: "King/jack stud count at all openings", ref: "Spec 06 10 00 §3.4" },
+      { key: "fr-05", orderIndex: 5, label: "Fire blocking installed at required locations", ref: "IBC 2021 §718" },
+      { key: "fr-06", orderIndex: 6, label: "Roof truss spacing and bracing per plan", ref: "Structural S-3.2" },
+      { key: "fr-07", orderIndex: 7, label: "Sheathing nailing pattern matches plan", ref: "Structural S-2.2" },
+      { key: "fr-08", orderIndex: 8, label: "Window / door rough openings verified", ref: "Arch A-201" },
+      { key: "fr-09", orderIndex: 9, label: "Beams and posts installed per structural plan", ref: "Structural S-2.1" },
+      { key: "fr-10", orderIndex: 10, label: "Crawl space access framing clear of obstructions", ref: "Arch A-301" },
+    ],
+  },
+  {
+    slug: "electrical-rough",
+    name: "Electrical — Rough",
+    tradeCategory: "electrical",
+    phase: "rough",
+    description:
+      "Branch circuit, box, and conduit walkthrough before drywall. Covers box height, fill, grounding, breaker sizing, and panel labeling.",
+    lineItems: [
+      { key: "er-01", orderIndex: 1, label: "Device box heights per finish schedule", ref: "Spec 26 05 00 §2.3" },
+      { key: "er-02", orderIndex: 2, label: "Box fill calculations meet NEC 314.16", ref: "NEC 2020 §314.16" },
+      { key: "er-03", orderIndex: 3, label: "Equipment grounding continuous to service", ref: "NEC 2020 §250" },
+      { key: "er-04", orderIndex: 4, label: "Circuit conductors sized for load and length", ref: "Spec 26 05 19" },
+      { key: "er-05", orderIndex: 5, label: "Conduit supported within 3' of boxes", ref: "NEC 2020 §344.30" },
+      { key: "er-06", orderIndex: 6, label: "AFCI protection on required circuits", ref: "NEC 2020 §210.12" },
+      { key: "er-07", orderIndex: 7, label: "GFCI protection in kitchens, baths, exterior", ref: "NEC 2020 §210.8" },
+      { key: "er-08", orderIndex: 8, label: "Panel breakers labeled to final circuits", ref: "NEC 2020 §408.4" },
+      { key: "er-09", orderIndex: 9, label: "Tamper-resistant receptacles where required", ref: "NEC 2020 §406.12" },
+      { key: "er-10", orderIndex: 10, label: "Low-voltage separated from line voltage", ref: "Spec 27 05 00" },
+      { key: "er-11", orderIndex: 11, label: "Firestopping at all penetrations", ref: "IBC 2021 §714" },
+      { key: "er-12", orderIndex: 12, label: "Nail plates on studs within 1-1/4\" of face", ref: "NEC 2020 §300.4(D)" },
+    ],
+  },
+  {
+    slug: "plumbing-rough",
+    name: "Plumbing — Rough",
+    tradeCategory: "plumbing",
+    phase: "rough",
+    description:
+      "DWV and water supply rough-in walkthrough before concealment. Covers venting, slope, pressure test, and hanger spacing.",
+    lineItems: [
+      { key: "pr-01", orderIndex: 1, label: "DWV pipe sized per fixture unit schedule", ref: "UPC 2021 §703" },
+      { key: "pr-02", orderIndex: 2, label: "Horizontal drain slope ≥ 1/4\"/ft for ≤2\" pipe", ref: "UPC 2021 §708" },
+      { key: "pr-03", orderIndex: 3, label: "Vents extend above flood rim of fixtures served", ref: "UPC 2021 §904" },
+      { key: "pr-04", orderIndex: 4, label: "DWV holds 10' head / 5 psi air for 15 minutes", ref: "UPC 2021 §712" },
+      { key: "pr-05", orderIndex: 5, label: "Water lines held at 100 psi for 1 hour", ref: "UPC 2021 §609.4" },
+      { key: "pr-06", orderIndex: 6, label: "Cleanouts at required intervals", ref: "UPC 2021 §707" },
+      { key: "pr-07", orderIndex: 7, label: "Hanger spacing per pipe material", ref: "UPC 2021 §313" },
+      { key: "pr-08", orderIndex: 8, label: "Shower pans tested 48 hrs", ref: "UPC 2021 §411.8" },
+      { key: "pr-09", orderIndex: 9, label: "Firestopping at all penetrations", ref: "IBC 2021 §714" },
+      { key: "pr-10", orderIndex: 10, label: "Dielectric unions at dissimilar metals", ref: "Spec 22 11 16" },
+      { key: "pr-11", orderIndex: 11, label: "Hot/cold lines separated ≥ 6\" or insulated", ref: "Spec 22 07 19" },
+    ],
+  },
+  {
+    slug: "hvac-rough",
+    name: "HVAC — Rough",
+    tradeCategory: "hvac",
+    phase: "rough",
+    description:
+      "Mechanical rough-in walkthrough before ceiling close-up. Covers duct sealing, equipment clearances, condensate, and combustion air.",
+    lineItems: [
+      { key: "hr-01", orderIndex: 1, label: "Duct sealing class per SMACNA", ref: "SMACNA 4th ed." },
+      { key: "hr-02", orderIndex: 2, label: "Equipment clearances meet listing", ref: "Mfr installation instructions" },
+      { key: "hr-03", orderIndex: 3, label: "Condensate drain sized and sloped", ref: "IMC 2021 §307" },
+      { key: "hr-04", orderIndex: 4, label: "Combustion air openings per appliance BTU", ref: "IFGC 2021 §304" },
+      { key: "hr-05", orderIndex: 5, label: "Flue venting listed for appliance category", ref: "IFGC 2021 §503" },
+      { key: "hr-06", orderIndex: 6, label: "Duct supports within SMACNA spacing", ref: "SMACNA 4th ed." },
+      { key: "hr-07", orderIndex: 7, label: "Fire/smoke dampers at rated assemblies", ref: "IBC 2021 §717" },
+      { key: "hr-08", orderIndex: 8, label: "Insulation R-value matches spec", ref: "Spec 23 07 00" },
+      { key: "hr-09", orderIndex: 9, label: "Refrigerant line sets sized per mfr", ref: "Mfr tables" },
+    ],
+  },
+  {
+    slug: "insulation",
+    name: "Insulation",
+    tradeCategory: "insulation",
+    phase: "rough",
+    description:
+      "Thermal and acoustic insulation walkthrough before drywall. Covers coverage, R-value, fit, air sealing, and vapor retarder.",
+    lineItems: [
+      { key: "in-01", orderIndex: 1, label: "Batt R-value matches energy compliance", ref: "Spec 07 21 00" },
+      { key: "in-02", orderIndex: 2, label: "No voids, gaps, or compressions in batts", ref: "Spec 07 21 00 §3.3" },
+      { key: "in-03", orderIndex: 3, label: "Spray foam depth verified at random points", ref: "Spec 07 21 19" },
+      { key: "in-04", orderIndex: 4, label: "Air sealing at top/bottom plates and penetrations", ref: "IECC 2021 §402.4" },
+      { key: "in-05", orderIndex: 5, label: "Vapor retarder installed on warm side", ref: "Spec 07 26 00" },
+      { key: "in-06", orderIndex: 6, label: "Acoustic insulation at spec'd assemblies", ref: "Arch A-401" },
+      { key: "in-07", orderIndex: 7, label: "Insulation kept dry, no water damage", ref: "Spec 07 21 00 §3.4" },
+      { key: "in-08", orderIndex: 8, label: "Fire-rated assemblies use listed materials", ref: "IBC 2021 §720" },
+    ],
+  },
+  {
+    slug: "drywall",
+    name: "Drywall",
+    tradeCategory: "drywall",
+    phase: "rough",
+    description:
+      "Drywall installation walkthrough prior to finishing. Covers fastener pattern, joint alignment, corner bead, taping, and surface defects.",
+    lineItems: [
+      { key: "dw-01", orderIndex: 1, label: "All fasteners recessed per spec", ref: "Spec 09 29 00 §3.4" },
+      { key: "dw-02", orderIndex: 2, label: "Butt joints staggered per pattern", ref: "Spec 09 29 00 §3.3" },
+      { key: "dw-03", orderIndex: 3, label: "No gaps >1/8\" at panel joints", ref: "ASTM C840 §7.2" },
+      { key: "dw-04", orderIndex: 4, label: "Inside corners taped and mudded first coat", ref: "Spec 09 29 00 §3.5" },
+      { key: "dw-05", orderIndex: 5, label: "Outside corners have corner bead installed", ref: "Spec 09 29 00 §3.5" },
+      { key: "dw-06", orderIndex: 6, label: "Screw pattern per spec (12\" field / 8\" edges)", ref: "ASTM C840 §6.5" },
+      { key: "dw-07", orderIndex: 7, label: "Joints taped with proper tape width (≥2\")", ref: "Spec 09 29 00 §3.5" },
+      { key: "dw-08", orderIndex: 8, label: "First coat of mud applied to all joints", ref: "Spec 09 29 00 §3.5" },
+      { key: "dw-09", orderIndex: 9, label: "No visible damage, cracks, or protrusions", ref: "Visual" },
+      { key: "dw-10", orderIndex: 10, label: "Ceiling sheets supported per T-bar / strapping", ref: "Spec 09 29 00 §3.2" },
+      { key: "dw-11", orderIndex: 11, label: "Cutouts for boxes match finish plan", ref: "Finish plan A-101" },
+      { key: "dw-12", orderIndex: 12, label: "All wall-ceiling transitions clean", ref: "Visual" },
+    ],
+  },
+  {
+    slug: "electrical-final",
+    name: "Electrical — Final",
+    tradeCategory: "electrical",
+    phase: "final",
+    description:
+      "Final electrical walkthrough before occupancy. Covers device operation, panel labeling, GFCI tests, and grounding continuity.",
+    lineItems: [
+      { key: "ef-01", orderIndex: 1, label: "All receptacles polarity / ground verified", ref: "NEC 2020 §406" },
+      { key: "ef-02", orderIndex: 2, label: "GFCI receptacles trip-test passing", ref: "NEC 2020 §210.8" },
+      { key: "ef-03", orderIndex: 3, label: "AFCI breakers trip-test passing", ref: "NEC 2020 §210.12" },
+      { key: "ef-04", orderIndex: 4, label: "Panel directory accurate to final circuit layout", ref: "NEC 2020 §408.4" },
+      { key: "ef-05", orderIndex: 5, label: "Device plates installed plumb and tight", ref: "Spec 26 27 26" },
+      { key: "ef-06", orderIndex: 6, label: "Light fixtures operate per switching diagram", ref: "Spec 26 51 13" },
+      { key: "ef-07", orderIndex: 7, label: "Emergency / egress lighting passes 90-min test", ref: "NFPA 101 §7.9" },
+      { key: "ef-08", orderIndex: 8, label: "Service bonding intact, megger reading in spec", ref: "NEC 2020 §250.50" },
+      { key: "ef-09", orderIndex: 9, label: "Smoke/CO alarms interconnect verified", ref: "NFPA 72" },
+      { key: "ef-10", orderIndex: 10, label: "As-built panel schedule matched drawings", ref: "Spec 26 05 53" },
+    ],
+  },
+  {
+    slug: "plumbing-final",
+    name: "Plumbing — Final",
+    tradeCategory: "plumbing",
+    phase: "final",
+    description:
+      "Final plumbing walkthrough before occupancy. Covers fixture operation, hot water delivery, shutoff accessibility, and leak checks.",
+    lineItems: [
+      { key: "pf-01", orderIndex: 1, label: "All fixtures operate — supply and drain", ref: "UPC 2021 §402" },
+      { key: "pf-02", orderIndex: 2, label: "Hot water delivers within mfr temperature spec", ref: "ASSE 1016" },
+      { key: "pf-03", orderIndex: 3, label: "Shutoff valves accessible at each fixture", ref: "UPC 2021 §605" },
+      { key: "pf-04", orderIndex: 4, label: "No visible leaks at supply connections", ref: "UPC 2021 §609" },
+      { key: "pf-05", orderIndex: 5, label: "Traps primed and holding water seal", ref: "UPC 2021 §1001" },
+      { key: "pf-06", orderIndex: 6, label: "Backflow preventers installed and tested", ref: "UPC 2021 §603" },
+      { key: "pf-07", orderIndex: 7, label: "Pipe insulation installed per spec", ref: "Spec 22 07 19" },
+      { key: "pf-08", orderIndex: 8, label: "Water heater T&P discharge piped to drain", ref: "UPC 2021 §608.5" },
+      { key: "pf-09", orderIndex: 9, label: "Fixture caulking clean and watertight", ref: "Spec 07 92 00" },
+    ],
+  },
+  {
+    slug: "mechanical-final",
+    name: "Mechanical — Final",
+    tradeCategory: "hvac",
+    phase: "final",
+    description:
+      "Final mechanical walkthrough before occupancy. Covers balancing, thermostat operation, filter install, and control sequence verification.",
+    lineItems: [
+      { key: "mf-01", orderIndex: 1, label: "TAB report matches design airflow ±10%", ref: "Spec 23 05 93" },
+      { key: "mf-02", orderIndex: 2, label: "Thermostats calibrated and labeled", ref: "Spec 23 09 23" },
+      { key: "mf-03", orderIndex: 3, label: "Filters installed correct size / MERV", ref: "Spec 23 40 00" },
+      { key: "mf-04", orderIndex: 4, label: "Control sequence matches design intent", ref: "Spec 23 09 00" },
+      { key: "mf-05", orderIndex: 5, label: "Condensate drains flow freely", ref: "IMC 2021 §307" },
+      { key: "mf-06", orderIndex: 6, label: "Equipment refrigerant charge per mfr", ref: "Mfr startup sheet" },
+      { key: "mf-07", orderIndex: 7, label: "Exhaust fans operate and vent to exterior", ref: "IMC 2021 §501" },
+      { key: "mf-08", orderIndex: 8, label: "Duct access doors at all dampers", ref: "SMACNA 4th ed." },
+    ],
+  },
+  {
+    slug: "final-cleaning",
+    name: "Final Cleaning",
+    tradeCategory: "general",
+    phase: "final",
+    description:
+      "Pre-occupancy cleaning walkthrough. Covers fixtures, glazing, floor surfaces, mechanical room, and protection removal.",
+    lineItems: [
+      { key: "fc-01", orderIndex: 1, label: "All floors cleaned and free of construction debris", ref: "Spec 01 74 00" },
+      { key: "fc-02", orderIndex: 2, label: "Windows inside/outside wiped, labels removed", ref: "Spec 01 74 00 §3.2" },
+      { key: "fc-03", orderIndex: 3, label: "Fixtures and millwork dust-free", ref: "Spec 01 74 00 §3.3" },
+      { key: "fc-04", orderIndex: 4, label: "Mechanical room swept, protection removed", ref: "Spec 01 74 00 §3.4" },
+      { key: "fc-05", orderIndex: 5, label: "Light fixtures and diffusers cleaned", ref: "Spec 01 74 00 §3.3" },
+      { key: "fc-06", orderIndex: 6, label: "Site protection and signage removed", ref: "Spec 01 55 26" },
+      { key: "fc-07", orderIndex: 7, label: "All stickers, labels, tape residue removed", ref: "Visual" },
+    ],
+  },
+];
+
+async function seedInspectionTemplates(
+  orgId: string,
+  createdByUserId: string,
+): Promise<void> {
+  for (const t of TEMPLATE_SEEDS) {
+    const existing = await db
+      .select({ id: inspectionTemplates.id })
+      .from(inspectionTemplates)
+      .where(
+        and(
+          eq(inspectionTemplates.orgId, orgId),
+          eq(inspectionTemplates.name, t.name),
+          eq(inspectionTemplates.isCustom, false),
+        ),
+      )
+      .limit(1);
+    if (existing[0]) continue;
+    await db.insert(inspectionTemplates).values({
+      orgId,
+      name: t.name,
+      tradeCategory: t.tradeCategory,
+      phase: t.phase,
+      description: t.description,
+      lineItemsJson: t.lineItems,
+      isCustom: false,
+      createdByUserId,
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Per-project inspections seed (Step 45)
+//
+// Lays down 6–8 inspections per commercial project across multiple statuses
+// so the workspace list + pass-rate KPI + side rail all demo correctly. One
+// completed Drywall inspection matches the prototype's hero data (75% pass
+// with three auto-generated punch items linked via source_inspection_*).
+// ---------------------------------------------------------------------------
+
+type InspectionSeed = {
+  templateSlug: string;
+  zone: string;
+  status: "scheduled" | "in_progress" | "completed";
+  daysAgo: number;           // when scheduled
+  completedDaysAgo?: number; // when completed (status === "completed")
+  assignTo: "sub" | "sub2";
+  // Keyed by line item key. Any key omitted stays unrecorded. For
+  // `in_progress`, a partial map; for `completed`, a full map.
+  outcomes?: Record<string, { outcome: "pass" | "fail" | "conditional" | "na"; notes?: string; spawnPunch?: { title: string; description: string; priority: "low" | "normal" | "high" | "urgent"; dueDaysFromNow: number } }>;
+};
+
+const INSPECTION_SEEDS: InspectionSeed[] = [
+  // Completed — hero drywall inspection with 75% pass rate + 3 auto punches.
+  {
+    templateSlug: "drywall",
+    zone: "Floor 1",
+    status: "completed",
+    daysAgo: 6,
+    completedDaysAgo: 6,
+    assignTo: "sub",
+    outcomes: {
+      "dw-01": { outcome: "pass" },
+      "dw-02": { outcome: "pass" },
+      "dw-03": {
+        outcome: "fail",
+        notes: "South wall Rm 102, three joints measured 1/4\"–3/8\" gap. Refer patch + reset.",
+        spawnPunch: {
+          title: "Drywall gap repair — Rm 102 S wall",
+          description: "Three joints on south wall Rm 102 exceed 1/8\" gap. Patch and reset per Spec 09 29 00 §3.3.",
+          priority: "high",
+          dueDaysFromNow: 4,
+        },
+      },
+      "dw-04": { outcome: "pass" },
+      "dw-05": { outcome: "pass" },
+      "dw-06": {
+        outcome: "conditional",
+        notes: "Spacing OK in field. Tub enclosure wall short by ~4 screws per sheet — sub to add before finish.",
+        spawnPunch: {
+          title: "Drywall screw pattern — tub enclosure",
+          description: "Tub enclosure wall missing ~4 screws per sheet. Add before finish coat per ASTM C840 §6.5.",
+          priority: "normal",
+          dueDaysFromNow: 2,
+        },
+      },
+      "dw-07": { outcome: "pass" },
+      "dw-08": { outcome: "pass" },
+      "dw-09": {
+        outcome: "fail",
+        notes: "Cracks propagating from window return, east wall Rm 103. Likely framing movement — verify before retouch.",
+        spawnPunch: {
+          title: "Drywall crack repair — Rm 103 E wall",
+          description: "Cracks at window return on east wall Rm 103. Investigate framing movement before patch.",
+          priority: "high",
+          dueDaysFromNow: 5,
+        },
+      },
+      "dw-10": { outcome: "pass" },
+      "dw-11": { outcome: "pass" },
+      "dw-12": { outcome: "pass" },
+    },
+  },
+  // Completed — clean plumbing final.
+  {
+    templateSlug: "plumbing-final",
+    zone: "Floor 1",
+    status: "completed",
+    daysAgo: 4,
+    completedDaysAgo: 4,
+    assignTo: "sub2",
+    outcomes: {
+      "pf-01": { outcome: "pass" },
+      "pf-02": { outcome: "pass" },
+      "pf-03": { outcome: "pass" },
+      "pf-04": { outcome: "pass" },
+      "pf-05": { outcome: "pass" },
+      "pf-06": { outcome: "pass" },
+      "pf-07": { outcome: "pass" },
+      "pf-08": { outcome: "pass" },
+      "pf-09": { outcome: "pass" },
+    },
+  },
+  // Completed — HVAC rough, one conditional spawning a punch.
+  {
+    templateSlug: "hvac-rough",
+    zone: "Mechanical Room",
+    status: "completed",
+    daysAgo: 3,
+    completedDaysAgo: 3,
+    assignTo: "sub2",
+    outcomes: {
+      "hr-01": { outcome: "pass" },
+      "hr-02": { outcome: "pass" },
+      "hr-03": { outcome: "pass" },
+      "hr-04": { outcome: "pass" },
+      "hr-05": { outcome: "pass" },
+      "hr-06": { outcome: "pass" },
+      "hr-07": { outcome: "pass" },
+      "hr-08": { outcome: "pass" },
+      "hr-09": { outcome: "pass" },
+    },
+  },
+  // In progress — electrical rough, partial outcomes.
+  {
+    templateSlug: "electrical-rough",
+    zone: "Floor 1",
+    status: "in_progress",
+    daysAgo: 0,
+    assignTo: "sub",
+    outcomes: {
+      "er-01": { outcome: "pass" },
+      "er-02": { outcome: "pass" },
+      "er-03": { outcome: "pass" },
+      "er-04": { outcome: "pass" },
+      "er-05": { outcome: "pass" },
+      "er-06": { outcome: "pass" },
+    },
+  },
+  // Scheduled — framing rough on F2 east.
+  {
+    templateSlug: "framing-rough",
+    zone: "Floor 2 East",
+    status: "scheduled",
+    daysAgo: -2,
+    assignTo: "sub",
+  },
+  // Scheduled — framing rough on F2 west.
+  {
+    templateSlug: "framing-rough",
+    zone: "Floor 2 West",
+    status: "scheduled",
+    daysAgo: -4,
+    assignTo: "sub",
+  },
+  // Scheduled — electrical rough F2.
+  {
+    templateSlug: "electrical-rough",
+    zone: "Floor 2",
+    status: "scheduled",
+    daysAgo: -5,
+    assignTo: "sub",
+  },
+  // Scheduled — plumbing rough F2.
+  {
+    templateSlug: "plumbing-rough",
+    zone: "Floor 2",
+    status: "scheduled",
+    daysAgo: -8,
+    assignTo: "sub2",
+  },
+];
+
+async function seedInspections(ctx: ProjectContext): Promise<void> {
+  const { project, contractorOrgId, pmUserId, subOrgId, sub2OrgId, subUserId, sub2UserId } = ctx;
+  const day = 86400000;
+  const now = Date.now();
+
+  // Bail fast on re-runs — if any inspection already exists for this project
+  // we skip the whole block rather than partial-updating.
+  const existingIns = await db
+    .select({ id: inspections.id })
+    .from(inspections)
+    .where(eq(inspections.projectId, project.id))
+    .limit(1);
+  if (existingIns[0]) return;
+
+  // Fetch the org's template library so we can pin each inspection to a real
+  // template id + copy its line items into the snapshot.
+  const tplRows = await db
+    .select({
+      id: inspectionTemplates.id,
+      name: inspectionTemplates.name,
+      lineItemsJson: inspectionTemplates.lineItemsJson,
+    })
+    .from(inspectionTemplates)
+    .where(eq(inspectionTemplates.orgId, contractorOrgId));
+  const tplBySlug = new Map<string, { id: string; lineItems: InspectionLineItemDef[] }>();
+  for (const row of tplRows) {
+    const slug = TEMPLATE_SEEDS.find((s) => s.name === row.name)?.slug;
+    if (!slug) continue;
+    tplBySlug.set(slug, {
+      id: row.id,
+      lineItems: (row.lineItemsJson as InspectionLineItemDef[]) ?? [],
+    });
+  }
+
+  // Figure out next punch sequential number for this project so we pick up
+  // where the existing punch seed left off rather than clashing.
+  const [{ maxPunch }] = await db
+    .select({
+      maxPunch: sql<number>`coalesce(max(${punchItems.sequentialNumber}), 0)`,
+    })
+    .from(punchItems)
+    .where(eq(punchItems.projectId, project.id));
+  let nextPunchSeq = (maxPunch as number) + 1;
+
+  let seq = 0;
+  for (const s of INSPECTION_SEEDS) {
+    seq += 1;
+    const tpl = tplBySlug.get(s.templateSlug);
+    if (!tpl) continue;
+
+    const assigneeOrgId = s.assignTo === "sub2" ? sub2OrgId ?? subOrgId : subOrgId;
+    const assigneeUserId = s.assignTo === "sub2" ? sub2UserId ?? subUserId : subUserId;
+    const scheduledDate = new Date(now - s.daysAgo * day).toISOString().slice(0, 10);
+    const completedAt =
+      s.status === "completed" && s.completedDaysAgo != null
+        ? new Date(now - s.completedDaysAgo * day)
+        : null;
+
+    const [insRow] = await db
+      .insert(inspections)
+      .values({
+        projectId: project.id,
+        sequentialNumber: seq,
+        templateId: tpl.id,
+        templateSnapshotJson: tpl.lineItems,
+        zone: s.zone,
+        assignedOrgId: assigneeOrgId,
+        assignedUserId: assigneeUserId,
+        scheduledDate,
+        status: s.status,
+        createdByUserId: pmUserId,
+        completedByUserId: s.status === "completed" ? assigneeUserId : null,
+        completedAt,
+      })
+      .returning();
+
+    if (!s.outcomes) continue;
+
+    for (const [lineKey, out] of Object.entries(s.outcomes)) {
+      const recordedAt = completedAt ?? new Date(now - Math.max(s.daysAgo, 0) * day);
+      const [resRow] = await db
+        .insert(inspectionResults)
+        .values({
+          inspectionId: insRow.id,
+          lineItemKey: lineKey,
+          outcome: out.outcome,
+          notes: out.notes ?? null,
+          recordedByUserId: assigneeUserId,
+          recordedAt,
+        })
+        .returning();
+
+      if (out.spawnPunch && s.status === "completed") {
+        const createdAt = completedAt ?? new Date(now);
+        const dueDate = new Date(
+          createdAt.getTime() + out.spawnPunch.dueDaysFromNow * day,
+        )
+          .toISOString()
+          .slice(0, 10);
+        await db.insert(punchItems).values({
+          projectId: project.id,
+          sequentialNumber: nextPunchSeq,
+          title: out.spawnPunch.title,
+          description: out.spawnPunch.description,
+          location: `${s.zone} (INS-${String(seq).padStart(4, "0")})`,
+          priority: out.spawnPunch.priority,
+          status: "open",
+          assigneeOrgId,
+          assigneeUserId: null,
+          dueDate,
+          createdByUserId: pmUserId,
+          lastTransitionAt: createdAt,
+          sourceInspectionId: insRow.id,
+          sourceInspectionResultId: resRow.id,
+          createdAt,
+          updatedAt: createdAt,
+        });
+        nextPunchSeq += 1;
+      }
+    }
   }
 }
 

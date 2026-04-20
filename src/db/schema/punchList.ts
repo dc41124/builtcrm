@@ -15,6 +15,7 @@ import {
 import { timestamps } from "./_shared";
 import { documents } from "./documents";
 import { organizations, users } from "./identity";
+import { inspectionResults, inspections } from "./inspections";
 import { projects } from "./projects";
 
 // -----------------------------------------------------------------------------
@@ -104,6 +105,20 @@ export const punchItems = pgTable(
     // field (not a derived comment) so GCs can edit independently of
     // the internal thread.
     clientFacingNote: text("client_facing_note"),
+    // When a punch item is auto-created by completing an inspection
+    // (Step 45), these pin it back to the originating inspection
+    // and the specific line-item result that failed. Both NULL for
+    // manually-created items. `set null` on delete so historical
+    // punch items survive if the parent inspection is cleaned up,
+    // but lose their origin pointer.
+    sourceInspectionId: uuid("source_inspection_id").references(
+      () => inspections.id,
+      { onDelete: "set null" },
+    ),
+    sourceInspectionResultId: uuid("source_inspection_result_id").references(
+      () => inspectionResults.id,
+      { onDelete: "set null" },
+    ),
     ...timestamps,
   },
   (table) => ({
@@ -117,6 +132,9 @@ export const punchItems = pgTable(
     assigneeStatusIdx: index("punch_items_assignee_status_idx").on(
       table.assigneeOrgId,
       table.status,
+    ),
+    sourceInspectionIdx: index("punch_items_source_inspection_idx").on(
+      table.sourceInspectionId,
     ),
   }),
 );

@@ -117,7 +117,7 @@ const REPORTS: ReportDef[] = [
   { id: "rfi-log", category: "operational", label: "RFI Log", Icon: IconFileText, desc: "All RFIs with turnaround times", built: false, origin: "Phase 4B" },
   { id: "submittal-log", category: "operational", label: "Submittal Log", Icon: IconPackageCheck, desc: "Submittal status and reviewer activity", built: false, origin: "Step 20" },
   { id: "procurement", category: "operational", label: "Procurement / POs", Icon: IconTruck, desc: "POs by vendor, status, and aging", built: true, origin: "Step 41" },
-  { id: "inspections", category: "operational", label: "Inspections Summary", Icon: IconClipboardCheck, desc: "QA/QC pass-fail trends", built: false, origin: "Step 45" },
+  { id: "inspections", category: "operational", label: "Inspections Summary", Icon: IconClipboardCheck, desc: "QA/QC pass-fail trends", built: true, origin: "Step 45" },
   { id: "closeout", category: "operational", label: "Closeout Matrix", Icon: IconPackageCheck, desc: "Closeout completion per project", built: false, origin: "Step 48" },
   { id: "compliance", category: "compliance", label: "Compliance", Icon: IconShieldCheck, desc: "Expiring documents and sub matrix", built: true, origin: "Step 24.5" },
   { id: "prequal", category: "compliance", label: "Subcontractor Prequalification", Icon: IconCheckCircle2, desc: "Qualification status across subs", built: false, origin: "Step 49" },
