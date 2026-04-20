@@ -134,7 +134,8 @@ type Tool =
   | "text"
   | "measure_linear"
   | "measure_area"
-  | "comment";
+  | "comment"
+  | "calibrate";
 
 // ---- Small utilities --------------------------------------------------
 
@@ -216,6 +217,50 @@ function formatAreaLabel(
     return `${Math.round(sqFeet)} SF`;
   }
   return `${Math.round(areaPxSq)} px²`;
+}
+
+// Parse a user-entered real distance into decimal feet. Accepts the common
+// architect forms: `24'-6"`, `24' 6"`, `24.5'`, `24.5 ft`, `294"`, `294 in`,
+// bare number (taken as feet). Returns null when nothing usable comes in.
+function parseRealDistance(input: string): number | null {
+  const s = input.trim().toLowerCase();
+  if (!s) return null;
+  // 24'-6" / 24' 6" / 24' / 24'6"
+  const feetInches = s.match(/^(\d+(?:\.\d+)?)\s*(?:'|ft|feet)[^0-9]*(\d+(?:\.\d+)?)?\s*(?:"|in|inches)?$/);
+  if (feetInches) {
+    const feet = parseFloat(feetInches[1]);
+    const inches = feetInches[2] ? parseFloat(feetInches[2]) : 0;
+    if (!Number.isFinite(feet)) return null;
+    return feet + inches / 12;
+  }
+  // Plain inches: 294" / 294 in
+  const inchesOnly = s.match(/^(\d+(?:\.\d+)?)\s*(?:"|in|inches)$/);
+  if (inchesOnly) {
+    const inches = parseFloat(inchesOnly[1]);
+    return inches / 12;
+  }
+  // Bare number — treat as feet.
+  const bare = s.match(/^(\d+(?:\.\d+)?)$/);
+  if (bare) return parseFloat(bare[1]);
+  return null;
+}
+
+// Round a derived scale divisor to the nearest standard architect value so
+// the stored scale text round-trips through formatLinearLabel's parser.
+// Standard US divisors: 4 (3"=1'), 8, 16, 24, 32, 48, 96. Returns the
+// closest, constrained to this set.
+function nearestStandardDivisor(d: number): number {
+  const standards = [2, 4, 8, 16, 24, 32, 48, 64, 96, 128, 192];
+  let best = standards[0];
+  let bestErr = Math.abs(d - best);
+  for (const s of standards) {
+    const err = Math.abs(d - s);
+    if (err < bestErr) {
+      best = s;
+      bestErr = err;
+    }
+  }
+  return best;
 }
 
 // ---- Compare-mode pixel diff ------------------------------------------
@@ -339,6 +384,9 @@ export function SheetDetailWorkspace(props: {
   const [pendingComment, setPendingComment] = useState<{ x: number; y: number } | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
   const [areaPoints, setAreaPoints] = useState<Array<[number, number]>>([]);
+  const [calibrationPoints, setCalibrationPoints] = useState<
+    Array<[number, number]>
+  >([]);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -369,6 +417,19 @@ export function SheetDetailWorkspace(props: {
   const svgRef = useRef<SVGSVGElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(800);
   const [pageSize, setPageSize] = useState<{ w: number; h: number } | null>(null);
+
+  // Narrow-viewport state — drives the simplified mobile toolset (pen +
+  // comment only) and also gates the touch-action CSS used by the canvas
+  // pinch-zoom support.
+  const [narrowViewport, setNarrowViewport] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 900px)");
+    const onChange = () => setNarrowViewport(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   // Recompute diff whenever both panes finish rendering at the current
   // width. The diff canvas is absolutely positioned over the right pane;
@@ -527,6 +588,16 @@ export function SheetDetailWorkspace(props: {
         // Area: accumulate click points; a double-click (handled below)
         // finalizes the polygon.
         setAreaPoints((pts) => [...pts, [pt.x, pt.y]]);
+      } else if (tool === "calibrate") {
+        // Two-point calibration: first click stores point A, second click
+        // stores B then prompts for the real-world distance and writes
+        // the derived scale via PATCH /calibration. Handled in a side
+        // effect so the second click can await the fetch without
+        // blocking the pointer handler.
+        setCalibrationPoints((pts) => {
+          const next = [...pts, [pt.x, pt.y] as [number, number]];
+          return next.length > 2 ? [[pt.x, pt.y]] : next;
+        });
       }
     },
     [tool, canAnnotate],
@@ -624,6 +695,69 @@ export function SheetDetailWorkspace(props: {
     },
     [draftShape],
   );
+
+  // Two-point calibration — fires when we have a pair of points. Computes
+  // the scale divisor from the pixel distance + real distance and PATCHes
+  // it as a `1/N" = 1'-0"` string (rounded to the nearest standard scale).
+  useEffect(() => {
+    if (calibrationPoints.length !== 2) return;
+    if (!canCalibrate) {
+      setCalibrationPoints([]);
+      return;
+    }
+    const [a, b] = calibrationPoints;
+    const dx = (b[0] - a[0]) / 100;
+    const dy = (b[1] - a[1]) / 100;
+    const pixelLen = Math.sqrt(
+      Math.pow(dx * containerWidth, 2) + Math.pow(dy * pageHeightPx, 2),
+    );
+    if (pixelLen < 4) {
+      setCalibrationPoints([]);
+      return;
+    }
+    const entered = window.prompt(
+      `Enter the real-world distance between the two points (e.g. 24'-6", 24.5', 294"):`,
+      "",
+    );
+    setCalibrationPoints([]);
+    if (!entered) return;
+    const realFeet = parseRealDistance(entered);
+    if (realFeet === null || realFeet <= 0) {
+      window.alert(`Couldn't parse "${entered}" as a distance.`);
+      return;
+    }
+    // pixels / 72 = inches-of-paper. inches-of-paper * divisor = feet on
+    // drawing, so divisor = realFeet / (pixelLen / 72).
+    const inchesOfPaper = pixelLen / 72;
+    const divisor = realFeet / inchesOfPaper;
+    const rounded = nearestStandardDivisor(divisor);
+    const scaleString = `1/${rounded}" = 1'-0"`;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/drawings/sheets/${sheet.id}/calibration`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scale: scaleString, source: "manual" }),
+          },
+        );
+        if (!res.ok) throw new Error(`calibration ${res.status}`);
+        router.refresh();
+        setTool("select");
+      } catch (err) {
+        setSaveState("error");
+        setSaveError(err instanceof Error ? err.message : String(err));
+      }
+    })();
+  }, [
+    calibrationPoints,
+    canCalibrate,
+    containerWidth,
+    pageHeightPx,
+    sheet.id,
+    router,
+  ]);
 
   // Area tool double-click: finalize polygon.
   const handleAreaFinalize = useCallback(() => {
@@ -789,6 +923,7 @@ export function SheetDetailWorkspace(props: {
 
         {canAnnotate ? (
           <div
+            className={narrowViewport ? "dr-tool-strip-simplified" : undefined}
             style={{
               display: "flex",
               gap: 4,
@@ -807,13 +942,17 @@ export function SheetDetailWorkspace(props: {
               ["measure_linear", "L-Measure"],
               ["measure_area", "Area"],
               ["comment", "Comment"],
+              ...(canCalibrate
+                ? ([["calibrate", "Calibrate"]] as Array<[Tool, string]>)
+                : []),
             ] as Array<[Tool, string]>).map(([t, label]) => (
               <button
                 key={t}
-                className={`dr-btn xs ${tool === t ? "primary" : "ghost"}`}
+                className={`dr-btn xs t-${t.replace("_", "-")} ${tool === t ? "primary" : "ghost"}`}
                 onClick={() => {
                   setTool(t);
                   if (t !== "measure_area") setAreaPoints([]);
+                  if (t !== "calibrate") setCalibrationPoints([]);
                 }}
                 style={{ height: 28, padding: "0 10px", fontSize: 11 }}
               >
@@ -1159,6 +1298,29 @@ export function SheetDetailWorkspace(props: {
             {draftShape && "type" in draftShape
               ? renderMeasurement("draft", draftShape as MeasurementShape, myColor)
               : null}
+            {tool === "calibrate" && calibrationPoints.length === 1 ? (
+              <g style={{ pointerEvents: "none" }}>
+                <circle
+                  cx={calibrationPoints[0][0]}
+                  cy={calibrationPoints[0][1]}
+                  r={1.2}
+                  fill={myColor}
+                  stroke="#fff"
+                  strokeWidth={0.3}
+                  vectorEffect="non-scaling-stroke"
+                />
+                <text
+                  x={calibrationPoints[0][0] + 1.5}
+                  y={calibrationPoints[0][1] - 1}
+                  fontSize={1.8}
+                  fontFamily="DM Sans"
+                  fontWeight={650}
+                  fill={myColor}
+                >
+                  1
+                </text>
+              </g>
+            ) : null}
             {tool === "measure_area" && areaPoints.length > 0 ? (
               <g>
                 <polyline

@@ -43,6 +43,7 @@ export default async function ContractorSheetIndexPage({
           disciplineCounts={counts}
           scopeDiscipline={view.scopeDiscipline}
           portal={view.portal}
+          canEditSheets={view.canEditSheets}
         />
         {pendingSheets.length > 0 ? (
           <ThumbnailMinter

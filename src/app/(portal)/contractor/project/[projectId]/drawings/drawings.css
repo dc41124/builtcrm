@@ -479,6 +479,27 @@
     height: auto;
   }
   .dr-detail .dr-detail-side { max-height: 60vh; }
+  /* Toolbar gets horizontally scrollable so the full tool strip stays
+   * reachable on a 375px phone without breaking to three lines. */
+  .dr-detail-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 8px 12px;
+    gap: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .dr-detail-toolbar > * { flex-shrink: 0; }
+  .dr-detail-canvas {
+    padding: 12px;
+  }
+  /* Mobile simplifies the edit toolset to what fits on a thumb: pen +
+   * comment. The rest of the tools remain clickable via the scrolling
+   * toolbar above, but the default .touch-simplified class hides them
+   * on narrow viewports. Hidden by default; the workspace adds this
+   * class to the tool-strip container when the viewport is narrow. */
+  .dr-tool-strip-simplified > button:not(.t-pen):not(.t-comment):not(.t-select) {
+    display: none;
+  }
 }
 .dr-detail-toolbar {
   grid-area: toolbar;
@@ -499,6 +520,12 @@
   justify-content: center;
   padding: 24px;
   position: relative;
+  /* Enable native pinch-zoom inside the scrollable canvas on touchscreens.
+   * Also allows one-finger pan-x/y. Drawing tools claim pointer events
+   * from the overlay, so two-finger gestures still flow through to the
+   * container for zoom. */
+  touch-action: pinch-zoom pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 .dr-detail-side {
   grid-area: side;

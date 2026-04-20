@@ -211,6 +211,11 @@ export type DrawingSetIndexView = {
   sheets: SheetSummary[];
   scopeDiscipline: string | null;
   canUpload: boolean;
+  // Editing sheet metadata (number / title / discipline) is a set-wide
+  // state operation, so we gate on `drawing:write` — same as upload.
+  // Subs who can annotate but not manage sets stay read-only in the
+  // index view's thumbnail cards.
+  canEditSheets: boolean;
   // Short-lived presigned GET URL for the source PDF — used client-side by
   // the thumbnail minter to render missing thumbnails. Null if the set
   // hasn't finished uploading yet. Separate from the detail-view
@@ -345,6 +350,7 @@ export async function getDrawingSetIndex(input: {
     sheets,
     scopeDiscipline: scope,
     canUpload: ctx.permissions.can("drawing", "write"),
+    canEditSheets: ctx.permissions.can("drawing", "write"),
     sourcePresignedUrl,
   };
 }
