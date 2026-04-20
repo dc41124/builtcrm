@@ -130,7 +130,7 @@ const REPORTS: ReportDef[] = [
   { id: "compliance", category: "compliance", label: "Compliance", Icon: IconShieldCheck, desc: "Expiring documents and sub matrix", built: true, origin: "Step 24.5" },
   { id: "prequal", category: "compliance", label: "Subcontractor Prequalification", Icon: IconCheckCircle2, desc: "Qualification status across subs", built: false, origin: "Step 49" },
   { id: "audit", category: "compliance", label: "Audit Log", Icon: IconHistory, desc: "System event history with filters", built: false, origin: "Phase 8-lite" },
-  { id: "lien-waivers", category: "compliance", label: "Lien Waiver Log", Icon: IconFileText, desc: "Waiver status per draw and sub", built: false, origin: "Step 40" },
+  { id: "lien-waivers", category: "compliance", label: "Lien Waiver Log", Icon: IconFileText, desc: "Waiver status per draw and sub", built: true, origin: "Step 40" },
   { id: "t5018", category: "tax_legal", label: "T5018 Tax Slips", Icon: IconScale, desc: "Annual CRA slip generator", built: false, origin: "Step 67" },
   { id: "holdback", category: "tax_legal", label: "Holdback Ledger", Icon: IconGavel, desc: "Ontario Construction Act tracking", built: false, origin: "Step 68" },
   { id: "allowances", category: "residential", label: "Allowance Balance", Icon: IconPalette, desc: "Running balance across allowances", built: false, origin: "Step 74" },
@@ -738,6 +738,8 @@ function renderReport(id: string, view: ReportsView) {
       return <PaymentTrackingReport view={view} />;
     case "weekly-reports":
       return <WeeklyReportsAggregateReport view={view} />;
+    case "lien-waivers":
+      return <LienWaiverLogReportView view={view} />;
     case "labor":
       return <LaborReport />;
     case "schedule":
@@ -2296,6 +2298,238 @@ function formatWeeklyReportSentAt(d: Date): string {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+// ----------------------------------------------------------------
+// Lien Waiver Log (Step 40) — every waiver across the portfolio with
+// per-row status, amount, draw, sub. Filterable by project + status.
+// ----------------------------------------------------------------
+
+function LienWaiverLogReportView({ view }: { view: ReportsView }) {
+  const summary = view.lienWaivers;
+  const [projectFilter, setProjectFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const projectOptions = useMemo(() => {
+    if (!summary) return [] as Array<{ id: string; name: string }>;
+    const seen = new Map<string, string>();
+    for (const r of summary.rows) seen.set(r.projectId, r.projectName);
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [summary]);
+
+  const filtered = useMemo(() => {
+    if (!summary) return [];
+    return summary.rows.filter((r) => {
+      if (projectFilter !== "all" && r.projectId !== projectFilter)
+        return false;
+      if (statusFilter !== "all" && r.lienWaiverStatus !== statusFilter)
+        return false;
+      return true;
+    });
+  }, [summary, projectFilter, statusFilter]);
+
+  if (!summary) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        Lien waiver log unavailable.
+      </div>
+    );
+  }
+  if (summary.rows.length === 0) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        No lien waivers recorded yet across the portfolio.
+        <div style={{ marginTop: 8, fontSize: 12 }}>
+          Waivers are created automatically when a draw is submitted (one per
+          active sub on the project).
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="rpt-k-row four">
+        <KPI
+          label="Outstanding"
+          value={summary.totals.outstandingCount.toString()}
+          sub={fmt(summary.totals.outstandingAmountCents / 100)}
+          tone={summary.totals.outstandingCount > 0 ? "warn" : "ok"}
+          Icon={IconAlertTriangle}
+        />
+        <KPI
+          label="Accepted"
+          value={summary.totals.acceptedCount.toString()}
+          sub="Cleared and on file"
+          tone="ok"
+          Icon={IconCheckCircle2}
+        />
+        <KPI
+          label="Rejected"
+          value={summary.totals.rejectedCount.toString()}
+          sub={
+            summary.totals.rejectedCount === 0
+              ? "None"
+              : "Need follow-up"
+          }
+          tone={summary.totals.rejectedCount > 0 ? "crit" : "neutral"}
+          Icon={IconAlertTriangle}
+        />
+        <KPI
+          label="Total"
+          value={summary.totals.totalCount.toString()}
+          sub="Across all draws"
+          Icon={IconFileText}
+        />
+      </div>
+
+      <div style={lienFilterBarStyle}>
+        <select
+          value={projectFilter}
+          onChange={(e) => setProjectFilter(e.target.value)}
+          style={lienSelectStyle}
+        >
+          <option value="all">All projects ({projectOptions.length})</option>
+          {projectOptions.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          style={lienSelectStyle}
+        >
+          <option value="all">All statuses</option>
+          <option value="requested">Requested</option>
+          <option value="submitted">Submitted</option>
+          <option value="accepted">Accepted</option>
+          <option value="rejected">Rejected</option>
+          <option value="waived">Waived</option>
+        </select>
+        <div style={lienFilterCountStyle}>
+          {filtered.length} of {summary.rows.length}
+        </div>
+      </div>
+
+      <Card padded={false}>
+        <div className="rpt-tbl-scroll">
+          <table className="rpt-data-tbl">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Draw</th>
+                <th>Organization</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th className="rpt-right">Amount</th>
+                <th>Through</th>
+                <th>Age</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.projectName}</td>
+                  <td>#{r.drawNumber.toString().padStart(3, "0")}</td>
+                  <td>
+                    {r.organizationName}
+                    <span style={lienOrgKindStyle}>
+                      {r.organizationKind === "contractor" ? " · GC" : " · Sub"}
+                    </span>
+                  </td>
+                  <td>{lienWaiverTypeLabel(r.lienWaiverType)}</td>
+                  <td>{lienWaiverStatusLabel(r.lienWaiverStatus)}</td>
+                  <td className="rpt-right">{fmt(r.amountCents / 100)}</td>
+                  <td>
+                    {r.throughDate
+                      ? new Date(r.throughDate).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })
+                      : "—"}
+                  </td>
+                  <td>{r.ageDays != null ? `${r.ageDays}d` : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+const lienFilterBarStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+  marginBottom: 12,
+  padding: "10px 0",
+  fontFamily: "var(--fb)",
+};
+
+const lienSelectStyle: React.CSSProperties = {
+  padding: "6px 10px",
+  borderRadius: "var(--r-m)",
+  border: "1px solid var(--s3)",
+  background: "var(--s1)",
+  color: "var(--t1)",
+  fontFamily: "var(--fb)",
+  fontSize: 12,
+  fontWeight: 540,
+};
+
+const lienFilterCountStyle: React.CSSProperties = {
+  marginLeft: "auto",
+  fontSize: 11,
+  fontWeight: 620,
+  color: "var(--t3)",
+  fontFamily: "var(--fb)",
+};
+
+const lienOrgKindStyle: React.CSSProperties = {
+  marginLeft: 4,
+  fontSize: 10,
+  fontWeight: 700,
+  color: "var(--t3)",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+};
+
+function lienWaiverTypeLabel(t: string): string {
+  switch (t) {
+    case "conditional_progress":
+      return "Conditional · Progress";
+    case "unconditional_progress":
+      return "Unconditional · Progress";
+    case "conditional_final":
+      return "Conditional · Final";
+    case "unconditional_final":
+      return "Unconditional · Final";
+    default:
+      return t;
+  }
+}
+
+function lienWaiverStatusLabel(s: string): string {
+  switch (s) {
+    case "requested":
+      return "Requested";
+    case "submitted":
+      return "Submitted";
+    case "accepted":
+      return "Accepted";
+    case "rejected":
+      return "Rejected";
+    case "waived":
+      return "Waived";
+    default:
+      return s;
+  }
 }
 
 // ----------------------------------------------------------------
