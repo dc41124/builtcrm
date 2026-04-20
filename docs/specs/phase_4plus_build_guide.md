@@ -4966,6 +4966,83 @@ Phase 4+ is complete. All 80–82 items shipped.
 
 ---
 
+# Deferred V2+ Work (Explicit Follow-Ups)
+
+Items that were explicitly scope-cut out of their V1 step and need to ship eventually. These live outside any Phase gate — slot them in opportunistically once the MVP is in front of real users and the ROI is clearer.
+
+## Step 83 — Drawings V2: BIM + Real-Time Markup + Advanced Annotation
+
+**Mode:** Require-design-input (this is effectively a second drawings module on top of the one from Step 44)
+**Item:** Deferred from 5.1 #44
+**Effort:** XL (probably 4–6 weeks across the three sub-items, depending on how deep we go)
+**Priority:** P2 (post-MVP — Step 44's V1 is enough to demo commercial GC parity; this is the leap to Procore/Bluebeam depth)
+
+### What this does
+
+Closes the V2 defer list the user committed to when we set the Step 44 scope ladder. Three roughly independent sub-features bundled here because they all live inside the drawings module and share the same canvas/overlay architecture:
+
+1. **BIM / IFC integration.** View and anchor markup against a federated 3D model (IFC format from Revit/ArchiCAD/etc). Not full model authoring — view-only, with the same markup/comment/measurement overlay we built for 2D sheets. The interesting part is keeping 2D sheet markups and 3D model markups in one cross-referenceable system.
+2. **Real-time multi-user markup.** Presence cursors, live shape updates, collaborative edit without save conflicts. Replaces the debounced-per-user JSON-doc pattern from V1 with an OT or CRDT layer. Markup/measurement/comment writes go through the same endpoints but with a broadcast step.
+3. **Advanced annotation.** Clouds, callouts, stamps, polylines, arrows, cutout/clip regions — the Bluebeam toolbar that V1 intentionally skipped. Also includes vector-level PDF diff (replacing the pixel-luminance diff from Step 44's compare mode — vector diff is more accurate but substantially harder).
+
+### Tell Claude Code:
+
+> **This is a Step-44-scale item — re-do the scope ladder before writing anything.** The three sub-features are independent enough that they can ship separately. Propose a ladder: which of BIM / real-time / advanced-annotation is V2-must-have vs. later? Claude Code should NOT assume all three ship together.
+>
+> Once the ladder is locked, each sub-feature has its own design-input pass:
+>
+> 1. **BIM.**
+>    - Library: `@thatopen/components` (formerly IFC.js) or `web-ifc` directly. Recommend `@thatopen/components` — higher-level, includes a viewer + selection + properties panel out of the box.
+>    - Storage: IFC files live in R2 alongside PDFs; a new `drawing_models` table mirrors `drawing_sets` (version chain, supersedesId, asBuilt).
+>    - Markup: reuse `drawing_markups` but extend the shape union with a 3D variant carrying (objectId, point3d, normal). The overlay becomes a Three.js scene instead of SVG.
+>    - Scope cut for a first pass: view-only, no federation, no property-set editing, no clash detection. All deferred.
+>    - **New deps likely: @thatopen/components, three. Stop and ask before installing.**
+>
+> 2. **Real-time markup.**
+>    - Transport: Cloudflare Durable Objects or a websocket server. Upstash doesn't do pub/sub well for this; a DO or a Liveblocks/PartyKit integration is cleaner.
+>    - Conflict model: Yjs CRDT is the honest answer. Markup/measurement docs become Y.Array-backed; the PUT endpoints become Yjs doc syncs instead of full-doc PUTs.
+>    - Presence: Yjs awareness for cursor positions + tool-in-use.
+>    - **Schema change:** likely not — Yjs state serializes back into the existing `markup_data` jsonb column on persistence intervals. But it's worth reconfirming once the library choice is locked.
+>    - Scope cut: only markup/measurements are real-time; comment threads stay server-authoritative POST. Comments are low-frequency and the atomic pin_number logic is already solved.
+>
+> 3. **Advanced annotation.**
+>    - Extend the `MarkupShape` union with: `cloud` (polyline with a bubbly stroke filter), `callout` (leader + text box), `stamp` (named image overlay — APPROVED, VOID, etc), `arrow`, `polyline`, `cutout` (mask region). Each type needs a toolbar button, pointer flow, and serialized shape.
+>    - Vector PDF diff: pdf.js can expose per-page vector operations; a true diff requires walking both page operation lists and reporting adds/deletes/moves. This is research-territory — budget a spike before committing.
+>    - Fallback: if vector diff turns out to be a 2-week rabbit hole, keep the pixel diff from Step 44 and ship the other annotations. Document the cut.
+>
+> **Schema changes likely across all three. Stop-and-ask gates apply.**
+
+### What to check
+
+- BIM: upload an IFC, view it in 3D, drop a markup on a 3D object, markup persists across reloads
+- Real-time: two browsers on the same sheet see each other's cursors and markup strokes within 300ms
+- Advanced annotation: cloud / callout / stamp tools work and round-trip through the existing markup endpoints
+- Vector diff (if shipped): flags a real vector change between two versions without noise from anti-aliasing
+- Sub-scoping still enforced on all three — no regression on Step 44's discipline filter
+- Mobile behavior degrades gracefully (BIM view is unlikely to feel good on a phone; real-time awareness should still show other users as you view)
+- `npm run build && npm run lint` clean after each sub-feature
+
+### Commit:
+
+Each sub-feature commits independently as its own `Step 83 (partial)` line (BIM, real-time, annotation) so the work is bisectable. Final wrap-up commit:
+
+```bash
+git add .
+git commit -m "Step 83 (drawings V2): BIM + real-time + advanced annotation"
+```
+
+### Why this is deferred, for future context
+
+Step 44 V1 was a 3-week timeboxed build explicitly scoped to demo commercial GC parity, not to match Bluebeam/Procore feature-for-feature. The V2 items above were cut during ladder-setting because:
+
+- **BIM** requires a 3D viewer library, a distinct storage path, and an overlay rewrite — it's effectively a parallel module, not a feature add.
+- **Real-time** requires infra (Durable Objects / PartyKit / Liveblocks) and a CRDT layer — "cheap" implementations (polling, last-write-wins) would undermine the "feels like Bluebeam" bar.
+- **Advanced annotation** is a long tail of per-tool work that has diminishing demo value — the V1 set (pen/rect/circle/text/pin + linear/area measurement) already gets a prospect to "this is a real markup tool."
+
+Revisit trigger: (a) a prospect explicitly asks for BIM, (b) two users on the same sheet becomes a recurring support ticket, or (c) we pitch an enterprise-tier account where Procore-depth is a dealbreaker.
+
+---
+
 ## How to Handle Getting Stuck
 
 Phase 4+ introduces surfaces Phase 3 didn't — schema changes, new integrations, AI tooling, PWA service workers. Stuck points are different in shape. The rules below extend (not replace) Phase 3's stuck-handling.
