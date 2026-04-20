@@ -7,11 +7,16 @@ import { Button } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
 import { Pill } from "@/components/pill";
 import type {
-  ClientWeeklyReportDetailView,
-  ClientWeeklyReportsView,
+  ClientWeeklyReportDetailView as FullClientWeeklyReportDetailView,
+  ClientWeeklyReportsView as FullClientWeeklyReportsView,
   WeeklyReportSection,
   WeeklyReportSummaryRow,
 } from "@/domain/loaders/weekly-reports";
+
+// Client-safe variants — drop `context`, which carries the non-serializable
+// permissions.can function. The page strips context before rendering.
+type ClientWeeklyReportsView = Omit<FullClientWeeklyReportsView, "context">;
+type ClientWeeklyReportDetailView = Omit<FullClientWeeklyReportDetailView, "context">;
 
 // Commercial client weekly-report read view. Mirrors the prototype's
 // 2-column commercial layout: reports timeline (left) | document-style
@@ -88,7 +93,7 @@ export function CommercialWeeklyReportsView({
           activeId={detail?.report.id ?? null}
         />
         {detail ? (
-          <ReportDocument detail={detail} />
+          <ReportDocument detail={detail} projectId={projectId} />
         ) : (
           <div style={{ ...docStyle, padding: 32 }}>
             <EmptyState
@@ -157,7 +162,13 @@ function Timeline({
 // Doc-style read (right)
 // --------------------------------------------------------------------------
 
-function ReportDocument({ detail }: { detail: ClientWeeklyReportDetailView }) {
+function ReportDocument({
+  detail,
+  projectId,
+}: {
+  detail: ClientWeeklyReportDetailView;
+  projectId: string;
+}) {
   const { report, project } = detail;
   return (
     <article style={docStyle}>
@@ -196,6 +207,12 @@ function ReportDocument({ detail }: { detail: ClientWeeklyReportDetailView }) {
           <Button variant="secondary" onClick={() => window.print()}>
             Save as PDF
           </Button>
+          <Link
+            href={`/commercial/project/${projectId}/messages`}
+            style={{ textDecoration: "none" }}
+          >
+            <Button variant="primary">Reply</Button>
+          </Link>
         </div>
       </footer>
     </article>

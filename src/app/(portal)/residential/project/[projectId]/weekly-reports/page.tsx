@@ -66,5 +66,17 @@ export default async function ResidentialWeeklyReportsPage({
     }
   }
 
-  return <UI projectId={projectId} listView={listView} detail={detail} />;
+  // Strip `context` before passing to the client component — permissions.can
+  // is a function and can't cross the server/client boundary.
+  const { context: _lvCtx, ...listViewProps } = listView;
+  const detailProps = detail
+    ? (() => {
+        const { context: _dCtx, ...rest } = detail;
+        return rest;
+      })()
+    : null;
+
+  return (
+    <UI projectId={projectId} listView={listViewProps} detail={detailProps} />
+  );
 }

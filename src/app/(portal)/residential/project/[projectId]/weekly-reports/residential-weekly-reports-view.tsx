@@ -8,10 +8,18 @@ import { EmptyState } from "@/components/empty-state";
 import { Pill, type PillColor } from "@/components/pill";
 import type {
   ResidentialReshapedReport,
-  ResidentialWeeklyReportDetailView,
-  ResidentialWeeklyReportsView as ListView,
+  ResidentialWeeklyReportDetailView as FullResidentialWeeklyReportDetailView,
+  ResidentialWeeklyReportsView as FullResidentialWeeklyReportsView,
 } from "@/domain/loaders/weekly-reports-residential";
 import type { WeeklyReportSummaryRow } from "@/domain/loaders/weekly-reports";
+
+// Client-safe variants — drop `context`, which carries the non-serializable
+// permissions.can function. The page strips context before rendering.
+type ListView = Omit<FullResidentialWeeklyReportsView, "context">;
+type ResidentialWeeklyReportDetailView = Omit<
+  FullResidentialWeeklyReportDetailView,
+  "context"
+>;
 
 // Residential client weekly-report read view ("This week at your home").
 // Hero card + 5-card grid mirrors the prototype's residential layout.

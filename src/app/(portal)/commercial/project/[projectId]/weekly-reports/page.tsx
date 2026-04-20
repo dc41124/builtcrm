@@ -65,11 +65,21 @@ export default async function CommercialWeeklyReportsPage({
     }
   }
 
+  // Strip `context` before passing to the client component — permissions.can
+  // is a function and can't cross the server/client boundary.
+  const { context: _lvCtx, ...listViewProps } = listView;
+  const detailProps = detail
+    ? (() => {
+        const { context: _dCtx, ...rest } = detail;
+        return rest;
+      })()
+    : null;
+
   return (
     <CommercialWeeklyReportsView
       projectId={projectId}
-      listView={listView}
-      detail={detail}
+      listView={listViewProps}
+      detail={detailProps}
     />
   );
 }

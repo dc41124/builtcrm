@@ -67,11 +67,22 @@ export default async function ContractorWeeklyReportsPage({
     }
   }
 
+  // Strip `context` before handing off to the client component — it carries
+  // permissions.can (a function), which Next.js can't serialize across the
+  // server/client boundary. The workspace doesn't need context.
+  const { context: _lvCtx, ...listViewProps } = listView;
+  const detailProps = detail
+    ? (() => {
+        const { context: _dCtx, ...rest } = detail;
+        return rest;
+      })()
+    : null;
+
   return (
     <WeeklyReportsWorkspace
       projectId={projectId}
-      listView={listView}
-      detail={detail}
+      listView={listViewProps}
+      detail={detailProps}
     />
   );
 }

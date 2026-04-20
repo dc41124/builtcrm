@@ -8,11 +8,17 @@ import { Button } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
 import { Pill, type PillColor } from "@/components/pill";
 import type {
-  ContractorWeeklyReportDetailView,
-  ContractorWeeklyReportsView,
+  ContractorWeeklyReportDetailView as FullContractorWeeklyReportDetailView,
+  ContractorWeeklyReportsView as FullContractorWeeklyReportsView,
   WeeklyReportSection,
   WeeklyReportSummaryRow,
 } from "@/domain/loaders/weekly-reports";
+
+// Client-safe variants — drop `context`, which carries the non-serializable
+// permissions.can function. Next.js forbids passing functions across the
+// server/client boundary, so the page strips context before rendering.
+type ContractorWeeklyReportsView = Omit<FullContractorWeeklyReportsView, "context">;
+type ContractorWeeklyReportDetailView = Omit<FullContractorWeeklyReportDetailView, "context">;
 
 // Contractor weekly-reports workspace. Mirrors the prototype's 3-column
 // contractor view: list (left) | editor (center) | rail (right).
@@ -235,27 +241,89 @@ function ReportEditor({
 }) {
   const { report, recipients } = detail;
   const isLocked = report.status === "sent" || report.status === "archived";
+
+  // Lift drafts to the parent so the global "Save draft" button can batch
+  // every dirty change (summary + section overlays) into one round-trip.
+  // Per-block save buttons are gone — the section UI just toggles between
+  // viewing and editing the overlay; commit happens via Save draft.
   const [summaryDraft, setSummaryDraft] = useState(report.summaryText ?? "");
-  const [savingSummary, setSavingSummary] = useState(false);
+  const initialOverlays = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const s of report.sections) {
+      m[s.id] = (s.content.narrativeOverlay as string | undefined) ?? "";
+    }
+    return m;
+  }, [report.sections]);
+  const [overlayDrafts, setOverlayDrafts] =
+    useState<Record<string, string>>(initialOverlays);
+
+  const [savingDraft, setSavingDraft] = useState(false);
   const [sending, setSending] = useState(false);
 
-  async function saveSummary() {
-    if (savingSummary || isLocked) return;
-    setSavingSummary(true);
+  // Track which fields differ from server state.
+  const summaryDirty = summaryDraft !== (report.summaryText ?? "");
+  const dirtySectionIds = report.sections
+    .filter(
+      (s) =>
+        (overlayDrafts[s.id] ?? "") !==
+        ((s.content.narrativeOverlay as string | undefined) ?? ""),
+    )
+    .map((s) => s.id);
+  const dirtyCount = (summaryDirty ? 1 : 0) + dirtySectionIds.length;
+
+  function setOverlayDraft(sectionId: string, next: string) {
+    setOverlayDrafts((prev) => ({ ...prev, [sectionId]: next }));
+  }
+
+  function discardAll() {
+    setSummaryDraft(report.summaryText ?? "");
+    setOverlayDrafts(initialOverlays);
+  }
+
+  async function saveDraft() {
+    if (savingDraft || isLocked || dirtyCount === 0) return;
+    setSavingDraft(true);
     try {
-      const res = await fetch(`/api/weekly-reports/${report.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ summaryText: summaryDraft }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        alert(`Save failed: ${body.message ?? body.error ?? res.status}`);
+      const ops: Array<Promise<Response>> = [];
+      if (summaryDirty) {
+        ops.push(
+          fetch(`/api/weekly-reports/${report.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ summaryText: summaryDraft }),
+          }),
+        );
+      }
+      for (const sectionId of dirtySectionIds) {
+        const value = overlayDrafts[sectionId] ?? "";
+        ops.push(
+          fetch(
+            `/api/weekly-reports/${report.id}/sections/${sectionId}`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ narrativeOverlay: value || null }),
+            },
+          ),
+        );
+      }
+      const results = await Promise.all(ops);
+      const failures = results.filter((r) => !r.ok);
+      if (failures.length > 0) {
+        const msgs = await Promise.all(
+          failures.map((r) =>
+            r
+              .json()
+              .then((b) => b.message ?? b.error ?? `HTTP ${r.status}`)
+              .catch(() => `HTTP ${r.status}`),
+          ),
+        );
+        alert(`Some changes failed to save:\n${msgs.join("\n")}`);
         return;
       }
       onChanged();
     } finally {
-      setSavingSummary(false);
+      setSavingDraft(false);
     }
   }
 
@@ -303,18 +371,13 @@ function ReportEditor({
               : " · Not yet sent"}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-          <Link
-            href={`/contractor/project/${projectId}/weekly-reports/${report.id}/preview`}
-            style={{ textDecoration: "none" }}
-          >
-            <Button variant="secondary">Preview</Button>
-          </Link>
-        </div>
+        {/* Header actions intentionally lean — Preview is deferred until
+            the @react-pdf/renderer client view is wired (Step 39 polish). */}
       </div>
 
       <div style={{ padding: "18px 22px 22px" }}>
-        {/* Summary block — special-styled, always editable when not locked */}
+        {/* Summary block — special-styled, always editable when not locked.
+            Save lives in the global footer. */}
         <div style={summaryBlockStyle}>
           <div style={summaryHeaderStyle}>
             <span style={summaryHeaderTitleStyle}>Week summary</span>
@@ -331,23 +394,6 @@ function ReportEditor({
               placeholder="Write a short narrative for the client. Auto-pulled section data appears below."
               style={summaryTextareaStyle}
             />
-            {!isLocked && summaryDraft !== (report.summaryText ?? "") && (
-              <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end", gap: 6 }}>
-                <Button
-                  variant="ghost"
-                  onClick={() => setSummaryDraft(report.summaryText ?? "")}
-                >
-                  Discard
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={saveSummary}
-                  loading={savingSummary}
-                >
-                  Save summary
-                </Button>
-              </div>
-            )}
           </div>
         </div>
 
@@ -355,9 +401,9 @@ function ReportEditor({
           <SectionBlock
             key={section.id}
             section={section}
-            reportId={report.id}
             isLocked={isLocked}
-            onChanged={onChanged}
+            overlayDraft={overlayDrafts[section.id] ?? ""}
+            setOverlayDraft={(next) => setOverlayDraft(section.id, next)}
           />
         ))}
       </div>
@@ -398,11 +444,41 @@ function ReportEditor({
           )}
         </div>
         <div style={{ display: "flex", gap: 6 }}>
+          {!isLocked && (
+            <>
+              {dirtyCount > 0 && (
+                <Button
+                  variant="ghost"
+                  onClick={discardAll}
+                  disabled={savingDraft}
+                >
+                  Discard
+                </Button>
+              )}
+              <Button
+                variant="secondary"
+                onClick={saveDraft}
+                loading={savingDraft}
+                disabled={dirtyCount === 0}
+              >
+                {dirtyCount === 0
+                  ? "Save draft"
+                  : `Save draft (${dirtyCount} change${dirtyCount === 1 ? "" : "s"})`}
+              </Button>
+            </>
+          )}
           <Button
             variant="primary"
-            disabled={isLocked || recipients.length === 0}
+            disabled={
+              isLocked || recipients.length === 0 || dirtyCount > 0
+            }
             loading={sending}
             onClick={sendReport}
+            title={
+              dirtyCount > 0
+                ? "Save your draft changes before sending."
+                : undefined
+            }
           >
             Send to client
           </Button>
@@ -416,46 +492,29 @@ function ReportEditor({
 // Section block — renders structured snapshot + editable narrativeOverlay
 // --------------------------------------------------------------------------
 
+// Controlled section block. Overlay draft + setter come from the parent
+// editor so the global "Save draft" button can batch every dirty change.
+// The pencil only toggles whether the textarea is visible — actual commit
+// happens in the footer.
 function SectionBlock({
   section,
-  reportId,
   isLocked,
-  onChanged,
+  overlayDraft,
+  setOverlayDraft,
 }: {
   section: WeeklyReportSection;
-  reportId: string;
   isLocked: boolean;
-  onChanged: () => void;
+  overlayDraft: string;
+  setOverlayDraft: (next: string) => void;
 }) {
   const overlay = (section.content.narrativeOverlay as string | undefined) ?? "";
-  const [overlayDraft, setOverlayDraft] = useState(overlay);
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
+  // Open the editor automatically when there's an unsaved overlay draft
+  // (e.g. the user typed, then collapsed and re-expanded a different
+  // section). Falls back to "show preview when value matches saved."
+  const isDirty = overlayDraft !== overlay;
+  const [expanded, setExpanded] = useState(isDirty);
 
-  async function saveOverlay() {
-    if (saving || isLocked) return;
-    setSaving(true);
-    try {
-      const res = await fetch(
-        `/api/weekly-reports/${reportId}/sections/${section.id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ narrativeOverlay: overlayDraft || null }),
-        },
-      );
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        alert(`Save failed: ${body.message ?? body.error ?? res.status}`);
-        return;
-      }
-      setEditing(false);
-      onChanged();
-    } finally {
-      setSaving(false);
-    }
-  }
-
+  const showEditor = expanded || isDirty;
   const itemCount = countItems(section);
 
   return (
@@ -469,38 +528,30 @@ function SectionBlock({
             {itemCount === 0
               ? "No items this week"
               : `${itemCount} item${itemCount === 1 ? "" : "s"} · auto-pulled`}
+            {isDirty ? " · unsaved" : ""}
           </span>
         </div>
         {!isLocked && (
-          <Button
-            variant="ghost"
-            onClick={() => setEditing(!editing)}
-          >
-            {editing ? "Cancel" : "Edit overlay"}
+          <Button variant="ghost" onClick={() => setExpanded(!showEditor)}>
+            {showEditor
+              ? "Hide overlay"
+              : overlay
+                ? "Edit overlay"
+                : "Add overlay"}
           </Button>
         )}
       </div>
       <div style={{ padding: "14px 16px" }}>
-        {overlay && !editing && (
+        {overlay && !showEditor && (
           <div style={overlayPreviewStyle}>{overlay}</div>
         )}
-        {editing && !isLocked && (
-          <>
-            <textarea
-              value={overlayDraft}
-              onChange={(e) => setOverlayDraft(e.target.value)}
-              placeholder="Optional narrative on top of the auto-pulled items."
-              style={overlayTextareaStyle}
-            />
-            <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end", gap: 6 }}>
-              <Button variant="ghost" onClick={() => { setOverlayDraft(overlay); setEditing(false); }}>
-                Discard
-              </Button>
-              <Button variant="primary" onClick={saveOverlay} loading={saving}>
-                Save
-              </Button>
-            </div>
-          </>
+        {showEditor && !isLocked && (
+          <textarea
+            value={overlayDraft}
+            onChange={(e) => setOverlayDraft(e.target.value)}
+            placeholder="Optional narrative on top of the auto-pulled items. Save it from the footer."
+            style={overlayTextareaStyle}
+          />
         )}
         <SectionContentRenderer section={section} />
       </div>
