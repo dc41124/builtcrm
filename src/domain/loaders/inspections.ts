@@ -498,11 +498,14 @@ export async function getInspection(
     }
   }
 
-  const canEdit =
-    (isContractor && row.status !== "completed" && row.status !== "cancelled") ||
-    (isSub && row.status === "in_progress");
+  // Both contractor and the assigned sub can edit scheduled + in_progress
+  // inspections. Recording the first result transitions scheduled →
+  // in_progress server-side (see /api/inspection-results), so the sub
+  // flow of "open a scheduled inspection and start checking items"
+  // works without requiring a contractor round-trip to flip status.
+  const canEdit = row.status !== "completed" && row.status !== "cancelled";
   const canComplete =
-    isContractor || (isSub && row.status === "in_progress");
+    row.status !== "completed" && row.status !== "cancelled";
 
   return {
     ...row,
