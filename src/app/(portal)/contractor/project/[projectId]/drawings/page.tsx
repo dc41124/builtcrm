@@ -7,6 +7,7 @@ import { getDrawingSetsIndex } from "@/domain/loaders/drawings";
 import { AuthorizationError } from "@/domain/permissions";
 
 import { AsBuiltToggle } from "./as-built-toggle";
+import { DisciplineTag } from "./sheet-thumbnail";
 import "./drawings.css";
 
 function formatFileSize(bytes: number | null): string {
@@ -15,6 +16,14 @@ function formatFileSize(bytes: number | null): string {
   if (mb >= 1) return `${mb.toFixed(1)} MB`;
   const kb = bytes / 1024;
   return `${kb.toFixed(0)} KB`;
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function formatRelative(iso: string): string {
@@ -27,8 +36,75 @@ function formatRelative(iso: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.round(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
+
+const FileIcon = () => (
+  <svg
+    width="22"
+    height="22"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+  </svg>
+);
+
+const ChevRightIcon = () => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="m9 18 6-6-6-6" />
+  </svg>
+);
+
+const EyeIcon = () => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const UploadIcon = () => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+    <polyline points="17 8 12 3 7 8" />
+    <line x1="12" y1="3" x2="12" y2="15" />
+  </svg>
+);
 
 export default async function ContractorDrawingsSetsPage({
   params,
@@ -49,71 +125,101 @@ export default async function ContractorDrawingsSetsPage({
       view.portal === "subcontractor"
         ? `/subcontractor/project/${projectId}`
         : `/contractor/project/${projectId}`;
+    const isSub = view.portal === "subcontractor";
 
-    const currents = view.sets.filter((s) => s.status === "current");
-    const totalSheets = currents.reduce((a, s) => a + s.sheetCount, 0);
-    const supersededCount = view.sets.filter(
-      (s) => s.status === "superseded",
-    ).length;
-    const asBuiltCount = currents.filter((s) => s.asBuilt).length;
-    const processingCount = view.sets.filter(
-      (s) =>
-        s.processingStatus === "pending" || s.processingStatus === "processing",
-    ).length;
+    // Version chain for the rail card. Groups sets by family and sorts
+    // each group by version desc; the prototype shows only the current
+    // project's primary family ("cd") but we show the longest chain so
+    // multiple-family projects get the most-relevant rail card.
+    const familyGroups = new Map<string, typeof view.sets>();
+    for (const s of view.sets) {
+      const arr = familyGroups.get(s.family) ?? [];
+      arr.push(s);
+      familyGroups.set(s.family, arr);
+    }
+    let longestChain: typeof view.sets = [];
+    let longestChainFamily = "";
+    familyGroups.forEach((arr, family) => {
+      if (arr.length > longestChain.length) {
+        longestChain = arr;
+        longestChainFamily = family;
+      }
+    });
+    longestChain = [...longestChain].sort((a, b) => b.version - a.version);
 
     return (
-      <div className="dr-page">
+      <div className="dr-content">
         <div className="dr-page-hdr">
           <div>
             <h1 className="dr-page-title">Drawings</h1>
             <p className="dr-page-desc">
-              Sheet sets, version chains, and markup. Upload a new PDF sheet set
-              to supersede an existing version.
+              Sheet management, markup, and version control. Uploaded sheet
+              sets are split into per-sheet pages with auto-extracted sheet
+              numbers. New versions supersede old ones — older versions remain
+              accessible.
             </p>
           </div>
           <div className="dr-page-actions">
             {view.canUpload ? (
-              <Link
-                className="dr-btn primary"
-                href={`${portalBase}/drawings/new`}
-              >
-                Upload sheet set
+              <Link className="dr-btn primary" href={`${portalBase}/drawings/new`}>
+                <UploadIcon />
+                Upload Set
               </Link>
             ) : null}
           </div>
         </div>
 
+        {isSub ? (
+          <div className="dr-sub-banner">
+            <EyeIcon />
+            <span>
+              You&apos;re viewing as <strong>{view.context.organization.name}</strong>
+              {" "}— scoped to your trade discipline. You can view all sets but
+              markups and comments are limited to your scope.
+            </span>
+          </div>
+        ) : null}
+
+        {/* Summary strip — matches prototype: Active Sets / Total Sheets /
+            Changed in current / Active Markups / Open Comments */}
         <div className="dr-summary">
           <div className="dr-sc strong">
-            <div className="dr-sc-label">Current sets</div>
-            <div className="dr-sc-value">{currents.length}</div>
-            <div className="dr-sc-meta">{view.sets.length} total incl. history</div>
-          </div>
-          <div className="dr-sc info">
-            <div className="dr-sc-label">Sheets in current</div>
-            <div className="dr-sc-value">{totalSheets}</div>
-            <div className="dr-sc-meta">Live sheet count</div>
-          </div>
-          <div className="dr-sc alert">
-            <div className="dr-sc-label">Processing</div>
-            <div className="dr-sc-value">{processingCount}</div>
+            <div className="dr-sc-label">Active Sets</div>
+            <div className="dr-sc-value">{view.aggregates.activeSets}</div>
             <div className="dr-sc-meta">
-              {processingCount ? "Extraction in progress" : "All sets ready"}
+              {view.sets.length - view.aggregates.activeSets} superseded / historical
             </div>
           </div>
-          <div className="dr-sc success">
-            <div className="dr-sc-label">As-built</div>
-            <div className="dr-sc-value">{asBuiltCount}</div>
-            <div className="dr-sc-meta">Closeout-ready</div>
+          <div className="dr-sc info">
+            <div className="dr-sc-label">Total Sheets</div>
+            <div className="dr-sc-value">{view.aggregates.totalSheetsCurrent}</div>
+            <div className="dr-sc-meta">Across active sets</div>
+          </div>
+          <div className="dr-sc alert">
+            <div className="dr-sc-label">Changed this version</div>
+            <div className="dr-sc-value">{view.aggregates.changedInCurrent}</div>
+            <div className="dr-sc-meta">vs. previous revision</div>
           </div>
           <div className="dr-sc teal">
-            <div className="dr-sc-label">Superseded</div>
-            <div className="dr-sc-value">{supersededCount}</div>
-            <div className="dr-sc-meta">History retained</div>
+            <div className="dr-sc-label">Active Markups</div>
+            <div className="dr-sc-value">{view.aggregates.markupsAcrossCurrent}</div>
+            <div className="dr-sc-meta">Team annotations</div>
+          </div>
+          <div className="dr-sc success">
+            <div className="dr-sc-label">Open Comments</div>
+            <div className="dr-sc-value">
+              {view.aggregates.openCommentsAcrossCurrent}
+            </div>
+            <div className="dr-sc-meta">
+              {view.aggregates.resolvedCommentsAcrossCurrent
+                ? `${view.aggregates.resolvedCommentsAcrossCurrent} resolved`
+                : "no resolved yet"}
+            </div>
           </div>
         </div>
 
         <div className="dr-sets-grid">
+          {/* Sets list */}
           <div className="dr-sets-list">
             {view.sets.length === 0 ? (
               <div className="dr-empty">
@@ -124,93 +230,165 @@ export default async function ContractorDrawingsSetsPage({
                   on the index page.
                 </p>
                 {view.canUpload ? (
-                  <Link
-                    className="dr-btn primary"
-                    href={`${portalBase}/drawings/new`}
-                  >
+                  <Link className="dr-btn primary" href={`${portalBase}/drawings/new`}>
+                    <UploadIcon />
                     Upload sheet set
                   </Link>
                 ) : null}
               </div>
             ) : (
-              view.sets.map((s) => (
-                <Link
-                  key={s.id}
-                  className={`dr-set-card ${s.status}`}
-                  href={`${portalBase}/drawings/${s.id}`}
-                >
-                  <div className="dr-set-icon">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                    </svg>
-                  </div>
-                  <div className="dr-set-body">
-                    <div className="dr-set-title-row">
-                      <div className="dr-set-title">{s.name}</div>
-                      <div className="dr-set-ver">v{s.version}</div>
-                      {s.status === "current" ? (
-                        <span className="dr-pill accent">Current</span>
-                      ) : s.status === "superseded" ? (
-                        <span className="dr-pill gray">Superseded</span>
-                      ) : (
-                        <span className="dr-pill gray">Historical</span>
-                      )}
-                      {view.canUpload ? (
-                        <AsBuiltToggle
-                          setId={s.id}
-                          initialAsBuilt={s.asBuilt}
-                        />
-                      ) : s.asBuilt ? (
-                        <span className="dr-pill green">As-built</span>
-                      ) : null}
-                      {s.processingStatus === "processing" ||
-                      s.processingStatus === "pending" ? (
-                        <span className="dr-pill orange">
-                          {s.processingStatus === "processing"
-                            ? "Extracting…"
-                            : "Uploading…"}
-                        </span>
-                      ) : null}
-                      {s.processingStatus === "failed" ? (
-                        <span className="dr-pill red">Failed</span>
+              view.sets.map((s) => {
+                const iconClass =
+                  s.family === "shell"
+                    ? "shell"
+                    : s.status === "current"
+                      ? ""
+                      : "old";
+                return (
+                  <Link
+                    key={s.id}
+                    href={`${portalBase}/drawings/${s.id}`}
+                    className={`dr-set-card ${s.status}`}
+                  >
+                    <div className={`dr-set-icon ${iconClass}`}>
+                      <FileIcon />
+                    </div>
+                    <div className="dr-set-body">
+                      <div className="dr-set-title-row">
+                        <span className="dr-set-title">{s.name}</span>
+                        <span className="dr-set-ver">v{s.version}</span>
+                        {s.status === "current" ? (
+                          <span className="dr-pill accent">Current</span>
+                        ) : s.status === "superseded" ? (
+                          <span className="dr-pill gray">Superseded</span>
+                        ) : (
+                          <span className="dr-pill gray">Historical</span>
+                        )}
+                        {view.canUpload ? (
+                          <AsBuiltToggle
+                            setId={s.id}
+                            initialAsBuilt={s.asBuilt}
+                          />
+                        ) : s.asBuilt ? (
+                          <span className="dr-pill green">As-built</span>
+                        ) : null}
+                        {s.processingStatus === "processing" ||
+                        s.processingStatus === "pending" ? (
+                          <span className="dr-pill orange">
+                            {s.processingStatus === "processing"
+                              ? "Extracting…"
+                              : "Uploading…"}
+                          </span>
+                        ) : null}
+                        {s.processingStatus === "failed" ? (
+                          <span className="dr-pill red">Failed</span>
+                        ) : null}
+                      </div>
+                      {s.note ? <p className="dr-set-note">{s.note}</p> : null}
+                      <div className="dr-set-stats">
+                        <div className="dr-set-stat">
+                          <span className="dr-set-stat-k">Sheets</span>
+                          <span className="dr-set-stat-v">{s.sheetCount}</span>
+                        </div>
+                        <div className="dr-set-stat">
+                          <span className="dr-set-stat-k">Uploaded</span>
+                          <span className="dr-set-stat-v">
+                            {formatDate(s.uploadedAt)}
+                          </span>
+                        </div>
+                        <div className="dr-set-stat">
+                          <span className="dr-set-stat-k">By</span>
+                          <span className="dr-set-stat-v">
+                            {s.uploadedByName ?? "—"}
+                          </span>
+                        </div>
+                        <div className="dr-set-stat">
+                          <span className="dr-set-stat-k">Size</span>
+                          <span className="dr-set-stat-v">
+                            {formatFileSize(s.fileSizeBytes)}
+                          </span>
+                        </div>
+                      </div>
+                      {Object.keys(s.disciplines).length > 0 ? (
+                        <div className="dr-set-disciplines">
+                          {Object.entries(s.disciplines)
+                            .filter(([code]) => code !== "?")
+                            .sort(([a], [b]) => a.localeCompare(b))
+                            .map(([code, count]) => (
+                              <DisciplineTag
+                                key={code}
+                                code={code}
+                                count={count}
+                              />
+                            ))}
+                          {s.disciplines["?"] ? (
+                            <span
+                              className="dr-set-disc-tag"
+                              style={{
+                                background: "var(--surface-2)",
+                                color: "var(--text-tertiary)",
+                                border: "1px solid var(--surface-3)",
+                              }}
+                            >
+                              Other · {s.disciplines["?"]}
+                            </span>
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
-                    {s.note ? <div className="dr-set-note">{s.note}</div> : null}
-                    <div className="dr-set-stats">
-                      <div className="dr-set-stat">
-                        <div className="dr-set-stat-k">Sheets</div>
-                        <div className="dr-set-stat-v">{s.sheetCount}</div>
-                      </div>
-                      <div className="dr-set-stat">
-                        <div className="dr-set-stat-k">Uploaded</div>
-                        <div className="dr-set-stat-v">
-                          {formatRelative(s.uploadedAt)}
-                        </div>
-                      </div>
-                      <div className="dr-set-stat">
-                        <div className="dr-set-stat-k">Size</div>
-                        <div className="dr-set-stat-v">
-                          {formatFileSize(s.fileSizeBytes)}
-                        </div>
-                      </div>
-                      <div className="dr-set-stat">
-                        <div className="dr-set-stat-k">By</div>
-                        <div className="dr-set-stat-v">
-                          {s.uploadedByName ?? "—"}
-                        </div>
-                      </div>
+                    <div
+                      style={{
+                        color: "var(--text-tertiary)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <ChevRightIcon />
                     </div>
-                  </div>
-                </Link>
-              ))
+                  </Link>
+                );
+              })
             )}
           </div>
 
+          {/* Rail: version chain + recent activity */}
           <div className="dr-rail">
+            {longestChain.length > 1 ? (
+              <div className="dr-card">
+                <div className="dr-card-hdr">
+                  <h3>Version Chain</h3>
+                  <span className="dr-pill gray">
+                    {longestChainFamily.toUpperCase()}
+                  </span>
+                </div>
+                <div className="dr-chain">
+                  {longestChain.map((v, i) => (
+                    <div
+                      key={v.id}
+                      className={`dr-chain-step${i === 0 ? " current" : ""}`}
+                    >
+                      <div className="dr-chain-dot">v{v.version}</div>
+                      <div className="dr-chain-info">
+                        <h5>
+                          {v.name} v{v.version}
+                          {i === 0 ? " — current" : ""}
+                        </h5>
+                        <p>
+                          {formatDate(v.uploadedAt)}
+                          {v.uploadedByName ? ` · ${v.uploadedByName}` : ""}
+                          {v.fileSizeBytes
+                            ? ` · ${formatFileSize(v.fileSizeBytes)}`
+                            : ""}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             <div className="dr-card">
               <div className="dr-card-hdr">
-                <h3>Recent activity</h3>
+                <h3>Recent Activity</h3>
               </div>
               <div className="dr-activity">
                 {view.activity.length === 0 ? (
@@ -221,7 +399,7 @@ export default async function ContractorDrawingsSetsPage({
                 ) : (
                   view.activity.map((a, i) => (
                     <div className="dr-a-item" key={`${a.time}-${i}`}>
-                      <span className="dr-a-dot" />
+                      <span className={`dr-a-dot ${a.color}`} />
                       <span className="dr-a-text">{a.text}</span>
                       <span className="dr-a-time">
                         {formatRelative(a.time)}

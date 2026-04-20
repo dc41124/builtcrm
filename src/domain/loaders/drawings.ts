@@ -46,6 +46,11 @@ export type DrawingSetSummary = {
   uploadedAt: string;
   note: string | null;
   processingStatus: "pending" | "processing" | "ready" | "failed";
+  // Per-discipline sheet counts for this set (keyed by single-char code:
+  // A/S/E/M/P/...). Sheets without a discipline get bucketed under "?".
+  // Used by the sets view to render the discipline tag strip on each
+  // card — matches the prototype's "A·14 S·8 E·9 M·7 P·4" display.
+  disciplines: Record<string, number>;
 };
 
 export type SheetSummary = {
@@ -128,10 +133,21 @@ export type DrawingsSetsView = {
   portal: DrawingsPortal;
   canUpload: boolean;
   sets: DrawingSetSummary[];
+  // Aggregates for the prototype's summary strip. Computed over the sets
+  // whose status='current' — historical/superseded are excluded.
+  aggregates: {
+    activeSets: number;
+    totalSheetsCurrent: number;
+    changedInCurrent: number;
+    markupsAcrossCurrent: number;
+    openCommentsAcrossCurrent: number;
+    resolvedCommentsAcrossCurrent: number;
+  };
   activity: Array<{
-    kind: "upload" | "supersede" | "asbuilt";
+    kind: "upload" | "supersede" | "asbuilt" | "markup" | "comment" | "resolved";
     text: string;
     time: string;
+    color: "purple" | "teal" | "green" | "orange";
   }>;
 };
 
@@ -170,6 +186,28 @@ export async function getDrawingSetsIndex(input: {
     .where(eq(drawingSets.projectId, input.projectId))
     .orderBy(desc(drawingSets.uploadedAt));
 
+  // Per-set discipline counts. One roundtrip that grabs (set_id,
+  // discipline) for every sheet on this project, bucketed in-app. The
+  // sheet count is small enough (~hundreds max across all sets in one
+  // project) that this is cheaper than issuing one query per set.
+  const allSetIds = rows.map((r) => r.id);
+  const disciplineCountsBySetId = new Map<string, Record<string, number>>();
+  if (allSetIds.length > 0) {
+    const discRows = await db
+      .select({
+        setId: drawingSheets.setId,
+        discipline: drawingSheets.discipline,
+      })
+      .from(drawingSheets)
+      .where(inArray(drawingSheets.setId, allSetIds));
+    for (const r of discRows) {
+      const key = r.discipline ?? "?";
+      const map = disciplineCountsBySetId.get(r.setId) ?? {};
+      map[key] = (map[key] ?? 0) + 1;
+      disciplineCountsBySetId.set(r.setId, map);
+    }
+  }
+
   const sets: DrawingSetSummary[] = rows.map((r) => ({
     id: r.id,
     family: r.family,
@@ -184,21 +222,88 @@ export async function getDrawingSetsIndex(input: {
     uploadedAt: r.uploadedAt.toISOString(),
     note: r.note,
     processingStatus: r.processingStatus,
+    disciplines: disciplineCountsBySetId.get(r.id) ?? {},
   }));
 
-  const activity = sets.slice(0, 12).map((s) => ({
-    kind: "upload" as const,
+  const activity: DrawingsSetsView["activity"] = sets.slice(0, 12).map((s) => ({
+    kind: s.status === "current" ? ("upload" as const) : ("supersede" as const),
     text: `${s.uploadedByName ?? "Someone"} uploaded ${s.name} v${s.version}${
       s.sheetCount ? ` (${s.sheetCount} sheets)` : ""
     }`,
     time: s.uploadedAt,
+    color: s.status === "current" ? "purple" : "orange",
   }));
+
+  // Aggregates across current sets. We count:
+  //   - sheets where changed_from_prior_version=true  → "Changed in v3"
+  //   - markup rows (each row is one user's doc on a sheet) → "Active markups"
+  //   - root comments (parent_comment_id IS NULL), split by resolved
+  // All scoped to sheets that belong to a currently-active set.
+  const currentSetIds = sets
+    .filter((s) => s.status === "current")
+    .map((s) => s.id);
+  let changedInCurrent = 0;
+  let markupsAcrossCurrent = 0;
+  let openCommentsAcrossCurrent = 0;
+  let resolvedCommentsAcrossCurrent = 0;
+  if (currentSetIds.length > 0) {
+    const changedRows = await db
+      .select({ count: drawingSheets.id })
+      .from(drawingSheets)
+      .where(
+        and(
+          inArray(drawingSheets.setId, currentSetIds),
+          eq(drawingSheets.changedFromPriorVersion, true),
+        ),
+      );
+    changedInCurrent = changedRows.length;
+
+    const sheetIdRows = await db
+      .select({ id: drawingSheets.id })
+      .from(drawingSheets)
+      .where(inArray(drawingSheets.setId, currentSetIds));
+    const sheetIds = sheetIdRows.map((r) => r.id);
+    if (sheetIds.length > 0) {
+      const markupRows = await db
+        .select({ id: drawingMarkups.id })
+        .from(drawingMarkups)
+        .where(inArray(drawingMarkups.sheetId, sheetIds));
+      markupsAcrossCurrent = markupRows.length;
+
+      const commentRows = await db
+        .select({ resolved: drawingComments.resolved })
+        .from(drawingComments)
+        .where(
+          and(
+            inArray(drawingComments.sheetId, sheetIds),
+            isNull(drawingComments.parentCommentId),
+          ),
+        );
+      for (const r of commentRows) {
+        if (r.resolved) resolvedCommentsAcrossCurrent += 1;
+        else openCommentsAcrossCurrent += 1;
+      }
+    }
+  }
+
+  const activeSets = currentSetIds.length;
+  const totalSheetsCurrent = sets
+    .filter((s) => s.status === "current")
+    .reduce((sum, s) => sum + s.sheetCount, 0);
 
   return {
     context: ctx,
     portal: portalFor(ctx),
     canUpload: ctx.permissions.can("drawing", "write"),
     sets,
+    aggregates: {
+      activeSets,
+      totalSheetsCurrent,
+      changedInCurrent,
+      markupsAcrossCurrent,
+      openCommentsAcrossCurrent,
+      resolvedCommentsAcrossCurrent,
+    },
     activity,
   };
 }

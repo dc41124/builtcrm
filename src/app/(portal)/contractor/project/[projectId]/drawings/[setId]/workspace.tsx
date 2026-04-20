@@ -10,25 +10,75 @@ import type {
   SheetSummary,
 } from "@/domain/loaders/drawings";
 
-const DISCIPLINE_LABELS: Record<string, string> = {
-  A: "Architectural",
-  S: "Structural",
-  E: "Electrical",
-  M: "Mechanical",
-  P: "Plumbing",
-  C: "Civil",
-  L: "Landscape",
-  I: "Interiors",
-  G: "General",
-  T: "Telecom",
-  F: "Fire Protection",
-};
+import {
+  DISCIPLINE_COLORS,
+  DisciplineTag,
+  SheetThumbnailSvg,
+} from "../sheet-thumbnail";
 
 function portalBase(portal: DrawingsPortal, projectId: string): string {
   if (portal === "contractor") return `/contractor/project/${projectId}`;
   if (portal === "subcontractor") return `/subcontractor/project/${projectId}`;
   return `/${portal}/project/${projectId}`;
 }
+
+const SearchIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8" />
+    <path d="m21 21-4.3-4.3" />
+  </svg>
+);
+
+const GridIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <rect x="14" y="14" width="7" height="7" rx="1" />
+  </svg>
+);
+
+const ListIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="8" y1="6" x2="21" y2="6" />
+    <line x1="8" y1="12" x2="21" y2="12" />
+    <line x1="8" y1="18" x2="21" y2="18" />
+    <line x1="3" y1="6" x2="3.01" y2="6" />
+    <line x1="3" y1="12" x2="3.01" y2="12" />
+    <line x1="3" y1="18" x2="3.01" y2="18" />
+  </svg>
+);
+
+const DownloadIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
+const BackIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19 12H5M12 19l-7-7 7-7" />
+  </svg>
+);
+
+const EyeIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const EditIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+  </svg>
+);
+
+// Prototype's discipline ordering for filter chips.
+const FILTER_ORDER = ["A", "S", "E", "M", "P", "C", "L", "I", "G", "T", "F"];
 
 export function SheetIndexWorkspace(props: {
   projectId: string;
@@ -43,7 +93,6 @@ export function SheetIndexWorkspace(props: {
   const {
     projectId,
     set,
-    versionChain,
     sheets,
     disciplineCounts,
     scopeDiscipline,
@@ -54,12 +103,38 @@ export function SheetIndexWorkspace(props: {
   const router = useRouter();
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState<string>("");
+  const [layout, setLayout] = useState<"grid" | "list">("grid");
   const [editing, setEditing] = useState<SheetSummary | null>(null);
   const [editNumber, setEditNumber] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [editDiscipline, setEditDiscipline] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+
+  const disciplinesInSet = useMemo(() => {
+    const seen = Object.keys(disciplineCounts).filter((k) => k !== "all");
+    return FILTER_ORDER.filter((c) => seen.includes(c)).concat(
+      seen.filter((c) => !FILTER_ORDER.includes(c)),
+    );
+  }, [disciplineCounts]);
+
+  const filteredSheets = useMemo(() => {
+    const lower = search.trim().toLowerCase();
+    return sheets.filter((s) => {
+      if (filter !== "all" && s.discipline !== filter) return false;
+      if (
+        lower &&
+        !s.sheetNumber.toLowerCase().includes(lower) &&
+        !s.sheetTitle.toLowerCase().includes(lower)
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [sheets, filter, search]);
+
+  const isSub = portal === "subcontractor";
+  const base = portalBase(portal, projectId);
 
   function openEdit(s: SheetSummary) {
     setEditing(s);
@@ -110,109 +185,103 @@ export function SheetIndexWorkspace(props: {
     }
   }
 
-  const disciplines = useMemo(() => {
-    const codes = Object.keys(disciplineCounts).filter((k) => k !== "all");
-    codes.sort();
-    return codes;
-  }, [disciplineCounts]);
-
-  const filteredSheets = useMemo(() => {
-    const lower = search.trim().toLowerCase();
-    return sheets.filter((s) => {
-      if (filter !== "all" && s.discipline !== filter) return false;
-      if (
-        lower &&
-        !s.sheetNumber.toLowerCase().includes(lower) &&
-        !s.sheetTitle.toLowerCase().includes(lower)
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [sheets, filter, search]);
-
-  const base = portalBase(portal, projectId);
-
   return (
-    <div className="dr-page">
-      <div className="dr-page-hdr">
-        <div>
-          <div className="dr-bc" style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 4 }}>
-            <Link href={`${base}/drawings`} style={{ color: "inherit" }}>
-              Drawings
-            </Link>{" "}
-            / {set.name} v{set.version}
-          </div>
-          <h1 className="dr-page-title">Sheet index</h1>
-          <p className="dr-page-desc">
-            {set.name} v{set.version} — {set.sheetCount} sheets
-            {scopeDiscipline
-              ? ` · scoped to ${DISCIPLINE_LABELS[scopeDiscipline] ?? scopeDiscipline}`
-              : ""}
-            . Click a thumbnail to open the sheet.
-          </p>
+    <div className="dr-content">
+      <div className="dr-index-hdr">
+        <div className="dr-index-ctx">
+          <Link href={`${base}/drawings`} className="dr-btn sm ghost">
+            <BackIcon />
+            Sets
+          </Link>
+          <h2>
+            {set.name} v{set.version}
+          </h2>
+          {set.status === "current" ? (
+            <span className="dr-pill accent">Current</span>
+          ) : set.status === "superseded" ? (
+            <span className="dr-pill gray">Superseded</span>
+          ) : (
+            <span className="dr-pill gray">Historical</span>
+          )}
         </div>
-        <div className="dr-page-actions">
-          {versionChain.length > 1 ? (
-            <select
-              className="dr-btn sm"
-              value={set.id}
-              onChange={(e) => {
-                const next = e.target.value;
-                if (next !== set.id) {
-                  window.location.href = `${base}/drawings/${next}`;
-                }
-              }}
-              style={{ minWidth: 180 }}
+        <div className="dr-index-tools">
+          <div className="dr-index-search">
+            <span className="dr-index-search-icon">
+              <SearchIcon />
+            </span>
+            <input
+              type="search"
+              placeholder="Search sheets…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="dr-layout-toggle" role="tablist" aria-label="Layout">
+            <button
+              className={`dr-layout-btn ${layout === "grid" ? "active" : ""}`}
+              onClick={() => setLayout("grid")}
+              aria-label="Grid view"
+              aria-pressed={layout === "grid"}
             >
-              {versionChain.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name} v{v.version}
-                  {v.status === "current" ? " · current" : ""}
-                </option>
-              ))}
-            </select>
-          ) : null}
+              <GridIcon />
+            </button>
+            <button
+              className={`dr-layout-btn ${layout === "list" ? "active" : ""}`}
+              onClick={() => setLayout("list")}
+              aria-label="List view"
+              aria-pressed={layout === "list"}
+            >
+              <ListIcon />
+            </button>
+          </div>
+          <button
+            className="dr-btn sm"
+            onClick={() => alert("Export queued (stub — wired in a follow-up)")}
+            title="Export the current set as a ZIP of PDF pages"
+          >
+            <DownloadIcon />
+            Export Set
+          </button>
         </div>
       </div>
 
-      <div className="dr-index-hdr">
-        <div className="dr-index-filters">
-          <button
-            className={`dr-index-filter ${filter === "all" ? "active" : ""}`}
-            onClick={() => setFilter("all")}
-          >
-            All <span className="dr-index-filter-count">{disciplineCounts.all}</span>
-          </button>
-          {disciplines.map((code) => (
+      {/* Discipline filter tabs — full labels, matching the prototype */}
+      <div className="dr-index-filters" style={{ marginBottom: 18 }}>
+        <button
+          className={`dr-index-filter ${filter === "all" ? "active" : ""}`}
+          onClick={() => setFilter("all")}
+        >
+          All <span className="dr-index-filter-count">{disciplineCounts.all}</span>
+        </button>
+        {disciplinesInSet.map((code) => {
+          const label = DISCIPLINE_COLORS[code]?.label ?? code;
+          return (
             <button
               key={code}
               className={`dr-index-filter ${filter === code ? "active" : ""}`}
               onClick={() => setFilter(code)}
             >
-              {DISCIPLINE_LABELS[code] ?? code}{" "}
-              <span className="dr-index-filter-count">{disciplineCounts[code]}</span>
+              {label}{" "}
+              <span className="dr-index-filter-count">
+                {disciplineCounts[code] ?? 0}
+              </span>
             </button>
-          ))}
-        </div>
-
-        <div className="dr-index-tools">
-          <div className="dr-index-search">
-            <span className="dr-index-search-icon">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.3-4.3" />
-              </svg>
-            </span>
-            <input
-              type="search"
-              placeholder="Search sheet number or title"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </div>
+          );
+        })}
       </div>
+
+      {isSub && scopeDiscipline ? (
+        <div className="dr-sub-banner" style={{ marginTop: -4 }}>
+          <EyeIcon />
+          <span>
+            Scope filter:{" "}
+            <strong>
+              {DISCIPLINE_COLORS[scopeDiscipline]?.label ?? scopeDiscipline} only
+            </strong>
+            . You have read access to all sheets but can only markup your scope.
+          </span>
+        </div>
+      ) : null}
 
       {filteredSheets.length === 0 ? (
         <div className="dr-empty">
@@ -223,7 +292,7 @@ export function SheetIndexWorkspace(props: {
               : "Try a different discipline or clear the search."}
           </p>
         </div>
-      ) : (
+      ) : layout === "grid" ? (
         <div className="dr-thumb-grid">
           {filteredSheets.map((s) => (
             <div key={s.id} style={{ position: "relative" }}>
@@ -231,21 +300,15 @@ export function SheetIndexWorkspace(props: {
                 className="dr-thumb"
                 href={`${base}/drawings/${set.id}/sheet/${s.id}`}
               >
-                <div
-                  className={
-                    s.thumbnailUrl
-                      ? "dr-thumb-preview"
-                      : "dr-thumb-preview placeholder"
-                  }
-                >
+                <div className="dr-thumb-preview">
                   {s.thumbnailUrl ? (
-                    // Thumbnails are rendered client-side (ThumbnailMinter)
-                    // and posted back to R2 on first visit; subsequent
-                    // loads read straight from the presigned URL.
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={s.thumbnailUrl} alt={s.sheetNumber} />
                   ) : (
-                    <span>{s.sheetNumber}</span>
+                    <SheetThumbnailSvg
+                      discipline={s.discipline}
+                      sheetNumber={s.sheetNumber}
+                    />
                   )}
                 </div>
                 <div className="dr-thumb-meta">
@@ -277,12 +340,12 @@ export function SheetIndexWorkspace(props: {
                   <div className="dr-thumb-badges">
                     {s.markupCount > 0 ? (
                       <span className="dr-thumb-badge mk">
-                        {s.markupCount} mk
+                        {s.markupCount}
                       </span>
                     ) : null}
                     {s.commentCount > 0 ? (
                       <span className="dr-thumb-badge cm">
-                        {s.commentCount} cm
+                        {s.commentCount}
                       </span>
                     ) : null}
                   </div>
@@ -313,27 +376,104 @@ export function SheetIndexWorkspace(props: {
                     zIndex: 2,
                   }}
                 >
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 20h9" />
-                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                  </svg>
+                  <EditIcon />
                 </button>
               ) : null}
             </div>
           ))}
         </div>
+      ) : (
+        <div className="dr-thumb-list">
+          <div className="dr-thumb-row header">
+            <div>#</div>
+            <div>Number</div>
+            <div>Title</div>
+            <div>Discipline</div>
+            <div>Markups</div>
+            <div>Comments</div>
+          </div>
+          {filteredSheets.map((s, i) => (
+            <Link
+              key={s.id}
+              href={`${base}/drawings/${set.id}/sheet/${s.id}`}
+              className="dr-thumb-row"
+            >
+              <div
+                style={{
+                  fontFamily: "JetBrains Mono, monospace",
+                  fontSize: 11,
+                  color: "var(--text-tertiary)",
+                }}
+              >
+                {String(i + 1).padStart(2, "0")}
+              </div>
+              <div className="tr-num">{s.sheetNumber}</div>
+              <div className="tr-title">
+                {s.sheetTitle}
+                {s.changedFromPriorVersion ? (
+                  <span
+                    style={{
+                      marginLeft: 8,
+                      padding: "2px 6px",
+                      borderRadius: 5,
+                      background: "#fdf4e6",
+                      color: "#96600f",
+                      border: "1px solid #c17a1a",
+                      fontFamily: "DM Sans, system-ui",
+                      fontSize: 10,
+                      fontWeight: 700,
+                    }}
+                  >
+                    Changed
+                  </span>
+                ) : null}
+              </div>
+              <div>
+                {s.discipline ? (
+                  <DisciplineTag code={s.discipline} />
+                ) : (
+                  <span
+                    className="dr-set-disc-tag"
+                    style={{
+                      background: "var(--surface-2)",
+                      color: "var(--text-tertiary)",
+                      border: "1px solid var(--surface-3)",
+                    }}
+                  >
+                    —
+                  </span>
+                )}
+              </div>
+              <div
+                style={{
+                  fontFamily: "DM Sans, system-ui",
+                  fontSize: 12,
+                  fontWeight: 680,
+                  color: s.markupCount
+                    ? "#4a3fb0"
+                    : "var(--text-tertiary)",
+                }}
+              >
+                {s.markupCount || "—"}
+              </div>
+              <div
+                style={{
+                  fontFamily: "DM Sans, system-ui",
+                  fontSize: 12,
+                  fontWeight: 680,
+                  color: s.commentCount
+                    ? "#96600f"
+                    : "var(--text-tertiary)",
+                }}
+              >
+                {s.commentCount || "—"}
+              </div>
+            </Link>
+          ))}
+        </div>
       )}
 
-      {/* Edit drawer — contractor-only, shown when `editing` is set. */}
+      {/* Edit drawer */}
       {editing ? (
         <div
           onClick={closeEdit}
@@ -381,7 +521,11 @@ export function SheetIndexWorkspace(props: {
             </div>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <span
-                style={{ fontSize: 11, fontWeight: 650, color: "var(--text-secondary)" }}
+                style={{
+                  fontSize: 11,
+                  fontWeight: 650,
+                  color: "var(--text-secondary)",
+                }}
               >
                 Sheet number
               </span>
@@ -402,7 +546,11 @@ export function SheetIndexWorkspace(props: {
             </label>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <span
-                style={{ fontSize: 11, fontWeight: 650, color: "var(--text-secondary)" }}
+                style={{
+                  fontSize: 11,
+                  fontWeight: 650,
+                  color: "var(--text-secondary)",
+                }}
               >
                 Title
               </span>
@@ -423,14 +571,20 @@ export function SheetIndexWorkspace(props: {
             </label>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <span
-                style={{ fontSize: 11, fontWeight: 650, color: "var(--text-secondary)" }}
+                style={{
+                  fontSize: 11,
+                  fontWeight: 650,
+                  color: "var(--text-secondary)",
+                }}
               >
                 Discipline (single letter, blank to clear)
               </span>
               <input
                 value={editDiscipline}
                 onChange={(e) =>
-                  setEditDiscipline(e.target.value.toUpperCase().slice(0, 1))
+                  setEditDiscipline(
+                    e.target.value.toUpperCase().slice(0, 1),
+                  )
                 }
                 placeholder="A / S / E / M / P / C / L / …"
                 style={{
@@ -467,13 +621,19 @@ export function SheetIndexWorkspace(props: {
                 marginTop: 4,
               }}
             >
-              <button className="dr-btn sm" onClick={closeEdit} disabled={editSaving}>
+              <button
+                className="dr-btn sm"
+                onClick={closeEdit}
+                disabled={editSaving}
+              >
                 Cancel
               </button>
               <button
                 className="dr-btn sm primary"
                 onClick={saveEdit}
-                disabled={editSaving || !editNumber.trim() || !editTitle.trim()}
+                disabled={
+                  editSaving || !editNumber.trim() || !editTitle.trim()
+                }
               >
                 {editSaving ? "Saving…" : "Save"}
               </button>

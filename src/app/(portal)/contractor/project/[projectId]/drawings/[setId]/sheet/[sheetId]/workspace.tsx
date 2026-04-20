@@ -33,6 +33,8 @@ import type {
   SheetSummary,
 } from "@/domain/loaders/drawings";
 
+import { DISCIPLINE_COLORS } from "../../../sheet-thumbnail";
+
 type PdfPageProps = {
   pageNumber: number;
   width: number;
@@ -395,6 +397,22 @@ export function SheetDetailWorkspace(props: {
   const [showMarkups, setShowMarkups] = useState(true);
   const [showMeasurements, setShowMeasurements] = useState(true);
   const [layerFilter, setLayerFilter] = useState<"all" | "mine" | "contractor" | "subs">("all");
+  const [showLayerMenu, setShowLayerMenu] = useState(false);
+  const [versionMenuOpen, setVersionMenuOpen] = useState(false);
+  // Zoom factor applied to the PDF render (width = containerWidth * zoom).
+  // The zoom-indicator +/- buttons step this in 10% increments; ctrl+wheel
+  // on the canvas also nudges it (handled inline). Clamped 0.25–3.
+  const [zoom, setZoom] = useState(1);
+  // Panel-level compose: when the Comment tool isn't active, the comments
+  // panel textarea still lets users post a general note (placed at the
+  // sheet center). This is separate from the pending-pin compose.
+  const [panelCompose, setPanelCompose] = useState("");
+  const [panelPosting, setPanelPosting] = useState(false);
+  // Reply compose per comment — one comment at a time.
+  const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(
+    null,
+  );
+  const [replyDraft, setReplyDraft] = useState("");
 
   // Compare mode. Available only when the loader found a prior version
   // (same sheet_number on the set this one supersedes). When the prior
@@ -418,10 +436,11 @@ export function SheetDetailWorkspace(props: {
   const [containerWidth, setContainerWidth] = useState<number>(800);
   const [pageSize, setPageSize] = useState<{ w: number; h: number } | null>(null);
 
-  // Narrow-viewport state — drives the simplified mobile toolset (pen +
-  // comment only) and also gates the touch-action CSS used by the canvas
-  // pinch-zoom support.
-  const [narrowViewport, setNarrowViewport] = useState(false);
+  // Narrow-viewport state — drives CSS-driven mobile polish for the
+  // floating toolbar + hidden sheet rail. The state is here so future
+  // tweaks that need it JS-side have a handle; the current layout
+  // relies on the dr-detail @media breakpoint.
+  const [, setNarrowViewport] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(max-width: 900px)");
@@ -847,39 +866,7 @@ export function SheetDetailWorkspace(props: {
     }
   }, [pendingComment, commentDraft, sheet.id, currentUserId, router]);
 
-  // Calibration — quick prompt variant; two-point lands next chunk.
-  const handleCalibrate = useCallback(async () => {
-    if (!canCalibrate) return;
-    const entered = window.prompt(
-      'Enter drawing scale (e.g. \'1/8" = 1\'-0"\'):',
-      calibration.scale ?? '1/8" = 1\'-0"',
-    );
-    if (!entered) return;
-    try {
-      const res = await fetch(
-        `/api/drawings/sheets/${sheet.id}/calibration`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ scale: entered, source: "manual" }),
-        },
-      );
-      if (!res.ok) throw new Error(`calibration ${res.status}`);
-      router.refresh();
-    } catch (err) {
-      setSaveState("error");
-      setSaveError(err instanceof Error ? err.message : String(err));
-    }
-  }, [canCalibrate, sheet.id, calibration.scale, router]);
-
   const base = portalBase(portal, projectId);
-  const currentIdx = sheetSiblings.findIndex((s) => s.id === sheet.id);
-  const prev = currentIdx > 0 ? sheetSiblings[currentIdx - 1] : null;
-  const next =
-    currentIdx >= 0 && currentIdx < sheetSiblings.length - 1
-      ? sheetSiblings[currentIdx + 1]
-      : null;
-
   const pageNumber = sheet.pageIndex + 1;
 
   const rootComments = useMemo(
@@ -905,727 +892,1167 @@ export function SheetDetailWorkspace(props: {
   const shouldRenderOthers = layerFilter !== "mine";
   const shouldRenderMine = layerFilter === "all" || layerFilter === "mine";
 
+  // Post a general-purpose comment from the comments-panel textarea (no
+  // pin placement — drops at sheet center). Keeps the panel composer
+  // useful even when the user hasn't picked the Comment tool.
+  const postPanelComment = useCallback(async () => {
+    if (!panelCompose.trim()) return;
+    setPanelPosting(true);
+    try {
+      const res = await fetch(`/api/drawings/sheets/${sheet.id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ x: 50, y: 50, text: panelCompose.trim() }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const body = (await res.json()) as { id: string; pinNumber: number };
+      setLocalComments((cs) => [
+        ...cs,
+        {
+          id: body.id,
+          parentCommentId: null,
+          userId: currentUserId,
+          userName: "You",
+          userInitials: "ME",
+          pinNumber: body.pinNumber,
+          x: 50,
+          y: 50,
+          text: panelCompose.trim(),
+          resolved: false,
+          resolvedAt: null,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      setPanelCompose("");
+      router.refresh();
+    } catch (err) {
+      setSaveState("error");
+      setSaveError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPanelPosting(false);
+    }
+  }, [panelCompose, sheet.id, currentUserId, router]);
+
+  // Reply to a root comment. Thread is one level deep — prototype matches.
+  const postReply = useCallback(
+    async (parentCommentId: string) => {
+      const text = replyDraft.trim();
+      if (!text) return;
+      try {
+        const res = await fetch(
+          `/api/drawings/comments/${parentCommentId}/reply`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          },
+        );
+        if (!res.ok) throw new Error(`reply ${res.status}`);
+        setReplyingToCommentId(null);
+        setReplyDraft("");
+        router.refresh();
+      } catch (err) {
+        setSaveState("error");
+        setSaveError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [replyDraft, router],
+  );
+
+  // Toggle resolved on a root comment.
+  const toggleResolved = useCallback(
+    async (c: CommentRow) => {
+      try {
+        const res = await fetch(`/api/drawings/comments/${c.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ resolved: !c.resolved }),
+        });
+        if (!res.ok) throw new Error(`resolve ${res.status}`);
+        setLocalComments((cs) =>
+          cs.map((x) =>
+            x.id === c.id
+              ? {
+                  ...x,
+                  resolved: !c.resolved,
+                  resolvedAt: !c.resolved ? new Date().toISOString() : null,
+                }
+              : x,
+          ),
+        );
+        router.refresh();
+      } catch (err) {
+        setSaveState("error");
+        setSaveError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [router],
+  );
+
+  // Zoom helpers used by the +/- buttons. 10% increments, clamped.
+  const stepZoom = useCallback((delta: number) => {
+    setZoom((z) => Math.max(0.25, Math.min(3, +(z + delta).toFixed(2))));
+  }, []);
+
   return (
-    <div className="dr-detail">
-      {/* Toolbar */}
-      <div className="dr-detail-toolbar">
-        <Link href={`${base}/drawings/${set.id}`} className="dr-btn sm ghost">
-          ←
-        </Link>
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ fontFamily: "JetBrains Mono, monospace", fontWeight: 500 }}>
-            {sheet.sheetNumber}
-          </div>
-          <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
-            {sheet.sheetTitle}
-          </div>
+    <div className={`dr-detail${showComments ? "" : " no-comments"}`}>
+      {/* ───── Left sheet rail ───── */}
+      <aside className="dr-sheet-rail">
+        <div className="dr-sheet-rail-hdr">
+          <h4>Sheets · v{set.version}</h4>
+          <Link
+            href={`${base}/drawings/${set.id}`}
+            className="dr-btn xs ghost"
+            title="Back to sheet index"
+            aria-label="Back to sheet index"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+          </Link>
         </div>
-
-        {canAnnotate ? (
-          <div
-            className={narrowViewport ? "dr-tool-strip-simplified" : undefined}
-            style={{
-              display: "flex",
-              gap: 4,
-              padding: 3,
-              borderRadius: 10,
-              background: "var(--surface-2)",
-              marginLeft: 12,
-            }}
-          >
-            {([
-              ["select", "Pan"],
-              ["pen", "Pen"],
-              ["rect", "Rect"],
-              ["circle", "Circle"],
-              ["text", "Text"],
-              ["measure_linear", "L-Measure"],
-              ["measure_area", "Area"],
-              ["comment", "Comment"],
-              ...(canCalibrate
-                ? ([["calibrate", "Calibrate"]] as Array<[Tool, string]>)
-                : []),
-            ] as Array<[Tool, string]>).map(([t, label]) => (
-              <button
-                key={t}
-                className={`dr-btn xs t-${t.replace("_", "-")} ${tool === t ? "primary" : "ghost"}`}
-                onClick={() => {
-                  setTool(t);
-                  if (t !== "measure_area") setAreaPoints([]);
-                  if (t !== "calibrate") setCalibrationPoints([]);
-                }}
-                style={{ height: 28, padding: "0 10px", fontSize: 11 }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        ) : null}
-
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          {saveState === "saving" ? (
-            <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
-              Saving…
-            </span>
-          ) : saveState === "saved" ? (
-            <span style={{ fontSize: 11, color: "#1e6b46" }}>Saved</span>
-          ) : saveState === "error" ? (
-            <span
-              style={{ fontSize: 11, color: "#a52e2e" }}
-              title={saveError ?? undefined}
-            >
-              Save failed
-            </span>
-          ) : null}
-
-          {prev ? (
-            <Link
-              className="dr-btn sm"
-              href={`${base}/drawings/${set.id}/sheet/${prev.id}`}
-            >
-              ← {prev.sheetNumber}
-            </Link>
-          ) : null}
-          {next ? (
-            <Link
-              className="dr-btn sm"
-              href={`${base}/drawings/${set.id}/sheet/${next.id}`}
-            >
-              {next.sheetNumber} →
-            </Link>
-          ) : null}
-
-          <select
-            className="dr-btn sm"
-            value={set.id}
-            onChange={(e) => {
-              const nextSetId = e.target.value;
-              if (nextSetId !== set.id) {
-                window.location.href = `${base}/drawings/${nextSetId}`;
-              }
-            }}
-            style={{ minWidth: 160 }}
-          >
-            {versionChain.map((v) => (
-              <option key={v.id} value={v.id}>
-                v{v.version}
-                {v.status === "current" ? " · current" : v.status === "superseded" ? " · superseded" : " · historical"}
-              </option>
-            ))}
-          </select>
-
-          <button
-            className={`dr-btn sm ${showMarkups ? "" : "ghost"}`}
-            onClick={() => setShowMarkups((v) => !v)}
-          >
-            Markup
-          </button>
-          <button
-            className={`dr-btn sm ${showMeasurements ? "" : "ghost"}`}
-            onClick={() => setShowMeasurements((v) => !v)}
-          >
-            Measure
-          </button>
-          <button
-            className={`dr-btn sm ${showComments ? "" : "ghost"}`}
-            onClick={() => setShowComments((v) => !v)}
-          >
-            Comments
-          </button>
-          <select
-            className="dr-btn sm"
-            value={layerFilter}
-            onChange={(e) => setLayerFilter(e.target.value as typeof layerFilter)}
-          >
-            <option value="all">All layers</option>
-            <option value="mine">Mine only</option>
-            <option value="contractor">Contractor</option>
-            <option value="subs">Subs</option>
-          </select>
-
-          {compareAvailable || compareUnmatchedAvailable ? (
-            <button
-              className={`dr-btn sm ${compareMode ? "primary" : ""}`}
-              onClick={() => {
-                setCompareMode((v) => !v);
-                // Reset render flags so the diff effect re-runs on toggle.
-                setLeftRendered(false);
-                setRightRendered(false);
-              }}
-              title={
-                compare.priorSet
-                  ? `Compare against ${compare.priorSet.name} v${compare.priorSet.version}`
-                  : "Compare versions"
-              }
-            >
-              {compareMode ? "Exit compare" : "Compare"}
-            </button>
-          ) : null}
+        <div className="dr-sheet-rail-list">
+          {(() => {
+            const order = ["A", "S", "E", "M", "P", "C", "L", "I", "G", "T", "F"];
+            const seen = new Set<string>();
+            for (const s of sheetSiblings) if (s.discipline) seen.add(s.discipline);
+            const ordered = order.filter((c) => seen.has(c));
+            const extras = Array.from(seen).filter((c) => !order.includes(c));
+            const disciplines = [...ordered, ...extras];
+            const uncoded = sheetSiblings.filter((s) => !s.discipline);
+            return (
+              <>
+                {disciplines.map((disc) => {
+                  const group = sheetSiblings.filter((s) => s.discipline === disc);
+                  if (group.length === 0) return null;
+                  const dc = DISCIPLINE_COLORS[disc] ?? DISCIPLINE_COLORS.A;
+                  return (
+                    <div key={disc}>
+                      <div className="dr-sheet-rail-disc">
+                        <span>{dc.label}</span>
+                        <span style={{ color: "var(--text-tertiary)" }}>{group.length}</span>
+                      </div>
+                      {group.map((s) => {
+                        const badge = s.markupCount + s.commentCount;
+                        return (
+                          <Link
+                            key={s.id}
+                            href={`${base}/drawings/${set.id}/sheet/${s.id}`}
+                            className={`dr-sheet-rail-item${s.id === sheet.id ? " active" : ""}`}
+                          >
+                            <span className="sr-num">{s.sheetNumber}</span>
+                            <span className="sr-title">{s.sheetTitle}</span>
+                            {badge > 0 ? <span className="sr-badge">{badge}</span> : null}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+                {uncoded.length > 0 ? (
+                  <div>
+                    <div className="dr-sheet-rail-disc">
+                      <span>Other</span>
+                      <span style={{ color: "var(--text-tertiary)" }}>{uncoded.length}</span>
+                    </div>
+                    {uncoded.map((s) => {
+                      const badge = s.markupCount + s.commentCount;
+                      return (
+                        <Link
+                          key={s.id}
+                          href={`${base}/drawings/${set.id}/sheet/${s.id}`}
+                          className={`dr-sheet-rail-item${s.id === sheet.id ? " active" : ""}`}
+                        >
+                          <span className="sr-num">{s.sheetNumber}</span>
+                          <span className="sr-title">{s.sheetTitle}</span>
+                          {badge > 0 ? <span className="sr-badge">{badge}</span> : null}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </>
+            );
+          })()}
         </div>
-      </div>
+      </aside>
 
-      {/* Canvas */}
-      <div className="dr-detail-canvas" ref={canvasWrapRef}>
-        {compareMode ? (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 16,
-              width: "100%",
-              alignItems: "start",
-            }}
-          >
-            {/* Left = current version */}
-            <div
-              ref={leftPdfWrapRef}
-              className="dr-detail-pdf-wrap"
-              style={{ background: "#fff", position: "relative" }}
-            >
+      {/* ───── Center viewer ───── */}
+      <div className="dr-viewer">
+        <div className="dr-viewer-topbar">
+          <div className="dr-viewer-title">
+            <span className="dr-viewer-title-num">{sheet.sheetNumber}</span>
+            <span className="dr-viewer-title-name">{sheet.sheetTitle}</span>
+            {sheet.changedFromPriorVersion ? (
+              <span className="dr-pill orange">Changed in v{set.version}</span>
+            ) : null}
+            {saveState === "saving" ? (
+              <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>Saving…</span>
+            ) : saveState === "saved" ? (
+              <span style={{ fontSize: 11, color: "#1e6b46" }}>Saved</span>
+            ) : saveState === "error" ? (
+              <span style={{ fontSize: 11, color: "#a52e2e" }} title={saveError ?? undefined}>
+                Save failed
+              </span>
+            ) : null}
+          </div>
+
+          <div className="dr-viewer-controls">
+            {/* Scale / calibration pill */}
+            {calibration.scale ? (
               <div
-                style={{
-                  position: "absolute",
-                  top: 6,
-                  left: 8,
-                  fontFamily: "DM Sans, system-ui",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "#4a3fb0",
-                  background: "#eeedfb",
-                  border: "1px solid #c7c2ea",
-                  borderRadius: 6,
-                  padding: "2px 8px",
-                  zIndex: 5,
-                }}
+                className="dr-scale-pill"
+                title={
+                  calibration.calibratedAt
+                    ? `Calibrated ${new Date(calibration.calibratedAt).toLocaleDateString()} · ${calibration.source ?? "title_block"}${calibration.calibratedByName ? ` · ${calibration.calibratedByName}` : ""}`
+                    : undefined
+                }
               >
-                v{set.version} (current)
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12h4M17 12h4M12 3v4M12 17v4" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <span className="dr-scale-pill-label">Scale</span>
+                <span className="dr-scale-pill-val">{calibration.scale}</span>
               </div>
-              <PdfDocument
-                file={presignedSourceUrl}
-                loading={<div style={{ padding: 40, textAlign: "center" }}>Loading…</div>}
+            ) : canCalibrate ? (
+              <button
+                className="dr-scale-pill warn"
+                onClick={() => {
+                  setTool("calibrate");
+                  setCalibrationPoints([]);
+                }}
+                title="Click two known points on the sheet to set scale"
               >
-                <PdfPage
-                  pageNumber={pageNumber}
-                  width={Math.floor(containerWidth / 2) - 8}
-                  onRenderSuccess={() => setLeftRendered(true)}
-                />
-              </PdfDocument>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12h4M17 12h4M12 3v4M12 17v4" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <span className="dr-scale-pill-label">Calibrate scale</span>
+              </button>
+            ) : (
+              <div className="dr-scale-pill">
+                <span className="dr-scale-pill-label">Scale</span>
+                <span className="dr-scale-pill-val">—</span>
+              </div>
+            )}
+
+            {/* Compare button */}
+            {compareAvailable || compareUnmatchedAvailable ? (
+              <button
+                className={`dr-btn sm${compareMode ? " primary" : ""}`}
+                onClick={() => {
+                  setCompareMode((v) => !v);
+                  setLeftRendered(false);
+                  setRightRendered(false);
+                }}
+                title={
+                  compare.priorSet
+                    ? `Compare against ${compare.priorSet.name} v${compare.priorSet.version}`
+                    : "Compare versions"
+                }
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="7" height="16" rx="1" />
+                  <rect x="14" y="4" width="7" height="16" rx="1" />
+                  <line x1="12" y1="2" x2="12" y2="22" />
+                </svg>
+                Compare{compareMode && compare.priorSet ? ` · v${compare.priorSet.version}` : ""}
+              </button>
+            ) : null}
+
+            {/* Version dropdown */}
+            <div className="dr-version-dd">
+              <button
+                className="dr-version-dd-btn"
+                onClick={() => setVersionMenuOpen((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={versionMenuOpen}
+              >
+                v{set.version}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+              {versionMenuOpen ? (
+                <div className="dr-version-dd-menu" role="menu">
+                  {versionChain.map((v) => (
+                    <Link
+                      key={v.id}
+                      href={`${base}/drawings/${v.id}`}
+                      className={`dr-version-dd-item${v.id === set.id ? " current" : ""}`}
+                      onClick={() => setVersionMenuOpen(false)}
+                    >
+                      <div className="dr-version-dd-item-top">
+                        <h6>{v.name} v{v.version}</h6>
+                        {v.status === "current" ? (
+                          <span className="dr-pill accent">Current</span>
+                        ) : v.status === "superseded" ? (
+                          <span className="dr-pill gray">Superseded</span>
+                        ) : (
+                          <span className="dr-pill gray">Historical</span>
+                        )}
+                      </div>
+                      <div className="dr-version-dd-item-date">
+                        {new Date(v.uploadedAt).toLocaleDateString()}
+                        {v.uploadedByName ? ` · ${v.uploadedByName}` : ""}
+                        {" · "}
+                        {v.sheetCount} sheets
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
-            {/* Right = prior version (or "not in prior version" card) */}
-            <div
-              ref={rightPdfWrapRef}
-              className="dr-detail-pdf-wrap"
-              style={{ background: "#fff", position: "relative" }}
+            {/* Layers (dropdown) */}
+            <div style={{ position: "relative" }}>
+              <button
+                className="dr-btn sm icon"
+                onClick={() => setShowLayerMenu((v) => !v)}
+                aria-label="Layer visibility"
+                title="Layer visibility"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                  <polyline points="2 17 12 22 22 17" />
+                  <polyline points="2 12 12 17 22 12" />
+                </svg>
+              </button>
+              {showLayerMenu ? (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 4px)",
+                    right: 0,
+                    background: "var(--surface-1)",
+                    border: "1px solid var(--surface-3)",
+                    borderRadius: 12,
+                    boxShadow: "0 8px 32px rgba(0,0,0,.12)",
+                    zIndex: 40,
+                    minWidth: 220,
+                    padding: 8,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2,
+                  }}
+                  onMouseLeave={() => setShowLayerMenu(false)}
+                >
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", fontSize: 12.5, fontWeight: 550, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={showMarkups}
+                      onChange={(e) => setShowMarkups(e.target.checked)}
+                    />
+                    Markups
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", fontSize: 12.5, fontWeight: 550, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={showMeasurements}
+                      onChange={(e) => setShowMeasurements(e.target.checked)}
+                    />
+                    Measurements
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", fontSize: 12.5, fontWeight: 550, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={showComments}
+                      onChange={(e) => setShowComments(e.target.checked)}
+                    />
+                    Comment pins
+                  </label>
+                  <div style={{ borderTop: "1px solid var(--surface-2)", margin: "6px -8px" }} />
+                  <div style={{ padding: "4px 10px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--text-tertiary)" }}>
+                    Authors
+                  </div>
+                  {(["all", "mine", "contractor", "subs"] as const).map((opt) => (
+                    <label
+                      key={opt}
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", fontSize: 12.5, fontWeight: 550, cursor: "pointer" }}
+                    >
+                      <input
+                        type="radio"
+                        name="layer-filter"
+                        checked={layerFilter === opt}
+                        onChange={() => setLayerFilter(opt)}
+                      />
+                      {opt === "all" ? "All" : opt === "mine" ? "Mine only" : opt === "contractor" ? "Contractor" : "Subs"}
+                    </label>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Toggle comments panel */}
+            <button
+              className="dr-btn sm icon"
+              onClick={() => setShowComments((v) => !v)}
+              aria-label={showComments ? "Hide comments" : "Show comments"}
+              title={showComments ? "Hide comments" : "Show comments"}
             >
-              <div
-                style={{
-                  position: "absolute",
-                  top: 6,
-                  left: 8,
-                  fontFamily: "DM Sans, system-ui",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "var(--text-secondary)",
-                  background: "var(--surface-2)",
-                  border: "1px solid var(--surface-3)",
-                  borderRadius: 6,
-                  padding: "2px 8px",
-                  zIndex: 5,
+              {showComments ? (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                </svg>
+              )}
+            </button>
+
+            <button className="dr-btn sm icon" aria-label="Download" title="Download" onClick={() => window.open(presignedSourceUrl, "_blank")}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Canvas wrap */}
+        <div className="dr-canvas-wrap" ref={canvasWrapRef}>
+          {/* Floating toolbar (left strip) — only when annotation is allowed */}
+          {canAnnotate ? (
+            <div className="dr-toolbar">
+              <button
+                className={`dr-tool${tool === "select" ? " active" : ""}`}
+                onClick={() => {
+                  setTool("select");
+                  setAreaPoints([]);
+                  setCalibrationPoints([]);
                 }}
               >
-                {compare.priorSet
-                  ? `v${compare.priorSet.version} (prior)`
-                  : "No prior version"}
-              </div>
-              {compare.priorSheet &&
-              compare.priorPresignedSourceUrl &&
-              compareAvailable ? (
-                <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 9V4a2 2 0 014 0v3M10 13V3a2 2 0 014 0v6M14 13V5a2 2 0 014 0v9M18 12a2 2 0 014 0v3a7 7 0 01-7 7h-2a7 7 0 01-5.66-2.92L3.5 15.5A2 2 0 016.5 13l1.5 2" />
+                </svg>
+                <span className="dr-tool-label">Pan</span>
+              </button>
+              <div className="dr-tool-sep" />
+              <button
+                className={`dr-tool${tool === "pen" ? " active" : ""}`}
+                onClick={() => setTool("pen")}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 19l7-7 3 3-7 7-3-3z" />
+                  <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+                  <path d="M2 2l7.586 7.586" />
+                  <circle cx="11" cy="11" r="2" />
+                </svg>
+                <span className="dr-tool-label">Pen</span>
+              </button>
+              <button
+                className={`dr-tool${tool === "text" ? " active" : ""}`}
+                onClick={() => setTool("text")}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="4 7 4 4 20 4 20 7" />
+                  <line x1="9" y1="20" x2="15" y2="20" />
+                  <line x1="12" y1="4" x2="12" y2="20" />
+                </svg>
+                <span className="dr-tool-label">Text</span>
+              </button>
+              <button
+                className={`dr-tool${tool === "rect" ? " active" : ""}`}
+                onClick={() => setTool("rect")}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                </svg>
+                <span className="dr-tool-label">Rectangle</span>
+              </button>
+              <button
+                className={`dr-tool${tool === "circle" ? " active" : ""}`}
+                onClick={() => setTool("circle")}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="9" />
+                </svg>
+                <span className="dr-tool-label">Circle</span>
+              </button>
+              <div className="dr-tool-sep" />
+              <button
+                className={`dr-tool${tool === "measure_linear" ? " active" : ""}${!calibration.scale ? " warn" : ""}`}
+                onClick={() => setTool("measure_linear")}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.3 15.3 15.3 21.3a1 1 0 0 1-1.4 0L2.7 10.1a1 1 0 0 1 0-1.4l6-6a1 1 0 0 1 1.4 0l11.2 11.2a1 1 0 0 1 0 1.4z" />
+                  <path d="m7.5 10.5 2 2M10.5 7.5l2 2M13.5 4.5l2 2M4.5 13.5l2 2" />
+                </svg>
+                <span className="dr-tool-label">
+                  Measure{!calibration.scale ? " · calibrate first" : ""}
+                </span>
+              </button>
+              <button
+                className={`dr-tool${tool === "measure_area" ? " active" : ""}${!calibration.scale ? " warn" : ""}`}
+                onClick={() => {
+                  setTool("measure_area");
+                  setAreaPoints([]);
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="3 6 9 3 21 7 18 20 5 20 3 6" />
+                </svg>
+                <span className="dr-tool-label">Area (double-click to close)</span>
+              </button>
+              {canCalibrate ? (
+                <button
+                  className={`dr-tool${tool === "calibrate" ? " active warn" : " warn"}`}
+                  onClick={() => {
+                    setTool("calibrate");
+                    setCalibrationPoints([]);
+                  }}
+                  title="Click two known points"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12h4M17 12h4M12 3v4M12 17v4" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  <span className="dr-tool-label">Calibrate (2pt)</span>
+                </button>
+              ) : null}
+              <div className="dr-tool-sep" />
+              <button
+                className={`dr-tool${tool === "comment" ? " active" : ""}`}
+                onClick={() => setTool("comment")}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+                </svg>
+                <span className="dr-tool-label">Comment pin</span>
+              </button>
+            </div>
+          ) : null}
+
+          {/* Compare banner */}
+          {compareMode && compareAvailable ? (
+            <div className="dr-compare-banner">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="7" height="16" rx="1" />
+                <rect x="14" y="4" width="7" height="16" rx="1" />
+                <line x1="12" y1="2" x2="12" y2="22" />
+              </svg>
+              Comparing <strong>v{set.version}</strong> (current) vs{" "}
+              <strong>v{compare.priorSet?.version}</strong> · Red highlight shows changes
+            </div>
+          ) : null}
+
+          {/* Sheet canvas — PDF + SVG overlay. In compare mode, split layout. */}
+          <div className="dr-sheet-canvas">
+            {compareMode ? (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 16,
+                  width: "100%",
+                  alignItems: "start",
+                }}
+              >
+                <div
+                  ref={leftPdfWrapRef}
+                  className="dr-pdf-wrap"
+                  style={{ position: "relative" }}
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 6,
+                      left: 8,
+                      fontFamily: "DM Sans, system-ui",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "#4a3fb0",
+                      background: "#eeedfb",
+                      border: "1px solid #c7c2ea",
+                      borderRadius: 6,
+                      padding: "2px 8px",
+                      zIndex: 5,
+                    }}
+                  >
+                    v{set.version} (current)
+                  </div>
                   <PdfDocument
-                    file={compare.priorPresignedSourceUrl}
+                    file={presignedSourceUrl}
                     loading={<div style={{ padding: 40, textAlign: "center" }}>Loading…</div>}
                   >
                     <PdfPage
-                      pageNumber={compare.priorSheet.pageIndex + 1}
+                      pageNumber={pageNumber}
                       width={Math.floor(containerWidth / 2) - 8}
-                      onRenderSuccess={() => setRightRendered(true)}
+                      onRenderSuccess={() => setLeftRendered(true)}
                     />
                   </PdfDocument>
-                  {/* Diff overlay — positioned over the right pane's canvas.
-                      canvas:first-of-type targets the pdf canvas; our diff
-                      canvas sits absolutely on top of it. Opacity lives in
-                      the pixel alpha so we don't double-dim. */}
-                  <canvas
-                    ref={diffCanvasRef}
+                </div>
+                <div
+                  ref={rightPdfWrapRef}
+                  className="dr-pdf-wrap"
+                  style={{ position: "relative" }}
+                >
+                  <div
                     style={{
                       position: "absolute",
-                      inset: 0,
-                      width: "100%",
-                      height: "100%",
-                      pointerEvents: "none",
-                      opacity: diffReady ? 1 : 0,
+                      top: 6,
+                      left: 8,
+                      fontFamily: "DM Sans, system-ui",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "var(--text-secondary)",
+                      background: "var(--surface-2)",
+                      border: "1px solid var(--surface-3)",
+                      borderRadius: 6,
+                      padding: "2px 8px",
+                      zIndex: 5,
                     }}
-                  />
-                </>
-              ) : (
-                <div
-                  style={{
-                    padding: 40,
-                    textAlign: "center",
-                    color: "var(--text-secondary)",
-                    background:
-                      "repeating-linear-gradient(45deg,#fafaf8 0 10px,#f3f4f6 10px 20px)",
-                    minHeight: 400,
-                    display: "grid",
-                    placeItems: "center",
-                  }}
-                >
-                  <div>
+                  >
+                    {compare.priorSet ? `v${compare.priorSet.version} (prior)` : "No prior"}
+                  </div>
+                  {compare.priorSheet && compare.priorPresignedSourceUrl && compareAvailable ? (
+                    <>
+                      <PdfDocument
+                        file={compare.priorPresignedSourceUrl}
+                        loading={<div style={{ padding: 40, textAlign: "center" }}>Loading…</div>}
+                      >
+                        <PdfPage
+                          pageNumber={compare.priorSheet.pageIndex + 1}
+                          width={Math.floor(containerWidth / 2) - 8}
+                          onRenderSuccess={() => setRightRendered(true)}
+                        />
+                      </PdfDocument>
+                      <canvas
+                        ref={diffCanvasRef}
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          width: "100%",
+                          height: "100%",
+                          pointerEvents: "none",
+                          opacity: diffReady ? 1 : 0,
+                        }}
+                      />
+                    </>
+                  ) : (
                     <div
                       style={{
-                        fontFamily: "DM Sans, system-ui",
-                        fontSize: 15,
-                        fontWeight: 700,
-                        color: "var(--text-primary)",
-                        marginBottom: 6,
+                        padding: 40,
+                        textAlign: "center",
+                        color: "var(--text-secondary)",
+                        background:
+                          "repeating-linear-gradient(45deg,#fafaf8 0 10px,#f3f4f6 10px 20px)",
+                        minHeight: 400,
+                        display: "grid",
+                        placeItems: "center",
                       }}
                     >
-                      Not in prior version
+                      <div>
+                        <div
+                          style={{
+                            fontFamily: "DM Sans, system-ui",
+                            fontSize: 15,
+                            fontWeight: 700,
+                            color: "var(--text-primary)",
+                            marginBottom: 6,
+                          }}
+                        >
+                          Not in prior version
+                        </div>
+                        <div style={{ fontSize: 12.5, maxWidth: 340 }}>
+                          {sheet.sheetNumber} was added in v{set.version}.
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ fontSize: 12.5, maxWidth: 340 }}>
-                      {sheet.sheetNumber} was added in v{set.version}.
-                      {compare.priorSet
-                        ? ` No sheet with this number exists in ${compare.priorSet.name} v${compare.priorSet.version}.`
-                        : ""}
-                    </div>
-                  </div>
+                  )}
                 </div>
-              )}
-            </div>
-
-            {/* Diff summary strip */}
-            <div
-              style={{
-                gridColumn: "1 / span 2",
-                fontSize: 11.5,
-                color: "var(--text-secondary)",
-                textAlign: "center",
-                padding: "4px 0",
-                fontWeight: 520,
-              }}
-            >
-              {compareAvailable
-                ? diffReady
-                  ? `Differences highlighted in red (${DIFF_THRESHOLD}/255 luminance threshold).`
-                  : leftRendered && rightRendered
-                    ? "Computing diff…"
-                    : "Rendering both versions…"
-                : "Sheet added in this version — nothing to diff."}
-            </div>
-          </div>
-        ) : (
-        <div
-          className="dr-detail-pdf-wrap"
-          style={{
-            width: containerWidth,
-            height: pageSize ? pageHeightPx : undefined,
-            minHeight: 600,
-          }}
-        >
-          <PdfDocument
-            file={presignedSourceUrl}
-            loading={<div style={{ padding: 40, textAlign: "center" }}>Loading PDF…</div>}
-            onLoadError={(err: Error) => console.error("pdf load error", err)}
-          >
-            <PdfPage
-              pageNumber={pageNumber}
-              width={containerWidth}
-              onRenderSuccess={() => {
-                const canvas = canvasWrapRef.current?.querySelector("canvas");
-                if (canvas && !pageSize) {
-                  setPageSize({ w: canvas.width, h: canvas.height });
-                }
-              }}
-            />
-          </PdfDocument>
-
-          <svg
-            ref={svgRef}
-            className="dr-detail-overlay"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            style={{
-              width: "100%",
-              height: "100%",
-              cursor: tool === "select" ? "default" : "crosshair",
-              pointerEvents: canAnnotate && tool !== "select" ? "auto" : "none",
-            }}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onDoubleClick={tool === "measure_area" ? handleAreaFinalize : undefined}
-          >
-            {/* Other users' markup + measurements (read-only) */}
-            {showMarkups && shouldRenderOthers
-              ? otherMarkupDocs.flatMap((doc) => {
-                  const color = colorForUserId(doc.userId);
-                  const shapes = (doc.markupData as MarkupShape[] | null) ?? [];
-                  return shapes.map((m) => renderMarkup(doc.id, m, color, false));
-                })
-              : null}
-            {showMeasurements && shouldRenderOthers
-              ? otherMeasurementDocs.flatMap((doc) => {
-                  const color = colorForUserId(doc.userId);
-                  const shapes =
-                    (doc.measurementData as MeasurementShape[] | null) ?? [];
-                  return shapes.map((m) => renderMeasurement(doc.id, m, color));
-                })
-              : null}
-
-            {/* My markup + measurements (editable) */}
-            {showMarkups && shouldRenderMine
-              ? myMarkup.map((m) => renderMarkup("me", m, myColor, true))
-              : null}
-            {showMeasurements && shouldRenderMine
-              ? myMeasurements.map((m) => renderMeasurement("me", m, myColor))
-              : null}
-
-            {/* Draft shape preview (during drag) */}
-            {draftShape && "tool" in draftShape
-              ? renderMarkup("draft", draftShape, myColor, true)
-              : null}
-            {draftShape && "type" in draftShape
-              ? renderMeasurement("draft", draftShape as MeasurementShape, myColor)
-              : null}
-            {tool === "calibrate" && calibrationPoints.length === 1 ? (
-              <g style={{ pointerEvents: "none" }}>
-                <circle
-                  cx={calibrationPoints[0][0]}
-                  cy={calibrationPoints[0][1]}
-                  r={1.2}
-                  fill={myColor}
-                  stroke="#fff"
-                  strokeWidth={0.3}
-                  vectorEffect="non-scaling-stroke"
-                />
-                <text
-                  x={calibrationPoints[0][0] + 1.5}
-                  y={calibrationPoints[0][1] - 1}
-                  fontSize={1.8}
-                  fontFamily="DM Sans"
-                  fontWeight={650}
-                  fill={myColor}
+              </div>
+            ) : (
+              <div
+                className="dr-pdf-wrap"
+                style={{ width: containerWidth * zoom, minHeight: 600 }}
+              >
+                <PdfDocument
+                  file={presignedSourceUrl}
+                  loading={<div style={{ padding: 40, textAlign: "center" }}>Loading PDF…</div>}
+                  onLoadError={(err: Error) => console.error("pdf load error", err)}
                 >
-                  1
-                </text>
-              </g>
-            ) : null}
-            {tool === "measure_area" && areaPoints.length > 0 ? (
-              <g>
-                <polyline
-                  points={areaPoints.map((p) => `${p[0]},${p[1]}`).join(" ")}
-                  fill={myColor}
-                  fillOpacity={0.08}
-                  stroke={myColor}
-                  strokeWidth={0.4}
-                  strokeDasharray="1 0.8"
-                  vectorEffect="non-scaling-stroke"
-                />
-                {areaPoints.map((p, i) => (
-                  <circle
-                    key={i}
-                    cx={p[0]}
-                    cy={p[1]}
-                    r={0.6}
-                    fill={myColor}
-                    vectorEffect="non-scaling-stroke"
+                  <PdfPage
+                    pageNumber={pageNumber}
+                    width={containerWidth * zoom}
+                    onRenderSuccess={() => {
+                      const canvas = canvasWrapRef.current?.querySelector("canvas");
+                      if (canvas && !pageSize) {
+                        setPageSize({ w: canvas.width, h: canvas.height });
+                      }
+                    }}
                   />
-                ))}
-              </g>
-            ) : null}
+                </PdfDocument>
 
-            {/* Comment pins */}
-            {showComments
-              ? rootComments.map((c) => {
-                  const color = colorForUserId(c.userId);
-                  return (
-                    <g
-                      key={c.id}
-                      className="pin"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedCommentId(
-                          c.id === selectedCommentId ? null : c.id,
-                        );
-                      }}
-                      style={{ pointerEvents: "auto" }}
-                    >
-                      {selectedCommentId === c.id ? (
-                        <circle cx={c.x} cy={c.y} r={3.5} fill={color} opacity={0.2} />
-                      ) : null}
-                      <circle
-                        cx={c.x}
-                        cy={c.y}
-                        r={2.2}
-                        fill={c.resolved ? "#2d8a5e" : color}
-                        stroke="#fff"
-                        strokeWidth={0.5}
-                        vectorEffect="non-scaling-stroke"
-                      />
-                      <text
-                        x={c.x}
-                        y={c.y + 0.7}
-                        textAnchor="middle"
-                        fontSize={2}
-                        fontFamily="DM Sans"
-                        fontWeight={700}
-                        fill="#fff"
-                      >
-                        {c.pinNumber ?? "·"}
+                <svg
+                  ref={svgRef}
+                  className="dr-pdf-overlay"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    cursor: tool === "select" ? "default" : "crosshair",
+                    pointerEvents: canAnnotate && tool !== "select" ? "auto" : "none",
+                  }}
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onDoubleClick={tool === "measure_area" ? handleAreaFinalize : undefined}
+                >
+                  {showMarkups && shouldRenderOthers
+                    ? otherMarkupDocs.flatMap((doc) => {
+                        const color = colorForUserId(doc.userId);
+                        const shapes = (doc.markupData as MarkupShape[] | null) ?? [];
+                        return shapes.map((m) => renderMarkup(doc.id, m, color, false));
+                      })
+                    : null}
+                  {showMeasurements && shouldRenderOthers
+                    ? otherMeasurementDocs.flatMap((doc) => {
+                        const color = colorForUserId(doc.userId);
+                        const shapes = (doc.measurementData as MeasurementShape[] | null) ?? [];
+                        return shapes.map((m) => renderMeasurement(doc.id, m, color));
+                      })
+                    : null}
+                  {showMarkups && shouldRenderMine
+                    ? myMarkup.map((m) => renderMarkup("me", m, myColor, true))
+                    : null}
+                  {showMeasurements && shouldRenderMine
+                    ? myMeasurements.map((m) => renderMeasurement("me", m, myColor))
+                    : null}
+
+                  {draftShape && "tool" in draftShape
+                    ? renderMarkup("draft", draftShape, myColor, true)
+                    : null}
+                  {draftShape && "type" in draftShape
+                    ? renderMeasurement("draft", draftShape as MeasurementShape, myColor)
+                    : null}
+                  {tool === "calibrate" && calibrationPoints.length === 1 ? (
+                    <g style={{ pointerEvents: "none" }}>
+                      <circle cx={calibrationPoints[0][0]} cy={calibrationPoints[0][1]} r={1.2} fill={myColor} stroke="#fff" strokeWidth={0.3} vectorEffect="non-scaling-stroke" />
+                      <text x={calibrationPoints[0][0] + 1.5} y={calibrationPoints[0][1] - 1} fontSize={1.8} fontFamily="DM Sans" fontWeight={650} fill={myColor}>
+                        1
                       </text>
                     </g>
-                  );
-                })
-              : null}
+                  ) : null}
+                  {tool === "measure_area" && areaPoints.length > 0 ? (
+                    <g>
+                      <polyline
+                        points={areaPoints.map((p) => `${p[0]},${p[1]}`).join(" ")}
+                        fill={myColor}
+                        fillOpacity={0.08}
+                        stroke={myColor}
+                        strokeWidth={0.4}
+                        strokeDasharray="1 0.8"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                      {areaPoints.map((p, i) => (
+                        <circle key={i} cx={p[0]} cy={p[1]} r={0.6} fill={myColor} vectorEffect="non-scaling-stroke" />
+                      ))}
+                    </g>
+                  ) : null}
 
-            {/* Pending comment pin preview */}
-            {pendingComment ? (
-              <g style={{ pointerEvents: "none" }}>
-                <circle
-                  cx={pendingComment.x}
-                  cy={pendingComment.y}
-                  r={2.2}
-                  fill={myColor}
-                  stroke="#fff"
-                  strokeWidth={0.5}
-                  opacity={0.6}
-                  vectorEffect="non-scaling-stroke"
-                />
-              </g>
-            ) : null}
-          </svg>
+                  {showComments
+                    ? rootComments.map((c) => {
+                        const color = colorForUserId(c.userId);
+                        return (
+                          <g
+                            key={c.id}
+                            className="pin"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCommentId(c.id === selectedCommentId ? null : c.id);
+                            }}
+                            style={{ pointerEvents: "auto" }}
+                          >
+                            {selectedCommentId === c.id ? (
+                              <circle cx={c.x} cy={c.y} r={3.5} fill={color} opacity={0.2} />
+                            ) : null}
+                            <circle
+                              cx={c.x}
+                              cy={c.y}
+                              r={2.2}
+                              fill={c.resolved ? "#2d8a5e" : color}
+                              stroke="#fff"
+                              strokeWidth={0.5}
+                              vectorEffect="non-scaling-stroke"
+                            />
+                            <text
+                              x={c.x}
+                              y={c.y + 0.7}
+                              textAnchor="middle"
+                              fontSize={2}
+                              fontFamily="DM Sans"
+                              fontWeight={700}
+                              fill="#fff"
+                            >
+                              {c.pinNumber ?? "·"}
+                            </text>
+                          </g>
+                        );
+                      })
+                    : null}
 
-          {/* Inline text-draft prompt (appears at click position) */}
-          {textPrompt ? (
-            <div
-              style={{
-                position: "absolute",
-                left: `${textPrompt.x}%`,
-                top: `${textPrompt.y}%`,
-                transform: "translate(-4px, -12px)",
-                background: "#fff",
-                border: `1px solid ${myColor}`,
-                borderRadius: 6,
-                padding: 4,
-                boxShadow: "0 4px 12px rgba(0,0,0,.1)",
-                zIndex: 10,
-              }}
-            >
-              <input
-                autoFocus
-                type="text"
-                value={textDraft}
-                onChange={(e) => setTextDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") commitTextDraft();
-                  if (e.key === "Escape") {
-                    setTextPrompt(null);
-                    setTextDraft("");
-                  }
-                }}
-                onBlur={commitTextDraft}
-                style={{
-                  border: "none",
-                  outline: "none",
-                  fontFamily: "DM Sans, system-ui",
-                  fontSize: 12,
-                  fontWeight: 650,
-                  color: myColor,
-                  width: 120,
-                }}
-                placeholder="Type text…"
-              />
-            </div>
-          ) : null}
+                  {pendingComment ? (
+                    <g style={{ pointerEvents: "none" }}>
+                      <circle
+                        cx={pendingComment.x}
+                        cy={pendingComment.y}
+                        r={2.2}
+                        fill={myColor}
+                        stroke="#fff"
+                        strokeWidth={0.5}
+                        opacity={0.6}
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    </g>
+                  ) : null}
+                </svg>
 
-          {pendingComment ? (
-            <div
-              style={{
-                position: "absolute",
-                left: `${pendingComment.x}%`,
-                top: `${pendingComment.y}%`,
-                transform: "translate(16px, -8px)",
-                background: "#fff",
-                border: `1px solid ${myColor}`,
-                borderRadius: 8,
-                padding: 8,
-                boxShadow: "0 6px 18px rgba(0,0,0,.15)",
-                zIndex: 10,
-                width: 240,
-              }}
-            >
-              <textarea
-                autoFocus
-                value={commentDraft}
-                onChange={(e) => setCommentDraft(e.target.value)}
-                placeholder="Write a comment…"
-                style={{
-                  width: "100%",
-                  height: 56,
-                  border: "1px solid var(--surface-3)",
-                  borderRadius: 6,
-                  padding: 6,
-                  fontFamily: "Instrument Sans, system-ui",
-                  fontSize: 12,
-                  resize: "vertical",
-                }}
-              />
-              <div style={{ display: "flex", gap: 6, marginTop: 6, justifyContent: "flex-end" }}>
-                <button
-                  className="dr-btn xs ghost"
-                  onClick={() => {
-                    setPendingComment(null);
-                    setCommentDraft("");
-                  }}
-                  style={{ height: 26, padding: "0 8px", fontSize: 11 }}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="dr-btn xs primary"
-                  onClick={commitPendingComment}
-                  disabled={!commentDraft.trim()}
-                  style={{ height: 26, padding: "0 8px", fontSize: 11 }}
-                >
-                  Post pin
-                </button>
+                {textPrompt ? (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: `${textPrompt.x}%`,
+                      top: `${textPrompt.y}%`,
+                      transform: "translate(-4px, -12px)",
+                      background: "#fff",
+                      border: `1px solid ${myColor}`,
+                      borderRadius: 6,
+                      padding: 4,
+                      boxShadow: "0 4px 12px rgba(0,0,0,.1)",
+                      zIndex: 10,
+                    }}
+                  >
+                    <input
+                      autoFocus
+                      type="text"
+                      value={textDraft}
+                      onChange={(e) => setTextDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitTextDraft();
+                        if (e.key === "Escape") {
+                          setTextPrompt(null);
+                          setTextDraft("");
+                        }
+                      }}
+                      onBlur={commitTextDraft}
+                      style={{
+                        border: "none",
+                        outline: "none",
+                        fontFamily: "DM Sans, system-ui",
+                        fontSize: 12,
+                        fontWeight: 650,
+                        color: myColor,
+                        width: 120,
+                      }}
+                      placeholder="Type text…"
+                    />
+                  </div>
+                ) : null}
+
+                {pendingComment ? (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: `${pendingComment.x}%`,
+                      top: `${pendingComment.y}%`,
+                      transform: "translate(16px, -8px)",
+                      background: "#fff",
+                      border: `1px solid ${myColor}`,
+                      borderRadius: 8,
+                      padding: 8,
+                      boxShadow: "0 6px 18px rgba(0,0,0,.15)",
+                      zIndex: 10,
+                      width: 240,
+                    }}
+                  >
+                    <textarea
+                      autoFocus
+                      value={commentDraft}
+                      onChange={(e) => setCommentDraft(e.target.value)}
+                      placeholder="Write a comment…"
+                      style={{
+                        width: "100%",
+                        height: 56,
+                        border: "1px solid var(--surface-3)",
+                        borderRadius: 6,
+                        padding: 6,
+                        fontFamily: "Instrument Sans, system-ui",
+                        fontSize: 12,
+                        resize: "vertical",
+                      }}
+                    />
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 6,
+                        marginTop: 6,
+                        justifyContent: "flex-end",
+                      }}
+                    >
+                      <button
+                        className="dr-btn xs ghost"
+                        onClick={() => {
+                          setPendingComment(null);
+                          setCommentDraft("");
+                        }}
+                        style={{ height: 26, padding: "0 8px", fontSize: 11 }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="dr-btn xs primary"
+                        onClick={commitPendingComment}
+                        disabled={!commentDraft.trim()}
+                        style={{ height: 26, padding: "0 8px", fontSize: 11 }}
+                      >
+                        Post pin
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
+            )}
+          </div>
+
+          {/* Zoom indicator */}
+          {!compareMode ? (
+            <div className="dr-zoom-indicator">
+              <button onClick={() => stepZoom(-0.1)} aria-label="Zoom out">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  <line x1="8" y1="11" x2="14" y2="11" />
+                </svg>
+              </button>
+              <span>{Math.round(zoom * 100)}%</span>
+              <button onClick={() => stepZoom(0.1)} aria-label="Zoom in">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  <line x1="11" y1="8" x2="11" y2="14" />
+                  <line x1="8" y1="11" x2="14" y2="11" />
+                </svg>
+              </button>
             </div>
           ) : null}
         </div>
-        )}
       </div>
 
-      {/* Side panel */}
-      <aside className="dr-detail-side">
-        <div>
-          <div className="dr-side-title">Sheet info</div>
-          <div style={{ fontSize: 13, fontWeight: 650 }}>{sheet.sheetNumber}</div>
-          <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-            {sheet.sheetTitle}
+      {/* ───── Right comments panel ───── */}
+      {showComments ? (
+        <aside className="dr-comments-panel">
+          <div className="dr-comments-hdr">
+            <h3>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+              </svg>
+              Comments
+              {rootComments.length > 0 ? (
+                <span className="dr-pill gray">{rootComments.length}</span>
+              ) : null}
+            </h3>
+            <button
+              className="dr-btn xs ghost"
+              onClick={() => setShowComments(false)}
+              aria-label="Close comments"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 4 }}>
-            Page {sheet.pageIndex + 1} · {sheet.autoDetected ? "auto-detected" : "manual"}
-          </div>
-        </div>
-
-        <div>
-          <div
-            className="dr-side-title"
-            style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
-          >
-            <span>Calibration</span>
-            {canCalibrate ? (
-              <button
-                className="dr-btn xs ghost"
-                onClick={handleCalibrate}
-                style={{ height: 22, padding: "0 6px", fontSize: 10 }}
-              >
-                Set
-              </button>
-            ) : null}
-          </div>
-          {calibration.scale ? (
-            <div style={{ fontSize: 12 }}>
-              <div style={{ fontFamily: "JetBrains Mono, monospace", fontWeight: 600 }}>
-                {calibration.scale}
-              </div>
-              <div style={{ color: "var(--text-tertiary)", fontSize: 11, marginTop: 2 }}>
-                {calibration.source === "manual" ? "Manual" : "Title block"}
-                {calibration.calibratedByName
-                  ? ` · ${calibration.calibratedByName}`
-                  : ""}
-              </div>
-            </div>
-          ) : (
-            <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
-              Not calibrated. Linear + area labels show raw values until a
-              scale is set.
-            </div>
-          )}
-        </div>
-
-        <div>
-          <div className="dr-side-title">Comments ({rootComments.length})</div>
-          <div className="dr-comment-list">
+          <div className="dr-comments-list">
             {rootComments.length === 0 ? (
-              <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
-                No comments. Pick the Comment tool and click the sheet to add one.
+              <div
+                style={{
+                  padding: "30px 16px",
+                  textAlign: "center",
+                  color: "var(--text-tertiary)",
+                  fontSize: 12.5,
+                  fontWeight: 520,
+                }}
+              >
+                No comments on this sheet. Click the Comment tool then click the
+                sheet to pin one.
               </div>
             ) : (
               rootComments.map((c) => {
                 const color = colorForUserId(c.userId);
+                const replies = localComments.filter((x) => x.parentCommentId === c.id);
                 return (
                   <div
                     key={c.id}
-                    className={`dr-comment ${c.resolved ? "resolved" : ""}`}
+                    className={`dr-comment${selectedCommentId === c.id ? " selected" : ""}${c.resolved ? " resolved" : ""}`}
                     onClick={() => setSelectedCommentId(c.id)}
-                    style={{
-                      cursor: "pointer",
-                      borderColor:
-                        selectedCommentId === c.id ? color : undefined,
-                    }}
                   >
-                    <div className="dr-comment-hdr">
-                      <span
+                    <div className="dr-comment-top">
+                      <div
                         className="dr-comment-pin"
                         style={{ background: c.resolved ? "#2d8a5e" : color }}
                       >
                         {c.pinNumber ?? "·"}
-                      </span>
-                      <span className="dr-comment-author">{c.userName ?? "Unknown"}</span>
-                      <span className="dr-comment-time">
+                      </div>
+                      <div className="dr-comment-user">{c.userName ?? "Unknown"}</div>
+                      <div className="dr-comment-time">
                         {new Date(c.createdAt).toLocaleDateString("en-US", {
                           month: "short",
                           day: "numeric",
                         })}
-                      </span>
+                      </div>
                     </div>
                     <div className="dr-comment-body">{c.text}</div>
+                    <div className="dr-comment-footer">
+                      {c.resolved ? (
+                        <>
+                          <span style={{ color: "#1e6b46", fontWeight: 650 }}>✓ Resolved</span>
+                          {canAnnotate ? (
+                            <button
+                              className="dr-comment-reply-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleResolved(c);
+                              }}
+                            >
+                              Reopen
+                            </button>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
+                          {canAnnotate ? (
+                            <button
+                              className="dr-comment-reply-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReplyingToCommentId(
+                                  replyingToCommentId === c.id ? null : c.id,
+                                );
+                                setReplyDraft("");
+                              }}
+                            >
+                              Reply{replies.length > 0 ? ` (${replies.length})` : ""}
+                            </button>
+                          ) : null}
+                          {canAnnotate ? (
+                            <>
+                              <span>·</span>
+                              <button
+                                className="dr-comment-reply-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleResolved(c);
+                                }}
+                              >
+                                Resolve
+                              </button>
+                            </>
+                          ) : null}
+                        </>
+                      )}
+                    </div>
+                    {replies.length > 0 ? (
+                      <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                        {replies.map((r) => (
+                          <div
+                            key={r.id}
+                            style={{
+                              background: "var(--surface-2)",
+                              borderRadius: 8,
+                              padding: "8px 10px",
+                              fontSize: 12,
+                              color: "var(--text-secondary)",
+                            }}
+                          >
+                            <div style={{ fontWeight: 680, color: "var(--text-primary)", fontSize: 12, marginBottom: 2 }}>
+                              {r.userName ?? "Unknown"}
+                            </div>
+                            <div>{r.text}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {replyingToCommentId === c.id ? (
+                      <div
+                        style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <textarea
+                          autoFocus
+                          value={replyDraft}
+                          onChange={(e) => setReplyDraft(e.target.value)}
+                          placeholder="Reply…"
+                          style={{
+                            width: "100%",
+                            minHeight: 54,
+                            border: "1px solid var(--surface-3)",
+                            borderRadius: 8,
+                            padding: "6px 8px",
+                            fontFamily: "Instrument Sans, system-ui",
+                            fontSize: 12,
+                            resize: "vertical",
+                            background: "var(--surface-1)",
+                          }}
+                        />
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          <button
+                            className="dr-btn xs ghost"
+                            onClick={() => {
+                              setReplyingToCommentId(null);
+                              setReplyDraft("");
+                            }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            className="dr-btn xs primary"
+                            disabled={!replyDraft.trim()}
+                            onClick={() => postReply(c.id)}
+                          >
+                            Post reply
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })
             )}
           </div>
-        </div>
-
-        {canAnnotate ? (
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--text-tertiary)",
-              borderTop: "1px solid var(--surface-3)",
-              paddingTop: 10,
-            }}
-          >
-            Markups don&apos;t carry to new versions. When a new sheet set
-            supersedes this one, annotations stay pinned here.
-          </div>
-        ) : (
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--text-tertiary)",
-              borderTop: "1px solid var(--surface-3)",
-              paddingTop: 10,
-            }}
-          >
-            Read-only view — markup and comment tools are disabled for your
-            role.
-          </div>
-        )}
-      </aside>
+          {canAnnotate ? (
+            <div className="dr-comments-composer">
+              <textarea
+                placeholder={
+                  tool === "comment"
+                    ? "Click on the sheet to pin a comment…"
+                    : "Type a general note, or switch to the Comment tool to pin at a location…"
+                }
+                value={panelCompose}
+                onChange={(e) => setPanelCompose(e.target.value)}
+              />
+              <div className="dr-comments-composer-foot">
+                <span>{panelCompose.length} chars</span>
+                <button
+                  className="dr-btn sm primary"
+                  disabled={!panelCompose.trim() || panelPosting}
+                  onClick={postPanelComment}
+                >
+                  {panelPosting ? "Posting…" : "Post"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </aside>
+      ) : null}
     </div>
   );
 }
