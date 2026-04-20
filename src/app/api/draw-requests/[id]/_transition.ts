@@ -5,7 +5,11 @@ import { z } from "zod";
 
 import { auth } from "@/auth/config";
 import { db } from "@/db/client";
-import { drawRequests, lienWaivers } from "@/db/schema";
+import {
+  drawRequests,
+  lienWaivers,
+  projectOrganizationMemberships,
+} from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import type { EffectiveContext } from "@/domain/context";
@@ -85,17 +89,43 @@ async function lockInRetainageReleases({ tx, draw }: HookArgs): Promise<void> {
   await recomputeProjectDraftDraws(tx, draw.projectId, draw.id);
 }
 
+// Fan out lien waivers when a draw transitions to submitted (conditional)
+// or paid (unconditional). Two waiver tiers per draw:
+//
+//   1. The contractor's own waiver to the lender — single row, full draw
+//      amount, organizationId = contractor's org. Real-world purpose:
+//      contractor signs that they've received funds for the period.
+//
+//   2. Sub waivers — one row per active subcontractor on the project.
+//      Each acknowledges the sub has been (will be) paid for their share
+//      of the draw period. AMOUNT ALLOCATION: equal split of
+//      currentPaymentDueCents across all active subs, rounding remainder
+//      assigned to the last sub so totals stay exact. This is a placeholder
+//      until a per-sub-per-SOV-line allocation feature lands — when it
+//      does, replace `splitAmountAcrossSubs` with the real per-sub sums.
+//      No subs on the project → fan-out is a no-op (only contractor
+//      waiver lands).
+//
+// Idempotent via the unique index on (drawRequestId, organizationId,
+// lienWaiverType) — re-runs no-op rather than duplicating. Audit event
+// `waivers.fanned_out` fires once per call with sub count + per-sub
+// amount metadata.
+
 async function createWaiverForDraw(
   args: HookArgs,
   waiverType: "conditional_progress" | "unconditional_progress",
 ): Promise<void> {
   const { tx, draw, ctx } = args;
+
   const [fresh] = await tx
     .select({ currentPaymentDueCents: drawRequests.currentPaymentDueCents })
     .from(drawRequests)
     .where(eq(drawRequests.id, draw.id))
     .limit(1);
-  const amount = fresh?.currentPaymentDueCents ?? draw.currentPaymentDueCents;
+  const totalAmount =
+    fresh?.currentPaymentDueCents ?? draw.currentPaymentDueCents;
+
+  // 1) Contractor's own waiver — full draw amount.
   await tx
     .insert(lienWaivers)
     .values({
@@ -104,7 +134,7 @@ async function createWaiverForDraw(
       organizationId: ctx.project.contractorOrganizationId,
       lienWaiverType: waiverType,
       lienWaiverStatus: "requested",
-      amountCents: amount,
+      amountCents: totalAmount,
       throughDate: draw.periodTo,
       requestedAt: new Date(),
     })
@@ -115,6 +145,79 @@ async function createWaiverForDraw(
         lienWaivers.lienWaiverType,
       ],
     });
+
+  // 2) Per-sub waivers — one per active sub on the project.
+  const subRows = await tx
+    .select({ organizationId: projectOrganizationMemberships.organizationId })
+    .from(projectOrganizationMemberships)
+    .where(
+      and(
+        eq(projectOrganizationMemberships.projectId, draw.projectId),
+        eq(projectOrganizationMemberships.membershipType, "subcontractor"),
+        eq(projectOrganizationMemberships.membershipStatus, "active"),
+      ),
+    );
+  const subOrgIds = subRows.map((r) => r.organizationId);
+
+  if (subOrgIds.length === 0 || totalAmount <= 0) {
+    return; // contractor waiver only; nothing more to fan out
+  }
+
+  const allocations = splitAmountAcrossSubs(totalAmount, subOrgIds.length);
+  await tx
+    .insert(lienWaivers)
+    .values(
+      subOrgIds.map((orgId, idx) => ({
+        projectId: draw.projectId,
+        drawRequestId: draw.id,
+        organizationId: orgId,
+        lienWaiverType: waiverType,
+        lienWaiverStatus: "requested" as const,
+        amountCents: allocations[idx],
+        throughDate: draw.periodTo,
+        requestedAt: new Date(),
+      })),
+    )
+    .onConflictDoNothing({
+      target: [
+        lienWaivers.drawRequestId,
+        lienWaivers.organizationId,
+        lienWaivers.lienWaiverType,
+      ],
+    });
+
+  await writeAuditEvent(
+    ctx,
+    {
+      action: "waivers.fanned_out",
+      resourceType: "draw_request",
+      resourceId: draw.id,
+      details: {
+        metadata: {
+          waiverType,
+          subCount: subOrgIds.length,
+          totalAmountCents: totalAmount,
+          allocations: subOrgIds.map((orgId, idx) => ({
+            organizationId: orgId,
+            amountCents: allocations[idx],
+          })),
+          allocationStrategy: "equal_split_with_rounding_on_last",
+        },
+      },
+    },
+    tx,
+  );
+}
+
+// Splits `total` into `count` parts as evenly as possible, with any
+// rounding remainder applied to the last part so the sum equals `total`
+// exactly. Returns cents (integers).
+function splitAmountAcrossSubs(total: number, count: number): number[] {
+  if (count <= 0) return [];
+  const base = Math.floor(total / count);
+  const result = new Array<number>(count).fill(base);
+  result[count - 1] = total - base * (count - 1);
+  return result;
 }
 
 export type DrawTransitionKind =
