@@ -83,6 +83,9 @@ export function ContractorFinancialPanel({
   view: ContractorFinancialView;
 }) {
   const { contract, progress, draws, subPayments, retainage } = view;
+  // Residential projects use "Scope" instead of "Trade" per the project-wide
+  // copy rule (see builtcrm_residential_client_portal_pages.jsx).
+  const scopeLabel = view.isResidential ? "Scope" : "Trade";
 
   const totalForBar =
     Math.max(0, progress.paidCents) +
@@ -270,6 +273,11 @@ export function ContractorFinancialPanel({
                     <div className="fv-sub-av">{initials}</div>
                     <div className="fv-sub-main">
                       <div className="fv-sub-name">{s.organizationName}</div>
+                      <div className="fv-sub-scope">
+                        {s.tradeScope
+                          ? `${scopeLabel} · ${s.tradeScope}`
+                          : `${scopeLabel} not set`}
+                      </div>
                     </div>
                     <div className="fv-sub-money">
                       <div className="fv-sub-val">

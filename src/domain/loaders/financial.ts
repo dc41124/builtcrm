@@ -36,6 +36,11 @@ export type ContractorDrawRow = {
 export type SubPaymentRollupRow = {
   organizationId: string;
   organizationName: string;
+  // Read through from project_organization_memberships.workScope. Free-text
+  // label the GC entered for this sub's scope on this project (e.g.
+  // "Structural Steel", "HVAC", "Deck & railings"). Null when unset.
+  // Residential portal should render this as "Scope"; commercial as "Trade".
+  tradeScope: string | null;
   contractValueCents: number; // Phase 1: sum of accepted lien waivers
   earnedCents: number;
   paidCents: number;
@@ -47,6 +52,8 @@ export type ContractorFinancialView = {
   context: EffectiveContext;
   project: EffectiveContext["project"];
   role: EffectiveContext["role"];
+  // Drives the "Trade" vs "Scope" label on the sub payment rollup.
+  isResidential: boolean;
   contract: {
     originalContractCents: number;
     approvedChangeOrderCents: number;
@@ -156,12 +163,14 @@ export async function getContractorFinancialView(
       id: projects.id,
       name: projects.name,
       contractValueCents: projects.contractValueCents,
+      clientSubtype: projects.clientSubtype,
     })
     .from(projects)
     .where(eq(projects.id, projectId))
     .limit(1);
 
   const originalContractCents = project?.contractValueCents ?? 0;
+  const isResidential = project?.clientSubtype === "residential";
 
   // Approved change orders — treat approved as "baked into revised contract".
   const [coAgg] = await db
@@ -291,6 +300,9 @@ export async function getContractorFinancialView(
     .select({
       organizationId: projectOrganizationMemberships.organizationId,
       organizationName: organizations.name,
+      // Free-text scope label the GC set on invite. May be null; rendered
+      // as "Trade" on commercial projects, "Scope" on residential.
+      workScope: projectOrganizationMemberships.workScope,
     })
     .from(projectOrganizationMemberships)
     .innerJoin(
@@ -358,6 +370,7 @@ export async function getContractorFinancialView(
       subPayments.push({
         organizationId: org.organizationId,
         organizationName: org.organizationName,
+        tradeScope: org.workScope,
         contractValueCents: agg.earned, // Phase 1 proxy — no sub-contracts table yet
         earnedCents: agg.earned,
         paidCents: agg.paid,
@@ -383,6 +396,7 @@ export async function getContractorFinancialView(
     context,
     project: context.project,
     role: context.role,
+    isResidential,
     contract: {
       originalContractCents,
       approvedChangeOrderCents,

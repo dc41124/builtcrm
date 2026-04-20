@@ -2744,7 +2744,7 @@ git commit -m "Step 41 (4D #41): Procurement / POs module"
 
 ---
 
-## Step 42 — `tradeScope` Field on `SubPaymentRollupRow`
+## Step 42 — `tradeScope` Field on `SubPaymentRollupRow` ✅ DONE (2026-04-19)
 
 **Mode:** Safe-to-autorun
 **Item:** 4D #42

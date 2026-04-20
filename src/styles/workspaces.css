@@ -77,6 +77,7 @@
 .fv-sub-av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-family:var(--fd);font-size:11px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--ac),var(--accent-l,var(--ac)));flex-shrink:0}
 .fv-sub-main{flex:1;min-width:0}
 .fv-sub-name{font-family:var(--fm);font-size:12.5px;font-weight:560;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fv-sub-scope{font-family:var(--fb);font-size:11px;color:var(--t3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fv-sub-money{text-align:right;flex-shrink:0}
 .fv-sub-val{font-family:var(--fd);font-size:13px;font-weight:700;color:var(--t1)}
 .fv-sub-lbl{font-size:10px;color:var(--t3);font-weight:600;margin-top:1px}
