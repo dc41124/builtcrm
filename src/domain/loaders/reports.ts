@@ -87,6 +87,10 @@ import {
   getLienWaiverLogReport,
   type LienWaiverLogReport,
 } from "./lien-waiver-report";
+import {
+  getProcurementReport,
+  type ProcurementReportView,
+} from "./procurement";
 
 export type ReportsView = {
   context: ContractorOrgContext;
@@ -103,6 +107,10 @@ export type ReportsView = {
   // Step 40 wiring — every lien waiver across the portfolio with status,
   // amount, draw#, sub. Powers the Reports page lien-waivers tile.
   lienWaivers: LienWaiverLogReport | null;
+  // Step 41 wiring — PO aggregates across the portfolio (open count,
+  // committed $, aging bucket, by-vendor rollup). Powers the Reports
+  // page procurement tile.
+  procurement: ProcurementReportView | null;
 };
 
 // ---------------------------------------------------------------
@@ -157,6 +165,7 @@ export async function getContractorReportsData(
       paymentTracking: null,
       weeklyReports: null,
       lienWaivers: null,
+      procurement: null,
     };
   }
 
@@ -407,6 +416,14 @@ export async function getContractorReportsData(
     lienWaiverLog = null;
   }
 
+  // ---- Procurement aggregate (Step 41) ----
+  let procurement: ProcurementReportView | null = null;
+  try {
+    procurement = await getProcurementReport(input);
+  } catch {
+    procurement = null;
+  }
+
   return {
     context,
     generatedAtIso: now.toISOString(),
@@ -425,6 +442,7 @@ export async function getContractorReportsData(
     paymentTracking,
     weeklyReports: weeklyReportsAggregate,
     lienWaivers: lienWaiverLog,
+    procurement,
   };
 }
 

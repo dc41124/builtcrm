@@ -52,6 +52,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
             { label: "Change Orders", href: `${base}/change-orders` },
             { label: "Approvals", href: `${base}/approvals` },
             { label: "Compliance", href: `${base}/compliance` },
+            { label: "Procurement / POs", href: `${base}/procurement` },
             { label: "Billing", href: `${base}/billing` },
             { label: "Financials", href: `${base}/financials` },
             { label: "Selections", href: `${base}/selections` },
@@ -101,6 +102,14 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
           { label: "Budget Overview", href: "/contractor/budget" },
           { label: "Payment Tracking", href: "/contractor/payment-tracking" },
           { label: "Retainage", href: "/contractor/retainage" },
+        ]),
+      },
+      {
+        label: "Procurement",
+        defaultOpen: true,
+        items: mark([
+          { label: "Vendors", href: "/contractor/vendors" },
+          { label: "Cost Codes", href: "/contractor/cost-codes" },
         ]),
       },
       {

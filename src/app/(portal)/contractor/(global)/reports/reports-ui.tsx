@@ -124,7 +124,7 @@ const REPORTS: ReportDef[] = [
   { id: "co-log", category: "operational", label: "Change Order Log", Icon: IconHammer, desc: "All COs with status and aging", built: false, origin: "Phase 4B" },
   { id: "rfi-log", category: "operational", label: "RFI Log", Icon: IconFileText, desc: "All RFIs with turnaround times", built: false, origin: "Phase 4B" },
   { id: "submittal-log", category: "operational", label: "Submittal Log", Icon: IconPackageCheck, desc: "Submittal status and reviewer activity", built: false, origin: "Step 20" },
-  { id: "procurement", category: "operational", label: "Procurement / POs", Icon: IconTruck, desc: "POs by vendor, status, and aging", built: false, origin: "Step 41" },
+  { id: "procurement", category: "operational", label: "Procurement / POs", Icon: IconTruck, desc: "POs by vendor, status, and aging", built: true, origin: "Step 41" },
   { id: "inspections", category: "operational", label: "Inspections Summary", Icon: IconClipboardCheck, desc: "QA/QC pass-fail trends", built: false, origin: "Step 45" },
   { id: "closeout", category: "operational", label: "Closeout Matrix", Icon: IconPackageCheck, desc: "Closeout completion per project", built: false, origin: "Step 48" },
   { id: "compliance", category: "compliance", label: "Compliance", Icon: IconShieldCheck, desc: "Expiring documents and sub matrix", built: true, origin: "Step 24.5" },
@@ -740,6 +740,8 @@ function renderReport(id: string, view: ReportsView) {
       return <WeeklyReportsAggregateReport view={view} />;
     case "lien-waivers":
       return <LienWaiverLogReportView view={view} />;
+    case "procurement":
+      return <ProcurementReportView view={view} />;
     case "labor":
       return <LaborReport />;
     case "schedule":
@@ -2530,6 +2532,148 @@ function lienWaiverStatusLabel(s: string): string {
     default:
       return s;
   }
+}
+
+// ----------------------------------------------------------------
+// Procurement / POs (Step 41) — aggregate PO counts, committed $,
+// spend-YTD, by-vendor rollup, aging bucket. Detail per PO lives on
+// the project-scoped procurement page.
+// ----------------------------------------------------------------
+
+function ProcurementReportView({ view }: { view: ReportsView }) {
+  const summary = view.procurement;
+  if (!summary) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        Procurement summary unavailable.
+      </div>
+    );
+  }
+  if (
+    summary.openPoCount === 0 &&
+    summary.closedYtdCount === 0 &&
+    summary.byVendor.length === 0
+  ) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        No purchase orders yet across the portfolio.
+        <div style={{ marginTop: 8, fontSize: 12 }}>
+          Open a project and issue your first PO from the Procurement tab.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="rpt-k-row four">
+        <KPI
+          label="Open POs"
+          value={summary.openPoCount.toString()}
+          sub="Issued or receiving"
+          Icon={IconTruck}
+          tone={summary.openPoCount > 0 ? "neutral" : "ok"}
+        />
+        <KPI
+          label="Committed (open)"
+          value={fmt(summary.committedCents / 100)}
+          sub="Across open POs"
+          Icon={IconWallet}
+          tone={summary.committedCents > 0 ? "warn" : "neutral"}
+        />
+        <KPI
+          label="Awaiting invoice"
+          value={summary.awaitingInvoiceCount.toString()}
+          sub="Fully received, not closed"
+          Icon={IconReceipt}
+          tone={summary.awaitingInvoiceCount > 0 ? "warn" : "ok"}
+        />
+        <KPI
+          label="Spent YTD"
+          value={fmt(summary.spendYtdCents / 100)}
+          sub={`${summary.closedYtdCount} POs closed this year`}
+          Icon={IconDollarSign}
+          tone="ok"
+        />
+      </div>
+
+      <Card padded={false} className="rpt-mb">
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--s3)" }}>
+          <div
+            style={{
+              fontFamily: "var(--fd)",
+              fontSize: 13,
+              fontWeight: 700,
+            }}
+          >
+            By vendor
+          </div>
+        </div>
+        <div className="rpt-tbl-scroll">
+          <table className="rpt-data-tbl">
+            <thead>
+              <tr>
+                <th>Vendor</th>
+                <th className="rpt-right">Open POs</th>
+                <th className="rpt-right">Committed</th>
+                <th className="rpt-right">Spend YTD</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.byVendor.slice(0, 25).map((v) => (
+                <tr key={v.vendorId}>
+                  <td>{v.vendorName}</td>
+                  <td className="rpt-right">{v.openCount}</td>
+                  <td className="rpt-right">{fmt(v.committedCents / 100)}</td>
+                  <td className="rpt-right">{fmt(v.spendYtdCents / 100)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card padded={false}>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--s3)" }}>
+          <div
+            style={{
+              fontFamily: "var(--fd)",
+              fontSize: 13,
+              fontWeight: 700,
+            }}
+          >
+            Open POs by age (ordered date → today)
+          </div>
+        </div>
+        <div className="rpt-tbl-scroll">
+          <table className="rpt-data-tbl">
+            <thead>
+              <tr>
+                <th>Bucket</th>
+                <th className="rpt-right">Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.byAging.map((b) => (
+                <tr key={b.bucket}>
+                  <td>
+                    {b.bucket === "0_7"
+                      ? "0–7 days"
+                      : b.bucket === "8_14"
+                        ? "8–14 days"
+                        : b.bucket === "15_30"
+                          ? "15–30 days"
+                          : "30+ days"}
+                  </td>
+                  <td className="rpt-right">{b.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
 }
 
 // ----------------------------------------------------------------

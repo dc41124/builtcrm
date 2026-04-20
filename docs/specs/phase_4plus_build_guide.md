@@ -2691,7 +2691,7 @@ git commit -m "Step 40 (4D #40): Lien waiver sub fan-out on draw submit"
 
 ---
 
-## Step 41 — Procurement / POs Module
+## Step 41 — Procurement / POs Module ✅ DONE (2026-04-19)
 
 **Mode:** Require-design-input
 **Item:** 4D #41

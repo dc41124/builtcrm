@@ -41,15 +41,6 @@ export const paymentStatusEnum = pgEnum("payment_status", [
   "cancelled",
 ]);
 
-export const purchaseOrderStatusEnum = pgEnum("purchase_order_status", [
-  "draft",
-  "pending_issue",
-  "issued",
-  "revised",
-  "closed",
-  "cancelled",
-]);
-
 export const sovStatusEnum = pgEnum("sov_status", [
   "draft",
   "active",

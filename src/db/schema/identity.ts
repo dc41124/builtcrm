@@ -6,6 +6,7 @@ import {
   date,
   index,
   integer,
+  numeric,
   pgEnum,
   pgTable,
   text,
@@ -234,6 +235,16 @@ export const organizations = pgTable(
     usageTeamCount: integer("usage_team_count").default(0).notNull(),
     usageStorageBytes: bigint("usage_storage_bytes", { mode: "number" })
       .default(0)
+      .notNull(),
+
+    // Default sales-tax rate applied to new purchase orders (Step 41).
+    // Per-PO override on purchase_orders.taxRatePercent. Decimals supported
+    // (e.g. 9.975 for Quebec QST). 0.00 = no default (contractor enters per PO).
+    defaultTaxRatePercent: numeric("default_tax_rate_percent", {
+      precision: 5,
+      scale: 2,
+    })
+      .default("0.00")
       .notNull(),
 
     ...timestamps,
