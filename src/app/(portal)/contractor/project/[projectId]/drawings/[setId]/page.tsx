@@ -10,6 +10,7 @@ import { AuthorizationError } from "@/domain/permissions";
 
 import "../drawings.css";
 import { SheetIndexWorkspace } from "./workspace";
+import { ThumbnailMinter } from "./thumbnail-minter";
 
 export default async function ContractorSheetIndexPage({
   params,
@@ -28,16 +29,28 @@ export default async function ContractorSheetIndexPage({
     });
     const counts = computeDisciplineCounts(view.sheets);
 
+    const pendingSheets = view.sheets
+      .filter((s) => !s.thumbnailUrl)
+      .map((s) => ({ id: s.id, pageIndex: s.pageIndex }));
+
     return (
-      <SheetIndexWorkspace
-        projectId={projectId}
-        set={view.set}
-        versionChain={view.versionChain}
-        sheets={view.sheets}
-        disciplineCounts={counts}
-        scopeDiscipline={view.scopeDiscipline}
-        portal={view.portal}
-      />
+      <>
+        <SheetIndexWorkspace
+          projectId={projectId}
+          set={view.set}
+          versionChain={view.versionChain}
+          sheets={view.sheets}
+          disciplineCounts={counts}
+          scopeDiscipline={view.scopeDiscipline}
+          portal={view.portal}
+        />
+        {pendingSheets.length > 0 ? (
+          <ThumbnailMinter
+            sourceUrl={view.sourcePresignedUrl}
+            pendingSheets={pendingSheets}
+          />
+        ) : null}
+      </>
     );
   } catch (err) {
     if (err instanceof AuthorizationError) {

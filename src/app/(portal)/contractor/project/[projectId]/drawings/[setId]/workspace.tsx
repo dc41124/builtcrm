@@ -179,13 +179,14 @@ export function SheetIndexWorkspace(props: {
                     : "dr-thumb-preview placeholder"
                 }
               >
-                {s.thumbnailKey ? (
-                  // Thumbnails are rendered client-side and posted back to R2;
-                  // until a thumbnail exists we show a sheet-number placeholder
-                  // to avoid the "empty card" look. next/image would require
-                  // a remotePatterns entry for the R2 endpoint; deferred.
+                {s.thumbnailUrl ? (
+                  // Thumbnails are rendered client-side (via ThumbnailMinter)
+                  // and posted back to R2 on first visit; subsequent loads
+                  // read straight from the presigned URL. next/image would
+                  // require a remotePatterns entry for the R2 endpoint;
+                  // deferred — direct <img> is fine for this small surface.
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={`/api/drawings/thumbnails/${s.id}`} alt={s.sheetNumber} />
+                  <img src={s.thumbnailUrl} alt={s.sheetNumber} />
                 ) : (
                   <span>{s.sheetNumber}</span>
                 )}

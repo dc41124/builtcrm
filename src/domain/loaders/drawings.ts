@@ -57,6 +57,11 @@ export type SheetSummary = {
   discipline: string | null;
   autoDetected: boolean;
   thumbnailKey: string | null;
+  // Presigned GET for the thumbnail PNG when one exists. Null when the
+  // sheet hasn't been thumbnailed yet — the index view falls back to a
+  // sheet-number placeholder in that case. Presigns are short-lived;
+  // reloading the index refreshes them.
+  thumbnailUrl: string | null;
   changedFromPriorVersion: boolean;
   markupCount: number;
   commentCount: number;
@@ -206,6 +211,11 @@ export type DrawingSetIndexView = {
   sheets: SheetSummary[];
   scopeDiscipline: string | null;
   canUpload: boolean;
+  // Short-lived presigned GET URL for the source PDF — used client-side by
+  // the thumbnail minter to render missing thumbnails. Null if the set
+  // hasn't finished uploading yet. Separate from the detail-view
+  // presigned URL so index-only visits don't pull an expensive one.
+  sourcePresignedUrl: string | null;
 };
 
 export async function getDrawingSetIndex(input: {
@@ -254,6 +264,23 @@ export async function getDrawingSetIndex(input: {
     )
     .orderBy(asc(drawingSheets.pageIndex));
 
+  // Presign thumbnail GET URLs in parallel for any sheet that has one.
+  // Short TTL since the index view is a relatively brief browser session
+  // and reloads naturally refresh these.
+  const { presignDownloadUrl } = await import("@/lib/storage");
+  const thumbnailUrlByKey = new Map<string, string>();
+  const uniqueKeys = Array.from(
+    new Set(baseRows.map((r) => r.thumbnailKey).filter((k): k is string => !!k)),
+  );
+  if (uniqueKeys.length > 0) {
+    const presigned = await Promise.all(
+      uniqueKeys.map((k) =>
+        presignDownloadUrl({ key: k, expiresInSeconds: 60 * 10 }),
+      ),
+    );
+    uniqueKeys.forEach((k, i) => thumbnailUrlByKey.set(k, presigned[i]));
+  }
+
   // Counts of markups + comments per sheet (aggregated in app code to keep
   // drizzle usage simple — two narrow SELECTs rather than a window query).
   const ids = baseRows.map((r) => r.id);
@@ -285,7 +312,30 @@ export async function getDrawingSetIndex(input: {
     ...r,
     markupCount: markupCounts.get(r.id) ?? 0,
     commentCount: commentCounts.get(r.id) ?? 0,
+    thumbnailUrl: r.thumbnailKey
+      ? thumbnailUrlByKey.get(r.thumbnailKey) ?? null
+      : null,
   }));
+
+  // Presign the source PDF only if there's at least one sheet lacking a
+  // thumbnail — the URL is consumed by the client-side ThumbnailMinter,
+  // and there's no reason to pay for a presign on fully-thumbnailed sets.
+  let sourcePresignedUrl: string | null = null;
+  const needsMint = sheets.some((s) => !s.thumbnailKey);
+  if (needsMint) {
+    const [setRow] = await db
+      .select({ sourceFileKey: drawingSets.sourceFileKey })
+      .from(drawingSets)
+      .where(eq(drawingSets.id, input.setId))
+      .limit(1);
+    if (setRow?.sourceFileKey) {
+      const { presignDownloadUrl: presignGet } = await import("@/lib/storage");
+      sourcePresignedUrl = await presignGet({
+        key: setRow.sourceFileKey,
+        expiresInSeconds: 60 * 10,
+      });
+    }
+  }
 
   return {
     context: ctx,
@@ -295,6 +345,7 @@ export async function getDrawingSetIndex(input: {
     sheets,
     scopeDiscipline: scope,
     canUpload: ctx.permissions.can("drawing", "write"),
+    sourcePresignedUrl,
   };
 }
 
@@ -571,6 +622,43 @@ export function computeDisciplineCounts(
     if (s.discipline) counts[s.discipline] = (counts[s.discipline] ?? 0) + 1;
   }
   return counts;
+}
+
+// Closeout integration (Step 48). Returns the as-built drawing sets for a
+// project so the closeout package builder can bundle final record sheets.
+// Contractor-only data; the closeout flow enforces its own permissions.
+// Returns each as-built set with sheet count + source storage key + the
+// version label for listing. Ordered newest first so the closeout UI
+// surfaces the most recent as-built by default.
+export async function getAsBuiltDrawingSetsForCloseout(
+  projectId: string,
+): Promise<
+  Array<{
+    id: string;
+    name: string;
+    version: number;
+    family: string;
+    sheetCount: number;
+    sourceFileKey: string | null;
+    uploadedAt: string;
+  }>
+> {
+  const rows = await db
+    .select({
+      id: drawingSets.id,
+      name: drawingSets.name,
+      version: drawingSets.version,
+      family: drawingSets.family,
+      sheetCount: drawingSets.sheetCount,
+      sourceFileKey: drawingSets.sourceFileKey,
+      uploadedAt: drawingSets.uploadedAt,
+    })
+    .from(drawingSets)
+    .where(
+      and(eq(drawingSets.projectId, projectId), eq(drawingSets.asBuilt, true)),
+    )
+    .orderBy(desc(drawingSets.uploadedAt));
+  return rows.map((r) => ({ ...r, uploadedAt: r.uploadedAt.toISOString() }));
 }
 
 // Org-level subcontractor roster for a project. Used by the drawings module

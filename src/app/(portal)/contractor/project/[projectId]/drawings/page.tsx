@@ -6,6 +6,7 @@ import { auth } from "@/auth/config";
 import { getDrawingSetsIndex } from "@/domain/loaders/drawings";
 import { AuthorizationError } from "@/domain/permissions";
 
+import { AsBuiltToggle } from "./as-built-toggle";
 import "./drawings.css";
 
 function formatFileSize(bytes: number | null): string {
@@ -155,7 +156,12 @@ export default async function ContractorDrawingsSetsPage({
                       ) : (
                         <span className="dr-pill gray">Historical</span>
                       )}
-                      {s.asBuilt ? (
+                      {view.canUpload ? (
+                        <AsBuiltToggle
+                          setId={s.id}
+                          initialAsBuilt={s.asBuilt}
+                        />
+                      ) : s.asBuilt ? (
                         <span className="dr-pill green">As-built</span>
                       ) : null}
                       {s.processingStatus === "processing" ||
