@@ -21,6 +21,7 @@ import { assertCan, AuthorizationError } from "@/domain/permissions";
 const BodySchema = z.object({
   asBuilt: z.boolean().optional(),
   note: z.string().max(2000).optional(),
+  name: z.string().min(1).max(160).optional(),
 });
 
 export async function PATCH(
@@ -33,7 +34,11 @@ export async function PATCH(
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
   const body = parsed.data;
-  if (body.asBuilt === undefined && body.note === undefined) {
+  if (
+    body.asBuilt === undefined &&
+    body.note === undefined &&
+    body.name === undefined
+  ) {
     return NextResponse.json({ error: "empty_patch" }, { status: 400 });
   }
 
@@ -59,6 +64,7 @@ export async function PATCH(
     const patch: Record<string, unknown> = { updatedAt: new Date() };
     if (body.asBuilt !== undefined) patch.asBuilt = body.asBuilt;
     if (body.note !== undefined) patch.note = body.note;
+    if (body.name !== undefined) patch.name = body.name.trim();
 
     await db.update(drawingSets).set(patch).where(eq(drawingSets.id, setId));
 

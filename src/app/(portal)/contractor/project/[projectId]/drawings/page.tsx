@@ -7,6 +7,7 @@ import { getDrawingSetsIndex } from "@/domain/loaders/drawings";
 import { AuthorizationError } from "@/domain/permissions";
 
 import { AsBuiltToggle } from "./as-built-toggle";
+import { SetRenameButton } from "./set-rename-button";
 import { DisciplineTag } from "./sheet-thumbnail";
 import { UploadSetButton } from "./upload-button";
 import "./drawings.css";
@@ -230,6 +231,13 @@ export default async function ContractorDrawingsSetsPage({
                     <div className="dr-set-body">
                       <div className="dr-set-title-row">
                         <span className="dr-set-title">{s.name}</span>
+                        {view.canUpload ? (
+                          <SetRenameButton
+                            setId={s.id}
+                            initialName={s.name}
+                            initialNote={s.note}
+                          />
+                        ) : null}
                         <span className="dr-set-ver">v{s.version}</span>
                         {s.status === "current" ? (
                           <span className="dr-pill accent">Current</span>

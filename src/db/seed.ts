@@ -17,6 +17,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 
 import { db } from "./client";
 import { r2, R2_BUCKET } from "../lib/storage";
+import { generateSeedSheetSetPdf } from "../lib/drawings/seed-pdf";
 import {
   users,
   authUser,
@@ -2692,7 +2693,7 @@ const SHELL_SHEETS: DrawingSheetSeed[] = [
 ];
 
 async function seedDrawings(ctx: ProjectContext): Promise<void> {
-  const { project, pmUserId, subUserId, sub2UserId } = ctx;
+  const { project, contractorOrgId, pmUserId, subUserId, sub2UserId } = ctx;
   const day = 86400000;
   const now = Date.now();
 
@@ -2716,6 +2717,43 @@ async function seedDrawings(ctx: ProjectContext): Promise<void> {
     asBuilt?: boolean;
     sheets: DrawingSheetSeed[];
   }): Promise<string> {
+    // Generate a placeholder PDF (one page per sheet) and upload to R2
+    // so the detail viewer can render something meaningful for seed
+    // data. Fails open: if the PDF generation or upload hiccups, we
+    // fall back to a null source_file_key and the viewer's placeholder
+    // path still works.
+    let sourceFileKey: string | null = null;
+    let fileSizeBytes = 0;
+    try {
+      const pdfBuffer = await generateSeedSheetSetPdf({
+        projectName: project.name,
+        setName: input.name,
+        version: input.version,
+        sheets: input.sheets.map((s) => ({
+          sheetNumber: s.number,
+          sheetTitle: s.title,
+          discipline: s.discipline,
+        })),
+      });
+      fileSizeBytes = pdfBuffer.byteLength;
+      // R2 key mirrors the real upload flow's layout.
+      const key = `${contractorOrgId}/${project.id}/drawings/seed-${input.family}-v${input.version}.pdf`;
+      await r2.send(
+        new PutObjectCommand({
+          Bucket: R2_BUCKET,
+          Key: key,
+          Body: pdfBuffer,
+          ContentType: "application/pdf",
+        }),
+      );
+      sourceFileKey = key;
+    } catch (err) {
+      console.warn(
+        `  ⚠ drawings seed PDF generation failed for ${input.family} v${input.version} — falling back to placeholder`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+
     const [set] = await db
       .insert(drawingSets)
       .values({
@@ -2726,8 +2764,10 @@ async function seedDrawings(ctx: ProjectContext): Promise<void> {
         status: input.status,
         asBuilt: input.asBuilt ?? false,
         supersedesId: input.supersedesId,
-        sourceFileKey: null, // seed-only — viewer renders placeholder
-        fileSizeBytes: 48_200_000 + Math.round(Math.random() * 4_000_000),
+        sourceFileKey,
+        fileSizeBytes:
+          fileSizeBytes ||
+          48_200_000 + Math.round(Math.random() * 4_000_000),
         sheetCount: input.sheets.length,
         uploadedByUserId: input.uploadedByUserId,
         uploadedAt: input.uploadedAt,
