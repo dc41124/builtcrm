@@ -134,9 +134,12 @@ function ResidentialReport({
             {reshaped.sentByName ? `From ${reshaped.sentByName}` : "From the team"}
             {reshaped.sentAt ? ` — sent ${formatDateTime(reshaped.sentAt)}` : ""}
           </span>
-          <Button variant="secondary" onClick={() => window.print()}>
-            Save as PDF
-          </Button>
+          <a
+            href={`/api/weekly-reports/${reshaped.reportId}/pdf?portal=residential`}
+            style={{ textDecoration: "none" }}
+          >
+            <Button variant="secondary">Save as PDF</Button>
+          </a>
         </div>
       </div>
 

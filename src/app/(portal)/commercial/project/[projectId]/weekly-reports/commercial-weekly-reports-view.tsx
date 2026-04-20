@@ -53,9 +53,14 @@ export function CommercialWeeklyReportsView({
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }} className="no-print">
-          <Button variant="secondary" onClick={() => window.print()}>
-            Save as PDF
-          </Button>
+          {detail && (
+            <a
+              href={`/api/weekly-reports/${detail.report.id}/pdf?portal=commercial`}
+              style={{ textDecoration: "none" }}
+            >
+              <Button variant="secondary">Save as PDF</Button>
+            </a>
+          )}
         </div>
       </header>
 
@@ -204,9 +209,12 @@ function ReportDocument({
           Questions or comments? Reply in Messages.
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <Button variant="secondary" onClick={() => window.print()}>
-            Save as PDF
-          </Button>
+          <a
+            href={`/api/weekly-reports/${report.id}/pdf?portal=commercial`}
+            style={{ textDecoration: "none" }}
+          >
+            <Button variant="secondary">Save as PDF</Button>
+          </a>
           <Link
             href={`/commercial/project/${projectId}/messages`}
             style={{ textDecoration: "none" }}
