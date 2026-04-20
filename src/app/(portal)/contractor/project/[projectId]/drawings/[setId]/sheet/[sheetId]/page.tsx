@@ -39,6 +39,8 @@ export default async function ContractorSheetDetailPage({
         presignedSourceUrl={view.presignedSourceUrl}
         portal={view.portal}
         canAnnotate={view.canAnnotate}
+        canCalibrate={view.canCalibrate}
+        currentUserId={view.currentUserId}
       />
     );
   } catch (err) {

@@ -301,6 +301,7 @@ export async function getDrawingSetIndex(input: {
 export type DrawingSheetDetailView = {
   context: EffectiveContext;
   portal: DrawingsPortal;
+  currentUserId: string;
   set: DrawingSetSummary;
   versionChain: DrawingSetSummary[];
   sheet: SheetSummary;
@@ -317,6 +318,7 @@ export type DrawingSheetDetailView = {
   presignedSourceUrl: string;
   scopeDiscipline: string | null;
   canAnnotate: boolean;
+  canCalibrate: boolean;
 };
 
 export async function getDrawingSheetDetail(input: {
@@ -464,6 +466,8 @@ export async function getDrawingSheetDetail(input: {
     presignedSourceUrl,
     scopeDiscipline: scope,
     canAnnotate: ctx.permissions.can("drawing_markup", "write"),
+    canCalibrate: ctx.permissions.can("drawing", "write"),
+    currentUserId: ctx.user.id,
   };
 }
 
