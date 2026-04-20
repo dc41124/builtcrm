@@ -11,12 +11,14 @@ import type {
   ChangeOrderTotals,
 } from "@/domain/loaders/change-orders";
 import {
-  formatCents,
   formatDate,
-  formatSignedCents,
   formatStatus,
   statusPill,
 } from "@/domain/loaders/change-order-format";
+import { formatMoneyCents } from "@/lib/format/money";
+
+const formatCents = (c: number) => formatMoneyCents(c);
+const formatSignedCents = (c: number) => formatMoneyCents(c, { signed: true });
 
 type TabId = "pending" | "approved" | "rejected";
 

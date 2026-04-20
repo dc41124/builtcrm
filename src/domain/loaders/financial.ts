@@ -845,15 +845,6 @@ export async function getSubPendingFinancialsCents(opts: {
 
 // ---- Formatting helpers (pure) ------------------------------------------
 
-export function formatMoneyCents(cents: number): string {
-  const dollars = cents / 100;
-  return dollars.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  });
-}
-
 export function formatPeriodRange(from: Date, to: Date): string {
   const fmt = (d: Date) =>
     d.toLocaleDateString("en-US", { month: "short", day: "numeric" });

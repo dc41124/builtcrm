@@ -7,10 +7,8 @@ import type {
   SubcontractorFinancialView,
   SubPaymentHistoryRow,
 } from "@/domain/loaders/financial";
-import {
-  formatMoneyCents,
-  formatPeriodRange,
-} from "@/domain/loaders/financial";
+import { formatPeriodRange } from "@/domain/loaders/financial";
+import { formatMoneyCents } from "@/lib/format/money";
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "Draft",

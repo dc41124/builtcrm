@@ -133,13 +133,6 @@ export const AGING_BUCKET_ORDER: AgingBucket[] = [
   "30_plus",
 ];
 
-export const AGING_BUCKET_LABEL: Record<AgingBucket, string> = {
-  "0_7": "0–7 days",
-  "8_14": "8–14 days",
-  "15_30": "15–30 days",
-  "30_plus": "30+ days",
-};
-
 // Days since `from` to `now`, clamped to zero. Used by the aging
 // calculations.
 export function daysOpen(from: Date, now: Date = new Date()): number {

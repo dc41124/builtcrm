@@ -12,9 +12,6 @@ import type { ProviderConfig } from "../types";
 // the generic handler at `/api/webhooks/[provider]` excludes Stripe by
 // Next.js static-route precedence.
 
-export const STRIPE_CONNECT_ONBOARD_ROUTE =
-  "/api/contractor/stripe/connect/onboard";
-
 const stripe: ProviderConfig = {
   provider: "stripe",
   name: "Stripe Connect",

@@ -6,6 +6,7 @@ import {
   selectionDecisions,
   selectionItems,
 } from "@/db/schema";
+import { formatMoneyCents } from "@/lib/format/money";
 
 import type { SessionLike } from "../context";
 import { AuthorizationError } from "../permissions";
@@ -250,7 +251,7 @@ function deriveDecisions(
     }> | undefined) ?? [];
   for (const c of approved) {
     const amountText = c.amountCents
-      ? formatCents(c.amountCents)
+      ? formatMoneyCents(c.amountCents)
       : "no cost change";
     items.push({
       title: c.title,
@@ -289,16 +290,6 @@ function composePendingActionsSummary(
     return `One thing for you: ${pending[0].title.toLowerCase()}.`;
   }
   return `You have ${pending.length} things to review. We've linked each one below.`;
-}
-
-function formatCents(cents: number): string {
-  if (cents === 0) return "no cost change";
-  const abs = Math.abs(cents);
-  return `${cents < 0 ? "-" : ""}${(abs / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  })}`;
 }
 
 // --------------------------------------------------------------------------

@@ -1,7 +1,10 @@
+import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth/config";
+import { db } from "@/db/client";
+import { ssoProviders } from "@/db/schema";
 import { getUserSettingsView } from "@/domain/loaders/user-settings";
 import { listOrganizationAuditEvents } from "@/domain/loaders/audit-log";
 import { listOrganizationMembers } from "@/domain/loaders/organization-members";
@@ -20,7 +23,6 @@ import {
   getOrgPlanContext,
 } from "@/domain/loaders/billing";
 import { listRecentDataExports } from "@/domain/loaders/data-exports";
-import { getSsoProviderByOrg } from "@/domain/loaders/sso";
 import { AuthorizationError } from "@/domain/permissions";
 import { SettingsShell } from "@/components/settings/settings-shell";
 
@@ -65,7 +67,12 @@ export default async function ContractorSettingsPage() {
       getContractorBillingSummary(ctx.organization.id),
       getOrgPlanContext(ctx.organization.id),
       listRecentDataExports(ctx.organization.id, { limit: 20 }),
-      getSsoProviderByOrg(ctx.organization.id),
+      db
+        .select()
+        .from(ssoProviders)
+        .where(eq(ssoProviders.organizationId, ctx.organization.id))
+        .limit(1)
+        .then((rows) => rows[0] ?? null),
     ]);
 
     return (

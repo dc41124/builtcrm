@@ -12,6 +12,7 @@ import {
 } from "@react-pdf/renderer";
 
 import type { WeeklyReportSection } from "@/domain/loaders/weekly-reports";
+import { formatMoneyCents } from "@/lib/format/money";
 
 // Loose input shape — accepts the contractor + client view variants
 // (which differ only in extra fields like recipients). The PDF only
@@ -567,11 +568,4 @@ function formatDateTime(d: Date): string {
   });
 }
 
-function formatCents(cents: number): string {
-  const abs = Math.abs(cents);
-  return `${cents < 0 ? "-" : ""}${(abs / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  })}`;
-}
+const formatCents = (c: number) => formatMoneyCents(c);

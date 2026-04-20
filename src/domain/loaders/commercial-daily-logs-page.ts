@@ -8,6 +8,7 @@ import {
   getDailyLogs,
   type DailyLogListRow,
 } from "@/domain/loaders/daily-logs";
+import { endOfMonth, startOfMonth } from "@/lib/daily-logs/calendar";
 import { addDays, todayInProjectTimezone } from "@/lib/daily-logs/date-utils";
 
 // Page-level view for the commercial client daily-logs page.
@@ -120,12 +121,3 @@ export async function getCommercialDailyLogsPageView(
   };
 }
 
-function startOfMonth(iso: string): string {
-  return iso.slice(0, 7) + "-01";
-}
-
-function endOfMonth(iso: string): string {
-  const [y, m] = iso.split("-").map((s) => parseInt(s, 10));
-  const d = new Date(Date.UTC(y, m, 0));
-  return d.toISOString().slice(0, 10);
-}

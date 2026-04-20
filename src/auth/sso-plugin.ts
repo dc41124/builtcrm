@@ -9,11 +9,19 @@ import {
   ssoProviders,
   users,
 } from "@/db/schema";
-import { getSsoProviderById } from "@/domain/loaders/sso";
 import {
   buildIdentityProvider,
   buildServiceProvider,
 } from "@/lib/saml/client";
+
+async function loadSsoProvider(providerId: string) {
+  const [row] = await db
+    .select()
+    .from(ssoProviders)
+    .where(eq(ssoProviders.id, providerId))
+    .limit(1);
+  return row ?? null;
+}
 
 import type { BetterAuthPlugin } from "better-auth";
 
@@ -49,7 +57,7 @@ export function ssoPlugin(): BetterAuthPlugin {
         },
         async (ctx) => {
           const providerId = ctx.query.providerId;
-          const provider = await getSsoProviderById(providerId);
+          const provider = await loadSsoProvider(providerId);
           if (!provider || provider.status !== "active") {
             return ctx.json(
               { error: "provider_not_found" },
@@ -82,7 +90,7 @@ export function ssoPlugin(): BetterAuthPlugin {
         },
         async (ctx) => {
           const providerId = ctx.query.providerId;
-          const provider = await getSsoProviderById(providerId);
+          const provider = await loadSsoProvider(providerId);
           if (!provider || provider.status !== "active") {
             return ctx.json(
               { error: "provider_not_found" },

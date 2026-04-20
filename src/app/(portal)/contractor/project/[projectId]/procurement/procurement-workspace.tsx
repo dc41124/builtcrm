@@ -18,9 +18,12 @@ import {
   type PurchaseOrderStatus,
 } from "@/domain/procurement/state-machine";
 import {
-  formatCentsUsd,
-  formatCentsCompact,
-} from "@/domain/procurement/totals";
+  formatMoneyCents,
+  formatMoneyCentsCompact,
+} from "@/lib/format/money";
+
+const formatCentsUsd = (c: number) => formatMoneyCents(c, { withCents: true });
+const formatCentsCompact = (c: number) => formatMoneyCentsCompact(c);
 
 import { CreatePoModal, type CreatePoInitialLine } from "./create-po-modal";
 
@@ -1089,6 +1092,4 @@ const PROCUREMENT_CSS = `
 .proc-ws .sm-arrow{color:var(--t3);flex-shrink:0;margin:0 2px}
 `;
 
-// Re-export for cross-file use (create modal references the same cents formatter).
-export { formatCentsUsd };
 export type { CreatePoInitialLine };

@@ -8,10 +8,9 @@ import type {
   SelectionItemRow,
   SelectionOptionRow,
 } from "@/domain/loaders/project-home";
+import { formatMoneyCents } from "@/lib/format/money";
 
-function formatCents(c: number): string {
-  return `$${(c / 100).toFixed(2)}`;
-}
+const formatCents = (c: number) => formatMoneyCents(c, { withCents: true });
 
 export function ContractorSelectionsPanel({
   projectId,

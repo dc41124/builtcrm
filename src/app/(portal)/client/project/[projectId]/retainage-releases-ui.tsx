@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { formatMoneyCents } from "@/lib/format/money";
+
 export type RetainageRelease = {
   id: string;
   sovLineItemId: string | null;
@@ -17,9 +19,7 @@ export type RetainageRelease = {
   createdAt: Date;
 };
 
-function formatCents(c: number): string {
-  return `$${(c / 100).toFixed(2)}`;
-}
+const formatCents = (c: number) => formatMoneyCents(c, { withCents: true });
 
 export function ClientRetainagePanel({
   releases,

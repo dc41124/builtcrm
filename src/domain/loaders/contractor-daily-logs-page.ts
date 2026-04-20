@@ -15,6 +15,12 @@ import {
   type DailyLogListRow,
   type DailyLogAmendmentStatus,
 } from "@/domain/loaders/daily-logs";
+import {
+  countMissingWorkDays,
+  countWorkDays,
+  endOfMonth,
+  startOfMonth,
+} from "@/lib/daily-logs/calendar";
 import { addDays, todayInProjectTimezone } from "@/lib/daily-logs/date-utils";
 
 // Page-level view for the contractor daily-logs list page. Bundles the
@@ -211,51 +217,6 @@ async function sumDelayHoursFor(logIds: string[]): Promise<number> {
     .from(dailyLogDelays)
     .where(inArray(dailyLogDelays.dailyLogId, logIds));
   return parseFloat(row?.sum ?? "0") || 0;
-}
-
-function startOfMonth(isoDate: string): string {
-  return isoDate.slice(0, 7) + "-01";
-}
-
-function endOfMonth(isoDate: string): string {
-  // Day 0 of next month = last day of current month.
-  const [y, m] = isoDate.split("-").map((s) => parseInt(s, 10));
-  const d = new Date(Date.UTC(y, m, 0));
-  return d.toISOString().slice(0, 10);
-}
-
-// Mon-Fri treated as work days. Weekend tracking isn't per-project yet;
-// this mirrors the spec's calendar which shades Sat/Sun grey.
-function countWorkDays(fromIso: string, toIso: string): number {
-  let count = 0;
-  let cur = fromIso;
-  while (cur <= toIso) {
-    const d = new Date(cur + "T12:00:00Z");
-    const dow = d.getUTCDay();
-    if (dow !== 0 && dow !== 6) count++;
-    cur = addDays(cur, 1);
-  }
-  return count;
-}
-
-function countMissingWorkDays(
-  logs: DailyLogListRow[],
-  fromIso: string,
-  toIso: string,
-): number {
-  const logged = new Set(logs.map((l) => l.logDate));
-  let missing = 0;
-  let cur = fromIso;
-  while (cur <= toIso) {
-    const d = new Date(cur + "T12:00:00Z");
-    const dow = d.getUTCDay();
-    if (dow !== 0 && dow !== 6 && !logged.has(cur)) missing++;
-    cur = addDays(cur, 1);
-  }
-  // Don't count today as missing — the day isn't over yet.
-  const todayDow = new Date(toIso + "T12:00:00Z").getUTCDay();
-  if (todayDow !== 0 && todayDow !== 6 && !logged.has(toIso)) missing--;
-  return Math.max(missing, 0);
 }
 
 // Re-exported so the server page component can reference the shape.

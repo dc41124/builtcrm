@@ -10,10 +10,10 @@ import type {
   ChangeOrderRow,
   ChangeOrderTotals,
 } from "@/domain/loaders/change-orders";
-import {
-  formatDate,
-  formatSignedCents,
-} from "@/domain/loaders/change-order-format";
+import { formatDate } from "@/domain/loaders/change-order-format";
+import { formatMoneyCents } from "@/lib/format/money";
+
+const formatSignedCents = (c: number) => formatMoneyCents(c, { signed: true });
 
 export function ResidentialScopeChangesReview({
   rows,

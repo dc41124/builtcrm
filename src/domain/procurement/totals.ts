@@ -83,25 +83,3 @@ export function deriveReceivingStatus(
   return "none";
 }
 
-export function formatCentsUsd(cents: number): string {
-  const dollars = cents / 100;
-  const sign = dollars < 0 ? "-" : "";
-  const abs = Math.abs(dollars);
-  return `${sign}$${abs.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-// Compact form for KPI tiles. Matches the dashboard's formatCurrencyCompact
-// without the "C$" prefix (procurement UI uses plain $).
-export function formatCentsCompact(cents: number): string {
-  const dollars = cents / 100;
-  if (Math.abs(dollars) >= 1_000_000) {
-    return `$${(dollars / 1_000_000).toFixed(dollars < 10_000_000 ? 2 : 1)}M`;
-  }
-  if (Math.abs(dollars) >= 1_000) {
-    return `$${Math.round(dollars / 1_000)}k`;
-  }
-  return `$${dollars.toFixed(2)}`;
-}

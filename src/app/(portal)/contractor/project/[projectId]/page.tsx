@@ -9,6 +9,7 @@ import {
   type ContractorProjectView,
 } from "@/domain/loaders/project-home";
 import { AuthorizationError } from "@/domain/permissions";
+import { formatMoneyCentsCompact } from "@/lib/format/money";
 
 import "./project-home.css";
 import { WorkspaceCard, type WorkspaceTab } from "./workspace-card";
@@ -1129,12 +1130,7 @@ function formatDate(d: Date): string {
   });
 }
 
-function formatCurrency(cents: number): string {
-  const dollars = cents / 100;
-  if (dollars >= 1_000_000) return `C$${(dollars / 1_000_000).toFixed(2)}M`;
-  if (dollars >= 1_000) return `C$${Math.round(dollars / 1_000)}K`;
-  return `C$${Math.round(dollars)}`;
-}
+const formatCurrency = (c: number) => formatMoneyCentsCompact(c);
 
 function orgAccent(t: string): string {
   if (t === "general_contractor") return "#5b4fc7";

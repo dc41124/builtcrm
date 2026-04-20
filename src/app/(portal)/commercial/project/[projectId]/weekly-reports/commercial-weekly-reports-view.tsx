@@ -12,6 +12,7 @@ import type {
   WeeklyReportSection,
   WeeklyReportSummaryRow,
 } from "@/domain/loaders/weekly-reports";
+import { formatMoneyCents } from "@/lib/format/money";
 
 // Client-safe variants — drop `context`, which carries the non-serializable
 // permissions.can function. The page strips context before rendering.
@@ -546,15 +547,7 @@ function formatDateTime(d: Date): string {
   });
 }
 
-function formatCents(cents: number): string {
-  const sign = cents < 0 ? "-" : "+";
-  const abs = Math.abs(cents);
-  return `${sign}${(abs / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  })}`;
-}
+const formatCents = (c: number) => formatMoneyCents(c, { signed: true });
 
 // --------------------------------------------------------------------------
 // Styles

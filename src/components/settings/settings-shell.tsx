@@ -25,7 +25,7 @@ import type {
 } from "@/domain/loaders/billing";
 import type { PlanContext } from "@/domain/policies/plan";
 import type { RecentDataExportView } from "@/domain/loaders/data-exports";
-import type { SsoProviderView } from "@/domain/loaders/sso";
+import type { ssoProviders } from "@/db/schema";
 import type { SubComplianceRow } from "@/domain/loaders/subcontractor-compliance";
 import type {
   OrganizationCertification,
@@ -62,7 +62,7 @@ export type ContractorSettingsBundle = {
   billing: ContractorBillingView | null;
   planContext: PlanContext;
   recentExports: RecentDataExportView[];
-  ssoProvider: SsoProviderView | null;
+  ssoProvider: typeof ssoProviders.$inferSelect | null;
   nowMs: number;
 };
 

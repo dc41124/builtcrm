@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { formatMoneyCents } from "@/lib/format/money";
+
 type DrawLineItem = {
   id: string;
   sovLineItemId: string;
@@ -83,9 +85,7 @@ function waiverTypeLabel(t: LienWaiver["lienWaiverType"]): string {
   }
 }
 
-function formatCents(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
+const formatCents = (c: number) => formatMoneyCents(c, { withCents: true });
 
 function toIsoDate(d: Date | string): string {
   return new Date(d).toISOString().slice(0, 10);

@@ -20,6 +20,7 @@ import type {
   CrossProjectApprovalRow,
   DerivedPriority,
 } from "@/domain/loaders/cross-project";
+import { formatMoneyCents } from "@/lib/format/money";
 
 // Portfolio-wide pending approvals (Step 37 / 4D #37). Complements the
 // per-project approvals workspace — same data shape, same pills, wider
@@ -77,16 +78,8 @@ const PRIORITY_PILL: Record<DerivedPriority, PillColor> = {
   low: "gray",
 };
 
-function formatCents(cents: number): string {
-  if (cents === 0) return "—";
-  const sign = cents < 0 ? "-" : "+";
-  const abs = Math.abs(cents);
-  return `${sign}${(abs / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  })}`;
-}
+const formatCents = (c: number) =>
+  c === 0 ? "—" : formatMoneyCents(c, { signed: true });
 
 function ageLabel(days: number | null): string {
   if (days == null) return "—";

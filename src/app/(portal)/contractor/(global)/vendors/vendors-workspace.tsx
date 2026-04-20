@@ -4,7 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import type { VendorRow, VendorsPortfolioView } from "@/domain/loaders/procurement";
-import { formatCentsCompact, formatCentsUsd } from "@/domain/procurement/totals";
+import { formatMoneyCents, formatMoneyCentsCompact } from "@/lib/format/money";
+
+const formatCentsUsd = (c: number) => formatMoneyCents(c, { withCents: true });
+const formatCentsCompact = (c: number) => formatMoneyCentsCompact(c);
 
 type FormState = {
   name: string;

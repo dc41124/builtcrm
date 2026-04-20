@@ -7,6 +7,7 @@ import type {
   ContractorPaymentsView,
   PaymentRow,
 } from "@/domain/loaders/payments";
+import { formatMoneyCents } from "@/lib/format/money";
 
 const F = {
   display: "'DM Sans',system-ui,sans-serif",
@@ -1135,14 +1136,8 @@ function modalInputStyle(): CSSProperties {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
-function formatMoney(cents: number, currency: string = "USD"): string {
-  const symbol =
-    currency === "USD" ? "$" : currency === "CAD" ? "CA$" : currency + " ";
-  const abs = Math.abs(cents);
-  const dollars = abs / 100;
-  const sign = cents < 0 ? "-" : "";
-  return `${sign}${symbol}${dollars.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+const formatMoney = (c: number, currency: string = "USD") =>
+  formatMoneyCents(c, { currency, withCents: true });
 
 function percent(fee: number, gross: number): string {
   if (gross <= 0) return "0%";

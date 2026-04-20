@@ -10,6 +10,7 @@ import type {
   ApprovalRow,
   ApprovalTotals,
 } from "@/domain/loaders/approvals";
+import { formatMoneyCents } from "@/lib/format/money";
 
 type TabId = "pending" | "approved" | "returned" | "all";
 
@@ -90,16 +91,7 @@ function shortTypeLabel(cat: string): string {
 
 const THREE_DAYS_MS = 3 * 86400000;
 
-function formatCents(cents: number): string {
-  const sign = cents < 0 ? "-" : "+";
-  const abs = Math.abs(cents);
-  const dollars = (abs / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  });
-  return `${sign}${dollars}`;
-}
+const formatCents = (c: number) => formatMoneyCents(c, { signed: true });
 
 function formatDate(d: Date): string {
   return new Date(d).toLocaleDateString("en-US", {

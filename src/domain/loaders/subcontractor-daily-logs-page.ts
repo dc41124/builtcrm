@@ -17,6 +17,7 @@ import type {
   DailyLogListRow,
   SubCrewEntryRow,
 } from "@/domain/loaders/daily-logs";
+import { countWorkDays } from "@/lib/daily-logs/calendar";
 import { addDays, todayInProjectTimezone } from "@/lib/daily-logs/date-utils";
 import type { WeatherConditions } from "@/lib/weather/types";
 
@@ -326,18 +327,6 @@ export async function getSubDailyLogsPageView(
       reconciliationsToReview,
     },
   };
-}
-
-function countWorkDays(fromIso: string, toIso: string): number {
-  let count = 0;
-  let cur = fromIso;
-  while (cur <= toIso) {
-    const d = new Date(cur + "T12:00:00Z");
-    const dow = d.getUTCDay();
-    if (dow !== 0 && dow !== 6) count++;
-    cur = addDays(cur, 1);
-  }
-  return count;
 }
 
 // Also used by the list-row type on the workspace, exported for typing.

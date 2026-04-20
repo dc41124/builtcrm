@@ -13,6 +13,7 @@ import type {
   WeeklyReportSection,
   WeeklyReportSummaryRow,
 } from "@/domain/loaders/weekly-reports";
+import { formatMoneyCents } from "@/lib/format/money";
 
 // Client-safe variants — drop `context`, which carries the non-serializable
 // permissions.can function. Next.js forbids passing functions across the
@@ -1018,15 +1019,7 @@ function formatGenerated(r: WeeklyReportSummaryRow): string {
   return `Generated ${formatDateTime(r.generatedAt)}`;
 }
 
-function formatCents(cents: number): string {
-  const sign = cents < 0 ? "-" : "+";
-  const abs = Math.abs(cents);
-  return `${sign}${(abs / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  })}`;
-}
+const formatCents = (c: number) => formatMoneyCents(c, { signed: true });
 
 // --------------------------------------------------------------------------
 // Inline KPI tile (lighter than the global KpiCard for this density)

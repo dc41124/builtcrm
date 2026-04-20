@@ -8,6 +8,7 @@ import type {
   ProjectReportRow,
   ReportsView,
 } from "@/domain/loaders/reports";
+import { formatMoneyCentsCompact } from "@/lib/format/money";
 
 import {
   IconAlertTriangle,
@@ -970,16 +971,7 @@ function OverviewReport({ view }: { view: ReportsView }) {
   );
 }
 
-function formatCents(cents: number): string {
-  const dollars = cents / 100;
-  if (Math.abs(dollars) >= 1_000_000) {
-    return `$${(dollars / 1_000_000).toFixed(1)}M`;
-  }
-  if (Math.abs(dollars) >= 1_000) {
-    return `$${Math.round(dollars / 1_000).toLocaleString()}K`;
-  }
-  return `$${Math.round(dollars).toLocaleString()}`;
-}
+const formatCents = (c: number) => formatMoneyCentsCompact(c);
 
 function formatPercentNullable(pct: number | null): string {
   if (pct == null) return "—";

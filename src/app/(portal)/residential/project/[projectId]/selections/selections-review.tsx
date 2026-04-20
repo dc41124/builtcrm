@@ -12,12 +12,9 @@ import type {
   SelectionOptionRow,
 } from "@/domain/loaders/project-home";
 import type { ResidentialSelectionsTotals } from "@/domain/loaders/selections";
+import { formatMoneyCents } from "@/lib/format/money";
 
-function formatCents(c: number): string {
-  const abs = Math.abs(c);
-  const s = `$${(abs / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-  return c < 0 ? `-${s}` : s;
-}
+const formatCents = (c: number) => formatMoneyCents(c);
 
 function formatDate(d: Date | null): string {
   if (!d) return "—";

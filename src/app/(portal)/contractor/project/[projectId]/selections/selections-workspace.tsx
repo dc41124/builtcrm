@@ -7,6 +7,7 @@ import type {
   SelectionCategoryRow,
   SelectionItemRow,
 } from "@/domain/loaders/project-home";
+import { formatMoneyCents } from "@/lib/format/money";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -30,12 +31,7 @@ type ViewMode = "workspace" | "create";
 
 // ─── Helpers ────────────────────────────────────────────────────
 
-function formatCents(c: number): string {
-  if (c === 0) return "$0";
-  const abs = Math.abs(c);
-  const s = `$${(abs / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-  return c < 0 ? `-${s}` : s;
-}
+const formatCents = (c: number) => formatMoneyCents(c);
 
 function formatDate(d: Date | null): string {
   if (!d) return "Not set";

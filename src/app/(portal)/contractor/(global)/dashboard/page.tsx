@@ -8,6 +8,7 @@ import {
   getContractorDashboardData,
   type ContractorDashboardData,
 } from "@/domain/loaders/contractor-dashboard";
+import { formatMoneyCentsCompact } from "@/lib/format/money";
 import { loadPortalShell } from "@/lib/portal-shell";
 import { PrioritiesCard } from "./priorities-card";
 
@@ -271,7 +272,7 @@ export default async function ContractorDashboardPage() {
 function KpiStrip({ data }: { data: ContractorDashboardData }) {
   const k = data.kpis;
   const openPayments =
-    k.openPaymentCents > 0 ? formatCurrencyCompact(k.openPaymentCents) : "C$0";
+    k.openPaymentCents > 0 ? formatCurrencyCompact(k.openPaymentCents) : "$0";
   return (
     <div className="cd-kpis">
       <KpiCard
@@ -393,9 +394,4 @@ function FinancialHealthStrip({
   );
 }
 
-function formatCurrencyCompact(cents: number): string {
-  const dollars = cents / 100;
-  if (dollars >= 1_000_000) return `C$${(dollars / 1_000_000).toFixed(2)}M`;
-  if (dollars >= 1_000) return `C$${Math.round(dollars / 1_000)}K`;
-  return `C$${Math.round(dollars)}`;
-}
+const formatCurrencyCompact = (c: number) => formatMoneyCentsCompact(c);

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { formatMoneyCents } from "@/lib/format/money";
+
 type SovLineItem = {
   id: string;
   itemNumber: string;
@@ -26,9 +28,7 @@ type Sov = {
   lineItems: SovLineItem[];
 };
 
-function formatCents(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
+const formatCents = (c: number) => formatMoneyCents(c, { withCents: true });
 
 export function ContractorSovPanel({
   projectId,

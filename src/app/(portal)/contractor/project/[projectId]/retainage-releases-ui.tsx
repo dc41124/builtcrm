@@ -8,6 +8,7 @@ import type {
   RetainageReleaseRow,
   SovLineOption,
 } from "@/domain/loaders/financial";
+import { formatMoneyCents } from "@/lib/format/money";
 
 // Backwards-compatible local alias — many prior call sites reference
 // `RetainageRelease` by that name. The authoritative shape lives on the
@@ -16,9 +17,7 @@ import type {
 export type RetainageRelease = RetainageReleaseRow;
 export type { MilestoneOption, SovLineOption } from "@/domain/loaders/financial";
 
-function formatCents(c: number): string {
-  return `$${(c / 100).toFixed(2)}`;
-}
+const formatCents = (c: number) => formatMoneyCents(c, { withCents: true });
 
 function statusLabel(s: RetainageRelease["releaseStatus"]): string {
   switch (s) {

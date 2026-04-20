@@ -21,18 +21,3 @@ export function formatDate(d: Date): string {
   });
 }
 
-export function formatCents(cents: number): string {
-  return `$${(cents / 100).toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })}`;
-}
-
-export function formatSignedCents(cents: number): string {
-  const abs = Math.abs(cents);
-  const sign = cents >= 0 ? "+" : "−";
-  return `${sign}$${(abs / 100).toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })}`;
-}

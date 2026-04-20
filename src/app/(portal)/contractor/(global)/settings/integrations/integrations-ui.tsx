@@ -12,6 +12,7 @@ import type {
   ProjectMapping,
   SyncEventRow,
 } from "@/domain/loaders/integrations";
+import { formatMoneyCentsCompact } from "@/lib/format/money";
 
 const F = {
   display: "'DM Sans',system-ui,sans-serif",
@@ -2471,13 +2472,8 @@ function mappingInputStyle(): CSSProperties {
   };
 }
 
-function formatMoney(cents: number | null): string {
-  if (cents === null || cents === undefined) return "—";
-  const dollars = cents / 100;
-  if (dollars >= 1_000_000) return `$${(dollars / 1_000_000).toFixed(1)}M`;
-  if (dollars >= 1_000) return `$${Math.round(dollars / 1_000)}K`;
-  return `$${dollars.toFixed(0)}`;
-}
+const formatMoney = (c: number | null) =>
+  c === null || c === undefined ? "—" : formatMoneyCentsCompact(c);
 
 // ── Sync activity tab ───────────────────────────────────────────────────
 function SyncActivityTab({

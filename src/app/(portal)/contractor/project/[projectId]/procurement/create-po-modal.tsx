@@ -6,10 +6,10 @@ import type {
   CostCodeRow,
   VendorRow,
 } from "@/domain/loaders/procurement";
-import {
-  computePoTotals,
-  formatCentsUsd,
-} from "@/domain/procurement/totals";
+import { computePoTotals } from "@/domain/procurement/totals";
+import { formatMoneyCents } from "@/lib/format/money";
+
+const formatCentsUsd = (c: number) => formatMoneyCents(c, { withCents: true });
 
 // JSX prototype: "New purchase order" wizard, 3 steps.
 //

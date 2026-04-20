@@ -20,6 +20,7 @@ import type {
   InboundRow,
   OutboundRow,
 } from "@/domain/loaders/cross-project-payments";
+import { formatMoneyCents } from "@/lib/format/money";
 
 // Step 38 / 4D #38 — contractor-wide payment tracking. Two tabs:
 //   Inbound  — draws (contractor → client)
@@ -32,15 +33,7 @@ import type {
 // Formatters
 // --------------------------------------------------------------------------
 
-function formatCents(cents: number): string {
-  const abs = Math.abs(cents);
-  const formatted = (abs / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  });
-  return cents < 0 ? `-${formatted}` : formatted;
-}
+const formatCents = (c: number) => formatMoneyCents(c);
 
 function ageLabel(days: number | null): string {
   if (days == null) return "—";

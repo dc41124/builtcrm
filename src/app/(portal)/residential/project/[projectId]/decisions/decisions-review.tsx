@@ -8,18 +8,9 @@ import type {
   ApprovalRow,
   ApprovalTotals,
 } from "@/domain/loaders/approvals";
+import { formatMoneyCents } from "@/lib/format/money";
 
-function formatCents(cents: number, signed = false): string {
-  const abs = Math.abs(cents);
-  const dollars = (abs / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  });
-  if (!signed) return dollars;
-  const sign = cents < 0 ? "-" : "+";
-  return `${sign}${dollars}`;
-}
+const formatCents = (c: number, signed = false) => formatMoneyCents(c, { signed });
 
 function formatDate(d: Date): string {
   return new Date(d).toLocaleDateString("en-US", {
