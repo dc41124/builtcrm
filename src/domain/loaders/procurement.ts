@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -637,7 +637,7 @@ export async function loadVendorListForOrg(
       and(
         inArray(purchaseOrders.vendorId, vendorIds),
         inArray(purchaseOrders.status, [...SPENT_STATUSES]),
-        sql`${purchaseOrders.orderedAt} >= ${yearStart}`,
+        gte(purchaseOrders.orderedAt, yearStart),
       ),
     );
   const spendPoIds = spendRows.map((r) => r.id);

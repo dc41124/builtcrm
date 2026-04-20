@@ -618,7 +618,7 @@ const MODAL_CSS = `
 .proc-mdl .tot-row .v{font-family:var(--fm)}
 .proc-mdl .cx{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border:1px solid var(--s3);border-radius:var(--r-m);background:var(--si);cursor:pointer;margin-bottom:8px}
 .proc-mdl .cx:hover{border-color:var(--s4)}
-.proc-mdl .cx input{accent-color:var(--ac);width:14px;height:14px;margin-top:2px}
+.proc-mdl .cx input{accent-color:var(--ac);width:14px;height:14px;margin-top:2px;color-scheme:light}
 .proc-mdl .cx-l{font-size:12px;font-family:var(--fd);font-weight:600}
 .proc-mdl .cx-s{font-size:11px;color:var(--t3);margin-top:2px}
 .proc-mdl .rev-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}

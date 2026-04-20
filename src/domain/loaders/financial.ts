@@ -354,6 +354,11 @@ export async function getContractorFinancialView(
   // card until the GC configures a trigger.
   const now = new Date();
   const thirtyDaysOut = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  // Resolved release date: milestone-tied value wins, else free-form
+  // scheduledReleaseAt. Compared via a cast-to-timestamptz parameter
+  // (drizzle's raw `sql` tag doesn't coerce JS Date into postgres.js
+  // params; explicit cast avoids the "Received an instance of Date" driver
+  // error).
   const resolvedReleaseDate = sql<Date>`coalesce(${milestones.scheduledDate}, ${retainageReleases.scheduledReleaseAt})`;
   const [retainagePendingAgg] = await db
     .select({
@@ -370,7 +375,7 @@ export async function getContractorFinancialView(
         eq(retainageReleases.projectId, projectId),
         inArray(retainageReleases.releaseStatus, ["held", "release_requested"]),
         sql`${resolvedReleaseDate} is not null`,
-        sql`${resolvedReleaseDate} <= ${thirtyDaysOut}`,
+        sql`${resolvedReleaseDate} <= ${thirtyDaysOut.toISOString()}::timestamptz`,
       ),
     );
   const [coPendingAgg] = await db

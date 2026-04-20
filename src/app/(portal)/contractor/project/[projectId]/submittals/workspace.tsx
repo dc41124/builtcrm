@@ -505,11 +505,30 @@ export function SubmittalsWorkspace({
             onForwardSub={() => setForwardSubOpen(true)}
             onAttach={(role) => setAttachOpen(role)}
             onSubmitDraft={async () => {
-              await fetch(`/api/submittals/${selected.id}/transition`, {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ to: "submitted" }),
-              });
+              const res = await fetch(
+                `/api/submittals/${selected.id}/transition`,
+                {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ to: "submitted" }),
+                },
+              );
+              if (!res.ok) {
+                const j = (await res.json().catch(() => ({}))) as {
+                  error?: string;
+                  message?: string;
+                };
+                // Most common: `missing_package` — submit requires at least
+                // one document with role=package attached. Surface the
+                // server message verbatim so the user knows what to fix.
+                alert(
+                  j.message ??
+                    (j.error === "missing_package"
+                      ? "Attach at least one package document before submitting."
+                      : `Submit failed (${j.error ?? res.status})`),
+                );
+                return;
+              }
               refresh();
             }}
             onStartRevision={async () => {
@@ -1926,11 +1945,23 @@ function ForwardReviewerModal({
           notes: notes.trim() || null,
         }),
       });
-      await fetch(`/api/submittals/${submittalId}/transition`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ to: "under_review" }),
-      });
+      const transRes = await fetch(
+        `/api/submittals/${submittalId}/transition`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ to: "under_review" }),
+        },
+      );
+      if (!transRes.ok) {
+        const j = (await transRes.json().catch(() => ({}))) as {
+          message?: string;
+          error?: string;
+        };
+        setErr(j.message ?? j.error ?? "Transition failed");
+        setBusy(false);
+        return;
+      }
       onDone();
     } catch {
       setErr("Something went wrong");
@@ -2183,11 +2214,23 @@ function LogResponseModal({
       const transitionBody: Record<string, unknown> = { to: responseStatus };
       if (responseStatus === "rejected")
         transitionBody.rejectionReason = rejectionReason.trim();
-      await fetch(`/api/submittals/${submittalId}/transition`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(transitionBody),
-      });
+      const transRes = await fetch(
+        `/api/submittals/${submittalId}/transition`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(transitionBody),
+        },
+      );
+      if (!transRes.ok) {
+        const j = (await transRes.json().catch(() => ({}))) as {
+          message?: string;
+          error?: string;
+        };
+        setErr(j.message ?? j.error ?? "Transition failed");
+        setBusy(false);
+        return;
+      }
       onDone();
     } catch {
       setErr("Something went wrong");
@@ -2302,11 +2345,23 @@ function ForwardSubModal({
           notes: notes.trim() || null,
         }),
       });
-      await fetch(`/api/submittals/${submittalId}/transition`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ to: "closed" }),
-      });
+      const transRes = await fetch(
+        `/api/submittals/${submittalId}/transition`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ to: "closed" }),
+        },
+      );
+      if (!transRes.ok) {
+        const j = (await transRes.json().catch(() => ({}))) as {
+          message?: string;
+          error?: string;
+        };
+        alert(j.message ?? j.error ?? "Transition failed");
+        setBusy(false);
+        return;
+      }
       onDone();
     } catch {
       setBusy(false);

@@ -139,7 +139,16 @@ function CreateReleaseForm({
   return (
     <form
       onSubmit={onSubmit}
-      style={{ display: "grid", gap: 6, maxWidth: 520, marginBottom: 8 }}
+      style={{
+        display: "grid",
+        gap: 6,
+        maxWidth: 520,
+        marginBottom: 8,
+        // Force light form controls regardless of OS dark theme so
+        // unchecked radios / date picker / number inputs render white
+        // instead of black.
+        colorScheme: "light",
+      }}
     >
       <div style={{ display: "flex", gap: 12 }}>
         <label>
