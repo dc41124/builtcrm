@@ -2601,7 +2601,7 @@ git commit -m "Step 38 (4D #38): Contractor cross-project payment tracking"
 
 ---
 
-## Step 39 — Weekly Reports Table + Generation 
+## Step 39 — Weekly Reports Table + Generation ✅ DONE (2026-04-19)
 
 **Mode:** Require-design-input
 **Item:** 4D #39
@@ -2650,7 +2650,7 @@ git commit -m "Step 39 (4D #39): Weekly reports — auto-generated + editable + 
 
 ---
 
-## Step 40 — Lien Waiver Sub Fan-Out (`createWaiverForDraw`)
+## Step 40 — Lien Waiver Sub Fan-Out (`createWaiverForDraw`) ✅ DONE (2026-04-19)
 
 **Mode:** Safe-to-autorun
 **Item:** 4D #40
