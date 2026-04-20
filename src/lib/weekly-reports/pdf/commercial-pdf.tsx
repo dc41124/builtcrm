@@ -90,17 +90,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderBottom: "0.5 dashed #e2e5e9",
     gap: 8,
   },
   rowLeft: { flex: 1 },
   rowTitle: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: "Helvetica-Bold",
-    marginBottom: 2,
+    color: "#1a1714",
+    marginBottom: 3,
   },
-  rowMeta: { fontSize: 9, color: "#6b655b" },
+  rowMeta: { fontSize: 9.5, color: "#3a3530" },
   pill: {
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
@@ -115,21 +116,32 @@ const styles = StyleSheet.create({
   pillBlue: { backgroundColor: "#e8f1fa", color: "#276299" },
   mono: {
     fontFamily: "Courier",
-    fontSize: 8,
-    color: "#9c958a",
-    marginRight: 4,
+    fontSize: 8.5,
+    color: "#6b655b",
+    marginRight: 10,
   },
   logRow: {
     flexDirection: "row",
-    gap: 10,
-    paddingVertical: 5,
+    gap: 12,
+    paddingVertical: 6,
     borderBottom: "0.5 dashed #e2e5e9",
   },
   logDate: {
     width: 80,
-    fontFamily: "Courier",
-    fontSize: 9,
-    color: "#6b655b",
+    fontFamily: "Courier-Bold",
+    fontSize: 9.5,
+    color: "#1a1714",
+  },
+  logReporter: {
+    fontSize: 10,
+    fontFamily: "Helvetica-Bold",
+    color: "#1a1714",
+    marginBottom: 3,
+  },
+  logSummary: {
+    fontSize: 9.5,
+    color: "#1a1714",
+    lineHeight: 1.5,
   },
   photoGrid: {
     flexDirection: "row",
@@ -481,8 +493,8 @@ function DailyLogsSection({ section }: { section: WeeklyReportSection }) {
         <View key={e.logId} style={styles.logRow}>
           <Text style={styles.logDate}>{formatLogDate(e.date)}</Text>
           <View style={{ flex: 1 }}>
-            <Text style={styles.rowMeta}>{e.reporterName ?? "—"}</Text>
-            <Text style={{ fontSize: 9, lineHeight: 1.5 }}>
+            <Text style={styles.logReporter}>{e.reporterName ?? "—"}</Text>
+            <Text style={styles.logSummary}>
               {e.summary ?? "(no summary)"}
             </Text>
           </View>
