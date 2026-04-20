@@ -17,3 +17,4 @@ export * from "./punchList";
 export * from "./submittals";
 export * from "./weeklyReports";
 export * from "./procurement";
+export * from "./savedReports";

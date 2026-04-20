@@ -91,6 +91,23 @@ import {
   getProcurementReport,
   type ProcurementReportView,
 } from "./procurement";
+import {
+  getCashflowProjection,
+  type CashflowProjection,
+} from "./cashflow";
+import { getWIPReport, type WIPReportView } from "./wip";
+import { getARReport, type ARReportView } from "./ar-aging";
+import { getJobCostReport, type JobCostReportView } from "./job-cost";
+import {
+  getSchedulePerformanceReport,
+  type SchedulePerfView,
+} from "./schedule-performance";
+import {
+  getComplianceReport,
+  type ComplianceReportView,
+} from "./compliance-report";
+import { getLaborReport, type LaborReportView } from "./labor-report";
+import { getSavedReports, type SavedReportsView } from "./saved-reports";
 
 export type ReportsView = {
   context: ContractorOrgContext;
@@ -111,6 +128,37 @@ export type ReportsView = {
   // committed $, aging bucket, by-vendor rollup). Powers the Reports
   // page procurement tile.
   procurement: ProcurementReportView | null;
+  // Step 24.5 wiring — 12-week cashflow projection derived from pending
+  // draws (inflow), open POs + lien waivers + scheduled retainage
+  // (outflow). Starting balance is a recorded-cash proxy.
+  cashflow: CashflowProjection | null;
+  // Step 24.5 wiring — WIP schedule with contract + COs, cost-to-date (from
+  // received PO lines), schedule-based % complete, earned revenue, billed,
+  // over/under billing, and backlog. One row per project.
+  wip: WIPReportView | null;
+  // Step 24.5 wiring — AR aging by client organization and days-past-due
+  // bucket (current / 1-30 / 31-60 / 61-90 / 90+), plus 8-week trend of
+  // total outstanding AR as-of each week end.
+  arAging: ARReportView | null;
+  // Step 24.5 wiring — Job Cost: per-project budget / committed / actual /
+  // projected. Budget is `contractValueCents` as proxy; projected = max of
+  // committed and actual. True ETC-driven projected awaits the production-
+  // grade upgrade (see docs/specs/production_grade_upgrades/).
+  jobCost: JobCostReportView | null;
+  // Step 24.5 wiring — Schedule Performance: per-project planned vs actual
+  // timeline + SPI + milestone hits. Forecasts actual end from milestone
+  // completion pct when the project is still in-flight.
+  schedulePerf: SchedulePerfView | null;
+  // Step 24.5 wiring — Compliance: soon-to-expire list + sub matrix with
+  // dynamic columns (top-N compliance types by prevalence).
+  compliance: ComplianceReportView | null;
+  // Step 24.5 wiring — Labor: hours + crew days + per-project trade
+  // composition + 8-week hours trend. Hours-only until labor rates land.
+  labor: LaborReportView | null;
+  // Step 24.5 wiring — Saved Reports library: named (reportType, scope)
+  // pairs with optional email delivery cadence. Backed by the saved_reports
+  // table (migration 0023).
+  savedReports: SavedReportsView | null;
 };
 
 // ---------------------------------------------------------------
@@ -166,6 +214,14 @@ export async function getContractorReportsData(
       weeklyReports: null,
       lienWaivers: null,
       procurement: null,
+      cashflow: null,
+      wip: null,
+      arAging: null,
+      jobCost: null,
+      schedulePerf: null,
+      compliance: null,
+      labor: null,
+      savedReports: null,
     };
   }
 
@@ -424,6 +480,70 @@ export async function getContractorReportsData(
     procurement = null;
   }
 
+  // ---- Cashflow projection (Step 24.5 wiring) ----
+  let cashflow: CashflowProjection | null = null;
+  try {
+    cashflow = await getCashflowProjection(input);
+  } catch {
+    cashflow = null;
+  }
+
+  // ---- WIP schedule (Step 24.5 wiring) ----
+  let wip: WIPReportView | null = null;
+  try {
+    wip = await getWIPReport(input);
+  } catch {
+    wip = null;
+  }
+
+  // ---- AR aging (Step 24.5 wiring) ----
+  let arAging: ARReportView | null = null;
+  try {
+    arAging = await getARReport(input);
+  } catch {
+    arAging = null;
+  }
+
+  // ---- Job cost (Step 24.5 wiring) ----
+  let jobCost: JobCostReportView | null = null;
+  try {
+    jobCost = await getJobCostReport(input);
+  } catch {
+    jobCost = null;
+  }
+
+  // ---- Schedule performance (Step 24.5 wiring) ----
+  let schedulePerf: SchedulePerfView | null = null;
+  try {
+    schedulePerf = await getSchedulePerformanceReport(input);
+  } catch {
+    schedulePerf = null;
+  }
+
+  // ---- Compliance (Step 24.5 wiring) ----
+  let compliance: ComplianceReportView | null = null;
+  try {
+    compliance = await getComplianceReport(input);
+  } catch {
+    compliance = null;
+  }
+
+  // ---- Labor (Step 24.5 wiring) ----
+  let labor: LaborReportView | null = null;
+  try {
+    labor = await getLaborReport(input);
+  } catch {
+    labor = null;
+  }
+
+  // ---- Saved reports library (Step 24.5 wiring) ----
+  let savedReportsList: SavedReportsView | null = null;
+  try {
+    savedReportsList = await getSavedReports(input);
+  } catch {
+    savedReportsList = null;
+  }
+
   return {
     context,
     generatedAtIso: now.toISOString(),
@@ -443,6 +563,14 @@ export async function getContractorReportsData(
     weeklyReports: weeklyReportsAggregate,
     lienWaivers: lienWaiverLog,
     procurement,
+    cashflow,
+    wip,
+    arAging,
+    jobCost,
+    schedulePerf,
+    compliance,
+    labor,
+    savedReports: savedReportsList,
   };
 }
 

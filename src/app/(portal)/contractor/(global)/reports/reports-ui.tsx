@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import type { ComponentType } from "react";
 
 import { AgingBarChart } from "@/components/charts";
+import type { CashflowWeek } from "@/domain/loaders/cashflow";
+import type { ComplianceCell } from "@/domain/loaders/compliance-report";
+import type { JobCostRow } from "@/domain/loaders/job-cost";
+import type { LaborProjectRow } from "@/domain/loaders/labor-report";
+import type { SchedulePerfRow } from "@/domain/loaders/schedule-performance";
 import type {
   ProjectReportRow,
   ReportsView,
@@ -47,20 +52,6 @@ import {
   IconWallet,
 } from "./reports-icons";
 
-import {
-  SEED_AR_BY_CLIENT,
-  SEED_AR_TREND,
-  SEED_CASHFLOW,
-  SEED_COMPLIANCE_EXPIRING,
-  SEED_JOB_COST,
-  SEED_LABOR_BY_PROJECT,
-  SEED_LABOR_TREND,
-  SEED_PROJECTS,
-  SEED_SAVED_REPORTS,
-  SEED_SCHEDULE_PERF,
-  SEED_STARTING_BALANCE,
-  SEED_SUB_MATRIX,
-} from "./reports-seed";
 
 // ----------------------------------------------------------------
 // Reports hub (Step 24.5). Landing catalog of 26 report surfaces
@@ -149,11 +140,6 @@ function fmt(n: number): string {
   if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
   if (abs >= 1_000) return `${sign}$${Math.round(abs / 1_000)}K`;
   return `${sign}$${abs}`;
-}
-
-function fmtK(n: number): string {
-  if (n === 0) return "—";
-  return `$${n}K`;
 }
 
 function fmtPct(n: number): string {
@@ -421,47 +407,55 @@ function LandingHub({
             </div>
           </section>
 
-          <section className="rpt-hub-section">
-            <SectionLabel>
-              Saved &amp; scheduled · {SEED_SAVED_REPORTS.length}
-            </SectionLabel>
-            <div className="rpt-saved-preview">
-              <table className="rpt-saved-tbl">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>Schedule</th>
-                    <th>Last run</th>
-                    <th className="rpt-right">Owner</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {SEED_SAVED_REPORTS.slice(0, 4).map((r) => (
-                    <tr key={r.id} onClick={() => openReport("saved")}>
-                      <td>
-                        <div className="rpt-saved-name">
-                          <IconBookmark size={12} />
-                          {r.name}
-                        </div>
-                      </td>
-                      <td className="rpt-t3">{r.type}</td>
-                      <td className="rpt-t3">{r.schedule}</td>
-                      <td className="rpt-t3 rpt-num">{r.lastRun}</td>
-                      <td className="rpt-t3 rpt-right">{r.owner}</td>
+          {(view.savedReports?.rows.length ?? 0) > 0 && (
+            <section className="rpt-hub-section">
+              <SectionLabel>
+                Saved &amp; scheduled · {view.savedReports!.totals.total}
+              </SectionLabel>
+              <div className="rpt-saved-preview">
+                <table className="rpt-saved-tbl">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>Schedule</th>
+                      <th>Last run</th>
+                      <th className="rpt-right">Owner</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-              <button
-                type="button"
-                className="rpt-saved-more"
-                onClick={() => openReport("saved")}
-              >
-                View all saved reports <IconChevronRight size={12} />
-              </button>
-            </div>
-          </section>
+                  </thead>
+                  <tbody>
+                    {view.savedReports!.rows.slice(0, 4).map((r) => (
+                      <tr key={r.id} onClick={() => openReport("saved")}>
+                        <td>
+                          <div className="rpt-saved-name">
+                            <IconBookmark size={12} />
+                            {r.name}
+                          </div>
+                        </td>
+                        <td className="rpt-t3">
+                          {labelForReportType(r.reportType)}
+                        </td>
+                        <td className="rpt-t3">
+                          {r.scheduleLabel ?? "On-demand"}
+                        </td>
+                        <td className="rpt-t3 rpt-num">
+                          {formatLastRun(r.lastRunAt)}
+                        </td>
+                        <td className="rpt-t3 rpt-right">{r.ownerName}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <button
+                  type="button"
+                  className="rpt-saved-more"
+                  onClick={() => openReport("saved")}
+                >
+                  View all saved reports <IconChevronRight size={12} />
+                </button>
+              </div>
+            </section>
+          )}
         </>
       )}
     </>
@@ -728,13 +722,13 @@ function renderReport(id: string, view: ReportsView) {
     case "overview":
       return <OverviewReport view={view} />;
     case "wip":
-      return <WIPReport />;
+      return <WIPReport view={view} />;
     case "ar":
-      return <ARReport />;
+      return <ARReport view={view} />;
     case "cost":
-      return <CostReport />;
+      return <CostReport view={view} />;
     case "cashflow":
-      return <CashflowReport />;
+      return <CashflowReport view={view} />;
     case "payments":
       return <PaymentTrackingReport view={view} />;
     case "weekly-reports":
@@ -744,13 +738,13 @@ function renderReport(id: string, view: ReportsView) {
     case "procurement":
       return <ProcurementReportView view={view} />;
     case "labor":
-      return <LaborReport />;
+      return <LaborReport view={view} />;
     case "schedule":
-      return <ScheduleReport />;
+      return <ScheduleReport view={view} />;
     case "compliance":
-      return <ComplianceReport />;
+      return <ComplianceReport view={view} />;
     case "saved":
-      return <SavedReportsView />;
+      return <SavedReportsView view={view} />;
     default:
       return null;
   }
@@ -1122,59 +1116,64 @@ function ProjectRow({ project: p }: { project: ProjectReportRow }) {
 // WIP Schedule
 // ----------------------------------------------------------------
 
-function WIPReport() {
-  const rows = SEED_PROJECTS.map((p) => {
-    const contractWithCO = p.contract + p.co;
-    const pctComplete = p.costToDate / p.estTotalCost;
-    const earned = contractWithCO * pctComplete;
-    const overUnder = earned - p.billed;
-    const backlog = contractWithCO - p.billed;
-    return { ...p, contractWithCO, pctComplete, earned, overUnder, backlog };
-  });
-  const tot = rows.reduce(
-    (a, r) => ({
-      contractWithCO: a.contractWithCO + r.contractWithCO,
-      costToDate: a.costToDate + r.costToDate,
-      earned: a.earned + r.earned,
-      billed: a.billed + r.billed,
-      overUnder: a.overUnder + r.overUnder,
-      backlog: a.backlog + r.backlog,
-    }),
-    { contractWithCO: 0, costToDate: 0, earned: 0, billed: 0, overUnder: 0, backlog: 0 },
-  );
+function WIPReport({ view }: { view: ReportsView }) {
+  const wip = view.wip;
+  if (!wip || wip.rows.length === 0) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        {wip
+          ? "No active projects yet — add one to populate the WIP schedule."
+          : "WIP schedule unavailable."}
+      </div>
+    );
+  }
+
+  const { rows, totals } = wip;
+  const earnedOfContractPct =
+    totals.contractWithCoCents > 0
+      ? totals.earnedCents / totals.contractWithCoCents
+      : 0;
 
   return (
     <div>
       <div className="rpt-k-row four">
         <KPI
           label="Contract + COs"
-          value={fmt(tot.contractWithCO)}
+          value={fmt(totals.contractWithCoCents / 100)}
           Icon={IconWallet}
-          trend={4.2}
-          trendData={[6100, 6180, 6240, 6320, 6400, 6470, 6535, 6625]}
         />
         <KPI
           label="Earned Revenue"
-          value={fmt(tot.earned)}
-          sub={`${fmtPct(tot.earned / tot.contractWithCO)} of contract`}
+          value={fmt(totals.earnedCents / 100)}
+          sub={`${fmtPct(earnedOfContractPct)} of contract`}
           Icon={IconTrendingUp}
-          trend={8.1}
-          trendData={[2800, 2920, 3050, 3190, 3280, 3410, 3520, 3640]}
         />
         <KPI
           label="Net Over/Under"
-          value={fmtSigned(tot.overUnder)}
-          sub={tot.overUnder > 0 ? "Underbilled — catch up" : "Overbilled — healthy"}
-          tone={tot.overUnder > 0 ? "warn" : "ok"}
-          Icon={tot.overUnder > 0 ? IconAlertTriangle : IconCheckCircle2}
+          value={fmtSigned(totals.overUnderCents / 100)}
+          sub={
+            totals.overUnderCents > 0
+              ? "Underbilled — catch up"
+              : totals.overUnderCents < 0
+                ? "Overbilled — healthy"
+                : "On pace"
+          }
+          tone={
+            totals.overUnderCents > 0
+              ? "warn"
+              : totals.overUnderCents < 0
+                ? "ok"
+                : "neutral"
+          }
+          Icon={
+            totals.overUnderCents > 0 ? IconAlertTriangle : IconCheckCircle2
+          }
         />
         <KPI
           label="Backlog"
-          value={fmt(tot.backlog)}
+          value={fmt(totals.backlogCents / 100)}
           sub="Contract remaining"
           Icon={IconFileText}
-          trend={-2.3}
-          trendData={[4800, 4720, 4680, 4590, 4510, 4450, 4380, 4280]}
         />
       </div>
 
@@ -1195,16 +1194,19 @@ function WIPReport() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id}>
+                <tr key={r.projectId}>
                   <td>
-                    <div className="rpt-tbl-project-name">{r.name}</div>
+                    <div className="rpt-tbl-project-name">{r.projectName}</div>
                     <div className="rpt-tbl-project-phase">
-                      {r.phase} · {r.client}
+                      {r.phase ?? "—"}
+                      {r.clientName ? ` · ${r.clientName}` : ""}
                     </div>
                   </td>
-                  <td className="rpt-right rpt-num">{fmt(r.contractWithCO)}</td>
+                  <td className="rpt-right rpt-num">
+                    {fmt(r.contractWithCoCents / 100)}
+                  </td>
                   <td className="rpt-right rpt-num rpt-t2">
-                    {fmt(r.costToDate)}
+                    {fmt(r.costToDateCents / 100)}
                   </td>
                   <td className="rpt-right">
                     <div className="rpt-mini-pct">
@@ -1212,42 +1214,68 @@ function WIPReport() {
                         <div
                           className="rpt-mini-pct-fill"
                           style={{
-                            width: `${Math.min(100, r.pctComplete * 100)}%`,
+                            width: `${Math.min(100, r.percentComplete * 100)}%`,
                           }}
                         />
                       </div>
-                      <span className="rpt-num">{fmtPct(r.pctComplete)}</span>
+                      <span className="rpt-num">
+                        {fmtPct(r.percentComplete)}
+                      </span>
                     </div>
                   </td>
-                  <td className="rpt-right rpt-num">{fmt(r.earned)}</td>
-                  <td className="rpt-right rpt-num">{fmt(r.billed)}</td>
+                  <td className="rpt-right rpt-num">
+                    {fmt(r.earnedCents / 100)}
+                  </td>
+                  <td className="rpt-right rpt-num">
+                    {fmt(r.billedCents / 100)}
+                  </td>
                   <td
                     className={cx(
                       "rpt-right rpt-num rpt-strong",
-                      r.overUnder > 0 ? "tone-warn" : "tone-ok",
+                      r.overUnderCents > 0
+                        ? "tone-warn"
+                        : r.overUnderCents < 0
+                          ? "tone-ok"
+                          : undefined,
                     )}
                   >
-                    {fmtSigned(r.overUnder)}
+                    {fmtSigned(r.overUnderCents / 100)}
                   </td>
-                  <td className="rpt-right rpt-num rpt-t2">{fmt(r.backlog)}</td>
+                  <td className="rpt-right rpt-num rpt-t2">
+                    {fmt(r.backlogCents / 100)}
+                  </td>
                 </tr>
               ))}
               <tr className="rpt-tot">
                 <td>Totals</td>
-                <td className="rpt-right rpt-num">{fmt(tot.contractWithCO)}</td>
-                <td className="rpt-right rpt-num">{fmt(tot.costToDate)}</td>
+                <td className="rpt-right rpt-num">
+                  {fmt(totals.contractWithCoCents / 100)}
+                </td>
+                <td className="rpt-right rpt-num">
+                  {fmt(totals.costToDateCents / 100)}
+                </td>
                 <td className="rpt-right rpt-t3">—</td>
-                <td className="rpt-right rpt-num">{fmt(tot.earned)}</td>
-                <td className="rpt-right rpt-num">{fmt(tot.billed)}</td>
+                <td className="rpt-right rpt-num">
+                  {fmt(totals.earnedCents / 100)}
+                </td>
+                <td className="rpt-right rpt-num">
+                  {fmt(totals.billedCents / 100)}
+                </td>
                 <td
                   className={cx(
                     "rpt-right rpt-num",
-                    tot.overUnder > 0 ? "tone-warn" : "tone-ok",
+                    totals.overUnderCents > 0
+                      ? "tone-warn"
+                      : totals.overUnderCents < 0
+                        ? "tone-ok"
+                        : undefined,
                   )}
                 >
-                  {fmtSigned(tot.overUnder)}
+                  {fmtSigned(totals.overUnderCents / 100)}
                 </td>
-                <td className="rpt-right rpt-num">{fmt(tot.backlog)}</td>
+                <td className="rpt-right rpt-num">
+                  {fmt(totals.backlogCents / 100)}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -1261,58 +1289,61 @@ function WIPReport() {
 // AR Aging
 // ----------------------------------------------------------------
 
-function ARReport() {
-  const bucketTot = SEED_AR_BY_CLIENT.reduce(
-    (a, r) => ({
-      current: a.current + r.current,
-      d1_30: a.d1_30 + r.d1_30,
-      d31_60: a.d31_60 + r.d31_60,
-      d61_90: a.d61_90 + r.d61_90,
-      d90p: a.d90p + r.d90p,
-    }),
-    { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90p: 0 },
-  );
-  const total = Object.values(bucketTot).reduce((a, b) => a + b, 0);
-  const pastDue = total - bucketTot.current;
+function ARReport({ view }: { view: ReportsView }) {
+  const ar = view.arAging;
+  if (!ar || ar.totalCents === 0) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        {ar
+          ? "No outstanding AR — every submitted draw has been paid in full."
+          : "AR aging unavailable."}
+      </div>
+    );
+  }
+
+  const totalsByBucket = ar.totalsByBucket;
+  const total = ar.totalCents;
   const buckets: Array<{ label: string; value: number; tone: KpiTone }> = [
-    { label: "Current", value: bucketTot.current, tone: "neutral" },
-    { label: "1–30 days", value: bucketTot.d1_30, tone: "neutral" },
-    { label: "31–60 days", value: bucketTot.d31_60, tone: "warn" },
-    { label: "61–90 days", value: bucketTot.d61_90, tone: "crit" },
-    { label: "90+ days", value: bucketTot.d90p, tone: "crit" },
+    { label: "Current", value: totalsByBucket.current, tone: "neutral" },
+    { label: "1–30 days", value: totalsByBucket.d1_30, tone: "neutral" },
+    { label: "31–60 days", value: totalsByBucket.d31_60, tone: "warn" },
+    { label: "61–90 days", value: totalsByBucket.d61_90, tone: "crit" },
+    { label: "90+ days", value: totalsByBucket.d90p, tone: "crit" },
   ];
-  const over60 = bucketTot.d61_90 + bucketTot.d90p;
-  const trendFinal = SEED_AR_TREND[SEED_AR_TREND.length - 1];
-  const trendStart = SEED_AR_TREND[0];
+  const over60 = totalsByBucket.d61_90 + totalsByBucket.d90p;
+  const trendFinal = ar.trendCents[ar.trendCents.length - 1] ?? 0;
+  const trendStart = ar.trendCents[0] ?? 0;
+  const trendDelta =
+    trendStart > 0 ? (trendFinal - trendStart) / trendStart : 0;
+  const deltaTone: KpiTone = trendDelta > 0 ? "warn" : "ok";
 
   return (
     <div>
       <div className="rpt-k-row four">
         <KPI
           label="Total AR"
-          value={fmt(total)}
+          value={fmt(total / 100)}
           Icon={IconReceipt}
-          trendData={SEED_AR_TREND}
-          trend={6.1}
+          trendData={ar.trendCents}
         />
         <KPI
           label="Current"
-          value={fmt(bucketTot.current)}
-          sub={`${fmtPct(bucketTot.current / total)} of AR`}
+          value={fmt(totalsByBucket.current / 100)}
+          sub={`${fmtPct(totalsByBucket.current / total)} of AR`}
           tone="ok"
           Icon={IconCheckCircle2}
         />
         <KPI
           label="Past Due"
-          value={fmt(pastDue)}
-          sub={`${fmtPct(pastDue / total)} of AR`}
-          tone="warn"
+          value={fmt(ar.pastDueCents / 100)}
+          sub={`${fmtPct(ar.pastDueCents / total)} of AR`}
+          tone={ar.pastDueCents > 0 ? "warn" : "ok"}
           Icon={IconClock}
         />
         <KPI
           label="60+ Days"
-          value={fmt(over60)}
-          sub="Escalate"
+          value={fmt(over60 / 100)}
+          sub={over60 > 0 ? "Escalate" : "None"}
           tone={over60 > 0 ? "crit" : "ok"}
           Icon={IconAlertTriangle}
         />
@@ -1329,17 +1360,19 @@ function ARReport() {
         <Card>
           <SectionHeading title="AR trend" subtitle="Last 8 weeks." />
           <div className="rpt-trend-canvas">
-            <TrendArea data={SEED_AR_TREND} />
+            <TrendArea data={ar.trendCents} />
           </div>
           <div className="rpt-trend-foot">
             <div>
               <div className="rpt-eyebrow">Latest</div>
-              <div className="rpt-trend-value">{fmt(trendFinal * 1000)}</div>
+              <div className="rpt-trend-value">{fmt(trendFinal / 100)}</div>
             </div>
             <div className="rpt-right">
               <div className="rpt-eyebrow">8wk change</div>
-              <div className="rpt-trend-delta tone-ok">
-                +{fmtPct((trendFinal - trendStart) / trendStart)}
+              <div className={cx("rpt-trend-delta", `tone-${deltaTone}`)}>
+                {trendDelta === 0
+                  ? "—"
+                  : `${trendDelta > 0 ? "+" : ""}${fmtPct(trendDelta)}`}
               </div>
             </div>
           </div>
@@ -1350,7 +1383,8 @@ function ARReport() {
         <div className="rpt-card-hdr">
           <div className="rpt-eyebrow">By client</div>
           <div className="rpt-t3">
-            {SEED_AR_BY_CLIENT.length} clients with outstanding AR
+            {ar.rows.length}{" "}
+            {ar.rows.length === 1 ? "client" : "clients"} with outstanding AR
           </div>
         </div>
         <table className="rpt-data-tbl">
@@ -1366,44 +1400,44 @@ function ARReport() {
             </tr>
           </thead>
           <tbody>
-            {SEED_AR_BY_CLIENT.map((r) => {
-              const rowTotal =
-                r.current + r.d1_30 + r.d31_60 + r.d61_90 + r.d90p;
-              return (
-                <tr key={r.client}>
-                  <td className="rpt-strong">{r.client}</td>
-                  <td className="rpt-right rpt-num rpt-t2">{fmt(r.current)}</td>
-                  <td className="rpt-right rpt-num rpt-t2">{fmt(r.d1_30)}</td>
-                  <td
-                    className={cx(
-                      "rpt-right rpt-num",
-                      r.d31_60 > 0 && "tone-warn rpt-strong",
-                    )}
-                  >
-                    {fmt(r.d31_60)}
-                  </td>
-                  <td
-                    className={cx(
-                      "rpt-right rpt-num",
-                      r.d61_90 > 0 && "tone-crit rpt-strong",
-                    )}
-                  >
-                    {fmt(r.d61_90)}
-                  </td>
-                  <td
-                    className={cx(
-                      "rpt-right rpt-num",
-                      r.d90p > 0 && "tone-crit rpt-strong",
-                    )}
-                  >
-                    {fmt(r.d90p)}
-                  </td>
-                  <td className="rpt-right rpt-num rpt-strong">
-                    {fmt(rowTotal)}
-                  </td>
-                </tr>
-              );
-            })}
+            {ar.rows.map((r) => (
+              <tr key={r.clientOrganizationId}>
+                <td className="rpt-strong">{r.clientName}</td>
+                <td className="rpt-right rpt-num rpt-t2">
+                  {fmt(r.current / 100)}
+                </td>
+                <td className="rpt-right rpt-num rpt-t2">
+                  {fmt(r.d1_30 / 100)}
+                </td>
+                <td
+                  className={cx(
+                    "rpt-right rpt-num",
+                    r.d31_60 > 0 && "tone-warn rpt-strong",
+                  )}
+                >
+                  {fmt(r.d31_60 / 100)}
+                </td>
+                <td
+                  className={cx(
+                    "rpt-right rpt-num",
+                    r.d61_90 > 0 && "tone-crit rpt-strong",
+                  )}
+                >
+                  {fmt(r.d61_90 / 100)}
+                </td>
+                <td
+                  className={cx(
+                    "rpt-right rpt-num",
+                    r.d90p > 0 && "tone-crit rpt-strong",
+                  )}
+                >
+                  {fmt(r.d90p / 100)}
+                </td>
+                <td className="rpt-right rpt-num rpt-strong">
+                  {fmt(r.totalCents / 100)}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </Card>
@@ -1482,45 +1516,59 @@ function TrendArea({ data }: { data: number[] }) {
 // Job Cost
 // ----------------------------------------------------------------
 
-function CostReport() {
-  const rows = SEED_JOB_COST.map((p) => {
-    const variance = p.projected - p.budget;
-    const variancePct = variance / p.budget;
-    const costUsed = p.actual / p.budget;
-    return { ...p, variance, variancePct, costUsed };
-  });
-  const tot = rows.reduce(
-    (a, r) => ({
-      budget: a.budget + r.budget,
-      committed: a.committed + r.committed,
-      actual: a.actual + r.actual,
-      projected: a.projected + r.projected,
-    }),
-    { budget: 0, committed: 0, actual: 0, projected: 0 },
-  );
-  const totVar = tot.projected - tot.budget;
+function CostReport({ view }: { view: ReportsView }) {
+  const jobCost = view.jobCost;
+  if (!jobCost || jobCost.rows.length === 0) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        {jobCost
+          ? "No cost data yet — add a budget (contract value) or issue the first PO to populate Job Cost."
+          : "Job cost report unavailable."}
+      </div>
+    );
+  }
+
+  const { rows, totals } = jobCost;
+  const totVar = totals.varianceCents;
+  const totVarPct = totals.budgetCents > 0 ? totVar / totals.budgetCents : 0;
 
   return (
     <div>
       <div className="rpt-k-row four">
-        <KPI label="Total Budget" value={fmt(tot.budget)} Icon={IconCalculator} />
+        <KPI
+          label="Total Budget"
+          value={fmt(totals.budgetCents / 100)}
+          Icon={IconCalculator}
+        />
         <KPI
           label="Committed"
-          value={fmt(tot.committed)}
-          sub={`${fmtPct(tot.committed / tot.budget)} of budget`}
+          value={fmt(totals.committedCents / 100)}
+          sub={
+            totals.budgetCents > 0
+              ? `${fmtPct(totals.committedCents / totals.budgetCents)} of budget`
+              : undefined
+          }
           Icon={IconFileText}
         />
         <KPI
           label="Actual Spent"
-          value={fmt(tot.actual)}
-          sub={`${fmtPct(tot.actual / tot.budget)} of budget`}
+          value={fmt(totals.actualCents / 100)}
+          sub={
+            totals.budgetCents > 0
+              ? `${fmtPct(totals.actualCents / totals.budgetCents)} of budget`
+              : undefined
+          }
           Icon={IconTrendingUp}
         />
         <KPI
           label="Projected Variance"
-          value={fmtSigned(totVar)}
-          tone={totVar > 0 ? "crit" : "ok"}
-          sub={`${totVar >= 0 ? "+" : ""}${((totVar / tot.budget) * 100).toFixed(1)}% vs budget`}
+          value={fmtSigned(totVar / 100)}
+          tone={totVar > 0 ? "crit" : totVar < 0 ? "ok" : "neutral"}
+          sub={
+            totals.budgetCents > 0
+              ? `${totVar >= 0 ? "+" : ""}${(totVarPct * 100).toFixed(1)}% vs budget`
+              : undefined
+          }
           Icon={totVar > 0 ? IconAlertTriangle : IconCheckCircle2}
         />
       </div>
@@ -1532,7 +1580,7 @@ function CostReport() {
         />
         <div className="rpt-cost-stack">
           {rows.map((r) => (
-            <CostTrack key={r.id} row={r} />
+            <CostTrack key={r.projectId} row={r} />
           ))}
         </div>
       </Card>
@@ -1552,25 +1600,31 @@ function CostReport() {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id}>
-                <td className="rpt-strong">{r.name}</td>
-                <td className="rpt-right rpt-num">{fmt(r.budget)}</td>
-                <td className="rpt-right rpt-num rpt-t2">{fmt(r.committed)}</td>
-                <td className="rpt-right rpt-num">{fmt(r.actual)}</td>
+              <tr key={r.projectId}>
+                <td className="rpt-strong">{r.projectName}</td>
+                <td className="rpt-right rpt-num">
+                  {fmt(r.budgetCents / 100)}
+                </td>
+                <td className="rpt-right rpt-num rpt-t2">
+                  {fmt(r.committedCents / 100)}
+                </td>
+                <td className="rpt-right rpt-num">
+                  {fmt(r.actualCents / 100)}
+                </td>
                 <td className="rpt-right rpt-num rpt-strong">
-                  {fmt(r.projected)}
+                  {fmt(r.projectedCents / 100)}
                 </td>
                 <td
                   className={cx(
                     "rpt-right rpt-num rpt-strong",
-                    r.variance > 0
+                    r.varianceCents > 0
                       ? "tone-crit"
-                      : r.variance < 0
+                      : r.varianceCents < 0
                         ? "tone-ok"
                         : "rpt-t3",
                   )}
                 >
-                  {fmtSigned(r.variance)}
+                  {fmtSigned(r.varianceCents / 100)}
                 </td>
                 <td>
                   <div className="rpt-mini-pct">
@@ -1578,19 +1632,19 @@ function CostReport() {
                       <div
                         className={cx(
                           "rpt-mini-pct-fill",
-                          r.costUsed > 0.9
+                          r.costUsedPct > 0.9
                             ? "tone-crit"
-                            : r.costUsed > 0.75
+                            : r.costUsedPct > 0.75
                               ? "tone-warn"
                               : "tone-ok",
                         )}
                         style={{
-                          width: `${Math.min(100, r.costUsed * 100)}%`,
+                          width: `${Math.min(100, r.costUsedPct * 100)}%`,
                         }}
                       />
                     </div>
                     <span className="rpt-num rpt-t2">
-                      {fmtPct(r.costUsed)}
+                      {fmtPct(r.costUsedPct)}
                     </span>
                   </div>
                 </td>
@@ -1603,42 +1657,32 @@ function CostReport() {
   );
 }
 
-type CostRow = {
-  name: string;
-  budget: number;
-  committed: number;
-  actual: number;
-  projected: number;
-  variance: number;
-  variancePct: number;
-};
-
-function CostTrack({ row }: { row: CostRow }) {
-  const scale = Math.max(row.budget, row.projected) * 1.08;
+function CostTrack({ row }: { row: JobCostRow }) {
+  const scale = Math.max(row.budgetCents, row.projectedCents) * 1.08 || 1;
   const pos = (v: number) => (v / scale) * 100;
-  const budgetX = pos(row.budget);
-  const committedX = pos(row.committed);
-  const actualX = pos(row.actual);
-  const projectedX = pos(row.projected);
-  const overrun = row.projected > row.budget;
+  const budgetX = pos(row.budgetCents);
+  const committedX = pos(row.committedCents);
+  const actualX = pos(row.actualCents);
+  const projectedX = pos(row.projectedCents);
+  const overrun = row.projectedCents > row.budgetCents;
 
   return (
     <div className="rpt-cost-track">
       <div className="rpt-cost-track-hdr">
-        <div className="rpt-strong">{row.name}</div>
+        <div className="rpt-strong">{row.projectName}</div>
         <div
           className={cx(
             "rpt-num rpt-strong",
-            row.variance > 0
+            row.varianceCents > 0
               ? "tone-crit"
-              : row.variance < 0
+              : row.varianceCents < 0
                 ? "tone-ok"
                 : "rpt-t3",
           )}
         >
-          {fmtSigned(row.variance)}{" "}
+          {fmtSigned(row.varianceCents / 100)}{" "}
           <span className="rpt-t3">
-            ({row.variance >= 0 ? "+" : ""}
+            ({row.varianceCents >= 0 ? "+" : ""}
             {(row.variancePct * 100).toFixed(1)}%)
           </span>
         </div>
@@ -1671,21 +1715,21 @@ function CostTrack({ row }: { row: CostRow }) {
         <CostMarker
           x={actualX}
           label="Actual"
-          value={fmt(row.actual)}
+          value={fmt(row.actualCents / 100)}
           tone="ac"
           position="top"
         />
         <CostMarker
           x={committedX}
           label="Committed"
-          value={fmt(row.committed)}
+          value={fmt(row.committedCents / 100)}
           tone="muted"
           position="bottom"
         />
         <CostMarker
           x={budgetX}
           label="Budget"
-          value={fmt(row.budget)}
+          value={fmt(row.budgetCents / 100)}
           tone="ink"
           position="top"
           isLine
@@ -1693,9 +1737,10 @@ function CostTrack({ row }: { row: CostRow }) {
         <CostMarker
           x={projectedX}
           label="Projected"
-          value={fmt(row.projected)}
+          value={fmt(row.projectedCents / 100)}
           tone={overrun ? "crit" : "ok"}
           position="bottom"
+          stack="far"
         />
       </div>
     </div>
@@ -1708,6 +1753,7 @@ function CostMarker({
   value,
   tone,
   position,
+  stack = "near",
   isLine,
 }: {
   x: number;
@@ -1715,11 +1761,28 @@ function CostMarker({
   value: string;
   tone: "ac" | "muted" | "ink" | "ok" | "crit";
   position: "top" | "bottom";
+  stack?: "near" | "far";
   isLine?: boolean;
 }) {
+  // Cap alignment: when a marker sits near an edge, center-anchoring its
+  // label (the default `translateX(-50%)`) makes it bleed past the rail.
+  // Shift to left-align near the left edge and right-align near the right.
+  const capAnchor: "left" | "center" | "right" =
+    x < 8 ? "left" : x > 92 ? "right" : "center";
+  const capTransform =
+    capAnchor === "left"
+      ? "translateX(0%)"
+      : capAnchor === "right"
+        ? "translateX(-100%)"
+        : "translateX(-50%)";
   return (
     <div
-      className={cx("rpt-cost-marker", `pos-${position}`, `tone-${tone}`)}
+      className={cx(
+        "rpt-cost-marker",
+        `pos-${position}`,
+        stack === "far" && "stack-far",
+        `tone-${tone}`,
+      )}
       style={{ left: `${x}%` }}
     >
       {isLine ? (
@@ -1727,7 +1790,10 @@ function CostMarker({
       ) : (
         <div className="rpt-cost-marker-dot" />
       )}
-      <div className="rpt-cost-marker-cap">
+      <div
+        className="rpt-cost-marker-cap"
+        style={{ transform: capTransform }}
+      >
         <div className="rpt-cost-marker-label">{label}</div>
         <div className="rpt-cost-marker-value rpt-num">{value}</div>
       </div>
@@ -1739,46 +1805,67 @@ function CostMarker({
 // Cashflow Projection
 // ----------------------------------------------------------------
 
-function CashflowReport() {
-  let balance = SEED_STARTING_BALANCE;
-  const enriched = SEED_CASHFLOW.map((w) => {
-    const net = w.in - w.out;
-    balance += net;
-    return { ...w, net, balance };
-  });
-  const totalIn = enriched.reduce((a, w) => a + w.in, 0);
-  const totalOut = enriched.reduce((a, w) => a + w.out, 0);
-  const endBalance = balance;
-  const minBalance = Math.min(...enriched.map((w) => w.balance));
-  const lowWeek = enriched.find((w) => w.balance === minBalance);
+function CashflowReport({ view }: { view: ReportsView }) {
+  const projection = view.cashflow;
+  if (!projection) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        Cashflow projection unavailable. The feed draws from pending draws,
+        open POs, pending lien waivers, and scheduled retainage releases — if
+        none of those are populated yet, check back after the first draw or PO
+        is entered.
+      </div>
+    );
+  }
+
+  // Low-balance thresholds — seed values were hard-coded at $200K/$400K in
+  // the prototype; keeping them as floors makes the tone signal legible on
+  // a contractor's typical operating range. If the starting balance is very
+  // small (early stage), we scale thresholds down to avoid perpetually-red
+  // readouts.
+  const bal = projection.startingBalanceCents;
+  const scale = Math.max(bal, 200 * 100_000) / (400 * 100_000);
+  const warnThresholdCents = Math.round(200 * 100_000 * scale);
+  const critThresholdCents = Math.round(100 * 100_000 * scale);
+
+  const lowWeek = projection.weeks.find(
+    (w) => w.balanceCents === projection.totals.minBalanceCents,
+  );
+
+  const minTone: KpiTone =
+    projection.totals.minBalanceCents < critThresholdCents
+      ? "crit"
+      : projection.totals.minBalanceCents < warnThresholdCents
+        ? "warn"
+        : "ok";
 
   return (
     <div>
       <div className="rpt-k-row four">
         <KPI
           label="Starting Balance"
-          value={fmtK(SEED_STARTING_BALANCE)}
+          value={fmt(projection.startingBalanceCents / 100)}
           Icon={IconWallet}
         />
         <KPI
           label="Projected Inflows"
-          value={fmtK(totalIn)}
+          value={fmt(projection.totals.totalInflowCents / 100)}
           sub="Next 12 weeks"
           tone="ok"
           Icon={IconArrowUpRight}
         />
         <KPI
           label="Projected Outflows"
-          value={fmtK(totalOut)}
+          value={fmt(projection.totals.totalOutflowCents / 100)}
           sub="Next 12 weeks"
           tone="warn"
           Icon={IconArrowDownRight}
         />
         <KPI
           label="Projected End Balance"
-          value={fmtK(endBalance)}
-          sub={`Low point ${fmtK(minBalance)} at ${lowWeek?.week ?? "—"}`}
-          tone={minBalance < 200 ? "crit" : minBalance < 400 ? "warn" : "ok"}
+          value={fmt(projection.totals.endBalanceCents / 100)}
+          sub={`Low point ${fmt(projection.totals.minBalanceCents / 100)}${lowWeek ? ` at ${lowWeek.weekIso}` : ""}`}
+          tone={minTone}
           Icon={IconTrendingUp}
         />
       </div>
@@ -1788,7 +1875,7 @@ function CashflowReport() {
           title="Inflows, outflows &amp; running balance"
           subtitle="Paired bars show gross weekly flow side-by-side (inflow left, outflow right). The accent line traces running cash position."
         />
-        <CashflowChart data={enriched} />
+        <CashflowChart data={projection.weeks} />
       </Card>
 
       <Card padded={false}>
@@ -1807,32 +1894,41 @@ function CashflowReport() {
             </tr>
           </thead>
           <tbody>
-            {enriched.map((w) => (
-              <tr key={w.week}>
-                <td className="rpt-strong">{w.week}</td>
-                <td className="rpt-t2">{w.date}</td>
-                <td className="rpt-right rpt-num tone-ok">{fmtK(w.in)}</td>
-                <td className="rpt-right rpt-num tone-crit">-{fmtK(w.out)}</td>
-                <td
-                  className={cx(
-                    "rpt-right rpt-num rpt-strong",
-                    w.net >= 0 ? "tone-ok" : "tone-crit",
-                  )}
-                >
-                  {w.net >= 0 ? "+" : ""}
-                  {fmtK(Math.abs(w.net))}
+            {projection.weeks.map((w) => (
+              <tr key={w.weekIso}>
+                <td className="rpt-strong">{w.weekIso}</td>
+                <td className="rpt-t2">{w.weekLabel}</td>
+                <td className="rpt-right rpt-num tone-ok">
+                  {fmt(w.inflowCents / 100)}
+                </td>
+                <td className="rpt-right rpt-num tone-crit">
+                  {w.outflowCents === 0 ? "—" : `-${fmt(w.outflowCents / 100)}`}
                 </td>
                 <td
                   className={cx(
                     "rpt-right rpt-num rpt-strong",
-                    w.balance < 200
+                    w.netCents > 0
+                      ? "tone-ok"
+                      : w.netCents < 0
+                        ? "tone-crit"
+                        : undefined,
+                  )}
+                >
+                  {w.netCents === 0
+                    ? "—"
+                    : `${w.netCents > 0 ? "+" : "-"}${fmt(Math.abs(w.netCents) / 100)}`}
+                </td>
+                <td
+                  className={cx(
+                    "rpt-right rpt-num rpt-strong",
+                    w.balanceCents < critThresholdCents
                       ? "tone-crit"
-                      : w.balance < 400
+                      : w.balanceCents < warnThresholdCents
                         ? "tone-warn"
                         : undefined,
                   )}
                 >
-                  {fmtK(w.balance)}
+                  {fmt(w.balanceCents / 100)}
                 </td>
               </tr>
             ))}
@@ -1843,18 +1939,7 @@ function CashflowReport() {
   );
 }
 
-function CashflowChart({
-  data,
-}: {
-  data: Array<{
-    week: string;
-    date: string;
-    in: number;
-    out: number;
-    net: number;
-    balance: number;
-  }>;
-}) {
+function CashflowChart({ data }: { data: CashflowWeek[] }) {
   // Paired bars on the same upward baseline (inflow left, outflow right).
   // Nothing extends below the x-axis, so bars can't overlap the week/date
   // labels. Balance line runs in the upper band of the plot.
@@ -1871,25 +1956,44 @@ function CashflowChart({
   const baseY = pad.top + plotH;
   const balBandTop = pad.top;
 
-  const balances = data.map((d) => d.balance);
-  const rawMaxBal = Math.max(...balances);
-  const maxBal = Math.ceil(rawMaxBal / 200) * 200 || 200;
+  const balances = data.map((d) => d.balanceCents);
+  // Scale includes negatives so an overdrawn balance doesn't plot below
+  // the band (which would bleed into the bar area). Always anchors zero
+  // in range so the zero line can be drawn as a distinct reference.
+  const tickStepCents = 20 * 100_000;
+  const rawMax = Math.max(0, ...balances);
+  const rawMin = Math.min(0, ...balances);
+  const niceMax =
+    Math.max(Math.ceil(rawMax / tickStepCents) * tickStepCents, tickStepCents);
+  const niceMin =
+    rawMin === 0
+      ? 0
+      : Math.floor(rawMin / tickStepCents) * tickStepCents;
+  const scaleRange = niceMax - niceMin || tickStepCents;
+  const yForBalance = (cents: number) =>
+    balBandTop + balBandH - ((cents - niceMin) / scaleRange) * balBandH;
+  const zeroY = yForBalance(0);
 
-  const maxFlow = Math.max(...data.map((d) => Math.max(d.in, d.out)));
+  const maxFlow = Math.max(
+    0,
+    ...data.map((d) => Math.max(d.inflowCents, d.outflowCents)),
+  );
   const slotW = plotW / data.length;
   const barW = Math.min(8, slotW * 0.22);
   const flowScale = barBandH / (maxFlow || 1);
 
   const balPts = data.map((d, i) => {
     const x = pad.left + slotW * i + slotW / 2;
-    const y = balBandTop + balBandH - (d.balance / maxBal) * balBandH;
-    return [x, y] as const;
+    return [x, yForBalance(d.balanceCents)] as const;
   });
   const linePath = balPts.reduce(
     (p, [x, y], i) => (i === 0 ? `M ${x},${y}` : `${p} L ${x},${y}`),
     "",
   );
-  const areaPath = `${linePath} L ${balPts[balPts.length - 1][0]},${balBandTop + balBandH} L ${balPts[0][0]},${balBandTop + balBandH} Z`;
+  // Area fills from the line down to the zero axis (not the band bottom),
+  // so the gradient reads as "area above/below zero" rather than a
+  // misleading column of fill under a negative line.
+  const areaPath = `${linePath} L ${balPts[balPts.length - 1][0]},${zeroY} L ${balPts[0][0]},${zeroY} Z`;
 
   const yTicks = 5;
   const minIdx = balances.indexOf(Math.min(...balances));
@@ -1911,8 +2015,8 @@ function CashflowChart({
 
       {Array.from({ length: yTicks + 1 }).map((_, i) => {
         const t = i / yTicks;
-        const y = balBandTop + balBandH - t * balBandH;
-        const val = Math.round(t * maxBal);
+        const val = niceMin + t * scaleRange;
+        const y = yForBalance(val);
         return (
           <g key={i}>
             <line
@@ -1933,11 +2037,25 @@ function CashflowChart({
               fontWeight="600"
               letterSpacing="0.04em"
             >
-              ${val}K
+              {fmt(val / 100)}
             </text>
           </g>
         );
       })}
+
+      {/* Zero-line reference, only when the scale dips into negatives. */}
+      {niceMin < 0 && (
+        <line
+          x1={pad.left}
+          x2={W - pad.right}
+          y1={zeroY}
+          y2={zeroY}
+          stroke="var(--dg)"
+          strokeWidth="1"
+          strokeDasharray="4,3"
+          opacity="0.6"
+        />
+      )}
 
       {/* x-axis baseline for the bars */}
       <line
@@ -1952,10 +2070,10 @@ function CashflowChart({
       {/* Paired flow bars — both going UP from baseline */}
       {data.map((d, i) => {
         const cx = pad.left + slotW * i + slotW / 2;
-        const inH = d.in * flowScale;
-        const outH = d.out * flowScale;
+        const inH = d.inflowCents * flowScale;
+        const outH = d.outflowCents * flowScale;
         return (
-          <g key={`bars-${d.week}`}>
+          <g key={`bars-${d.weekIso}`}>
             <rect
               x={cx - barW - 1}
               y={baseY - inH}
@@ -2029,7 +2147,7 @@ function CashflowChart({
             fontWeight="600"
             letterSpacing="0.04em"
           >
-            LOW ${Math.round(minVal)}K
+            LOW {fmt(Math.round(minVal) / 100)}
           </text>
         </g>
       )}
@@ -2038,7 +2156,7 @@ function CashflowChart({
       {data.map((d, i) => {
         const x = pad.left + slotW * i + slotW / 2;
         return (
-          <g key={`x-${d.week}`}>
+          <g key={`x-${d.weekIso}`}>
             <text
               x={x}
               y={baseY + 18}
@@ -2048,7 +2166,7 @@ function CashflowChart({
               fontWeight="600"
               letterSpacing="0.02em"
             >
-              {d.week}
+              {d.weekIso}
             </text>
             <text
               x={x}
@@ -2057,7 +2175,7 @@ function CashflowChart({
               fill="var(--t3)"
               textAnchor="middle"
             >
-              {d.date}
+              {d.weekLabel}
             </text>
           </g>
         );
@@ -2672,61 +2790,64 @@ function ProcurementReportView({ view }: { view: ReportsView }) {
 // Labor & Productivity
 // ----------------------------------------------------------------
 
-function LaborReport() {
-  const tot = SEED_LABOR_BY_PROJECT.reduce(
-    (a, r) => ({
-      hoursActual: a.hoursActual + r.hoursActual,
-      hoursBudget: a.hoursBudget + r.hoursBudget,
-      costActual: a.costActual + r.costActual,
-      costBudget: a.costBudget + r.costBudget,
-    }),
-    { hoursActual: 0, hoursBudget: 0, costActual: 0, costBudget: 0 },
-  );
-  const avgRate = tot.costActual / tot.hoursActual;
-  const hoursPct = tot.hoursActual / tot.hoursBudget;
-  const costPct = tot.costActual / tot.costBudget;
-  const hoursVar = tot.hoursActual - tot.hoursBudget;
+function LaborReport({ view }: { view: ReportsView }) {
+  const labor = view.labor;
+  if (!labor || labor.totals.hoursTotal === 0) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        {labor
+          ? "No crew hours logged yet across the portfolio."
+          : "Labor report unavailable."}
+      </div>
+    );
+  }
+
+  const { rows, tradesOrder, totals, trendHours } = labor;
+  const trendStart = trendHours[0] ?? 0;
+  const trendEnd = trendHours[trendHours.length - 1] ?? 0;
+  const trendPct = trendStart > 0 ? (trendEnd - trendStart) / trendStart : 0;
 
   return (
     <div>
       <div className="rpt-k-row four">
         <KPI
           label="Hours Logged"
-          value={tot.hoursActual.toLocaleString()}
-          sub={`${Math.round(hoursPct * 100)}% of budget`}
+          value={Math.round(totals.hoursTotal).toLocaleString()}
+          sub="Last 8 weeks"
           Icon={IconClock}
-          tone={hoursPct > 1 ? "warn" : "neutral"}
-          trendData={SEED_LABOR_TREND}
-          trend={8.2}
+          trendData={trendHours}
         />
         <KPI
-          label="Labor Cost"
-          value={fmt(tot.costActual)}
-          sub={`${Math.round(costPct * 100)}% of budget`}
-          Icon={IconWallet}
-          tone={costPct > 1 ? "warn" : "neutral"}
-        />
-        <KPI
-          label="Avg Blended Rate"
-          value={`$${Math.round(avgRate)}/hr`}
-          sub="All trades combined"
+          label="Crew Days"
+          value={totals.crewDays.toLocaleString()}
+          sub="Sum of headcount across logged shifts"
           Icon={IconUsers}
         />
         <KPI
-          label="Hours Variance"
-          value={`${hoursVar >= 0 ? "+" : "-"}${Math.abs(hoursVar).toLocaleString()}`}
-          sub="vs. budget"
-          tone={hoursVar > 0 ? "warn" : "ok"}
-          Icon={hoursVar > 0 ? IconAlertTriangle : IconCheckCircle2}
+          label="Avg Crew Size"
+          value={totals.avgCrewSize.toFixed(1)}
+          sub="Hours-weighted headcount"
+          Icon={IconUsers}
+        />
+        <KPI
+          label="8-Week Trend"
+          value={
+            trendPct === 0
+              ? "—"
+              : `${trendPct > 0 ? "+" : ""}${(trendPct * 100).toFixed(1)}%`
+          }
+          sub="Hours change vs. 8 weeks ago"
+          tone={trendPct > 0.15 ? "warn" : trendPct < -0.15 ? "crit" : "ok"}
+          Icon={IconTrendingUp}
         />
       </div>
 
       <Card className="rpt-mb">
         <SectionHeading
           title="Hours composition by trade"
-          subtitle="Per-project stacked segments show how hours distribute across trades. Tonal palette keeps the chart reading as data, not decoration."
+          subtitle="Per-project stacked segments show how hours distribute across trades. Top 5 trades by total hours are named; the rest roll into Other."
         />
-        <LaborStackedBars data={SEED_LABOR_BY_PROJECT} />
+        <LaborStackedBars rows={rows} tradesOrder={tradesOrder} />
       </Card>
 
       <Card padded={false}>
@@ -2734,59 +2855,31 @@ function LaborReport() {
           <thead>
             <tr>
               <th>Project</th>
-              <th className="rpt-right">Hours Actual</th>
-              <th className="rpt-right">Hours Budget</th>
-              <th className="rpt-right">Cost Actual</th>
-              <th className="rpt-right">Cost Budget</th>
-              <th className="rpt-right">Rate</th>
-              <th className="rpt-col-used">Burn</th>
+              <th className="rpt-right">Hours</th>
+              <th className="rpt-right">Crew Days</th>
+              <th className="rpt-right">Shifts</th>
+              <th>Top Trade</th>
             </tr>
           </thead>
           <tbody>
-            {SEED_LABOR_BY_PROJECT.map((r) => {
-              const burn = r.hoursActual / r.hoursBudget;
-              const rate = r.costActual / r.hoursActual;
+            {rows.map((r) => {
+              const topTrade =
+                Object.entries(r.hoursByTrade).sort(
+                  (a, b) => b[1] - a[1],
+                )[0]?.[0] ?? "—";
               return (
-                <tr key={r.id}>
-                  <td className="rpt-strong">{r.name}</td>
+                <tr key={r.projectId}>
+                  <td className="rpt-strong">{r.projectName}</td>
                   <td className="rpt-right rpt-num">
-                    {r.hoursActual.toLocaleString()}
+                    {Math.round(r.hoursTotal).toLocaleString()}
                   </td>
                   <td className="rpt-right rpt-num rpt-t2">
-                    {r.hoursBudget.toLocaleString()}
-                  </td>
-                  <td className="rpt-right rpt-num">{fmt(r.costActual)}</td>
-                  <td className="rpt-right rpt-num rpt-t2">
-                    {fmt(r.costBudget)}
+                    {r.crewDays.toLocaleString()}
                   </td>
                   <td className="rpt-right rpt-num rpt-t2">
-                    ${Math.round(rate)}/hr
+                    {r.uniqueCrewDays.toLocaleString()}
                   </td>
-                  <td>
-                    <div className="rpt-mini-pct">
-                      <div className="rpt-mini-pct-bar">
-                        <div
-                          className={cx(
-                            "rpt-mini-pct-fill",
-                            burn > 1
-                              ? "tone-crit"
-                              : burn > 0.9
-                                ? "tone-warn"
-                                : "tone-ok",
-                          )}
-                          style={{ width: `${Math.min(100, burn * 100)}%` }}
-                        />
-                      </div>
-                      <span
-                        className={cx(
-                          "rpt-num rpt-strong",
-                          burn > 1 ? "tone-crit" : "rpt-t2",
-                        )}
-                      >
-                        {Math.round(burn * 100)}%
-                      </span>
-                    </div>
-                  </td>
+                  <td className="rpt-t2">{topTrade}</td>
                 </tr>
               );
             })}
@@ -2797,46 +2890,49 @@ function LaborReport() {
   );
 }
 
-const TRADE_KEYS = ["gc", "electrical", "plumbing", "framing", "hvac", "other"] as const;
-type TradeKey = (typeof TRADE_KEYS)[number];
-
-const TRADE_LABELS: Record<TradeKey, string> = {
-  gc: "GC Labor",
-  electrical: "Electrical",
-  plumbing: "Plumbing",
-  framing: "Framing",
-  hvac: "HVAC",
-  other: "Other",
-};
+// Deterministic palette index — consistent trade → swatch colour by slot
+// position so the legend + bar segments always line up regardless of what
+// actual trade names appear.
+const TRADE_PALETTE = [
+  "trade-slot-0",
+  "trade-slot-1",
+  "trade-slot-2",
+  "trade-slot-3",
+  "trade-slot-4",
+  "trade-slot-5",
+] as const;
 
 function LaborStackedBars({
-  data,
+  rows,
+  tradesOrder,
 }: {
-  data: typeof SEED_LABOR_BY_PROJECT;
+  rows: LaborProjectRow[];
+  tradesOrder: string[];
 }) {
-  const maxHours = Math.max(...data.map((d) => d.hoursActual));
+  const maxHours = Math.max(1, ...rows.map((r) => r.hoursTotal));
   return (
     <div className="rpt-labor-stack">
       <div className="rpt-labor-rows">
-        {data.map((p) => {
-          const pct = p.hoursActual / maxHours;
+        {rows.map((p) => {
+          const pct = p.hoursTotal / maxHours;
           let cursor = 0;
           return (
-            <div key={p.id} className="rpt-labor-row">
+            <div key={p.projectId} className="rpt-labor-row">
               <div className="rpt-labor-row-hdr">
-                <div className="rpt-strong">{p.name}</div>
+                <div className="rpt-strong">{p.projectName}</div>
                 <div className="rpt-t3 rpt-num">
-                  {p.hoursActual.toLocaleString()} hrs · {fmt(p.costActual)}
+                  {Math.round(p.hoursTotal).toLocaleString()} hrs ·{" "}
+                  {p.crewDays.toLocaleString()} crew days
                 </div>
               </div>
               <div
                 className="rpt-labor-bar"
-                style={{
-                  width: `${Math.max(pct * 100, 10)}%`,
-                }}
+                style={{ width: `${Math.max(pct * 100, 10)}%` }}
               >
-                {TRADE_KEYS.map((t, i) => {
-                  const segPct = (p.trades[t] / p.hoursActual) * 100;
+                {tradesOrder.map((trade, i) => {
+                  const hours = p.hoursByTrade[trade] ?? 0;
+                  if (hours <= 0) return null;
+                  const segPct = (hours / p.hoursTotal) * 100;
                   const style: React.CSSProperties = {
                     left: `${cursor}%`,
                     width: `${segPct}%`,
@@ -2844,14 +2940,14 @@ function LaborStackedBars({
                   cursor += segPct;
                   return (
                     <div
-                      key={t}
+                      key={trade}
                       className={cx(
                         "rpt-labor-seg",
-                        `trade-${t}`,
-                        i < TRADE_KEYS.length - 1 && "has-divider",
+                        TRADE_PALETTE[i % TRADE_PALETTE.length],
+                        i < tradesOrder.length - 1 && "has-divider",
                       )}
                       style={style}
-                      title={`${TRADE_LABELS[t]}: ${p.trades[t]}h`}
+                      title={`${trade}: ${Math.round(hours)}h`}
                     />
                   );
                 })}
@@ -2861,10 +2957,15 @@ function LaborStackedBars({
         })}
       </div>
       <div className="rpt-labor-legend">
-        {TRADE_KEYS.map((t) => (
-          <div key={t} className="rpt-labor-legend-item">
-            <div className={cx("rpt-labor-swatch", `trade-${t}`)} />
-            <span>{TRADE_LABELS[t]}</span>
+        {tradesOrder.map((trade, i) => (
+          <div key={trade} className="rpt-labor-legend-item">
+            <div
+              className={cx(
+                "rpt-labor-swatch",
+                TRADE_PALETTE[i % TRADE_PALETTE.length],
+              )}
+            />
+            <span>{trade}</span>
           </div>
         ))}
       </div>
@@ -2876,41 +2977,47 @@ function LaborStackedBars({
 // Schedule Performance
 // ----------------------------------------------------------------
 
-function ScheduleReport() {
-  const avgSpi =
-    SEED_SCHEDULE_PERF.reduce((a, p) => a + p.spi, 0) /
-    SEED_SCHEDULE_PERF.length;
-  const behind = SEED_SCHEDULE_PERF.filter((p) => p.spi < 0.95).length;
-  const ahead = SEED_SCHEDULE_PERF.filter((p) => p.spi > 1.05).length;
-  const onTrack = SEED_SCHEDULE_PERF.length - behind - ahead;
+function ScheduleReport({ view }: { view: ReportsView }) {
+  const schedulePerf = view.schedulePerf;
+  if (!schedulePerf || schedulePerf.rows.length === 0) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        {schedulePerf
+          ? "No projects with both a start and target completion date yet — add one to populate Schedule Performance."
+          : "Schedule performance unavailable."}
+      </div>
+    );
+  }
+
+  const { rows, totals } = schedulePerf;
 
   return (
     <div>
       <div className="rpt-k-row four">
         <KPI
           label="Portfolio SPI"
-          value={avgSpi.toFixed(2)}
-          sub={avgSpi >= 0.95 ? "On track overall" : "Portfolio drift"}
-          tone={avgSpi >= 0.95 ? "ok" : "warn"}
+          value={totals.avgSpi.toFixed(2)}
+          sub={totals.avgSpi >= 0.95 ? "On track overall" : "Portfolio drift"}
+          tone={totals.avgSpi >= 0.95 ? "ok" : "warn"}
           Icon={IconCalendarClock}
         />
         <KPI
           label="Projects Behind"
-          value={String(behind)}
+          value={String(totals.behindCount)}
           sub="SPI < 0.95"
-          tone={behind > 0 ? "warn" : "ok"}
+          tone={totals.behindCount > 0 ? "warn" : "ok"}
           Icon={IconAlertTriangle}
         />
         <KPI
           label="On Track"
-          value={String(onTrack)}
+          value={String(totals.onTrackCount)}
           sub="SPI 0.95–1.05"
           tone="ok"
           Icon={IconCheckCircle2}
         />
         <KPI
           label="Ahead"
-          value={String(ahead)}
+          value={String(totals.aheadCount)}
           sub="SPI > 1.05"
           tone="ok"
           Icon={IconTrendingUp}
@@ -2923,8 +3030,8 @@ function ScheduleReport() {
           subtitle="Horizontal tracks from 0.70 (behind) to 1.30 (ahead). Tick at 1.00 marks on-schedule; the dot is the project's current SPI."
         />
         <div className="rpt-spi-grid">
-          {SEED_SCHEDULE_PERF.map((p) => (
-            <SPITrack key={p.id} project={p} />
+          {rows.map((p) => (
+            <SPITrack key={p.projectId} project={p} />
           ))}
         </div>
       </Card>
@@ -2934,32 +3041,33 @@ function ScheduleReport() {
           title="Planned vs actual timeline"
           subtitle="Hairline for planned duration. Filled line for actual/forecast. Dashed red line marks today."
         />
-        <GanttStrip data={SEED_SCHEDULE_PERF} />
+        <GanttStrip data={rows} />
       </Card>
     </div>
   );
 }
 
-function SPITrack({
-  project,
-}: {
-  project: (typeof SEED_SCHEDULE_PERF)[number];
-}) {
+function SPITrack({ project }: { project: SchedulePerfRow }) {
   const SPI_MIN = 0.7;
   const SPI_MAX = 1.3;
   const range = SPI_MAX - SPI_MIN;
   const spi = Math.min(Math.max(project.spi, SPI_MIN), SPI_MAX);
   const x = ((spi - SPI_MIN) / range) * 100;
   const onScheduleX = ((1 - SPI_MIN) / range) * 100;
-  const tone: KpiTone = spi < 0.95 ? "crit" : spi > 1.05 ? "neutral" : "ok";
-  const status = spi < 0.95 ? "Behind" : spi > 1.05 ? "Ahead" : "On track";
-  const milestonesPct = project.milestonesHit / project.milestonesTotal;
+  const tone: KpiTone =
+    project.spi < 0.95 ? "crit" : project.spi > 1.05 ? "neutral" : "ok";
+  const status =
+    project.spi < 0.95 ? "Behind" : project.spi > 1.05 ? "Ahead" : "On track";
+  const milestonesPct =
+    project.milestonesTotal > 0
+      ? project.milestonesHit / project.milestonesTotal
+      : 0;
 
   return (
     <div className="rpt-spi">
       <div className="rpt-spi-head">
         <div className="rpt-spi-head-l">
-          <div className="rpt-strong">{project.name}</div>
+          <div className="rpt-strong">{project.projectName}</div>
           <div className="rpt-spi-meta">
             <span className={cx("rpt-spi-status", `tone-${tone}`)}>{status}</span>
             <span className="rpt-t3">
@@ -3000,11 +3108,7 @@ function SPITrack({
   );
 }
 
-function GanttStrip({
-  data,
-}: {
-  data: typeof SEED_SCHEDULE_PERF;
-}) {
+function GanttStrip({ data }: { data: SchedulePerfRow[] }) {
   const rowH = 44;
   const W = 960;
   const labelW = 240;
@@ -3054,9 +3158,9 @@ function GanttStrip({
               ? "var(--ac)"
               : "var(--ok)";
         return (
-          <g key={p.id}>
+          <g key={p.projectId}>
             <text x="8" y={y + 10} fontSize="12" fill="var(--t1)" fontWeight="500">
-              {p.name}
+              {p.projectName}
             </text>
             <text x="8" y={y + 26} fontSize="10" fill="var(--t3)" fontWeight="500">
               SPI {p.spi.toFixed(2)}
@@ -3131,20 +3235,49 @@ function GanttStrip({
 // Compliance
 // ----------------------------------------------------------------
 
-function ComplianceReport() {
-  const critCount = SEED_COMPLIANCE_EXPIRING.filter(
-    (e) => e.sev === "critical",
-  ).length;
-  const warnCount = SEED_COMPLIANCE_EXPIRING.filter(
-    (e) => e.sev === "warning",
-  ).length;
+function ComplianceReport({ view }: { view: ReportsView }) {
+  const compliance = view.compliance;
+  if (!compliance) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        Compliance report unavailable.
+      </div>
+    );
+  }
+  if (compliance.totals.subsTracked === 0) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        No subcontractors active on current projects yet. Invite a sub to start
+        tracking compliance.
+      </div>
+    );
+  }
 
-  const cellLabel: Record<string, string> = {
+  const { expiring, matrix, totals } = compliance;
+
+  const cellLabel: Record<ComplianceCell, string> = {
     ok: "✓",
     expiring: "!",
-    warning: "!",
+    expired: "!",
     missing: "✕",
     "n/a": "—",
+  };
+
+  const cellTone: Record<ComplianceCell, string> = {
+    ok: "ok",
+    expiring: "warn",
+    expired: "crit",
+    missing: "crit",
+    "n/a": "muted",
+  };
+
+  const formatExpires = (d: Date | null): string => {
+    if (!d) return "—";
+    return new Date(d).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   return (
@@ -3152,21 +3285,21 @@ function ComplianceReport() {
       <div className="rpt-k-row three">
         <KPI
           label="Critical"
-          value={String(critCount)}
-          sub="Expiring ≤14 days or missing"
-          tone="crit"
+          value={String(totals.criticalCount)}
+          sub="Expiring ≤14 days, expired, or missing"
+          tone={totals.criticalCount > 0 ? "crit" : "ok"}
           Icon={IconAlertTriangle}
         />
         <KPI
           label="Warning"
-          value={String(warnCount)}
+          value={String(totals.warningCount)}
           sub="Expiring 15–45 days"
-          tone="warn"
+          tone={totals.warningCount > 0 ? "warn" : "ok"}
           Icon={IconClock}
         />
         <KPI
           label="Subs Tracked"
-          value={String(SEED_SUB_MATRIX.length)}
+          value={String(totals.subsTracked)}
           sub="Active on current projects"
           Icon={IconUsers}
         />
@@ -3176,85 +3309,99 @@ function ComplianceReport() {
         <div className="rpt-card-hdr">
           <div className="rpt-eyebrow">Expiring in the next 90 days</div>
         </div>
-        <div className="rpt-compl-list">
-          {SEED_COMPLIANCE_EXPIRING.map((e, i) => (
-            <div key={i} className="rpt-compl-row">
-              <div className="rpt-compl-row-l">
-                <span
-                  className={cx(
-                    "rpt-compl-sev-pill",
-                    `tone-${e.sev === "critical" ? "crit" : e.sev === "warning" ? "warn" : "ok"}`,
-                  )}
-                >
-                  {e.sev}
-                </span>
-                <div>
-                  <div className="rpt-strong">{e.sub}</div>
-                  <div className="rpt-t3">{e.doc}</div>
+        {expiring.length === 0 ? (
+          <div style={{ padding: 20, color: "var(--t3)" }}>
+            Nothing expiring, missing, or expired across tracked subs.
+          </div>
+        ) : (
+          <div className="rpt-compl-list">
+            {expiring.map((e) => (
+              <div
+                key={`${e.subOrganizationId}::${e.complianceType}`}
+                className="rpt-compl-row"
+              >
+                <div className="rpt-compl-row-l">
+                  <span
+                    className={cx(
+                      "rpt-compl-sev-pill",
+                      `tone-${e.severity === "critical" ? "crit" : e.severity === "warning" ? "warn" : "ok"}`,
+                    )}
+                  >
+                    {e.severity}
+                  </span>
+                  <div>
+                    <div className="rpt-strong">{e.subName}</div>
+                    <div className="rpt-t3">{e.complianceType}</div>
+                  </div>
+                </div>
+                <div className="rpt-right">
+                  <div className="rpt-num">{formatExpires(e.expiresAt)}</div>
+                  <div className="rpt-t3">
+                    {e.daysUntilExpiry === null
+                      ? "Document missing"
+                      : e.daysUntilExpiry < 0
+                        ? `${Math.abs(e.daysUntilExpiry)}d overdue`
+                        : `in ${e.daysUntilExpiry} days`}
+                  </div>
                 </div>
               </div>
-              <div className="rpt-right">
-                <div className="rpt-num">{e.expires}</div>
-                <div className="rpt-t3">
-                  {e.days === null ? "Document missing" : `in ${e.days} days`}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </Card>
 
       <Card padded={false}>
         <div className="rpt-card-hdr">
           <div className="rpt-eyebrow">Subcontractor compliance matrix</div>
+          <div className="rpt-t3">
+            Columns show the {matrix.columns.length} most-common document types
+            across tracked subs.
+          </div>
         </div>
-        <table className="rpt-data-tbl">
-          <thead>
-            <tr>
-              <th>Subcontractor</th>
-              <th>Trade</th>
-              <th className="rpt-center">GL</th>
-              <th className="rpt-center">WC</th>
-              <th className="rpt-center">Auto</th>
-              <th className="rpt-center">Bond</th>
-              <th className="rpt-center">W-9</th>
-              <th className="rpt-center">License</th>
-            </tr>
-          </thead>
-          <tbody>
-            {SEED_SUB_MATRIX.map((s) => (
-              <tr key={s.name}>
-                <td className="rpt-strong">{s.name}</td>
-                <td className="rpt-t2">{s.trade}</td>
-                {(["gl", "wc", "auto", "bond", "w9", "license"] as const).map(
-                  (k) => {
-                    const cell = s[k];
-                    const cellTone =
-                      cell === "ok"
-                        ? "ok"
-                        : cell === "missing"
-                          ? "crit"
-                          : cell === "expiring" || cell === "warning"
-                            ? "warn"
-                            : "muted";
-                    return (
-                      <td key={k} className="rpt-center">
-                        <span
-                          className={cx(
-                            "rpt-compl-cell",
-                            `tone-${cellTone}`,
-                          )}
-                        >
-                          {cellLabel[cell] ?? "—"}
-                        </span>
-                      </td>
-                    );
-                  },
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {matrix.columns.length === 0 ? (
+          <div style={{ padding: 20, color: "var(--t3)" }}>
+            No compliance records logged yet.
+          </div>
+        ) : (
+          <div className="rpt-tbl-scroll">
+            <table className="rpt-data-tbl">
+              <thead>
+                <tr>
+                  <th>Subcontractor</th>
+                  <th>Trade</th>
+                  {matrix.columns.map((col) => (
+                    <th key={col} className="rpt-center">
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {matrix.rows.map((row) => (
+                  <tr key={row.subOrganizationId}>
+                    <td className="rpt-strong">{row.subName}</td>
+                    <td className="rpt-t2">{row.primaryTrade ?? "—"}</td>
+                    {matrix.columns.map((col) => {
+                      const cell = row.cells[col] ?? "missing";
+                      return (
+                        <td key={col} className="rpt-center">
+                          <span
+                            className={cx(
+                              "rpt-compl-cell",
+                              `tone-${cellTone[cell]}`,
+                            )}
+                          >
+                            {cellLabel[cell]}
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
     </div>
   );
@@ -3264,35 +3411,104 @@ function ComplianceReport() {
 // Saved & scheduled reports
 // ----------------------------------------------------------------
 
-function SavedReportsView() {
+// Presentation-layer map from report_type id → human-readable label.
+// Kept here so adding a new report type surfaces in the Library without a
+// schema change; unknown types fall back to a titlecased version of the id.
+const REPORT_TYPE_LABELS: Record<string, string> = {
+  overview: "Portfolio Overview",
+  wip: "WIP Schedule",
+  ar: "AR Aging",
+  cost: "Job Cost",
+  cashflow: "Cashflow Projection",
+  payments: "Payment Tracking",
+  labor: "Labor & Productivity",
+  schedule: "Schedule Performance",
+  compliance: "Compliance",
+  "weekly-reports": "Weekly Reports",
+  "lien-waivers": "Lien Waiver Log",
+  procurement: "Procurement / POs",
+};
+
+function labelForReportType(id: string): string {
+  if (REPORT_TYPE_LABELS[id]) return REPORT_TYPE_LABELS[id];
+  return id
+    .split(/[-_]/)
+    .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
+function formatLastRun(d: Date | null): string {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function SavedReportsView({ view }: { view: ReportsView }) {
+  const saved = view.savedReports;
   const [q, setQ] = useState("");
-  const filtered = SEED_SAVED_REPORTS.filter(
-    (r) =>
-      r.name.toLowerCase().includes(q.toLowerCase()) ||
-      r.type.toLowerCase().includes(q.toLowerCase()),
-  );
-  const scheduledCount = SEED_SAVED_REPORTS.filter((r) => r.schedule).length;
-  const uniqueRecipients = new Set(
-    SEED_SAVED_REPORTS.flatMap((r) => r.recipients),
-  ).size;
+
+  if (!saved) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        Saved reports library unavailable.
+      </div>
+    );
+  }
+
+  const rows = saved.rows;
+  const filtered = rows.filter((r) => {
+    if (!q) return true;
+    const needle = q.toLowerCase();
+    return (
+      r.name.toLowerCase().includes(needle) ||
+      labelForReportType(r.reportType).toLowerCase().includes(needle) ||
+      (r.scopeDescription ?? "").toLowerCase().includes(needle)
+    );
+  });
+
+  if (rows.length === 0) {
+    return (
+      <div>
+        <div className="rpt-k-row three">
+          <KPI label="Saved Reports" value="0" Icon={IconBookmark} />
+          <KPI label="Scheduled" value="0" Icon={IconMail} />
+          <KPI label="Recipients Reached" value="0" Icon={IconUsers} />
+        </div>
+        <Card>
+          <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)", textAlign: "center" }}>
+            <div style={{ fontWeight: 600, color: "var(--t2)", marginBottom: 6 }}>
+              No saved reports yet
+            </div>
+            <div>
+              Save a report with specific filters to re-run it in one click, or
+              schedule it for email delivery on a cadence.
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div>
       <div className="rpt-k-row three">
         <KPI
           label="Saved Reports"
-          value={String(SEED_SAVED_REPORTS.length)}
+          value={String(saved.totals.total)}
           Icon={IconBookmark}
         />
         <KPI
           label="Scheduled"
-          value={String(scheduledCount)}
+          value={String(saved.totals.scheduledCount)}
           sub="Auto-email cadence set"
           Icon={IconMail}
         />
         <KPI
           label="Recipients Reached"
-          value={String(uniqueRecipients)}
+          value={String(saved.totals.uniqueRecipients)}
           sub="Unique email addresses"
           Icon={IconUsers}
         />
@@ -3310,7 +3526,7 @@ function SavedReportsView() {
             />
           </div>
           <div className="rpt-t3">
-            {filtered.length} of {SEED_SAVED_REPORTS.length}
+            {filtered.length} of {rows.length}
           </div>
           <button type="button" className="rpt-btn primary small">
             <IconPlus size={12} /> New
@@ -3339,22 +3555,32 @@ function SavedReportsView() {
                   </div>
                 </td>
                 <td>
-                  <span className="rpt-saved-type">{r.type}</span>
+                  <span className="rpt-saved-type">
+                    {labelForReportType(r.reportType)}
+                  </span>
                 </td>
-                <td className="rpt-t3">{r.scope}</td>
+                <td className="rpt-t3">{r.scopeDescription ?? "—"}</td>
                 <td className="rpt-t3">
-                  <div className="rpt-saved-sched">
-                    <IconMail size={11} />
-                    {r.schedule}
-                  </div>
+                  {r.scheduleLabel ? (
+                    <div className="rpt-saved-sched">
+                      <IconMail size={11} />
+                      {r.scheduleLabel}
+                    </div>
+                  ) : (
+                    <span>On-demand</span>
+                  )}
                 </td>
                 <td className="rpt-t3">
-                  {r.recipients.length === 1
-                    ? r.recipients[0]
-                    : `${r.recipients[0]} +${r.recipients.length - 1}`}
+                  {r.recipients.length === 0
+                    ? "—"
+                    : r.recipients.length === 1
+                      ? r.recipients[0]
+                      : `${r.recipients[0]} +${r.recipients.length - 1}`}
                 </td>
-                <td className="rpt-t3 rpt-num">{r.lastRun}</td>
-                <td className="rpt-t3">{r.owner}</td>
+                <td className="rpt-t3 rpt-num">
+                  {formatLastRun(r.lastRunAt)}
+                </td>
+                <td className="rpt-t3">{r.ownerName}</td>
                 <td className="rpt-right">
                   <button
                     type="button"

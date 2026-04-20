@@ -852,9 +852,15 @@
         .rpt-trend-delta { font-family:var(--fd);font-size:13px;font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums; }
         .rpt-trend-delta.tone-ok { color:var(--ok-t); }
 
-        /* Cost tracks */
-        .rpt-cost-stack { display:flex;flex-direction:column;gap:26px;margin-top:18px; }
-        .rpt-cost-track-hdr { display:flex;justify-content:space-between;align-items:center;margin-bottom:10px; }
+        /* Cost tracks. Header → rail gap is deliberately generous so the
+           top-anchored marker caps (Actual, Budget) can extend upward
+           without colliding with the project name; stack gap between
+           tracks is similarly tall so bottom-anchored caps (Committed,
+           Projected) don't bleed into the next row's header. The gap
+           accounts for stack-far caps (Projected) sitting a second row
+           below Committed. */
+        .rpt-cost-stack { display:flex;flex-direction:column;gap:72px;margin-top:18px; }
+        .rpt-cost-track-hdr { display:flex;justify-content:space-between;align-items:center;margin-bottom:36px; }
         .rpt-cost-track-rail { position:relative;height:44px;padding:0 24px; }
         .rpt-cost-track-base { position:absolute;left:24px;right:24px;top:50%;height:1px;background:var(--s3);transform:translateY(-0.5px); }
         .rpt-cost-track-budget { position:absolute;top:50%;transform:translateY(-50%);height:3px;background:var(--s4);border-radius:999px; }
@@ -872,6 +878,12 @@
         .rpt-cost-marker-cap { position:absolute;left:0;transform:translateX(-50%);white-space:nowrap;pointer-events:none; }
         .rpt-cost-marker.pos-top .rpt-cost-marker-cap { bottom:14px; }
         .rpt-cost-marker.pos-bottom .rpt-cost-marker-cap { top:14px; }
+        /* Stack-far nudges a cap into a second row so two labels on the
+           same side don't stack on top of each other when their markers
+           share an x position (e.g., Projected sitting on Committed when
+           committed ≥ actual). Cap height is ~27px; 34px clears it. */
+        .rpt-cost-marker.pos-top.stack-far .rpt-cost-marker-cap { bottom:34px; }
+        .rpt-cost-marker.pos-bottom.stack-far .rpt-cost-marker-cap { top:34px; }
         .rpt-cost-marker-label { font-family:var(--fd);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:currentColor; }
         .rpt-cost-marker-value { font-family:var(--fd);font-size:11px;font-weight:650;color:var(--t1);margin-top:1px;font-variant-numeric:tabular-nums; }
 
@@ -885,21 +897,24 @@
         .rpt-labor-bar { position:relative;height:12px;background:var(--s2);border-radius:3px;border:1px solid var(--s2);overflow:hidden;min-width:80px; }
         .rpt-labor-seg { position:absolute;top:0;bottom:0;opacity:.82; }
         .rpt-labor-seg.has-divider { border-right:1px solid var(--s1); }
-        .rpt-labor-seg.trade-gc { background:var(--ac); }
-        .rpt-labor-seg.trade-electrical { background:#d48a2e; }
-        .rpt-labor-seg.trade-plumbing { background:#2e8aa8; }
-        .rpt-labor-seg.trade-framing { background:#7e5cc9; }
-        .rpt-labor-seg.trade-hvac { background:#b53e78; }
-        .rpt-labor-seg.trade-other { background:var(--t3); }
+        /* Deterministic slot palette — position-indexed so the bar segments
+           and legend swatches line up regardless of what trade labels the
+           loader surfaces (top-5 by hours, rest rolled into "Other"). */
+        .rpt-labor-seg.trade-slot-0,
+        .rpt-labor-swatch.trade-slot-0 { background:var(--ac); }
+        .rpt-labor-seg.trade-slot-1,
+        .rpt-labor-swatch.trade-slot-1 { background:#d48a2e; }
+        .rpt-labor-seg.trade-slot-2,
+        .rpt-labor-swatch.trade-slot-2 { background:#2e8aa8; }
+        .rpt-labor-seg.trade-slot-3,
+        .rpt-labor-swatch.trade-slot-3 { background:#7e5cc9; }
+        .rpt-labor-seg.trade-slot-4,
+        .rpt-labor-swatch.trade-slot-4 { background:#b53e78; }
+        .rpt-labor-seg.trade-slot-5,
+        .rpt-labor-swatch.trade-slot-5 { background:var(--t3); }
         .rpt-labor-legend { display:flex;flex-wrap:wrap;gap:16px;padding-top:14px;margin-top:8px;border-top:1px solid var(--s2);font-size:11px;color:var(--t2); }
         .rpt-labor-legend-item { display:flex;align-items:center;gap:6px; }
         .rpt-labor-swatch { width:10px;height:10px;border-radius:2px;opacity:.82; }
-        .rpt-labor-swatch.trade-gc { background:var(--ac); }
-        .rpt-labor-swatch.trade-electrical { background:#d48a2e; }
-        .rpt-labor-swatch.trade-plumbing { background:#2e8aa8; }
-        .rpt-labor-swatch.trade-framing { background:#7e5cc9; }
-        .rpt-labor-swatch.trade-hvac { background:#b53e78; }
-        .rpt-labor-swatch.trade-other { background:var(--t3); }
 
         /* Schedule: SPI track + gantt */
         .rpt-spi-grid { display:grid;grid-template-columns:1fr;gap:20px;margin-top:12px; }
