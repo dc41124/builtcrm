@@ -9,6 +9,7 @@ import { db } from "@/db/client";
 import { auditEvents, invitations, organizations, projects } from "@/db/schema";
 import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
 import { AuthorizationError } from "@/domain/permissions";
+import { hashInvitationToken } from "@/lib/invitations/token";
 
 const BodySchema = z.object({
   invitedEmail: z.string().email(),
@@ -164,7 +165,7 @@ export async function POST(req: Request) {
           portalType: parsed.data.portalType,
           clientSubtype: parsed.data.clientSubtype ?? null,
           roleKey: parsed.data.roleKey,
-          token,
+          tokenHash: hashInvitationToken(token),
           expiresAt,
           personalMessage: parsed.data.personalMessage ?? null,
         })
@@ -193,13 +194,16 @@ export async function POST(req: Request) {
     // Dev stub: log the invite URL. Replace with a Trigger.dev email job once
     // an outbound provider (Postmark/SendGrid) is connected.
     const inviteUrl = new URL(
-      `/invite/${row.token}`,
+      `/invite/${token}`,
       process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
     ).toString();
 
+    // Plaintext token returned from the local var — the DB row only holds
+    // the hash. This is the only moment plaintext is exposed; the admin
+    // must save/forward the URL before this response is discarded.
     return NextResponse.json({
       id: row.id,
-      token: row.token,
+      token,
       inviteUrl,
       expiresAt: row.expiresAt,
     });

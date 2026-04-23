@@ -10,7 +10,9 @@ export default defineConfig({
   out: "./src/db/migrations",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "",
+    // drizzle-kit runs DDL (generate/migrate/push); needs admin role.
+    // Fallback to DATABASE_URL covers environments still on single-role.
+    url: process.env.DATABASE_ADMIN_URL ?? process.env.DATABASE_URL ?? "",
   },
   strict: true,
   verbose: true,

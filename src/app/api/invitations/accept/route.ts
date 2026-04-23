@@ -13,6 +13,7 @@ import {
   roleAssignments,
   users,
 } from "@/db/schema";
+import { hashInvitationToken } from "@/lib/invitations/token";
 
 const BodySchema = z.object({
   token: z.string().min(1),
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
   const [invitation] = await db
     .select()
     .from(invitations)
-    .where(eq(invitations.token, parsed.data.token))
+    .where(eq(invitations.tokenHash, hashInvitationToken(parsed.data.token)))
     .limit(1);
 
   if (!invitation) {

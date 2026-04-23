@@ -1,6 +1,7 @@
 import {
   boolean,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -236,9 +237,7 @@ export const inspectionResultPhotos = pgTable(
   "inspection_result_photos",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    inspectionResultId: uuid("inspection_result_id")
-      .notNull()
-      .references(() => inspectionResults.id, { onDelete: "cascade" }),
+    inspectionResultId: uuid("inspection_result_id").notNull(),
     documentId: uuid("document_id")
       .notNull()
       .references(() => documents.id, { onDelete: "cascade" }),
@@ -255,5 +254,12 @@ export const inspectionResultPhotos = pgTable(
     resultIdx: index("inspection_result_photos_result_idx").on(
       table.inspectionResultId,
     ),
+    // Explicit short-form name: long-form auto-name exceeds Postgres' 63-char
+    // limit and gets truncated, which drizzle-kit re-proposes as drift.
+    inspectionResultFk: foreignKey({
+      columns: [table.inspectionResultId],
+      foreignColumns: [inspectionResults.id],
+      name: "inspection_result_photos_inspection_result_id_fk",
+    }).onDelete("cascade"),
   }),
 );

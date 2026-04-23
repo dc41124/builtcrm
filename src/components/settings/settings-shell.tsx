@@ -52,7 +52,6 @@ export type ContractorSettingsBundle = {
     createdAt: Date;
     projectId: string | null;
     projectName: string | null;
-    token: string;
   }>;
   auditEvents: AuditEventView[];
   integrations: ContractorIntegrationsView;
@@ -84,7 +83,6 @@ export type SubcontractorSettingsBundle = {
     createdAt: Date;
     projectId: string | null;
     projectName: string | null;
-    token: string;
   }>;
   orgProfile?: OrganizationProfile | null;
   orgLicenses?: OrganizationLicense[];
@@ -110,7 +108,6 @@ export type ClientSettingsBundle = {
     createdAt: Date;
     projectId: string | null;
     projectName: string | null;
-    token: string;
   }>;
   orgProfile?: OrganizationProfile | null;
 };

@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   pgEnum,
@@ -349,10 +350,7 @@ export const retainageReleases = pgTable(
     }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     approvalNote: text("approval_note"),
-    consumedByDrawRequestId: uuid("consumed_by_draw_request_id").references(
-      () => drawRequests.id,
-      { onDelete: "set null" },
-    ),
+    consumedByDrawRequestId: uuid("consumed_by_draw_request_id"),
     consumedAt: timestamp("consumed_at", { withTimezone: true }),
     // Step 43: scheduled-release hook. The release's expected date comes
     // from (in priority order): releaseTriggerMilestoneId →
@@ -382,5 +380,12 @@ export const retainageReleases = pgTable(
     triggerMilestoneIdx: index(
       "retainage_releases_trigger_milestone_idx",
     ).on(table.releaseTriggerMilestoneId),
+    // Explicit short-form name: long-form auto-name exceeds Postgres' 63-char
+    // limit and gets truncated, which drizzle-kit re-proposes as drift.
+    consumedByDrawRequestFk: foreignKey({
+      columns: [table.consumedByDrawRequestId],
+      foreignColumns: [drawRequests.id],
+      name: "retainage_releases_consumed_by_draw_request_id_fk",
+    }).onDelete("set null"),
   }),
 );

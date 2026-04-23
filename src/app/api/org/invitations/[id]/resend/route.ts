@@ -33,7 +33,6 @@ export async function POST(
     const [invite] = await db
       .select({
         id: invitations.id,
-        token: invitations.token,
         status: invitations.invitationStatus,
         invitedEmail: invitations.invitedEmail,
       })
@@ -84,14 +83,11 @@ export async function POST(
       });
     });
 
-    const inviteUrl = new URL(
-      `/invite/${invite.token}`,
-      process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
-    ).toString();
-
+    // No inviteUrl in response: the DB only stores the token hash, so we
+    // cannot reconstruct the original plaintext URL here. Admin relies on
+    // the URL captured at creation time; if lost, revoke + recreate.
     return NextResponse.json({
       ok: true,
-      inviteUrl,
       expiresAt: newExpires,
     });
   } catch (err) {

@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   pgTable,
@@ -114,9 +115,7 @@ export const subscriptionInvoices = pgTable(
   "subscription_invoices",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationSubscriptionId: uuid("organization_subscription_id")
-      .notNull()
-      .references(() => organizationSubscriptions.id, { onDelete: "cascade" }),
+    organizationSubscriptionId: uuid("organization_subscription_id").notNull(),
     stripeInvoiceId: varchar("stripe_invoice_id", { length: 120 })
       .notNull()
       .unique(),
@@ -135,5 +134,12 @@ export const subscriptionInvoices = pgTable(
     subscriptionIdx: index("subscription_invoices_subscription_idx").on(
       table.organizationSubscriptionId,
     ),
+    // Explicit short-form name: long-form auto-name exceeds Postgres' 63-char
+    // limit and gets truncated, which drizzle-kit re-proposes as drift.
+    organizationSubscriptionFk: foreignKey({
+      columns: [table.organizationSubscriptionId],
+      foreignColumns: [organizationSubscriptions.id],
+      name: "subscription_invoices_organization_subscription_id_fk",
+    }).onDelete("cascade"),
   }),
 );

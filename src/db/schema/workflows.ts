@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -91,10 +92,7 @@ export const uploadRequests = pgTable(
     requestedFromUserId: uuid("requested_from_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
-    requestedFromOrganizationId: uuid("requested_from_organization_id").references(
-      () => organizations.id,
-      { onDelete: "set null" },
-    ),
+    requestedFromOrganizationId: uuid("requested_from_organization_id"),
     dueAt: timestamp("due_at", { withTimezone: true }),
     expectedFileType: varchar("expected_file_type", { length: 120 }),
     submittedDocumentId: uuid("submitted_document_id").references(() => documents.id, {
@@ -123,6 +121,13 @@ export const uploadRequests = pgTable(
     projectIdx: index("upload_requests_project_idx").on(table.projectId),
     statusIdx: index("upload_requests_status_idx").on(table.requestStatus),
     requestedOrgIdx: index("upload_requests_requested_org_idx").on(table.requestedFromOrganizationId),
+    // Explicit short-form name: long-form auto-name exceeds Postgres' 63-char
+    // limit and gets truncated, which drizzle-kit re-proposes as drift.
+    requestedFromOrganizationFk: foreignKey({
+      columns: [table.requestedFromOrganizationId],
+      foreignColumns: [organizations.id],
+      name: "upload_requests_requested_from_organization_id_fk",
+    }).onDelete("set null"),
   }),
 );
 

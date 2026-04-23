@@ -1,6 +1,7 @@
 import {
   char,
   check,
+  foreignKey,
   index,
   integer,
   numeric,
@@ -149,9 +150,7 @@ export const projectOrganizationMemberships = pgTable(
     projectId: uuid("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
-    organizationId: uuid("organization_id")
-      .notNull()
-      .references(() => organizations.id, { onDelete: "cascade" }),
+    organizationId: uuid("organization_id").notNull(),
     membershipType: organizationMembershipTypeEnum("membership_type").notNull(),
     relationshipScope: text("relationship_scope"),
     phaseScope: text("phase_scope"),
@@ -171,6 +170,13 @@ export const projectOrganizationMemberships = pgTable(
     ),
     projectIdx: index("project_org_memberships_project_idx").on(table.projectId),
     orgIdx: index("project_org_memberships_org_idx").on(table.organizationId),
+    // Explicit short-form name: long-form auto-name exceeds Postgres' 63-char
+    // limit and gets truncated, which drizzle-kit re-proposes as drift.
+    organizationFk: foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [organizations.id],
+      name: "project_organization_memberships_organization_id_fk",
+    }).onDelete("cascade"),
   }),
 );
 
@@ -187,9 +193,7 @@ export const projectUserMemberships = pgTable(
     organizationId: uuid("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
-    roleAssignmentId: uuid("role_assignment_id")
-      .notNull()
-      .references(() => roleAssignments.id, { onDelete: "restrict" }),
+    roleAssignmentId: uuid("role_assignment_id").notNull(),
     membershipStatus: membershipStatusEnum("membership_status").default("active").notNull(),
     accessState: accessStateEnum("access_state").default("active").notNull(),
     phaseScope: text("phase_scope"),
@@ -210,6 +214,13 @@ export const projectUserMemberships = pgTable(
     projectIdx: index("project_user_memberships_project_idx").on(table.projectId),
     userIdx: index("project_user_memberships_user_idx").on(table.userId),
     accessIdx: index("project_user_memberships_access_idx").on(table.accessState),
+    // Explicit short-form name: long-form auto-name exceeds Postgres' 63-char
+    // limit and gets truncated, which drizzle-kit re-proposes as drift.
+    roleAssignmentFk: foreignKey({
+      columns: [table.roleAssignmentId],
+      foreignColumns: [roleAssignments.id],
+      name: "project_user_memberships_role_assignment_id_fk",
+    }).onDelete("restrict"),
   }),
 );
 

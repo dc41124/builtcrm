@@ -5,6 +5,7 @@ import { twoFactor } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 
 import { ssoPlugin } from "./sso-plugin";
+import { betterAuthSecondaryStorage } from "./secondary-storage";
 
 import { db } from "@/db/client";
 import {
@@ -29,6 +30,9 @@ export const auth = betterAuth({
       twoFactor: authTwoFactor,
     },
   }),
+  // Sessions live in Upstash Redis, not Postgres. See
+  // docs/specs/security_posture.md §4.
+  secondaryStorage: betterAuthSecondaryStorage,
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
@@ -45,7 +49,22 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 7,
     updateAge: 60 * 60 * 24,
-    cookieCache: { enabled: true, maxAge: 5 * 60 },
+    // Pinned default — sessions must not be mirrored to Postgres.
+    // This pin is load-bearing: flipping it back would silently
+    // reintroduce session tokens to Postgres and defeat the §4 threat
+    // model. See docs/specs/security_posture.md §7.
+    storeSessionInDatabase: false,
+    // Pinned default — sensitive ops use fresh-age.
+    // See docs/specs/security_posture.md §7.
+    freshAge: 60 * 60 * 24,
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60,
+      // Pinned default — prevents a future library default-flip to "jwe"
+      // from silently changing cookie cryptography.
+      // See docs/specs/security_posture.md §7.
+      strategy: "compact",
+    },
     additionalFields: {
       appUserId: { type: "string", required: false },
       organizationId: { type: "string", required: false },
@@ -58,6 +77,18 @@ export const auth = betterAuth({
     additionalFields: {
       appUserId: { type: "string", required: false, input: false },
     },
+  },
+  // Hash password-reset / email-verification identifiers at rest.
+  // See docs/specs/security_posture.md §2.
+  verification: {
+    storeIdentifier: "hashed",
+  },
+  // Encrypt OAuth tokens at rest. Inert today (no social providers
+  // configured); future-proofing so the day social login is enabled,
+  // encryption is already in place.
+  // See docs/specs/security_posture.md §2.
+  account: {
+    encryptOAuthTokens: true,
   },
   databaseHooks: {
     user: {

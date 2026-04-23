@@ -7,12 +7,12 @@ import {
   projects,
   users,
 } from "@/db/schema";
+import { hashInvitationToken } from "@/lib/invitations/token";
 
 import { AuthorizationError } from "../permissions";
 
 export type InvitationView = {
   id: string;
-  token: string;
   invitedEmail: string;
   invitedName: string | null;
   organization: { id: string; name: string };
@@ -44,7 +44,6 @@ export async function loadInvitationByToken(
   const [row] = await db
     .select({
       id: invitations.id,
-      token: invitations.token,
       invitedEmail: invitations.invitedEmail,
       invitedName: invitations.invitedName,
       portalType: invitations.portalType,
@@ -63,7 +62,7 @@ export async function loadInvitationByToken(
     .from(invitations)
     .innerJoin(organizations, eq(organizations.id, invitations.organizationId))
     .innerJoin(users, eq(users.id, invitations.invitedByUserId))
-    .where(eq(invitations.token, token))
+    .where(eq(invitations.tokenHash, hashInvitationToken(token)))
     .limit(1);
 
   if (!row) {
@@ -87,7 +86,6 @@ export async function loadInvitationByToken(
 
   return {
     id: row.id,
-    token: row.token,
     invitedEmail: row.invitedEmail,
     invitedName: row.invitedName,
     organization: { id: row.organizationId, name: row.organizationName },
@@ -133,7 +131,6 @@ export async function listInvitationsForOrganization(
     createdAt: Date;
     projectId: string | null;
     projectName: string | null;
-    token: string;
   }>
 > {
   const rows = await db
@@ -148,7 +145,6 @@ export async function listInvitationsForOrganization(
       createdAt: invitations.createdAt,
       projectId: invitations.projectId,
       projectName: projects.name,
-      token: invitations.token,
     })
     .from(invitations)
     .leftJoin(projects, eq(projects.id, invitations.projectId))
@@ -165,7 +161,6 @@ export async function listInvitationsForOrganization(
     createdAt: r.createdAt,
     projectId: r.projectId,
     projectName: r.projectName,
-    token: r.token,
   }));
 }
 

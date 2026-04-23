@@ -2,6 +2,7 @@ import { eq, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { invitations, submittals, users } from "@/db/schema";
+import { hashInvitationToken } from "@/lib/invitations/token";
 
 // Validates a reviewer token and returns the submittal + reviewer user
 // it authorises. Used by every /api/reviewer/[token]/* endpoint plus
@@ -44,7 +45,6 @@ export async function validateReviewerToken(
   const [invitation] = await db
     .select({
       id: invitations.id,
-      token: invitations.token,
       invitedEmail: invitations.invitedEmail,
       invitedByUserId: invitations.invitedByUserId,
       projectId: invitations.projectId,
@@ -54,7 +54,7 @@ export async function validateReviewerToken(
       scopeObjectId: invitations.scopeObjectId,
     })
     .from(invitations)
-    .where(eq(invitations.token, token))
+    .where(eq(invitations.tokenHash, hashInvitationToken(token)))
     .limit(1);
 
   if (!invitation) {

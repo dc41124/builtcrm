@@ -1,6 +1,7 @@
 import {
   boolean,
   date,
+  foreignKey,
   index,
   integer,
   pgEnum,
@@ -115,10 +116,7 @@ export const punchItems = pgTable(
       () => inspections.id,
       { onDelete: "set null" },
     ),
-    sourceInspectionResultId: uuid("source_inspection_result_id").references(
-      () => inspectionResults.id,
-      { onDelete: "set null" },
-    ),
+    sourceInspectionResultId: uuid("source_inspection_result_id"),
     ...timestamps,
   },
   (table) => ({
@@ -136,6 +134,13 @@ export const punchItems = pgTable(
     sourceInspectionIdx: index("punch_items_source_inspection_idx").on(
       table.sourceInspectionId,
     ),
+    // Explicit short-form name: long-form auto-name exceeds Postgres' 63-char
+    // limit and gets truncated, which drizzle-kit re-proposes as drift.
+    sourceInspectionResultFk: foreignKey({
+      columns: [table.sourceInspectionResultId],
+      foreignColumns: [inspectionResults.id],
+      name: "punch_items_source_inspection_result_id_fk",
+    }).onDelete("set null"),
   }),
 );
 

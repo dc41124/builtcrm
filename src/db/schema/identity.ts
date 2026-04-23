@@ -371,7 +371,7 @@ export const invitations = pgTable(
     portalType: varchar("portal_type", { length: 40 }).notNull(),
     clientSubtype: varchar("client_subtype", { length: 40 }),
     roleKey: varchar("role_key", { length: 120 }).notNull(),
-    token: varchar("token", { length: 255 }).notNull(),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
     invitationStatus: invitationStatusEnum("invitation_status").default("pending").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     acceptedAt: timestamp("accepted_at", { withTimezone: true }),
@@ -389,7 +389,7 @@ export const invitations = pgTable(
     ...timestamps,
   },
   (table) => ({
-    tokenUnique: unique("invitations_token_unique").on(table.token),
+    tokenHashUnique: unique("invitations_token_hash_unique").on(table.tokenHash),
     emailIdx: index("invitations_email_idx").on(table.invitedEmail),
     projectIdx: index("invitations_project_idx").on(table.projectId),
     statusIdx: index("invitations_status_idx").on(table.invitationStatus),

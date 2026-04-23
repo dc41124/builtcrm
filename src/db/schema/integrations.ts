@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -139,9 +140,7 @@ export const syncEvents = pgTable(
   "sync_events",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    integrationConnectionId: uuid("integration_connection_id")
-      .notNull()
-      .references(() => integrationConnections.id, { onDelete: "cascade" }),
+    integrationConnectionId: uuid("integration_connection_id").notNull(),
     organizationId: uuid("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
@@ -171,6 +170,13 @@ export const syncEvents = pgTable(
     entityIdx: index("sync_events_entity_idx").on(table.entityType, table.entityId),
     idempotencyIdx: index("sync_events_idempotency_idx").on(table.idempotencyKey),
     createdIdx: index("sync_events_created_idx").on(table.createdAt),
+    // Explicit short-form name: long-form auto-name exceeds Postgres' 63-char
+    // limit and gets truncated, which drizzle-kit re-proposes as drift.
+    integrationConnectionFk: foreignKey({
+      columns: [table.integrationConnectionId],
+      foreignColumns: [integrationConnections.id],
+      name: "sync_events_integration_connection_id_fk",
+    }).onDelete("cascade"),
   }),
 );
 

@@ -36,8 +36,9 @@ export default async function InvitePage({ params }: { params: Params }) {
   const orgName = invitation.organization.name;
   const friendlyRole = friendlyRoleLabel(invitation.roleKey);
 
-  const signupHref = `/signup?token=${encodeURIComponent(invitation.token)}`;
-  const loginHref = `/login?next=${encodeURIComponent(`/invite/${invitation.token}`)}`;
+  // Use the URL's token param directly — invitation row only holds the hash.
+  const signupHref = `/signup?token=${encodeURIComponent(token)}`;
+  const loginHref = `/login?next=${encodeURIComponent(`/invite/${token}`)}`;
 
   return (
     <div className={`auth-card wide`}>

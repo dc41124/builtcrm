@@ -26,7 +26,8 @@ Multi-portal construction PM SaaS. Four portals (contractor, subcontractor, comm
 ```bash
 npm run dev          # Start dev server
 npm run build        # Production build
-npm run db:migrate   # Run Drizzle migrations
+npm run db:generate  # Generate a migration from schema TS changes
+npm run db:migrate   # Apply pending migrations
 npm run db:seed      # Seed dev data
 npm run test         # Run tests
 npm run lint         # Lint check
@@ -73,15 +74,27 @@ docs/            # Architecture specs and reference docs
 - Paired workflow pattern: contractor + response side built together
 - UUIDs for primary keys, created_at/updated_at on all mutable tables
 - Soft-state fields where business history matters over hard deletion
-- **FK constraint naming**: use drizzle-kit's auto-naming pattern
-  `{srcTable}_{srcCol}_{refTable}_{refCol}_fk`. Don't shorten to the older
-  `{srcTable}_{srcCol}_fk` form — `db:push` introspection looks for the
-  long form and will propose to add "missing" duplicates if the DB carries
-  the short form. Migration `0019_fk_naming_normalization.sql` aligned the
-  existing inventory; new migrations should declare the long form from
-  the start. Postgres truncates names > 63 chars silently, so very long
-  table+column combos may end up shorter — that's fine, drizzle hits the
-  same truncation on introspection.
+- **FK constraint naming**: use drizzle-kit's auto-naming (`.references()`
+  on the column) when the generated name
+  `{srcTable}_{srcCol}_{refTable}_{refCol}_fk` fits in Postgres' 63-char
+  limit. When it would exceed 63 chars, declare the FK explicitly via
+  `foreignKey({ columns, foreignColumns, name: "{srcTable}_{srcCol}_fk" })`
+  in the table callback and remove the `.references()` from the column.
+  Rationale: the long auto-name gets silently truncated by Postgres on
+  write, but drizzle-kit does NOT truncate on introspection — the mismatch
+  surfaces as permanent drift that `db:push`/`db:generate` keep re-proposing.
+  See the 8 tables in `projects.ts`, `workflows.ts`, `subscriptions.ts`,
+  `billing.ts`, `integrations.ts`, `inspections.ts`, and `punchList.ts`
+  that use this pattern today.
+
+## Schema change workflow
+1. Edit `src/db/schema/*.ts`
+2. Run `npm run db:generate` — produces a new `NNNN_*.sql` migration + updated
+   snapshot + journal entry under `src/db/migrations/meta/`
+3. Run `npm run db:migrate` — applies the new migration
+4. Commit the schema change + the new migration files together
+5. For one-off SQL that isn't a schema change (backfills, DB role grants, etc.),
+   write a SQL file and apply via `npx tsx --env-file=.env.local scripts/apply-sql.ts <path>`
 
 ## Reference Documents (read when relevant)
 - **Architecture overview:** `@docs/specs/builtcrm_master_module_map.md` — full module inventory, design decisions, build strategy
@@ -90,6 +103,7 @@ docs/            # Architecture specs and reference docs
 - **Engineering architecture:** `@docs/specs/engineering_architecture_layer.pdf` — module boundaries, loader/action patterns
 - **Technical architecture:** `@docs/specs/technical_architecture_prep.pdf` — service boundaries, auth shape, storage model
 - **Integration spec:** `@docs/specs/integration_architecture_spec.md` — accounting, Stripe, email, calendar, webhooks
+- **Security posture:** `@docs/specs/security_posture.md` — threat model, data-at-rest mechanisms, master-key rotation impact, known gaps
 - **Schema draft notes:** `@docs/specs/schema_draft_v1.pdf` — design rules and ID strategy
 - **Design mockups:** `@docs/design/*.html` — 24 production HTML mockups (feature spec, not implementation target)
 - **JSX prototypes:** `@docs/prototypes/*.jsx` — 24 JSX prototypes showing exact visual design for every screen. These are the pixel-level reference. Match them exactly for layout, typography, spacing, and colors.

@@ -2,6 +2,9 @@ import { z } from "zod";
 
 const envSchema = z.object({
   DATABASE_URL: z.string().url("DATABASE_URL must be a valid connection string"),
+  // Optional — present in split-role environments (runtime = DML-only
+  // builtcrm_app, admin = DDL). Falls back to DATABASE_URL when absent.
+  DATABASE_ADMIN_URL: z.string().url().optional(),
   BETTER_AUTH_SECRET: z
     .string()
     .min(32, "BETTER_AUTH_SECRET must be at least 32 characters"),

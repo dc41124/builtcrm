@@ -16,6 +16,7 @@ import {
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
+import { hashInvitationToken } from "@/lib/invitations/token";
 
 // POST /api/submittals/[id]/invite-reviewer
 //
@@ -189,7 +190,7 @@ export async function POST(
           projectId: current.projectId,
           portalType: "external_reviewer",
           roleKey: "submittal_reviewer",
-          token,
+          tokenHash: hashInvitationToken(token),
           expiresAt,
           personalMessage: input.coverNotes ?? null,
           scopeObjectType: "submittal",
@@ -250,7 +251,8 @@ export async function POST(
     });
 
     const inviteUrl = new URL(
-      `/reviewer/${result.invitation.token}`,
+      // Plaintext token from the outer-scope var — DB only stores the hash.
+      `/reviewer/${token}`,
       process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
     ).toString();
 

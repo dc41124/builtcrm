@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 type Project = { id: string; name: string; projectCode: string | null };
@@ -16,7 +15,6 @@ type Invitation = {
   createdAt: Date;
   projectId: string | null;
   projectName: string | null;
-  token: string;
 };
 
 type PortalType = "contractor" | "subcontractor" | "client";
@@ -237,7 +235,6 @@ export function InvitationsView({
                 <th>Project</th>
                 <th>Status</th>
                 <th>Expires</th>
-                <th>Link</th>
               </tr>
             </thead>
             <tbody>
@@ -254,13 +251,6 @@ export function InvitationsView({
                       </span>
                     </td>
                     <td>{new Date(inv.expiresAt).toLocaleDateString()}</td>
-                    <td>
-                      {inv.status === "pending" ? (
-                        <Link href={`/invite/${inv.token}`}>Open</Link>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
                   </tr>
                 );
               })}

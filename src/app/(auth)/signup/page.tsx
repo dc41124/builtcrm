@@ -59,7 +59,7 @@ export default async function SignupPage({
             : `Set up your account to access ${projectName ?? orgName}.`}
         </p>
         <SignupForm
-          token={invitation.token}
+          token={token}
           email={invitation.invitedEmail}
           isResidential={isResidential}
           showCompanyField={!isResidential}

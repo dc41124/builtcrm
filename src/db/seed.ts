@@ -15,7 +15,7 @@ import { hashPassword } from "better-auth/crypto";
 import { randomBytes } from "node:crypto";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 
-import { db } from "./client";
+import { adminDb as db } from "./admin-client";
 import { r2, R2_BUCKET } from "../lib/storage";
 import { generateSeedSheetSetPdf } from "../lib/drawings/seed-pdf";
 import {
@@ -151,7 +151,9 @@ function assertNonProductionTarget() {
     console.warn("⚠ ALLOW_PROD_SEED=1 set — bypassing database URL guard.");
     return;
   }
-  const url = process.env.DATABASE_URL ?? "";
+  // Seed runs via the admin client; guard the URL that actually hits the DB.
+  const url =
+    process.env.DATABASE_ADMIN_URL ?? process.env.DATABASE_URL ?? "";
   const lower = url.toLowerCase();
   const prodMarkers = ["prod", "production", "live"];
   const devMarkers = ["dev", "develop", "development", "local", "localhost", "staging", "preview", "branch"];
@@ -159,13 +161,13 @@ function assertNonProductionTarget() {
   const looksDev = devMarkers.some((m) => lower.includes(m));
   if (looksProd && !looksDev) {
     throw new Error(
-      "Refusing to seed: DATABASE_URL looks like a production target. " +
+      "Refusing to seed: DATABASE_ADMIN_URL/DATABASE_URL looks like a production target. " +
         "Set ALLOW_PROD_SEED=1 to override (not recommended).",
     );
   }
   if (!looksDev) {
     console.warn(
-      "⚠ DATABASE_URL has no dev/local/staging marker — proceeding anyway. " +
+      "⚠ DATABASE_ADMIN_URL/DATABASE_URL has no dev/local/staging marker — proceeding anyway. " +
         "Name your Neon dev branch with 'dev' or 'local' to enable the guard.",
     );
   }
