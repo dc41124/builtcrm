@@ -169,10 +169,9 @@ Each of these was explicitly deferred during the step-1 hardening pass. Entries 
 **Unblocker:** first real consumer — provision then.
 
 ### Fresh-env bootstrap flow
-**Status:** undocumented — current dev DB was provisioned before the baseline collapse, so the order-of-operations for a brand-new DB isn't exercised.
-**Why deferred:** not blocking any current environment. Real need surfaces on first prod deploy or new Neon branch.
-**What's missing:** a documented sequence for (1) Neon console: create `builtcrm_app` role, (2) connect as admin and run `CREATE EXTENSION pgcrypto` + the GRANT/`ALTER DEFAULT PRIVILEGES` statements that live in migration 0027 today, (3) run `npm run db:migrate` to apply the baseline. The baseline SQL itself doesn't include extension/role bootstrap because drizzle-kit generates schema-only migrations.
-**Unblocker:** first real need to stand up a new DB environment.
+**Status:** documented but untested. [docs/specs/bootstrap_new_env.md](bootstrap_new_env.md) walks through the full sequence: role creation in Neon, env vars, `scripts/new-env-bootstrap.sql` for extension + default privileges, `npm run db:migrate` to apply the baseline. Script is idempotent.
+**Why still listed here:** the flow hasn't been exercised against a real fresh environment — current dev DB was built incrementally before the baseline collapse. First provisioning of a new env (prod, new Neon branch, clean dev) is the ground-truth test; if anything's wrong, update the doc.
+**Unblocker:** resolved once first fresh env is successfully stood up and the walkthrough is confirmed accurate.
 
 ---
 
