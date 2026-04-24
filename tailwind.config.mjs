@@ -1,12 +1,18 @@
-import type { Config } from 'tailwindcss';
-
 /*
  * Tailwind v4 config.
  * The CSS tokens live in src/styles/tokens.css. This config maps them
  * onto Tailwind theme keys so classes like `bg-surface`, `text-t1`,
  * `font-display`, `rounded-l`, `shadow-md` resolve to the right vars.
+ *
+ * Uses .mjs (explicit ESM) instead of .ts to silence Node's
+ * MODULE_TYPELESS_PACKAGE_JSON warning when tailwind loads this
+ * standalone. Intellisense for Tailwind's Config type is still
+ * available via the @type JSDoc comment below — same guarantee as
+ * the TS version.
  */
-const config: Config = {
+
+/** @type {import('tailwindcss').Config} */
+const config = {
   content: [
     './src/app/**/*.{ts,tsx}',
     './src/components/**/*.{ts,tsx}',
