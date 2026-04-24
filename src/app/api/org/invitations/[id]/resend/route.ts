@@ -7,6 +7,8 @@ import { db } from "@/db/client";
 import { auditEvents, invitations } from "@/db/schema";
 import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
 import { AuthorizationError } from "@/domain/permissions";
+import { withErrorHandler } from "@/lib/api/error-handler";
+import { enforceLimit, inviteLimiter } from "@/lib/ratelimit";
 
 const INVITE_TTL_DAYS = 14;
 
@@ -15,17 +17,29 @@ const INVITE_TTL_DAYS = 14;
 // (Postmark/SendGrid via Trigger.dev), we'll trigger the invite email from
 // here as well.
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
   const { id } = await params;
+  return withErrorHandler(async () => {
+    const limit = await enforceLimit(inviteLimiter, req);
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: "rate_limited" },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.ceil((limit.reset - Date.now()) / 1000)),
+          },
+        },
+      );
+    }
 
-  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) {
+      return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+    }
+
     const ctx = await requireOrgAdminContext(
       session.session as unknown as { appUserId?: string | null },
     );
@@ -90,19 +104,5 @@ export async function POST(
       ok: true,
       expiresAt: newExpires,
     });
-  } catch (err) {
-    if (err instanceof AuthorizationError) {
-      const status =
-        err.code === "unauthenticated"
-          ? 401
-          : err.code === "not_found"
-            ? 404
-            : 403;
-      return NextResponse.json(
-        { error: err.code, message: err.message },
-        { status },
-      );
-    }
-    throw err;
-  }
+  }, { path: "/api/org/invitations/[id]/resend", method: "POST" });
 }

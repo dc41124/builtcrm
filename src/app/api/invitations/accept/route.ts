@@ -15,6 +15,7 @@ import {
 } from "@/db/schema";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { hashInvitationToken } from "@/lib/invitations/token";
+import { enforceLimit, inviteLimiter } from "@/lib/ratelimit";
 
 const BodySchema = z.object({
   token: z.string().min(1),
@@ -22,6 +23,19 @@ const BodySchema = z.object({
 
 export async function POST(req: Request) {
   return withErrorHandler(async () => {
+    const limit = await enforceLimit(inviteLimiter, req);
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: "rate_limited" },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.ceil((limit.reset - Date.now()) / 1000)),
+          },
+        },
+      );
+    }
+
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) {
       return NextResponse.json({ error: "unauthenticated" }, { status: 401 });

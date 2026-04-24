@@ -18,6 +18,7 @@ import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { hashInvitationToken } from "@/lib/invitations/token";
+import { enforceLimit, inviteLimiter } from "@/lib/ratelimit";
 
 // POST /api/submittals/[id]/invite-reviewer
 //
@@ -68,6 +69,19 @@ export async function POST(
 ) {
   const { id } = await params;
   return withErrorHandler(async () => {
+    const limit = await enforceLimit(inviteLimiter, req);
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: "rate_limited" },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.ceil((limit.reset - Date.now()) / 1000)),
+          },
+        },
+      );
+    }
+
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) {
       return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
