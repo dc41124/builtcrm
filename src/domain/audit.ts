@@ -2,6 +2,7 @@ import { db, type DB } from "@/db/client";
 import { auditEvents } from "@/db/schema";
 
 import type { EffectiveContext } from "./context";
+import { getSystemUserId } from "./system-user";
 
 // A drizzle transaction exposes the same query surface as the base db
 // client, so accept either. Callers pass `tx` when writing inside a
@@ -32,6 +33,41 @@ export async function writeAuditEvent(
     actorUserId: ctx.user.id,
     projectId: ctx.project.id,
     organizationId: ctx.organization.id,
+    objectType: input.resourceType,
+    objectId: input.resourceId,
+    actionName: input.action,
+    previousState: input.details?.previousState ?? null,
+    nextState: input.details?.nextState ?? null,
+    metadataJson: input.details?.metadata ?? null,
+  });
+}
+
+export type WriteSystemAuditEventInput = {
+  resourceType: string;
+  resourceId: string;
+  action: string;
+  projectId?: string | null;
+  organizationId?: string | null;
+  details?: {
+    previousState?: Record<string, unknown> | null;
+    nextState?: Record<string, unknown> | null;
+    metadata?: Record<string, unknown> | null;
+  };
+};
+
+// System-level audit write for non-interactive events (unhandled
+// exceptions, webhook processing, scheduled jobs). Uses SYSTEM_USER_ID
+// as the actor — explicitly bypasses the ctx-based spoofing guard because
+// there IS no user context at the call site. Keep usage narrow.
+export async function writeSystemAuditEvent(
+  input: WriteSystemAuditEventInput,
+  tx: DbOrTx = db,
+): Promise<void> {
+  const actorUserId = await getSystemUserId();
+  await tx.insert(auditEvents).values({
+    actorUserId,
+    projectId: input.projectId ?? null,
+    organizationId: input.organizationId ?? null,
     objectType: input.resourceType,
     objectId: input.resourceId,
     actionName: input.action,

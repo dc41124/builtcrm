@@ -16,6 +16,7 @@ import {
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { hashInvitationToken } from "@/lib/invitations/token";
 
 // POST /api/submittals/[id]/invite-reviewer
@@ -66,22 +67,22 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
+  return withErrorHandler(async () => {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) {
+      return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+    }
 
-  const parsed = BodySchema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "invalid_body", issues: parsed.error.issues },
-      { status: 400 },
-    );
-  }
-  const input = parsed.data;
-  const reviewerEmail = input.reviewerEmail.toLowerCase();
+    const parsed = BodySchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "invalid_body", issues: parsed.error.issues },
+        { status: 400 },
+      );
+    }
+    const input = parsed.data;
+    const reviewerEmail = input.reviewerEmail.toLowerCase();
 
-  try {
     const [current] = await db
       .select({
         id: submittals.id,
@@ -267,19 +268,5 @@ export async function POST(
       inviteUrl,
       expiresAt: result.invitation.expiresAt,
     });
-  } catch (err) {
-    if (err instanceof AuthorizationError) {
-      const status =
-        err.code === "unauthenticated"
-          ? 401
-          : err.code === "not_found"
-            ? 404
-            : 403;
-      return NextResponse.json(
-        { error: err.code, message: err.message },
-        { status },
-      );
-    }
-    throw err;
-  }
+  }, { path: "/api/submittals/[id]/invite-reviewer", method: "POST" });
 }

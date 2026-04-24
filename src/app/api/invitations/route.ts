@@ -9,6 +9,7 @@ import { db } from "@/db/client";
 import { auditEvents, invitations, organizations, projects } from "@/db/schema";
 import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
 import { AuthorizationError } from "@/domain/permissions";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { hashInvitationToken } from "@/lib/invitations/token";
 
 const BodySchema = z.object({
@@ -29,20 +30,20 @@ function generateToken(): string {
 }
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
+  return withErrorHandler(async () => {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) {
+      return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+    }
 
-  const parsed = BodySchema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "invalid_body", issues: parsed.error.issues },
-      { status: 400 },
-    );
-  }
+    const parsed = BodySchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "invalid_body", issues: parsed.error.issues },
+        { status: 400 },
+      );
+    }
 
-  try {
     const ctx = await requireOrgAdminContext(
       session.session as unknown as { appUserId?: string | null },
     );
@@ -207,19 +208,5 @@ export async function POST(req: Request) {
       inviteUrl,
       expiresAt: row.expiresAt,
     });
-  } catch (err) {
-    if (err instanceof AuthorizationError) {
-      const status =
-        err.code === "unauthenticated"
-          ? 401
-          : err.code === "not_found"
-            ? 404
-            : 403;
-      return NextResponse.json(
-        { error: err.code, message: err.message },
-        { status },
-      );
-    }
-    throw err;
-  }
+  }, { path: "/api/invitations", method: "POST" });
 }
