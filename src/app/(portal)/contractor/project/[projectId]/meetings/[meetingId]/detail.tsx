@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 
 import type {
   AttendeeScope,
+  MeetingActivityRow,
   MeetingDetail,
   MeetingType,
 } from "@/domain/loaders/meetings";
@@ -19,6 +20,7 @@ import {
   formatScheduledFull,
   initials,
 } from "../../../../../meetings-shared";
+import { ActivityRail } from "../../../../../meetings-rail";
 
 type Person = {
   userId: string;
@@ -31,8 +33,8 @@ type Person = {
 
 type Tab = "agenda" | "attendees" | "minutes" | "actions";
 
-// Local editable view of agenda items — mirrors the server shape plus a
-// stable client key for un-persisted rows.
+// Local editable view of agenda items — mirrors the server shape plus
+// a stable client key for un-persisted rows.
 type AgendaRow = {
   key: string;
   id: string | null;
@@ -49,19 +51,20 @@ export function MeetingDetailUI({
   meetingId,
   detail,
   people,
+  activity,
   viewerRole,
 }: {
   projectId: string;
   meetingId: string;
   detail: MeetingDetail;
   people: Person[];
+  activity: MeetingActivityRow[];
   viewerRole: "contractor" | "subcontractor";
 }) {
   const router = useRouter();
   const portalBase = `/${viewerRole}/project/${projectId}`;
   const [tab, setTab] = useState<Tab>("agenda");
 
-  // Editable agenda state (contractor only)
   const [agenda, setAgenda] = useState<AgendaRow[]>(() =>
     detail.agenda.map((a) => ({
       key: a.id,
@@ -77,7 +80,6 @@ export function MeetingDetailUI({
   const [savingAgenda, setSavingAgenda] = useState(false);
   const [agendaDirty, setAgendaDirty] = useState(false);
 
-  // Minutes state
   const [minutesDraft, setMinutesDraft] = useState(
     detail.minutes?.content ?? "",
   );
@@ -85,7 +87,6 @@ export function MeetingDetailUI({
   const [minutesSaving, setMinutesSaving] = useState(false);
   const [minutesDirty, setMinutesDirty] = useState(false);
 
-  // Add-action-item form
   const [newAction, setNewAction] = useState({
     description: "",
     assignedUserId: "",
@@ -93,11 +94,29 @@ export function MeetingDetailUI({
     originAgendaItemId: "",
   });
   const [addingAction, setAddingAction] = useState(false);
+  const [showAddAction, setShowAddAction] = useState(false);
+
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteUserId, setInviteUserId] = useState("");
+  const [inviteRole, setInviteRole] = useState("");
+  const [invitingAttendee, setInvitingAttendee] = useState(false);
 
   const totalEstimated = useMemo(
     () => agenda.reduce((s, a) => s + a.estimatedMinutes, 0),
     [agenda],
   );
+  const overBudget = totalEstimated > detail.durationMinutes;
+
+  const acceptedCount = detail.attendees.filter(
+    (a) => a.attendedStatus === "accepted",
+  ).length;
+  const declinedCount = detail.attendees.filter(
+    (a) => a.attendedStatus === "declined",
+  ).length;
+  const pendingCount = detail.attendees.filter(
+    (a) =>
+      a.attendedStatus === "tentative" || a.attendedStatus === "invited",
+  ).length;
 
   const openActions = detail.actionItems.filter(
     (a) => a.status === "open",
@@ -112,7 +131,29 @@ export function MeetingDetailUI({
   const scheduledFull = formatScheduledFull(detail.scheduledAt);
   const canEdit = detail.canEdit && viewerRole === "contractor";
 
-  const transitionMeeting = async (action: "start" | "complete" | "cancel") => {
+  // Attendees on the meeting, for the action-item assignee select.
+  const attendeePeople = useMemo(() => {
+    const ids = new Set(
+      detail.attendees
+        .map((a) => a.userId)
+        .filter((v): v is string => !!v),
+    );
+    return people.filter((p) => ids.has(p.userId));
+  }, [detail.attendees, people]);
+
+  // Candidates to invite: project members not already on the attendee list.
+  const invitableCandidates = useMemo(() => {
+    const ids = new Set(
+      detail.attendees
+        .map((a) => a.userId)
+        .filter((v): v is string => !!v),
+    );
+    return people.filter((p) => !ids.has(p.userId));
+  }, [detail.attendees, people]);
+
+  const transitionMeeting = async (
+    action: "start" | "complete" | "cancel",
+  ) => {
     const reason =
       action === "cancel"
         ? window.prompt("Reason for cancelling this meeting?")
@@ -269,6 +310,7 @@ export function MeetingDetailUI({
         dueDate: "",
         originAgendaItemId: "",
       });
+      setShowAddAction(false);
       router.refresh();
     } finally {
       setAddingAction(false);
@@ -305,20 +347,104 @@ export function MeetingDetailUI({
     router.refresh();
   };
 
+  const inviteAttendee = async () => {
+    if (!inviteUserId) return;
+    const candidate = invitableCandidates.find(
+      (p) => p.userId === inviteUserId,
+    );
+    if (!candidate) return;
+    setInvitingAttendee(true);
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}/attendees`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: candidate.userId,
+          orgId: candidate.orgId,
+          roleLabel: inviteRole.trim() || null,
+          scope: candidate.scope,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        window.alert(body.message ?? body.error ?? "Invite failed");
+        return;
+      }
+      setShowInvite(false);
+      setInviteUserId("");
+      setInviteRole("");
+      router.refresh();
+    } finally {
+      setInvitingAttendee(false);
+    }
+  };
+
   return (
     <>
       <div className="mt-page-hdr">
-        <div>
-          <Link
-            href={`${portalBase}/meetings`}
-            className="mt-btn ghost sm"
-            style={{ marginBottom: 6 }}
-          >
-            {Icon.back} All meetings
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Link href={`${portalBase}/meetings`} className="mt-btn sm ghost">
+            {Icon.back} Back
           </Link>
-          <h1 className="mt-page-title" style={{ fontSize: 22 }}>
-            {detail.title}
-          </h1>
+          <div
+            className="mt-crumbs"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 12.5,
+              color: "var(--text-tertiary)",
+            }}
+          >
+            <span>Meetings</span>
+            {Icon.chevR}
+            <strong
+              style={{
+                color: "var(--text-primary)",
+                fontFamily: '"JetBrains Mono", monospace',
+                fontWeight: 600,
+              }}
+            >
+              {detail.numberLabel}
+            </strong>
+          </div>
+        </div>
+        <div className="mt-page-actions">
+          {viewerRole === "contractor" ? (
+            <>
+              <button
+                type="button"
+                className="mt-btn sm"
+                onClick={() =>
+                  window.alert(
+                    "Duplicate is a Phase 4+ follow-up — reschedule via the Create modal for now.",
+                  )
+                }
+                title="Duplicate — coming soon"
+              >
+                {Icon.copy} Duplicate
+              </button>
+              <button
+                type="button"
+                className="mt-btn sm"
+                onClick={() =>
+                  window.alert(
+                    "Reminder emails send on meeting creation and 24h before start.",
+                  )
+                }
+              >
+                {Icon.mail} Send reminder
+              </button>
+              <button
+                type="button"
+                className="mt-btn sm ghost icon"
+                title="More"
+                aria-label="More"
+              >
+                {Icon.more}
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -326,46 +452,24 @@ export function MeetingDetailUI({
         <div className="mt-detail-main">
           <section className="mt-detail-hero">
             <div className="mt-detail-hero-top">
-              <div className="mt-detail-hero-left">
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    marginBottom: 4,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontFamily: '"JetBrains Mono", monospace',
-                      fontSize: 12,
-                      color: "var(--text-secondary)",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {detail.numberLabel}
-                  </span>
-                  <MeetingTypePill type={detail.type as MeetingType} />
-                  <StatusPill status={detail.status} />
-                </div>
+              <div className="mt-detail-hero-left" style={{ flex: 1 }}>
                 <h2>{detail.title}</h2>
                 <div className="mt-detail-hero-meta">
-                  <span>
-                    {Icon.calendar} {scheduledFull}
+                  <MeetingTypePill type={detail.type as MeetingType} />
+                  <StatusPill status={detail.status} />
+                  <span>·</span>
+                  <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                    {Icon.calendar} <strong>{scheduledFull}</strong>
                   </span>
-                  <span>
-                    {Icon.clock} {detail.durationMinutes}m
+                  <span>·</span>
+                  <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                    {Icon.clock} {detail.durationMinutes} min
                   </span>
+                  <span>·</span>
                   <span>
-                    {Icon.user} Chair:{" "}
-                    <strong>{detail.chairName ?? "—"}</strong>
+                    Chaired by <strong>{detail.chairName ?? "—"}</strong>
                   </span>
                 </div>
-                {detail.status === "cancelled" && detail.cancelledReason ? (
-                  <div className="mt-att-decline-note" style={{ marginTop: 10 }}>
-                    {Icon.info} <span>Cancelled — {detail.cancelledReason}</span>
-                  </div>
-                ) : null}
               </div>
               <div className="mt-detail-hero-actions">
                 {viewerRole === "contractor" ? (
@@ -373,26 +477,36 @@ export function MeetingDetailUI({
                     {detail.status === "scheduled" ? (
                       <button
                         type="button"
-                        className="mt-btn primary"
+                        className="mt-btn primary sm"
                         onClick={() => transitionMeeting("start")}
                       >
-                        Start meeting
+                        {Icon.play} Start meeting
                       </button>
                     ) : null}
                     {detail.status === "in_progress" ? (
                       <button
                         type="button"
-                        className="mt-btn primary"
+                        className="mt-btn primary sm"
                         onClick={() => transitionMeeting("complete")}
                       >
-                        Complete
+                        {Icon.check} Complete
+                      </button>
+                    ) : null}
+                    {detail.status === "completed" ? (
+                      <button
+                        type="button"
+                        className="mt-btn sm"
+                        onClick={() => router.push(`${portalBase}/meetings`)}
+                        title="Back to workspace to schedule the next meeting"
+                      >
+                        {Icon.copy} Schedule next
                       </button>
                     ) : null}
                     {detail.status === "scheduled" ||
                     detail.status === "in_progress" ? (
                       <button
                         type="button"
-                        className="mt-btn danger"
+                        className="mt-btn sm danger"
                         onClick={() => transitionMeeting("cancel")}
                       >
                         Cancel
@@ -402,36 +516,62 @@ export function MeetingDetailUI({
                 ) : null}
               </div>
             </div>
+
             <div className="mt-detail-summary">
               <div className="mt-summary-item">
+                <div className="mt-summary-label">Agenda items</div>
+                <div className="mt-summary-val">{agenda.length}</div>
+                <div className="mt-summary-sub">
+                  {totalEstimated} min estimated ·{" "}
+                  {overBudget ? (
+                    <span style={{ color: "var(--wr)" }}>over budget</span>
+                  ) : (
+                    "within budget"
+                  )}
+                </div>
+              </div>
+              <div className="mt-summary-item">
                 <div className="mt-summary-label">Attendees</div>
-                <div className="mt-summary-val">{detail.attendeeCount}</div>
+                <div className="mt-summary-val">{detail.attendees.length}</div>
                 <div className="mt-summary-sub">
-                  {detail.attendees.filter((a) => a.attendedStatus === "accepted").length}{" "}
-                  accepted
+                  {acceptedCount} accepted · {declinedCount} declined ·{" "}
+                  {pendingCount} pending
                 </div>
               </div>
               <div className="mt-summary-item">
-                <div className="mt-summary-label">Agenda</div>
-                <div className="mt-summary-val">{detail.agendaCount}</div>
-                <div className="mt-summary-sub">
-                  {totalEstimated}m planned
-                </div>
-              </div>
-              <div className="mt-summary-item">
-                <div className="mt-summary-label">Open actions</div>
-                <div className="mt-summary-val">{openActions}</div>
-                <div className="mt-summary-sub">
-                  {doneActions} done · {inProgressActions} in progress
-                </div>
-              </div>
-              <div className="mt-summary-item">
-                <div className="mt-summary-label">Carried forward</div>
+                <div className="mt-summary-label">Action items</div>
                 <div className="mt-summary-val">
+                  {detail.actionItems.length}
+                </div>
+                <div className="mt-summary-sub">
+                  <span style={{ color: "var(--na)" }}>{openActions} open</span>{" "}
+                  ·{" "}
+                  <span style={{ color: "var(--wr)" }}>
+                    {inProgressActions} active
+                  </span>{" "}
+                  ·{" "}
+                  <span style={{ color: "var(--ok)" }}>
+                    {doneActions} done
+                  </span>
+                </div>
+              </div>
+              <div className="mt-summary-item">
+                <div className="mt-summary-label">Carry-forward</div>
+                <div
+                  className="mt-summary-val"
+                  style={{
+                    color:
+                      detail.carriedForwardCount > 0
+                        ? "var(--wr)"
+                        : undefined,
+                  }}
+                >
                   {detail.carriedForwardCount}
                 </div>
-                <div className="mt-summary-sub carry">
-                  From prior {detail.type} meeting
+                <div className="mt-summary-sub">
+                  {detail.carriedForwardCount > 0
+                    ? `from prior ${detail.type}`
+                    : "none"}
                 </div>
               </div>
             </div>
@@ -441,19 +581,29 @@ export function MeetingDetailUI({
             <div className="mt-detail-tab-bar">
               {(
                 [
-                  ["agenda", "Agenda", detail.agenda.length],
-                  ["attendees", "Attendees", detail.attendees.length],
-                  ["minutes", "Minutes", null],
-                  ["actions", "Actions", detail.actionItems.length],
-                ] as Array<[Tab, string, number | null]>
-              ).map(([k, label, count]) => (
+                  ["agenda", "Agenda", detail.agenda.length, Icon.list],
+                  [
+                    "attendees",
+                    "Attendees",
+                    detail.attendees.length,
+                    Icon.users,
+                  ],
+                  ["minutes", "Minutes", null, Icon.edit],
+                  [
+                    "actions",
+                    "Action items",
+                    detail.actionItems.length,
+                    Icon.clipboard,
+                  ],
+                ] as Array<[Tab, string, number | null, React.ReactNode]>
+              ).map(([k, label, count, icon]) => (
                 <button
                   key={k}
                   type="button"
                   className={`mt-detail-tab${tab === k ? " active" : ""}`}
                   onClick={() => setTab(k)}
                 >
-                  {label}
+                  {icon} {label}
                   {count !== null ? (
                     <span className="mt-detail-tab-count">{count}</span>
                   ) : null}
@@ -469,6 +619,8 @@ export function MeetingDetailUI({
                   dirty={agendaDirty}
                   saving={savingAgenda}
                   totalEstimated={totalEstimated}
+                  plannedMinutes={detail.durationMinutes}
+                  overBudget={overBudget}
                   people={people}
                   onSave={saveAgenda}
                   onAdd={addAgenda}
@@ -479,7 +631,12 @@ export function MeetingDetailUI({
               ) : null}
 
               {tab === "attendees" ? (
-                <AttendeesTab detail={detail} viewerRole={viewerRole} />
+                <AttendeesTab
+                  detail={detail}
+                  canEdit={canEdit}
+                  invitableCount={invitableCandidates.length}
+                  onInviteClick={() => setShowInvite(true)}
+                />
               ) : null}
 
               {tab === "minutes" ? (
@@ -505,14 +662,16 @@ export function MeetingDetailUI({
                 <ActionsTab
                   actionItems={detail.actionItems}
                   agenda={detail.agenda}
-                  people={people}
-                  canEdit={viewerRole === "contractor"}
+                  people={attendeePeople.length > 0 ? attendeePeople : people}
+                  canEdit={canEdit}
                   newAction={newAction}
                   setNewAction={setNewAction}
                   onAdd={createAction}
                   adding={addingAction}
                   onStatus={updateActionStatus}
                   onDelete={deleteAction}
+                  showAddForm={showAddAction}
+                  onToggleAddForm={() => setShowAddAction((v) => !v)}
                 />
               ) : null}
             </div>
@@ -520,53 +679,62 @@ export function MeetingDetailUI({
         </div>
 
         <aside className="mt-rail">
-          <div className="mt-rail-card">
-            <div className="mt-rail-hdr">
-              <h4>
-                {Icon.info} About this meeting
-              </h4>
-            </div>
-            <div style={{ padding: "12px 14px", fontSize: 12 }}>
-              <div style={{ marginBottom: 8 }}>
-                <div
-                  style={{
-                    fontFamily: '"DM Sans", sans-serif',
-                    fontWeight: 680,
-                    fontSize: 10.5,
-                    color: "var(--text-tertiary)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    marginBottom: 3,
-                  }}
-                >
-                  Project
-                </div>
-                <div style={{ fontWeight: 640 }}>{detail.project.name}</div>
-              </div>
-              {detail.completedAt ? (
-                <div style={{ marginBottom: 8 }}>
+          <ActivityRail rows={activity} portalBase={portalBase} limit={5} />
+
+          {detail.status === "cancelled" && detail.cancelledReason ? (
+            <div className="mt-rail-card" style={{ padding: 14 }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "flex-start",
+                }}
+              >
+                {Icon.info}
+                <div>
                   <div
                     style={{
                       fontFamily: '"DM Sans", sans-serif',
-                      fontWeight: 680,
-                      fontSize: 10.5,
-                      color: "var(--text-tertiary)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      marginBottom: 3,
+                      fontWeight: 700,
+                      fontSize: 12.5,
+                      color: "var(--er)",
                     }}
                   >
-                    Completed
+                    Cancelled
                   </div>
-                  <div style={{ fontWeight: 540 }}>
-                    {formatScheduledFull(detail.completedAt)}
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--text-secondary)",
+                      fontWeight: 540,
+                      marginTop: 3,
+                    }}
+                  >
+                    {detail.cancelledReason}
                   </div>
                 </div>
-              ) : null}
+              </div>
             </div>
-          </div>
+          ) : null}
         </aside>
       </div>
+
+      {showInvite ? (
+        <InviteAttendeeModal
+          candidates={invitableCandidates}
+          selectedUserId={inviteUserId}
+          onSelect={setInviteUserId}
+          roleLabel={inviteRole}
+          onRoleChange={setInviteRole}
+          submitting={invitingAttendee}
+          onClose={() => {
+            setShowInvite(false);
+            setInviteUserId("");
+            setInviteRole("");
+          }}
+          onSubmit={inviteAttendee}
+        />
+      ) : null}
     </>
   );
 }
@@ -578,6 +746,8 @@ function AgendaTab({
   dirty,
   saving,
   totalEstimated,
+  plannedMinutes,
+  overBudget,
   people,
   onSave,
   onAdd,
@@ -590,6 +760,8 @@ function AgendaTab({
   dirty: boolean;
   saving: boolean;
   totalEstimated: number;
+  plannedMinutes: number;
+  overBudget: boolean;
   people: Person[];
   onSave: () => void;
   onAdd: () => void;
@@ -601,16 +773,31 @@ function AgendaTab({
     <div>
       <div className="mt-detail-tab-hdr">
         <h3>Agenda</h3>
-        {canEdit ? (
-          <button
-            type="button"
-            className="mt-btn primary sm"
-            onClick={onSave}
-            disabled={!dirty || saving}
-          >
-            {saving ? "Saving…" : dirty ? "Save agenda" : "Saved"}
-          </button>
-        ) : null}
+        <div style={{ display: "flex", gap: 6 }}>
+          {canEdit ? (
+            <button
+              type="button"
+              className="mt-btn xs ghost"
+              onClick={() =>
+                window.alert(
+                  "Carry-forward from the last same-type meeting runs on creation. Use the Create Meeting modal — it previews what will carry.",
+                )
+              }
+            >
+              {Icon.copy} Copy from prior
+            </button>
+          ) : null}
+          {canEdit ? (
+            <button
+              type="button"
+              className="mt-btn xs primary"
+              onClick={onSave}
+              disabled={!dirty || saving}
+            >
+              {saving ? "Saving…" : dirty ? "Save agenda" : "Saved"}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {agenda.length === 0 ? (
@@ -618,7 +805,7 @@ function AgendaTab({
           <h3>No agenda yet</h3>
           <p>
             Add items so attendees know what to expect. Carry-forward from
-            prior same-type meetings will show up automatically.
+            prior same-type meetings shows up automatically on creation.
           </p>
         </div>
       ) : (
@@ -628,6 +815,11 @@ function AgendaTab({
               key={a.key}
               className={`mt-agenda-row${a.carriedFromLabel ? " carry" : ""}`}
             >
+              {canEdit ? (
+                <div className="mt-agenda-grip" title="Drag to reorder">
+                  {Icon.grip}
+                </div>
+              ) : null}
               <div className="mt-agenda-num">{idx + 1}.</div>
               <div className="mt-agenda-body">
                 <div className="mt-agenda-title-row">
@@ -665,7 +857,7 @@ function AgendaTab({
                   )}
                   {a.carriedFromLabel ? (
                     <span className="mt-carry-pill">
-                      {Icon.arrowR} From {a.carriedFromLabel}
+                      {Icon.arrowR} Carried forward
                     </span>
                   ) : null}
                 </div>
@@ -710,7 +902,7 @@ function AgendaTab({
                         value={a.assignedUserId ?? ""}
                         onChange={(e) => {
                           const uid = e.target.value || null;
-                          const p = people.find((p) => p.userId === uid);
+                          const p = people.find((pp) => pp.userId === uid);
                           onUpdate(a.key, {
                             assignedUserId: uid,
                             assignedUserName: p?.userName ?? null,
@@ -729,7 +921,7 @@ function AgendaTab({
                         <option value="">— Presenter</option>
                         {people.map((p) => (
                           <option key={p.userId} value={p.userId}>
-                            {p.userName ?? p.userEmail}
+                            {p.userName ?? p.userEmail} · {p.orgName}
                           </option>
                         ))}
                       </select>
@@ -767,7 +959,9 @@ function AgendaTab({
                         }}
                       />
                     ) : (
-                      <span className="mt-agenda-est">{a.estimatedMinutes}m</span>
+                      <span className="mt-agenda-est">
+                        {a.estimatedMinutes}m
+                      </span>
                     )}
                   </span>
                 </div>
@@ -779,6 +973,7 @@ function AgendaTab({
                     onClick={() => onMove(a.key, "up")}
                     disabled={idx === 0}
                     title="Move up"
+                    aria-label="Move up"
                   >
                     {Icon.chevU}
                   </button>
@@ -787,6 +982,7 @@ function AgendaTab({
                     onClick={() => onMove(a.key, "down")}
                     disabled={idx === agenda.length - 1}
                     title="Move down"
+                    aria-label="Move down"
                   >
                     {Icon.chevD}
                   </button>
@@ -794,6 +990,7 @@ function AgendaTab({
                     type="button"
                     onClick={() => onRemove(a.key)}
                     title="Remove"
+                    aria-label="Remove"
                   >
                     {Icon.trash}
                   </button>
@@ -809,9 +1006,11 @@ function AgendaTab({
           <button type="button" className="mt-agenda-add" onClick={onAdd}>
             {Icon.plus} Add agenda item
           </button>
-          <div className="mt-agenda-total">
-            <span>Total planned time</span>
-            <strong>{totalEstimated} minutes</strong>
+          <div className={`mt-agenda-total${overBudget ? " over" : ""}`}>
+            <span>Estimated total duration</span>
+            <strong>
+              {totalEstimated} of {plannedMinutes} min scheduled
+            </strong>
           </div>
         </>
       ) : null}
@@ -822,28 +1021,44 @@ function AgendaTab({
 // ── Attendees tab ──
 function AttendeesTab({
   detail,
-  viewerRole,
+  canEdit,
+  invitableCount,
+  onInviteClick,
 }: {
   detail: MeetingDetail;
-  viewerRole: "contractor" | "subcontractor";
+  canEdit: boolean;
+  invitableCount: number;
+  onInviteClick: () => void;
 }) {
   return (
     <div>
       <div className="mt-detail-tab-hdr">
-        <h3>Attendees ({detail.attendees.length})</h3>
-        {viewerRole === "contractor" ? (
-          <span
-            style={{
-              fontSize: 11.5,
-              color: "var(--text-tertiary)",
-              fontWeight: 540,
-            }}
+        <h3>Attendees</h3>
+        {canEdit ? (
+          <button
+            type="button"
+            className="mt-btn xs"
+            onClick={onInviteClick}
+            disabled={invitableCount === 0}
+            title={
+              invitableCount === 0
+                ? "Everyone on the project is already invited"
+                : undefined
+            }
           >
-            Add attendees from the project directory after creation via the
-            API — UI for this lives on the create screen.
-          </span>
+            {Icon.plus} Invite
+          </button>
         ) : null}
       </div>
+
+      <div className="mt-tab-callout">
+        {Icon.mail}
+        <span>
+          Invitations send via email + in-app notification on creation.
+          RSVPs route back to the chair.
+        </span>
+      </div>
+
       <div className="mt-att-grid">
         {detail.attendees.map((a) => (
           <div key={a.id}>
@@ -856,7 +1071,7 @@ function AttendeesTab({
                 <div className="mt-att-role">
                   {a.roleLabel ? <span>{a.roleLabel}</span> : null}
                   {a.orgName ? (
-                    <span className="mt-att-org">{a.orgName}</span>
+                    <span className="mt-att-org">· {a.orgName}</span>
                   ) : null}
                   <span className={`mt-att-scope ${a.scope}`}>
                     {ATTENDEE_SCOPE_LABEL[a.scope]}
@@ -864,6 +1079,11 @@ function AttendeesTab({
                 </div>
               </div>
               <span className={`mt-att-rsvp ${a.attendedStatus}`}>
+                {a.attendedStatus === "accepted"
+                  ? Icon.check
+                  : a.attendedStatus === "declined"
+                    ? Icon.x
+                    : null}
                 {a.attendedStatus === "accepted"
                   ? "Accepted"
                   : a.attendedStatus === "declined"
@@ -879,7 +1099,10 @@ function AttendeesTab({
             </div>
             {a.attendedStatus === "declined" && a.declineReason ? (
               <div className="mt-att-decline-note">
-                {Icon.info} <span>{a.declineReason}</span>
+                {Icon.info}
+                <span>
+                  <strong>Reason:</strong> {a.declineReason}
+                </span>
               </div>
             ) : null}
           </div>
@@ -915,25 +1138,44 @@ function MinutesTab({
   onSave: () => void;
   onFinalize: () => void;
 }) {
+  const savedLabel = dirty
+    ? "Unsaved changes"
+    : updatedAt
+      ? `Auto-saved · ${formatDateShort(updatedAt)}`
+      : "Draft";
+
   return (
     <div>
       <div className="mt-minutes-hdr">
-        <h3>Minutes {finalizedAt ? "(published)" : canEdit ? "(draft)" : ""}</h3>
-        <div style={{ display: "flex", gap: 8 }}>
-          {/* AI placeholder — wired for Step 56, disabled until then.
-              Kept visible so users understand the feature is coming. */}
+        <h3>
+          Meeting minutes{" "}
+          {finalizedAt ? "— published" : canEdit ? "— draft" : ""}
+        </h3>
+        <div style={{ display: "flex", gap: 6 }}>
           <button
             type="button"
-            className="mt-btn ai sm"
+            className="mt-btn ai xs"
             disabled
             title="Available after Step 56 (Meeting Minutes AI)"
           >
-            {Icon.mic} Generate minutes from audio
+            {Icon.mic} Generate from audio
+          </button>
+          <button
+            type="button"
+            className="mt-btn xs ghost"
+            onClick={() => {
+              if (value) {
+                navigator.clipboard?.writeText(value);
+              }
+            }}
+            disabled={!value}
+          >
+            {Icon.copy} Copy
           </button>
           {canEdit ? (
             <button
               type="button"
-              className="mt-btn sm"
+              className="mt-btn xs"
               onClick={onSave}
               disabled={!dirty || saving}
             >
@@ -941,29 +1183,112 @@ function MinutesTab({
             </button>
           ) : null}
           {canFinalize ? (
-            <button type="button" className="mt-btn primary sm" onClick={onFinalize}>
-              {Icon.check} Finalize &amp; publish
+            <button
+              type="button"
+              className="mt-btn xs primary"
+              onClick={onFinalize}
+            >
+              {Icon.check} Finalize
             </button>
           ) : null}
         </div>
       </div>
 
       {canEdit ? (
-        <div className="mt-minutes-editor">
-          <textarea
-            className="mt-minutes-ta"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="Start taking minutes. This draft saves on demand — finalize to publish to attendees."
-          />
-          <div className="mt-minutes-footer">
-            <span>
-              {draftedByName ? `Last drafted by ${draftedByName}` : "Draft"}
-              {updatedAt ? ` · ${formatDateShort(updatedAt)}` : ""}
-            </span>
-            <span>{value.length} characters</span>
+        <>
+          <div className="mt-minutes-editor">
+            <div className="mt-minutes-toolbar">
+              {/*
+                Formatting buttons are visible (matches the JSX prototype's
+                editor affordance) but act as plain text for now — plain
+                textarea. Rich-text fidelity can upgrade to a proper editor
+                in a later phase without changing this shell.
+              */}
+              <button
+                type="button"
+                className="mt-minutes-toolbar-btn"
+                title="Bold"
+              >
+                {Icon.bold}
+              </button>
+              <button
+                type="button"
+                className="mt-minutes-toolbar-btn"
+                title="Italic"
+              >
+                {Icon.italic}
+              </button>
+              <button
+                type="button"
+                className="mt-minutes-toolbar-btn"
+                title="Underline"
+              >
+                {Icon.underline}
+              </button>
+              <div className="mt-minutes-toolbar-divider" />
+              <button
+                type="button"
+                className="mt-minutes-toolbar-btn"
+                title="Insert list"
+              >
+                {Icon.list} List
+              </button>
+              <button
+                type="button"
+                className="mt-minutes-toolbar-btn"
+                title="Mark as decision"
+              >
+                {Icon.clipboard} Decision
+              </button>
+              <button
+                type="button"
+                className="mt-minutes-toolbar-btn"
+                title="Mark as action"
+              >
+                {Icon.check} Action
+              </button>
+              <div className="mt-minutes-toolbar-divider" />
+              <button
+                type="button"
+                className="mt-minutes-toolbar-btn"
+                title="Link to RFI or Change Order"
+              >
+                {Icon.link} Link to RFI / CO
+              </button>
+              <div style={{ flex: 1 }} />
+              <span
+                style={{
+                  fontSize: 10.5,
+                  color: "var(--text-tertiary)",
+                  fontWeight: 540,
+                }}
+              >
+                {savedLabel}
+              </span>
+            </div>
+
+            <textarea
+              className="mt-minutes-ta"
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder="Start typing meeting minutes, or use the AI transcription below once Phase 7.1 ships."
+            />
+
+            <div className="mt-minutes-footer">
+              <span>
+                {draftedByName ? (
+                  <>
+                    Drafted by <strong>{draftedByName}</strong>
+                  </>
+                ) : (
+                  "Draft"
+                )}{" "}
+                · {finalizedAt ? "finalized" : "not yet finalized"}
+              </span>
+              <span>{value.length} characters</span>
+            </div>
           </div>
-        </div>
+        </>
       ) : value ? (
         <div className="mt-minutes-readonly">{value}</div>
       ) : (
@@ -976,13 +1301,23 @@ function MinutesTab({
       <div className="mt-ai-callout">
         <span className="mt-ai-callout-icon">{Icon.sparkle}</span>
         <div className="mt-ai-callout-body">
-          <div className="mt-ai-callout-title">AI minutes — coming soon</div>
+          <div className="mt-ai-callout-title">
+            Generate minutes from audio
+          </div>
           <div className="mt-ai-callout-text">
-            Upload or record the meeting audio in Step 56 and the Minutes AI
-            agent will draft this document and extract action items
-            automatically.
+            Upload a recording and the Minutes Assistant will draft a
+            structured summary with decisions and action items.{" "}
+            <strong>Available in Step 56 (Phase 7.1).</strong>
           </div>
         </div>
+        <button
+          type="button"
+          className="mt-btn ai sm"
+          disabled
+          title="Available in Phase 7.1 (Step 56)"
+        >
+          {Icon.mic} Upload audio
+        </button>
       </div>
     </div>
   );
@@ -1000,6 +1335,8 @@ function ActionsTab({
   adding,
   onStatus,
   onDelete,
+  showAddForm,
+  onToggleAddForm,
 }: {
   actionItems: MeetingDetail["actionItems"];
   agenda: MeetingDetail["agenda"];
@@ -1011,14 +1348,12 @@ function ActionsTab({
     dueDate: string;
     originAgendaItemId: string;
   };
-  setNewAction: (
-    v: {
-      description: string;
-      assignedUserId: string;
-      dueDate: string;
-      originAgendaItemId: string;
-    },
-  ) => void;
+  setNewAction: (v: {
+    description: string;
+    assignedUserId: string;
+    dueDate: string;
+    originAgendaItemId: string;
+  }) => void;
   onAdd: () => void;
   adding: boolean;
   onStatus: (
@@ -1026,11 +1361,43 @@ function ActionsTab({
     status: "open" | "in_progress" | "done",
   ) => void;
   onDelete: (itemId: string) => void;
+  showAddForm: boolean;
+  onToggleAddForm: () => void;
 }) {
   return (
     <div>
       <div className="mt-detail-tab-hdr">
-        <h3>Action items ({actionItems.length})</h3>
+        <h3>Action items</h3>
+        {canEdit ? (
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              type="button"
+              className="mt-btn xs ghost"
+              onClick={() =>
+                window.alert(
+                  "Action items already flow to assignees' 'My actions' queue on the sub portal. A top-level tasks sync lands with the tasks module.",
+                )
+              }
+            >
+              {Icon.link} Sync to task list
+            </button>
+            <button
+              type="button"
+              className="mt-btn xs primary"
+              onClick={onToggleAddForm}
+            >
+              {Icon.plus} Add action
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-tab-callout warn">
+        {Icon.arrowR}
+        <span>
+          Open action items on meeting completion automatically carry
+          forward to the next same-type meeting on this project.
+        </span>
       </div>
 
       {actionItems.length === 0 ? (
@@ -1038,13 +1405,13 @@ function ActionsTab({
           <h3>No action items yet</h3>
           <p>
             Capture what each attendee owes by the next meeting. Open items
-            automatically carry forward to the next same-type meeting.
+            carry forward automatically.
           </p>
         </div>
       ) : (
         <div className="mt-actions-table">
           <div className="mt-actions-table-hdr">
-            <div>Description</div>
+            <div>Action</div>
             <div>Assignee</div>
             <div>Due</div>
             <div>Status</div>
@@ -1070,13 +1437,18 @@ function ActionsTab({
                   </span>
                 ) : null}
               </div>
-              <div className="mt-actions-due">{formatDateShort(a.dueDate)}</div>
+              <div className="mt-actions-due">
+                {formatDateShort(a.dueDate)}
+              </div>
               <div>
                 <select
                   className={`mt-actions-status-sel ${a.status}`}
                   value={a.status}
                   onChange={(e) =>
-                    onStatus(a.id, e.target.value as "open" | "in_progress" | "done")
+                    onStatus(
+                      a.id,
+                      e.target.value as "open" | "in_progress" | "done",
+                    )
                   }
                   disabled={!canEdit}
                 >
@@ -1092,6 +1464,7 @@ function ActionsTab({
                     className="mt-btn ghost xs icon"
                     onClick={() => onDelete(a.id)}
                     title="Delete"
+                    aria-label="Delete"
                   >
                     {Icon.trash}
                   </button>
@@ -1102,7 +1475,7 @@ function ActionsTab({
         </div>
       )}
 
-      {canEdit ? (
+      {canEdit && showAddForm ? (
         <div
           style={{
             marginTop: 12,
@@ -1144,7 +1517,11 @@ function ActionsTab({
               }}
             />
             <div
-              style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr 1fr" }}
+              style={{
+                display: "grid",
+                gap: 8,
+                gridTemplateColumns: "1fr 1fr 1fr",
+              }}
             >
               <select
                 value={newAction.assignedUserId}
@@ -1216,10 +1593,24 @@ function ActionsTab({
                 ))}
               </select>
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 6,
+              }}
+            >
               <button
                 type="button"
-                className="mt-btn primary sm"
+                className="mt-btn ghost xs"
+                onClick={onToggleAddForm}
+                disabled={adding}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="mt-btn primary xs"
                 onClick={onAdd}
                 disabled={!newAction.description.trim() || adding}
               >
@@ -1229,6 +1620,104 @@ function ActionsTab({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+// ── Invite modal ──
+function InviteAttendeeModal({
+  candidates,
+  selectedUserId,
+  onSelect,
+  roleLabel,
+  onRoleChange,
+  submitting,
+  onClose,
+  onSubmit,
+}: {
+  candidates: Person[];
+  selectedUserId: string;
+  onSelect: (v: string) => void;
+  roleLabel: string;
+  onRoleChange: (v: string) => void;
+  submitting: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <div className="mt-modal-veil" role="dialog" aria-modal="true">
+      <div className="mt-modal" style={{ maxWidth: 440 }}>
+        <div className="mt-modal-hdr">
+          <h3>Invite attendee</h3>
+          <button
+            type="button"
+            className="mt-btn ghost icon xs"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            {Icon.x}
+          </button>
+        </div>
+        <div className="mt-modal-body">
+          {candidates.length === 0 ? (
+            <div
+              style={{
+                padding: 12,
+                textAlign: "center",
+                fontSize: 12,
+                color: "var(--text-tertiary)",
+              }}
+            >
+              Everyone on the project is already invited.
+            </div>
+          ) : (
+            <>
+              <div className="mt-modal-field">
+                <label>Project member</label>
+                <select
+                  value={selectedUserId}
+                  onChange={(e) => onSelect(e.target.value)}
+                >
+                  <option value="">— Pick someone</option>
+                  {candidates.map((p) => (
+                    <option key={p.userId} value={p.userId}>
+                      {(p.userName ?? p.userEmail) + " · " + p.orgName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mt-modal-field">
+                <label>Role on this meeting (optional)</label>
+                <input
+                  type="text"
+                  value={roleLabel}
+                  maxLength={120}
+                  onChange={(e) => onRoleChange(e.target.value)}
+                  placeholder="e.g. MEP Coordinator"
+                />
+              </div>
+            </>
+          )}
+        </div>
+        <div className="mt-modal-ftr">
+          <button
+            type="button"
+            className="mt-btn ghost sm"
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="mt-btn primary sm"
+            onClick={onSubmit}
+            disabled={!selectedUserId || submitting}
+          >
+            {submitting ? "Inviting…" : "Send invite"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

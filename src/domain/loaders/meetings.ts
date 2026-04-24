@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, isNotNull, or, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
+  activityFeedItems,
   meetingActionItems,
   meetingAgendaItems,
   meetingAttendees,
@@ -762,4 +763,125 @@ export async function getCarryForwardPreview(input: {
     openActionItemCount: actionCount?.c ?? 0,
     openAgendaItemCount: agendaCount?.c ?? 0,
   };
+}
+
+// -----------------------------------------------------------------------------
+// getMeetingActivity — recent activity feed rows for the rail.
+//
+// Reads from activity_feed_items where relatedObjectType = 'meeting' and
+// the project matches. The create/start/complete/finalize flows all
+// write activity feed entries so the rail reflects every material
+// state change. Limits to the most recent 10 rows.
+// -----------------------------------------------------------------------------
+
+export type MeetingActivityRow = {
+  actorUserId: string | null;
+  actorName: string | null;
+  title: string;
+  body: string | null;
+  relatedMeetingId: string | null;
+  createdAt: string;
+};
+
+export async function getMeetingActivity(input: {
+  session: SessionLike | null | undefined;
+  projectId: string;
+  limit?: number;
+}): Promise<MeetingActivityRow[]> {
+  await getEffectiveContext(input.session, input.projectId);
+  const rows = await db
+    .select({
+      actorUserId: activityFeedItems.actorUserId,
+      actorName: users.displayName,
+      title: activityFeedItems.title,
+      body: activityFeedItems.body,
+      relatedMeetingId: activityFeedItems.relatedObjectId,
+      createdAt: activityFeedItems.createdAt,
+    })
+    .from(activityFeedItems)
+    .leftJoin(users, eq(users.id, activityFeedItems.actorUserId))
+    .where(
+      and(
+        eq(activityFeedItems.projectId, input.projectId),
+        eq(activityFeedItems.relatedObjectType, "meeting"),
+      ),
+    )
+    .orderBy(desc(activityFeedItems.createdAt))
+    .limit(input.limit ?? 10);
+  return rows.map((r) => ({
+    actorUserId: r.actorUserId,
+    actorName: r.actorName,
+    title: r.title,
+    body: r.body,
+    relatedMeetingId: r.relatedMeetingId,
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+// -----------------------------------------------------------------------------
+// getRecentPublishedMinutes — sub-portal rail card listing the 3 most
+// recent meetings with finalized minutes the sub can read. Ordered by
+// finalizedAt desc. Respects sub visibility rules.
+// -----------------------------------------------------------------------------
+
+export type RecentPublishedMinutesRow = {
+  meetingId: string;
+  numberLabel: string;
+  title: string;
+  type: MeetingType;
+  scheduledAt: string;
+  finalizedAt: string;
+};
+
+export async function getRecentPublishedMinutes(input: {
+  session: SessionLike | null | undefined;
+  projectId: string;
+  limit?: number;
+}): Promise<RecentPublishedMinutesRow[]> {
+  const ctx = await getEffectiveContext(input.session, input.projectId);
+  const isSub = ctx.role === "subcontractor_user";
+
+  let visibleIds: Set<string> | null = null;
+  if (isSub) {
+    visibleIds = await meetingsVisibleToSub(
+      input.projectId,
+      ctx.user.id,
+      ctx.organization.id,
+    );
+    if (visibleIds.size === 0) return [];
+  }
+
+  const rows = await db
+    .select({
+      id: meetings.id,
+      sequentialNumber: meetings.sequentialNumber,
+      title: meetings.title,
+      type: meetings.type,
+      scheduledAt: meetings.scheduledAt,
+      finalizedAt: meetingMinutes.finalizedAt,
+    })
+    .from(meetingMinutes)
+    .innerJoin(meetings, eq(meetings.id, meetingMinutes.meetingId))
+    .where(
+      and(
+        eq(meetings.projectId, input.projectId),
+        isNotNull(meetingMinutes.finalizedAt),
+      ),
+    )
+    .orderBy(desc(meetingMinutes.finalizedAt))
+    .limit((input.limit ?? 3) * 4);
+
+  const scoped =
+    isSub && visibleIds
+      ? rows.filter((r) => visibleIds!.has(r.id))
+      : rows;
+
+  return scoped.slice(0, input.limit ?? 3).map((r) => ({
+    meetingId: r.id,
+    numberLabel: padMeetingNumber(r.sequentialNumber),
+    title: r.title,
+    type: r.type as MeetingType,
+    scheduledAt: r.scheduledAt.toISOString(),
+    finalizedAt: r.finalizedAt!.toISOString(),
+  }));
 }

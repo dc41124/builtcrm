@@ -14,6 +14,7 @@ import {
   ATTENDEE_SCOPE_LABEL,
   Icon,
   MeetingTypePill,
+  RSVP_LABEL,
   StatusPill,
   formatDateShort,
   formatScheduledFull,
@@ -23,7 +24,7 @@ import {
 type Tab = "agenda" | "attendees" | "minutes" | "my-actions";
 
 // Sub-portal detail view. Read-mostly with three write paths:
-//   1. RSVP for my own slot (pill-group in the hero)
+//   1. RSVP for my own slot (pill-group in the hero, scheduled only)
 //   2. Status change on action items assigned to me or my org
 //   3. Nothing else — agenda, attendees, minutes are read-only.
 // Pattern matches the JSX prototype's "sub-detail" screen.
@@ -41,7 +42,9 @@ export function SubMeetingDetailUI({
   const portalBase = `/subcontractor/project/${projectId}`;
   const [tab, setTab] = useState<Tab>("agenda");
 
-  // Find "my" attendee row — may be by userId or org match.
+  // Find "my" attendee row — first non-chair. A future refinement can
+  // pass the viewer's userId in via props to pin this precisely when
+  // the sub's org has multiple attendees on one meeting.
   const myAttendee =
     detail.attendees.find((a) => a.isChair === false) ?? null;
   const myRsvp: AttendedStatus | null = myAttendee?.attendedStatus ?? null;
@@ -95,28 +98,106 @@ export function SubMeetingDetailUI({
     router.refresh();
   };
 
-  const myActions = detail.actionItems.filter((a) => {
-    // Sub's own + their org's assignments.
-    return a.assignedUserId !== null || a.assignedOrgId !== null;
-  });
+  const myActions = detail.actionItems.filter(
+    (a) => a.assignedUserId !== null || a.assignedOrgId !== null,
+  );
+  const openMyActions = myActions.filter((a) => a.status !== "done");
 
   const scheduledFull = formatScheduledFull(detail.scheduledAt);
   const minutesPublished = !!detail.minutes?.finalizedAt;
+  const totalEst = detail.agenda.reduce((s, a) => s + a.estimatedMinutes, 0);
+  const acceptedCount = detail.attendees.filter(
+    (a) => a.attendedStatus === "accepted",
+  ).length;
+
+  const addToCalendar = () => {
+    const dt = new Date(detail.scheduledAt);
+    const end = new Date(dt.getTime() + detail.durationMinutes * 60_000);
+    const fmt = (d: Date) =>
+      d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+    const ics = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//BuiltCRM//Meetings//EN",
+      "BEGIN:VEVENT",
+      `UID:${meetingId}@builtcrm`,
+      `DTSTAMP:${fmt(new Date())}`,
+      `DTSTART:${fmt(dt)}`,
+      `DTEND:${fmt(end)}`,
+      `SUMMARY:${detail.numberLabel} · ${detail.title}`,
+      `DESCRIPTION:Chaired by ${detail.chairName ?? ""}${detail.chairOrgName ? ` (${detail.chairOrgName})` : ""}`,
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${detail.numberLabel}.ics`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const printMinutes = () => {
+    // Browser-native print-to-PDF is the portfolio-grade path here;
+    // server-side PDF rendering can come later. We open a print view
+    // scoped to the minutes content.
+    const w = window.open("", "_blank", "width=800,height=900");
+    if (!w) return;
+    const title = `${detail.numberLabel} — ${detail.title}`;
+    w.document.write(`<!doctype html><html><head><title>${escapeHtml(title)}</title>
+<style>body{font-family:'Instrument Sans',system-ui,sans-serif;padding:32px;max-width:720px;margin:0 auto;line-height:1.55;color:#111}h1{font-family:'DM Sans',sans-serif;font-weight:760;font-size:20px;margin:0 0 4px}h2{font-family:'DM Sans',sans-serif;font-weight:620;font-size:13px;color:#555;margin:0 0 24px}pre{font-family:inherit;white-space:pre-wrap;font-size:13.5px}</style></head><body>
+<h1>${escapeHtml(detail.title)}</h1>
+<h2>${escapeHtml(detail.numberLabel)} · ${escapeHtml(scheduledFull)} · Chaired by ${escapeHtml(detail.chairName ?? "—")}</h2>
+<pre>${escapeHtml(detail.minutes?.content ?? "")}</pre>
+</body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 150);
+  };
+
+  const showRsvp = detail.status === "scheduled";
 
   return (
     <>
       <div className="mt-page-hdr">
-        <div>
-          <Link
-            href={`${portalBase}/meetings`}
-            className="mt-btn ghost sm"
-            style={{ marginBottom: 6 }}
-          >
-            {Icon.back} All meetings
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Link href={`${portalBase}/meetings`} className="mt-btn sm ghost">
+            {Icon.back} Back
           </Link>
-          <h1 className="mt-page-title" style={{ fontSize: 22 }}>
-            {detail.title}
-          </h1>
+          <div
+            className="mt-crumbs"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 12.5,
+              color: "var(--text-tertiary)",
+            }}
+          >
+            <span>Meetings</span>
+            {Icon.chevR}
+            <strong
+              style={{
+                color: "var(--text-primary)",
+                fontFamily: '"JetBrains Mono", monospace',
+                fontWeight: 600,
+              }}
+            >
+              {detail.numberLabel}
+            </strong>
+          </div>
+        </div>
+        <div className="mt-page-actions">
+          <button
+            type="button"
+            className="mt-btn sm"
+            onClick={addToCalendar}
+          >
+            {Icon.calendar} Add to calendar
+          </button>
         </div>
       </div>
 
@@ -124,105 +205,118 @@ export function SubMeetingDetailUI({
         <div className="mt-detail-main">
           <section className="mt-detail-hero">
             <div className="mt-detail-hero-top">
-              <div className="mt-detail-hero-left">
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    marginBottom: 4,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontFamily: '"JetBrains Mono", monospace',
-                      fontSize: 12,
-                      color: "var(--text-secondary)",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {detail.numberLabel}
-                  </span>
-                  <MeetingTypePill type={detail.type as MeetingType} />
-                  <StatusPill status={detail.status} />
-                </div>
+              <div className="mt-detail-hero-left" style={{ flex: 1 }}>
                 <h2>{detail.title}</h2>
                 <div className="mt-detail-hero-meta">
-                  <span>
-                    {Icon.calendar} {scheduledFull}
+                  <MeetingTypePill type={detail.type as MeetingType} />
+                  <StatusPill status={detail.status} />
+                  <span>·</span>
+                  <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                    {Icon.calendar} <strong>{scheduledFull}</strong>
                   </span>
-                  <span>
-                    {Icon.clock} {detail.durationMinutes}m
+                  <span>·</span>
+                  <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                    {Icon.clock} {detail.durationMinutes} min
                   </span>
+                  <span>·</span>
                   <span>
-                    {Icon.user} Chair:{" "}
-                    <strong>{detail.chairName ?? "—"}</strong>
+                    Chaired by <strong>{detail.chairName ?? "—"}</strong>
                   </span>
                 </div>
               </div>
-              <div className="mt-hero-rsvp-wrap">
-                <span className="mt-hero-rsvp-label">Your RSVP</span>
-                <div
-                  className={`mt-rsvp-group${myRsvp === "invited" ? " pending" : ""}`}
-                >
-                  <button
-                    type="button"
-                    className={`mt-rsvp-group-btn accepted${myRsvp === "accepted" ? " active" : ""}`}
-                    disabled={
-                      rsvpSaving ||
-                      detail.status === "completed" ||
-                      detail.status === "cancelled"
-                    }
-                    onClick={() => setRsvp("accepted")}
+              {showRsvp ? (
+                <div className="mt-hero-rsvp-wrap">
+                  <div className="mt-hero-rsvp-label">Your RSVP</div>
+                  <div
+                    className={`mt-rsvp-group${myRsvp === "invited" || !myRsvp ? " pending" : ""}`}
                   >
-                    {Icon.check} Accept
-                  </button>
-                  <button
-                    type="button"
-                    className={`mt-rsvp-group-btn tentative${myRsvp === "tentative" ? " active" : ""}`}
-                    disabled={
-                      rsvpSaving ||
-                      detail.status === "completed" ||
-                      detail.status === "cancelled"
-                    }
-                    onClick={() => setRsvp("tentative")}
-                  >
-                    Tentative
-                  </button>
-                  <button
-                    type="button"
-                    className={`mt-rsvp-group-btn declined${myRsvp === "declined" ? " active" : ""}`}
-                    disabled={
-                      rsvpSaving ||
-                      detail.status === "completed" ||
-                      detail.status === "cancelled"
-                    }
-                    onClick={() => setRsvp("declined")}
-                  >
-                    {Icon.x} Decline
-                  </button>
+                    <button
+                      type="button"
+                      className={`mt-rsvp-group-btn accepted${myRsvp === "accepted" ? " active" : ""}`}
+                      disabled={rsvpSaving}
+                      onClick={() => setRsvp("accepted")}
+                    >
+                      {Icon.check} Accept
+                    </button>
+                    <button
+                      type="button"
+                      className={`mt-rsvp-group-btn tentative${myRsvp === "tentative" ? " active" : ""}`}
+                      disabled={rsvpSaving}
+                      onClick={() => setRsvp("tentative")}
+                    >
+                      {Icon.dash} Tentative
+                    </button>
+                    <button
+                      type="button"
+                      className={`mt-rsvp-group-btn declined${myRsvp === "declined" ? " active" : ""}`}
+                      disabled={rsvpSaving}
+                      onClick={() => setRsvp("declined")}
+                    >
+                      {Icon.x} Decline
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </div>
             <div className="mt-detail-summary">
               <div className="mt-summary-item">
+                <div className="mt-summary-label">Agenda items</div>
+                <div className="mt-summary-val">{detail.agenda.length}</div>
+                <div className="mt-summary-sub">{totalEst} min estimated</div>
+              </div>
+              <div className="mt-summary-item">
                 <div className="mt-summary-label">Attendees</div>
-                <div className="mt-summary-val">{detail.attendeeCount}</div>
+                <div className="mt-summary-val">{detail.attendees.length}</div>
+                <div className="mt-summary-sub">
+                  {acceptedCount} accepted
+                </div>
               </div>
               <div className="mt-summary-item">
-                <div className="mt-summary-label">Agenda</div>
-                <div className="mt-summary-val">{detail.agendaCount}</div>
-              </div>
-              <div className="mt-summary-item">
-                <div className="mt-summary-label">Your actions</div>
-                <div className="mt-summary-val">
-                  {myActions.filter((a) => a.status !== "done").length}
+                <div className="mt-summary-label">My action items</div>
+                <div
+                  className="mt-summary-val"
+                  style={{
+                    color:
+                      myActions.filter(
+                        (a) =>
+                          a.status !== "done" &&
+                          a.dueDate &&
+                          new Date(a.dueDate) < new Date(),
+                      ).length > 0
+                        ? "var(--er)"
+                        : undefined,
+                  }}
+                >
+                  {openMyActions.length}
+                </div>
+                <div className="mt-summary-sub">
+                  {myActions.length === 0
+                    ? "none assigned to you"
+                    : `${myActions.filter((a) => a.status === "done").length} completed`}
                 </div>
               </div>
               <div className="mt-summary-item">
                 <div className="mt-summary-label">Minutes</div>
-                <div className="mt-summary-val" style={{ fontSize: 14 }}>
-                  {minutesPublished ? "Published" : "Pending"}
+                <div
+                  className="mt-summary-val"
+                  style={{ fontSize: 15, fontWeight: 720 }}
+                >
+                  {detail.status === "completed"
+                    ? minutesPublished
+                      ? "Published"
+                      : "Pending"
+                    : detail.status === "in_progress"
+                      ? "Drafting"
+                      : "Pending"}
+                </div>
+                <div className="mt-summary-sub">
+                  {detail.status === "completed" && minutesPublished
+                    ? "by the chair"
+                    : detail.status === "scheduled"
+                      ? "after the meeting"
+                      : detail.status === "in_progress"
+                        ? "live now"
+                        : "—"}
                 </div>
               </div>
             </div>
@@ -232,19 +326,29 @@ export function SubMeetingDetailUI({
             <div className="mt-detail-tab-bar">
               {(
                 [
-                  ["agenda", "Agenda", detail.agenda.length],
-                  ["attendees", "Attendees", detail.attendees.length],
-                  ["minutes", "Minutes", null],
-                  ["my-actions", "My actions", myActions.length],
-                ] as Array<[Tab, string, number | null]>
-              ).map(([k, label, count]) => (
+                  ["agenda", "Agenda", detail.agenda.length, Icon.list],
+                  [
+                    "attendees",
+                    "Attendees",
+                    detail.attendees.length,
+                    Icon.users,
+                  ],
+                  ["minutes", "Minutes", null, Icon.edit],
+                  [
+                    "my-actions",
+                    "My actions",
+                    myActions.length,
+                    Icon.clipboard,
+                  ],
+                ] as Array<[Tab, string, number | null, React.ReactNode]>
+              ).map(([k, label, count, icon]) => (
                 <button
                   key={k}
                   type="button"
                   className={`mt-detail-tab${tab === k ? " active" : ""}`}
                   onClick={() => setTab(k)}
                 >
-                  {label}
+                  {icon} {label}
                   {count !== null ? (
                     <span className="mt-detail-tab-count">{count}</span>
                   ) : null}
@@ -257,6 +361,9 @@ export function SubMeetingDetailUI({
                 <div>
                   <div className="mt-detail-tab-hdr">
                     <h3>Agenda</h3>
+                    <span className="mt-tab-hdr-meta">
+                      {totalEst} min estimated · read-only
+                    </span>
                   </div>
                   {detail.agenda.length === 0 ? (
                     <div className="mt-empty">
@@ -276,7 +383,7 @@ export function SubMeetingDetailUI({
                               <span className="mt-agenda-title">{a.title}</span>
                               {a.carriedFromLabel ? (
                                 <span className="mt-carry-pill">
-                                  {Icon.arrowR} From {a.carriedFromLabel}
+                                  {Icon.arrowR} Carry-forward
                                 </span>
                               ) : null}
                             </div>
@@ -295,7 +402,7 @@ export function SubMeetingDetailUI({
                               <span className="mt-agenda-meta-item">
                                 {Icon.clock}
                                 <span className="mt-agenda-est">
-                                  {a.estimatedMinutes}m
+                                  {a.estimatedMinutes} min
                                 </span>
                               </span>
                             </div>
@@ -310,7 +417,8 @@ export function SubMeetingDetailUI({
               {tab === "attendees" ? (
                 <div>
                   <div className="mt-detail-tab-hdr">
-                    <h3>Attendees ({detail.attendees.length})</h3>
+                    <h3>Attendees</h3>
+                    <span className="mt-tab-hdr-meta">read-only</span>
                   </div>
                   <div className="mt-att-grid">
                     {detail.attendees.map((a) => (
@@ -326,7 +434,7 @@ export function SubMeetingDetailUI({
                             <div className="mt-att-role">
                               {a.roleLabel ? <span>{a.roleLabel}</span> : null}
                               {a.orgName ? (
-                                <span className="mt-att-org">{a.orgName}</span>
+                                <span className="mt-att-org">· {a.orgName}</span>
                               ) : null}
                               <span className={`mt-att-scope ${a.scope}`}>
                                 {ATTENDEE_SCOPE_LABEL[a.scope]}
@@ -335,16 +443,11 @@ export function SubMeetingDetailUI({
                           </div>
                           <span className={`mt-att-rsvp ${a.attendedStatus}`}>
                             {a.attendedStatus === "accepted"
-                              ? "Accepted"
+                              ? Icon.check
                               : a.attendedStatus === "declined"
-                                ? "Declined"
-                                : a.attendedStatus === "tentative"
-                                  ? "Tentative"
-                                  : a.attendedStatus === "attended"
-                                    ? "Attended"
-                                    : a.attendedStatus === "absent"
-                                      ? "Absent"
-                                      : "Invited"}
+                                ? Icon.x
+                                : null}
+                            {RSVP_LABEL[a.attendedStatus] ?? a.attendedStatus}
                           </span>
                         </div>
                       </div>
@@ -356,16 +459,33 @@ export function SubMeetingDetailUI({
               {tab === "minutes" ? (
                 <div>
                   <div className="mt-detail-tab-hdr">
-                    <h3>Minutes {minutesPublished ? "(published)" : ""}</h3>
+                    <h3>
+                      Meeting minutes {minutesPublished ? "(published)" : ""}
+                    </h3>
+                    {detail.status === "completed" && minutesPublished ? (
+                      <button
+                        type="button"
+                        className="mt-btn xs ghost"
+                        onClick={printMinutes}
+                      >
+                        {Icon.copy} Export PDF
+                      </button>
+                    ) : null}
                   </div>
                   {minutesPublished && detail.minutes ? (
                     <div className="mt-minutes-readonly">
                       {detail.minutes.content}
                     </div>
+                  ) : detail.status === "in_progress" ? (
+                    <div className="mt-minutes-readonly-pending">
+                      Minutes are being taken live. They will appear here
+                      once the chair finalizes them.
+                    </div>
                   ) : (
                     <div className="mt-minutes-readonly-pending">
-                      Minutes haven&apos;t been published yet. You&apos;ll be
-                      notified once the chair finalizes them.
+                      Minutes will be published here after the meeting.
+                      You&apos;ll receive an email notification when
+                      they&apos;re available.
                     </div>
                   )}
                 </div>
@@ -374,69 +494,76 @@ export function SubMeetingDetailUI({
               {tab === "my-actions" ? (
                 <div>
                   <div className="mt-detail-tab-hdr">
-                    <h3>Your action items ({myActions.length})</h3>
+                    <h3>Action items assigned to your team</h3>
+                    <span className="mt-tab-hdr-meta">
+                      {openMyActions.length} open ·{" "}
+                      {myActions.filter((a) => a.status === "done").length}{" "}
+                      completed
+                    </span>
                   </div>
                   {myActions.length === 0 ? (
-                    <div className="mt-empty">
-                      <h3>Nothing owed from this meeting</h3>
-                      <p>No action items were assigned to you or your org.</p>
+                    <div className="mt-minutes-readonly-pending">
+                      No action items from this meeting are assigned to your
+                      team.
                     </div>
                   ) : (
                     <div className="mt-actions-table">
                       <div className="mt-actions-table-hdr">
                         <div>Description</div>
-                        <div>Assignee</div>
                         <div>Due</div>
                         <div>Status</div>
+                        <div>Carried from</div>
                         <div></div>
                       </div>
-                      {myActions.map((a) => (
-                        <div key={a.id} className="mt-actions-row">
-                          <div className="mt-actions-desc">
-                            <div className="mt-actions-desc-main">
+                      {myActions.map((a) => {
+                        const dueStatus = dueStatusOf(a.dueDate, a.status);
+                        return (
+                          <div key={a.id} className="mt-actions-row">
+                            <div className="mt-actions-desc">
                               {a.description}
                             </div>
-                            {a.carriedFromLabel ? (
-                              <div className="mt-actions-desc-carried">
-                                {Icon.arrowR} Carried from {a.carriedFromLabel}
-                              </div>
-                            ) : null}
-                          </div>
-                          <div className="mt-actions-assignee">
-                            <span className="mt-actions-assignee-name">
-                              {a.assignedUserName ?? "—"}
-                            </span>
-                            {a.assignedOrgName ? (
-                              <span className="mt-actions-assignee-org">
-                                {a.assignedOrgName}
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className="mt-actions-due">
-                            {formatDateShort(a.dueDate)}
-                          </div>
-                          <div>
-                            <select
-                              className={`mt-actions-status-sel ${a.status}`}
-                              value={a.status}
-                              onChange={(e) =>
-                                updateActionStatus(
-                                  a.id,
-                                  e.target.value as
-                                    | "open"
-                                    | "in_progress"
-                                    | "done",
-                                )
-                              }
+                            <div
+                              className={`mt-actions-due${dueStatus ? ` ${dueStatus}` : ""}`}
                             >
-                              <option value="open">Open</option>
-                              <option value="in_progress">In Progress</option>
-                              <option value="done">Done</option>
-                            </select>
+                              {formatDateShort(a.dueDate)}
+                              {dueStatus === "overdue"
+                                ? " · overdue"
+                                : dueStatus === "soon"
+                                  ? " · soon"
+                                  : ""}
+                            </div>
+                            <div>
+                              <select
+                                className={`mt-actions-status-sel ${a.status}`}
+                                value={a.status}
+                                onChange={(e) =>
+                                  updateActionStatus(
+                                    a.id,
+                                    e.target.value as
+                                      | "open"
+                                      | "in_progress"
+                                      | "done",
+                                  )
+                                }
+                              >
+                                <option value="open">Open</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="done">Done</option>
+                              </select>
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: "var(--text-tertiary)",
+                                fontWeight: 540,
+                              }}
+                            >
+                              {a.carriedFromLabel ?? "—"}
+                            </div>
+                            <div></div>
                           </div>
-                          <div></div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -448,34 +575,183 @@ export function SubMeetingDetailUI({
         <aside className="mt-rail">
           <div className="mt-rail-card">
             <div className="mt-rail-hdr">
-              <h4>{Icon.info} About this meeting</h4>
+              <h4>{Icon.info} Your role</h4>
             </div>
-            <div style={{ padding: "12px 14px", fontSize: 12 }}>
-              <div style={{ marginBottom: 8 }}>
-                <div
-                  style={{
-                    fontFamily: '"DM Sans", sans-serif',
-                    fontWeight: 680,
-                    fontSize: 10.5,
-                    color: "var(--text-tertiary)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    marginBottom: 3,
-                  }}
-                >
-                  Project
-                </div>
-                <div style={{ fontWeight: 640 }}>{detail.project.name}</div>
-              </div>
-              {detail.status === "cancelled" && detail.cancelledReason ? (
-                <div className="mt-att-decline-note">
-                  {Icon.info} <span>{detail.cancelledReason}</span>
-                </div>
-              ) : null}
+            <div
+              style={{
+                padding: "12px 14px",
+                fontSize: 12,
+                color: "var(--text-secondary)",
+                fontWeight: 540,
+                lineHeight: 1.55,
+              }}
+            >
+              You can RSVP, read the agenda and minutes, and update the
+              status of action items assigned to your team. Only the chair
+              can edit meeting details.
             </div>
           </div>
+
+          {detail.status === "scheduled" ? (
+            <div className="mt-rail-card">
+              <div className="mt-rail-hdr">
+                <h4>{Icon.calendar} Before the meeting</h4>
+              </div>
+              <div
+                style={{
+                  padding: "12px 14px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  fontSize: 12,
+                  color: "var(--text-secondary)",
+                  fontWeight: 540,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <span
+                    style={{
+                      color:
+                        detail.agenda.length > 0
+                          ? "var(--ok)"
+                          : "var(--text-tertiary)",
+                      marginTop: 2,
+                    }}
+                  >
+                    {detail.agenda.length > 0 ? Icon.check : Icon.dash}
+                  </span>
+                  <span>Review the agenda above</span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <span
+                    style={{
+                      color:
+                        myRsvp && myRsvp !== "invited"
+                          ? "var(--ok)"
+                          : "var(--text-tertiary)",
+                      marginTop: 2,
+                    }}
+                  >
+                    {myRsvp && myRsvp !== "invited" ? Icon.check : Icon.dash}
+                  </span>
+                  <span>
+                    RSVP{" "}
+                    {myRsvp && myRsvp !== "invited"
+                      ? `(${RSVP_LABEL[myRsvp]})`
+                      : "— pending"}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <span
+                    style={{
+                      color:
+                        openMyActions.length === 0
+                          ? "var(--ok)"
+                          : "var(--text-tertiary)",
+                      marginTop: 2,
+                    }}
+                  >
+                    {openMyActions.length === 0 ? Icon.check : Icon.dash}
+                  </span>
+                  <span>
+                    Close out overdue action items from prior meetings
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {detail.status === "completed" ? (
+            <div className="mt-rail-card">
+              <div className="mt-rail-hdr">
+                <h4>{Icon.sparkle} Follow-up</h4>
+              </div>
+              <div
+                style={{
+                  padding: "12px 14px",
+                  fontSize: 12,
+                  color: "var(--text-secondary)",
+                  fontWeight: 540,
+                  lineHeight: 1.55,
+                }}
+              >
+                {openMyActions.length > 0 ? (
+                  <>
+                    You have{" "}
+                    <strong style={{ color: "var(--wr)" }}>
+                      {openMyActions.length} open action item
+                      {openMyActions.length === 1 ? "" : "s"}
+                    </strong>{" "}
+                    from this meeting. Update status as you make progress.
+                  </>
+                ) : (
+                  <>No outstanding action items from this meeting.</>
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          {detail.status === "cancelled" && detail.cancelledReason ? (
+            <div className="mt-rail-card">
+              <div className="mt-rail-hdr">
+                <h4>{Icon.info} Cancelled</h4>
+              </div>
+              <div
+                style={{
+                  padding: "12px 14px",
+                  fontSize: 12,
+                  color: "var(--text-secondary)",
+                  fontWeight: 540,
+                  lineHeight: 1.55,
+                }}
+              >
+                {detail.cancelledReason}
+              </div>
+            </div>
+          ) : null}
         </aside>
       </div>
     </>
   );
+}
+
+function dueStatusOf(
+  date: string | null,
+  status: "open" | "in_progress" | "done",
+): "overdue" | "soon" | null {
+  if (!date || status === "done") return null;
+  const d = new Date(date);
+  const now = new Date();
+  const diffDays = Math.floor(
+    (d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  if (diffDays < 0) return "overdue";
+  if (diffDays <= 3) return "soon";
+  return null;
+}
+
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }

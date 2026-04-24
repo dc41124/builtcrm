@@ -12,6 +12,8 @@ import {
 } from "@/db/schema";
 import {
   getMeeting,
+  getMeetingActivity,
+  type MeetingActivityRow,
   type MeetingDetail,
 } from "@/domain/loaders/meetings";
 import { AuthorizationError } from "@/domain/permissions";
@@ -29,10 +31,16 @@ export default async function ContractorMeetingDetailPage({
   if (!session) redirect("/login");
 
   let detail: MeetingDetail | null = null;
+  let activity: MeetingActivityRow[] = [];
   try {
     detail = await getMeeting({
       session: session.session as unknown as { appUserId?: string | null },
       meetingId,
+    });
+    activity = await getMeetingActivity({
+      session: session.session as unknown as { appUserId?: string | null },
+      projectId,
+      limit: 8,
     });
   } catch (err) {
     if (err instanceof AuthorizationError) {
@@ -93,6 +101,7 @@ export default async function ContractorMeetingDetailPage({
         meetingId={meetingId}
         detail={detail}
         people={people}
+        activity={activity}
         viewerRole="contractor"
       />
     </div>

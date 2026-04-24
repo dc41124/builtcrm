@@ -11,7 +11,12 @@ import {
   roleAssignments,
   users,
 } from "@/db/schema";
-import { getMeetings, type MeetingListRow } from "@/domain/loaders/meetings";
+import {
+  getMeetingActivity,
+  getMeetings,
+  type MeetingActivityRow,
+  type MeetingListRow,
+} from "@/domain/loaders/meetings";
 import { AuthorizationError } from "@/domain/permissions";
 
 import { MeetingsWorkspace } from "./workspace";
@@ -27,12 +32,18 @@ export default async function ContractorMeetingsPage({
   if (!session) redirect("/login");
 
   let rows: MeetingListRow[] = [];
+  let activity: MeetingActivityRow[] = [];
   let projectName = "";
   try {
-    const [view, projRow] = await Promise.all([
+    const [view, act, projRow] = await Promise.all([
       getMeetings({
         session: session.session as unknown as { appUserId?: string | null },
         projectId,
+      }),
+      getMeetingActivity({
+        session: session.session as unknown as { appUserId?: string | null },
+        projectId,
+        limit: 10,
       }),
       db
         .select({ name: projects.name })
@@ -41,6 +52,7 @@ export default async function ContractorMeetingsPage({
         .limit(1),
     ]);
     rows = view.rows;
+    activity = act;
     projectName = projRow[0]?.name ?? "";
   } catch (err) {
     if (err instanceof AuthorizationError) {
@@ -167,6 +179,7 @@ export default async function ContractorMeetingsPage({
         projectId={projectId}
         projectName={projectName}
         rows={rows}
+        activity={activity}
         people={people}
       />
     </div>
