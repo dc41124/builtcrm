@@ -149,9 +149,9 @@ Each of these was explicitly deferred during the step-1 hardening pass. Entries 
 **Unblocker:** product decision on display and access policy.
 
 ### `webhook_events.payload` retention
-**Status:** plaintext, unbounded retention.
-**Why deferred:** encryption hurts debuggability (no more `SELECT payload` when investigating); retention TTL achieves the same leak-bound goal with less friction.
-**Unblocker:** decide TTL window (30/60/90 days) and implement a scheduled purge job.
+**Status:** RESOLVED (2026-04-23). 90-day scheduled purge via [src/jobs/webhook-payload-purge.ts](../../src/jobs/webhook-payload-purge.ts). Only `processed` / `delivered` rows get purged; failure states (`exhausted`, `*_failed`, `retrying`) retain indefinitely for forensics. Each run writes a batch-level audit event (`webhook-payload-purge.run_complete` with `deletedCount`).
+**Why deferred originally:** encryption would have hurt debuggability; retention TTL achieves the same leak-bound goal with less friction.
+**Residual:** failure-state rows retain payloads indefinitely. Acceptable because their volume is low and they carry diagnostic value a human needs to trace.
 
 ### `auth_account.{access,refresh,id}_token` encryption config
 **Status:** `encryptOAuthTokens: true` is set, but the columns are always NULL today because no social providers are configured.
@@ -167,6 +167,11 @@ Each of these was explicitly deferred during the step-1 hardening pass. Entries 
 **Status:** not provisioned.
 **Why deferred:** YAGNI. No current consumer (no analytics pipeline, no reporting connection).
 **Unblocker:** first real consumer — provision then.
+
+### Per-refresh OAuth audit events
+**Status:** open.
+**Why gap exists:** `src/lib/integrations/oauth.ts` `refreshToken()` doesn't currently write a per-invocation audit event. The `integration-token-refresh` scheduled job writes a batch-level audit with `checked / refreshed / failed` counts (sufficient for compliance), but individual refresh success/failure rows would be useful for incident triage ("which specific connection started failing on date X").
+**Unblocker:** dedicated small pass on `oauth.ts` to emit `oauth.refresh.success` / `oauth.refresh.failure` per connection. Out of scope for the Step 4 hardening — that step was explicitly batch-level.
 
 ### Fresh-env bootstrap flow
 **Status:** documented but untested. [docs/specs/bootstrap_new_env.md](bootstrap_new_env.md) walks through the full sequence: role creation in Neon, env vars, `scripts/new-env-bootstrap.sql` for extension + default privileges, `npm run db:migrate` to apply the baseline. Script is idempotent.
@@ -192,7 +197,31 @@ When adding a new Better Auth config, ask: *does this setting affect data-at-res
 
 ---
 
-## 8. Changelog
+## 8. Zero Trust 6-Pillars mapping
+
+Microsoft's Zero Trust framework maps security controls across six pillars. This isn't a framework we "implement" — it's a self-check. Current posture by pillar:
+
+| Pillar | Current posture | Gaps |
+|---|---|---|
+| **Identity** | Better Auth with email+password, 2FA (TOTP+backup codes, encrypted at rest via Better Auth plugin default), SSO scaffolded for Enterprise (SAML), per-org 2FA-required gate, per-org session-timeout cap, [session tokens hashed/moved-to-Redis](#4-session-storage-upstash-secondary-storage), [invitation tokens SHA-256 at rest](#2-data-at-rest-protections-table-by-table) | Idle-based session timeout (wall-clock only today); user-initiated account deletion not yet surfaced |
+| **Data** | AES-256-GCM for OAuth integration tokens, Better Auth master-key encryption for 2FA/OAuth-login tokens, SHA-256 hashes for verification identifiers + invitation tokens, bounded 90-day retention on webhook payloads, Neon disk encryption at rest, TLS in transit everywhere | `tax_id` still plaintext (policy-pending); no column-level masking; no user-deletion / anonymization primitive |
+| **Apps** | Backend-mediated authorization via the single `getEffectiveContext()` chokepoint; policy matrix in `src/domain/permissions.ts`; input validation via Zod on all mutation routes; global API error boundary in `src/lib/api/error-handler.ts` (sanitized 500s, no stack-trace leak); rate limiting on auth + invitation endpoints via `@upstash/ratelimit` | Input validation not 100% uniform across read endpoints (~5% gap, code hygiene not risk); opportunistic error-handler retrofit of the remaining ~170 routes still to do |
+| **Infrastructure** | Two-role DB privilege split (`builtcrm_app` DML-only runtime, `builtcrm_admin` DDL); secrets in .env.local and Neon/Upstash consoles; Sentry error monitoring (opt-in via DSN); comprehensive audit logging via `audit_events` + `writeSystemAuditEvent` for background jobs; all managed services (Neon, Upstash, R2, Render) handle underlying platform security | No RLS (deferred — see §6); no formal incident response plan documented; source-map upload to Sentry not wired (deferred until deploy time) |
+| **Network** | TLS-only connections (Neon requires it, Upstash requires it, R2 via HTTPS); CSRF protection via Better Auth's state cookie + SameSite cookies; rate limiting defends auth endpoints at the network edge | No WAF in front of the origin; no explicit IP-allowlist support for admin functions |
+| **Devices** | Out of scope — no employee device management, no MDM. N/A until the project has employees accessing prod. | Not applicable pre-employee. |
+
+This mapping is maintained manually — update it when any of the above statements become false. The per-control detail lives elsewhere in this doc (§§1–7); this table is the index.
+
+---
+
+## 9. Changelog
 
 - **2026-04-23** — Initial version. Captures step-1 hardening decisions: Upstash secondary storage for sessions, `verification.storeIdentifier: "hashed"`, `account.encryptOAuthTokens: true`, `invitations.token` SHA-256 at rest, two-role DB privilege split (`builtcrm_app` + `builtcrm_admin`), `BETTER_AUTH_SECRET` master-key model.
 - **2026-04-23** — Baseline collapse (Option A). 27 hand-authored migrations flattened into a single `0000_baseline.sql` + drizzle-kit-native `meta/_journal.json` + snapshot. 8 FKs whose long-form auto-names exceeded Postgres' 63-char limit were renamed to short-form (`{src}_{col}_fk`) and declared explicitly via `foreignKey({...name})` to prevent drift. Routine schema changes now flow through `npm run db:generate` + `npm run db:migrate`; `scripts/apply-sql.ts` remains for one-off SQL. Fresh-env setup flow (new prod DB or Neon branch requires role creation + pgcrypto + `ALTER DEFAULT PRIVILEGES` before baseline) is documented here as a known gap — see §6.
+- **2026-04-23** — Observability and hardening sprint (six-step, commits `84807ae` through `f56929c`).
+  - **Step 1**: Global API error handler (`src/lib/api/error-handler.ts`) with SYSTEM_USER_ID audit path (`writeSystemAuditEvent` sibling to `writeAuditEvent`). Retrofitted 3 high-traffic routes; rest migrate opportunistically.
+  - **Step 2**: Rate limiting via `@upstash/ratelimit` (10/min auth, 30/min invites) on `/api/auth/*` + 4 invitation-family routes. IP-keyed sliding window.
+  - **Step 3**: Sentry Next.js SDK across server/edge/client runtimes. DSN-optional (no-ops cleanly when unset). Session replay deliberately disabled — tax ID / financial data in the DOM.
+  - **Step 4**: Batch-level audit events at run completion for 4 scheduled jobs that were making state changes without audit trail. Consolidated `@sentry/nextjs` v10 deprecation fixes while in neighborhood.
+  - **Step 5**: 90-day retention purge for `webhook_events` payloads (`src/jobs/webhook-payload-purge.ts`). Failure-state rows retained indefinitely for forensics; success-state rows aged out per SOC 2 TSC retention expectations.
+  - **Step 6** (this entry): `security_posture.md` §6 updated to reflect resolved gaps + new per-refresh-OAuth-audit backlog item; new §8 Zero Trust 6-Pillars mapping; `docs/specs/compliance_map.md` added as portfolio artifact.

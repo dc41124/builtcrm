@@ -104,6 +104,7 @@ docs/            # Architecture specs and reference docs
 - **Technical architecture:** `@docs/specs/technical_architecture_prep.pdf` — service boundaries, auth shape, storage model
 - **Integration spec:** `@docs/specs/integration_architecture_spec.md` — accounting, Stripe, email, calendar, webhooks
 - **Security posture:** `@docs/specs/security_posture.md` — threat model, data-at-rest mechanisms, master-key rotation impact, known gaps
+- **Compliance map:** `@docs/specs/compliance_map.md` — SOC 2 TSC (Security + Confidentiality + Privacy) criterion-by-criterion coverage; portfolio artifact
 - **Fresh-env bootstrap:** `@docs/specs/bootstrap_new_env.md` — step-by-step provisioning for a new DB (prod, new Neon branch, fresh dev)
 - **Schema draft notes:** `@docs/specs/schema_draft_v1.pdf` — design rules and ID strategy
 - **Design mockups:** `@docs/design/*.html` — 24 production HTML mockups (feature spec, not implementation target)
