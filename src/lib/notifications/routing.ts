@@ -312,6 +312,75 @@ export function renderNotification(
       };
     }
 
+    // ── Meetings ─────────────────────────────────────────────────
+    case "meeting_invite":
+      return {
+        title: `Meeting invitation — ${str(v.number, "?")}`,
+        body: str(v.title)
+          ? str(v.when)
+            ? `${v.title} — ${v.when}`
+            : String(v.title)
+          : `${str(v.actorName, "The GC")} invited you to a project meeting.`,
+        linkUrl:
+          base && relatedObjectId ? `${base}/meetings/${relatedObjectId}` : base,
+      };
+    case "meeting_rsvp_change": {
+      const action =
+        str(v.rsvp) === "accepted"
+          ? "accepted"
+          : str(v.rsvp) === "declined"
+            ? "declined"
+            : str(v.rsvp) === "tentative"
+              ? "marked tentative on"
+              : "updated RSVP on";
+      const reasonSuffix =
+        str(v.rsvp) === "declined" && str(v.declineReason)
+          ? ` — "${v.declineReason}"`
+          : "";
+      return {
+        title: `${str(v.actorName, "An attendee")} ${action} ${str(v.number, "?")}`,
+        body: str(v.title)
+          ? `${v.title}${reasonSuffix}`
+          : `Meeting attendance RSVP changed${reasonSuffix}.`,
+        linkUrl:
+          base && relatedObjectId ? `${base}/meetings/${relatedObjectId}` : base,
+      };
+    }
+    case "meeting_action_assigned":
+      return {
+        title: `Action item assigned — ${str(v.number, "?")}`,
+        body: str(v.description)
+          ? str(v.dueDate)
+            ? `${v.description} — due ${v.dueDate}.`
+            : String(v.description)
+          : `A meeting left you with a new action item.`,
+        linkUrl:
+          base && relatedObjectId ? `${base}/meetings/${relatedObjectId}` : base,
+      };
+    case "meeting_action_status_change": {
+      const label =
+        str(v.status) === "done"
+          ? "marked done"
+          : str(v.status) === "in_progress"
+            ? "started work on"
+            : "updated status on";
+      return {
+        title: `${str(v.actorName, "Assignee")} ${label} an action item`,
+        body: str(v.description) ? String(v.description) : null,
+        linkUrl:
+          base && relatedObjectId ? `${base}/meetings/${relatedObjectId}` : base,
+      };
+    }
+    case "meeting_minutes_published":
+      return {
+        title: `Minutes published — ${str(v.number, "?")}`,
+        body: str(v.title)
+          ? `${v.title} — ${str(v.actorName, "The chair")} finalized the minutes.`
+          : "Minutes are ready to read.",
+        linkUrl:
+          base && relatedObjectId ? `${base}/meetings/${relatedObjectId}` : base,
+      };
+
     // ── Messages ─────────────────────────────────────────────────
     case "message_new":
       return {

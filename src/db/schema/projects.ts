@@ -134,6 +134,15 @@ export const projects = pgTable(
     longitude: numeric("longitude", { precision: 9, scale: 6 }),
     geocodedAt: timestamp("geocoded_at", { withTimezone: true }),
 
+    // Per-project counter for meeting numbering (MTG-0001, MTG-0002, …).
+    // Incremented atomically inside the create-meeting transaction via
+    // `UPDATE projects SET meeting_counter = meeting_counter + 1
+    // RETURNING` — the SELECT MAX+1 pattern loses under concurrent
+    // creates. Sequential numbering is user-facing and must be gap-free
+    // within a project; adding more counter columns here as future
+    // modules need their own sequences is fine.
+    meetingCounter: integer("meeting_counter").default(0).notNull(),
+
     ...timestamps,
   },
   (table) => ({

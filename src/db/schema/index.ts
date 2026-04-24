@@ -20,3 +20,4 @@ export * from "./procurement";
 export * from "./savedReports";
 export * from "./drawings";
 export * from "./inspections";
+export * from "./meetings";

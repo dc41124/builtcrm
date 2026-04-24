@@ -149,6 +149,31 @@ export const NOTIFICATION_GROUPS: Record<
         },
       ],
     },
+    {
+      group: "Meetings",
+      events: [
+        {
+          id: "meeting_rsvp_change",
+          label: "Attendee RSVP changed",
+          desc: "Someone you invited accepted, declined, or went tentative",
+        },
+        {
+          id: "meeting_action_status_change",
+          label: "Action item status changed",
+          desc: "An assignee moved a meeting action to in progress or done",
+        },
+        {
+          id: "meeting_minutes_published",
+          label: "Meeting minutes published",
+          desc: "Minutes were finalized and distributed to attendees",
+        },
+        {
+          id: "meeting_invite",
+          label: "Meeting invitation",
+          desc: "You were added as an attendee on a project meeting",
+        },
+      ],
+    },
   ],
   subcontractor: [
     {
@@ -238,6 +263,26 @@ export const NOTIFICATION_GROUPS: Record<
           id: "message_new",
           label: "New message",
           desc: "Anyone messages you on a project thread",
+        },
+      ],
+    },
+    {
+      group: "Meetings",
+      events: [
+        {
+          id: "meeting_invite",
+          label: "Meeting invitation",
+          desc: "The GC added you to a project meeting",
+        },
+        {
+          id: "meeting_minutes_published",
+          label: "Meeting minutes published",
+          desc: "Minutes were distributed for a meeting you attended",
+        },
+        {
+          id: "meeting_action_assigned",
+          label: "Meeting action assigned",
+          desc: "A meeting left you with an action item",
         },
       ],
     },
@@ -422,6 +467,9 @@ const CRITICAL_EMAIL_EVENTS = new Set<string>([
   "submittal_submitted",
   "submittal_returned",
   "submittal_reviewer_responded",
+  "meeting_invite",
+  "meeting_minutes_published",
+  "meeting_action_assigned",
 ]);
 
 export type NotificationPrefState = Record<
