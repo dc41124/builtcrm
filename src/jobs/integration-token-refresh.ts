@@ -1,8 +1,11 @@
+import { randomUUID } from "node:crypto";
+
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { and, eq, isNotNull, lt } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { integrationConnections } from "@/db/schema";
+import { writeSystemAuditEvent } from "@/domain/audit";
 import { refreshToken } from "@/lib/integrations/oauth";
 
 // Every 30 minutes, find connections with tokens expiring in under 5 minutes
@@ -10,8 +13,10 @@ import { refreshToken } from "@/lib/integrations/oauth";
 // the refresh window on the second-ever run for a given connection; if we
 // see expired tokens in production, tighten the cron to */15 or */10.
 //
-// Failures flip the connection to `needs_reauth` inside `refreshToken` and
-// write an `oauth.refresh.failed` audit event — no further work needed here.
+// Failures flip the connection to `needs_reauth` inside `refreshToken`.
+// Per-refresh audit events (success + failure) are a known gap in
+// src/lib/integrations/oauth.ts — backlog; this job writes a batch-level
+// audit at run completion for compliance evidence.
 //
 // The job only touches `oauth2_code` flow connections. Stripe Connect is
 // self-refreshing via the Stripe SDK and is skipped by refreshToken() itself.
@@ -67,6 +72,20 @@ export const integrationTokenRefresh = schedules.task({
       checked: due.length,
       refreshed,
       failed,
+    });
+
+    await writeSystemAuditEvent({
+      resourceType: "background_job",
+      resourceId: randomUUID(),
+      action: "integration-token-refresh.run_complete",
+      details: {
+        metadata: {
+          jobId: "integration-token-refresh",
+          checked: due.length,
+          refreshed,
+          failed,
+        },
+      },
     });
 
     return { checked: due.length, refreshed, failed };

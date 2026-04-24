@@ -1,8 +1,11 @@
+import { randomUUID } from "node:crypto";
+
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { projects } from "@/db/schema";
+import { writeSystemAuditEvent } from "@/domain/audit";
 import { generateWeeklyReport } from "@/lib/weekly-reports/generator";
 import { isMondaySendWindow } from "@/lib/weekly-reports/window";
 
@@ -80,6 +83,24 @@ export const weeklyReportGeneration = schedules.task({
         });
       }
     }
+
+    await writeSystemAuditEvent({
+      resourceType: "background_job",
+      resourceId: randomUUID(),
+      action: "weekly-report-generation.run_complete",
+      details: {
+        metadata: {
+          jobId: "weekly-report-generation",
+          evaluated,
+          generated,
+          regenerated,
+          skippedEmpty,
+          skippedLocked,
+          skippedNotMondayWindow,
+          errored,
+        },
+      },
+    });
 
     return {
       evaluated,

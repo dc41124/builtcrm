@@ -1,8 +1,11 @@
+import { randomUUID } from "node:crypto";
+
 import { schedules, logger } from "@trigger.dev/sdk/v3";
 import { and, eq, lt } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { activityFeedItems, uploadRequests } from "@/db/schema";
+import { writeSystemAuditEvent } from "@/domain/audit";
 import { redis } from "@/lib/redis";
 import { emitNotifications } from "@/lib/notifications/emit";
 
@@ -34,6 +37,18 @@ export const uploadRequestReminder = schedules.task({
     logger.info("overdue upload requests found", { count: overdue.length });
 
     if (overdue.length === 0) {
+      await writeSystemAuditEvent({
+        resourceType: "background_job",
+        resourceId: randomUUID(),
+        action: "upload-request-reminder.run_complete",
+        details: {
+          metadata: {
+            jobId: "upload-request-reminder",
+            checked: 0,
+            reminded: 0,
+          },
+        },
+      });
       return { checked: 0, reminded: 0 };
     }
 
@@ -43,6 +58,18 @@ export const uploadRequestReminder = schedules.task({
 
     if (toRemind.length === 0) {
       logger.info("all overdue requests already reminded", { total: overdue.length });
+      await writeSystemAuditEvent({
+        resourceType: "background_job",
+        resourceId: randomUUID(),
+        action: "upload-request-reminder.run_complete",
+        details: {
+          metadata: {
+            jobId: "upload-request-reminder",
+            checked: overdue.length,
+            reminded: 0,
+          },
+        },
+      });
       return { checked: overdue.length, reminded: 0 };
     }
 
@@ -103,6 +130,19 @@ export const uploadRequestReminder = schedules.task({
     logger.info("reminders written", {
       reminded: toRemind.length,
       checked: overdue.length,
+    });
+
+    await writeSystemAuditEvent({
+      resourceType: "background_job",
+      resourceId: randomUUID(),
+      action: "upload-request-reminder.run_complete",
+      details: {
+        metadata: {
+          jobId: "upload-request-reminder",
+          checked: overdue.length,
+          reminded: toRemind.length,
+        },
+      },
     });
 
     return { checked: overdue.length, reminded: toRemind.length };

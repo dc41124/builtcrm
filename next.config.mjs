@@ -22,9 +22,12 @@ const sentryOptions = {
   project: process.env.SENTRY_PROJECT,
   silent: !process.env.CI,
   widenClientFileUpload: true,
-  disableLogger: true,
-  // We deploy on Render, not Vercel — disable Vercel-specific monitors.
-  automaticVercelMonitors: false,
+  webpack: {
+    // Strip Sentry SDK debug logs from prod bundle.
+    treeshake: { removeDebugLogging: true },
+    // We deploy on Render, not Vercel — skip Vercel-specific monitors.
+    automaticVercelMonitors: false,
+  },
 };
 
 export default process.env.SENTRY_DSN

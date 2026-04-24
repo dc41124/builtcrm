@@ -1,8 +1,11 @@
+import { randomUUID } from "node:crypto";
+
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { and, eq, lt } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { syncEvents } from "@/db/schema";
+import { writeSystemAuditEvent } from "@/domain/audit";
 
 // Daily cleanup of sync_events (Step 27). Removes `succeeded` rows older
 // than 90 days; every other status (`failed`, `skipped`, `partial`,
@@ -21,19 +24,34 @@ export const integrationSyncEventCleanup = schedules.task({
   run: async (payload) => {
     const cutoff = new Date(payload.timestamp.getTime() - NINETY_DAYS_MS);
 
-    await db
+    const deleted = await db
       .delete(syncEvents)
       .where(
         and(
           eq(syncEvents.syncEventStatus, "succeeded"),
           lt(syncEvents.createdAt, cutoff),
         ),
-      );
+      )
+      .returning({ id: syncEvents.id });
 
     logger.info("sync_events cleanup complete", {
       cutoff: cutoff.toISOString(),
+      deletedCount: deleted.length,
     });
 
-    return { cutoff: cutoff.toISOString() };
+    await writeSystemAuditEvent({
+      resourceType: "background_job",
+      resourceId: randomUUID(),
+      action: "integration-sync-event-cleanup.run_complete",
+      details: {
+        metadata: {
+          jobId: "integration-sync-event-cleanup",
+          cutoff: cutoff.toISOString(),
+          deletedCount: deleted.length,
+        },
+      },
+    });
+
+    return { cutoff: cutoff.toISOString(), deletedCount: deleted.length };
   },
 });
