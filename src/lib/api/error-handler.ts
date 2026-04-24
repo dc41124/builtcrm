@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 
 import { writeSystemAuditEvent } from "@/domain/audit";
 import { AuthorizationError } from "@/domain/permissions";
@@ -62,6 +63,22 @@ async function logUnhandledException(
   err: unknown,
   ctx?: RouteContext,
 ): Promise<void> {
+  // Sentry first — it's the incident-response signal and has the full
+  // stack trace. Audit is the compliance signal. Both should fire; a
+  // failure in either must not block the other or the response.
+  try {
+    Sentry.captureException(err, {
+      tags: {
+        path: ctx?.path,
+        method: ctx?.method,
+        organization_id: ctx?.organizationId ?? undefined,
+      },
+      user: ctx?.appUserId ? { id: ctx.appUserId } : undefined,
+    });
+  } catch (sentryErr) {
+    console.error("[api-error-handler] sentry capture failed:", sentryErr);
+  }
+
   try {
     const message = err instanceof Error ? err.message : String(err);
     const errorClass = err instanceof Error ? err.constructor.name : "Unknown";
@@ -75,8 +92,8 @@ async function logUnhandledException(
           path: ctx?.path ?? null,
           method: ctx?.method ?? null,
           errorClass,
-          // Truncate to keep audit rows small; full stack goes to Sentry
-          // once Step 3 lands.
+          // Truncate — full stack goes to Sentry. Audit rows stay small
+          // and cheap to scan.
           message: message.slice(0, 500),
         },
         metadata: { appUserId: ctx?.appUserId ?? null },

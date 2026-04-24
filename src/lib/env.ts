@@ -16,6 +16,10 @@ const envSchema = z.object({
   TRIGGER_DEV_API_KEY: z.string().min(1),
   UPSTASH_REDIS_REST_URL: z.string().url(),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
+  // Sentry (optional). When unset, Sentry no-ops cleanly and the app
+  // runs without error monitoring.
+  SENTRY_DSN: z.string().url().optional(),
+  NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
