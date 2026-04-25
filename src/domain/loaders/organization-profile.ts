@@ -6,6 +6,7 @@ import {
   organizationLicenses,
   organizations,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { decryptTaxId } from "@/lib/integrations/crypto";
 import { presignDownloadUrl } from "@/lib/storage";
 import { maskTaxId } from "@/lib/tax-id-mask";
@@ -187,14 +188,20 @@ export type OrganizationLicense = {
   createdAt: Date;
 };
 
+// organization_licenses has RLS enabled (Phase 2 of the RLS sprint).
+// withTenant sets app.current_org_id so the policy admits rows for
+// this org. Without the wrapper the policy would deny everything
+// (current_setting returns NULL, comparison is falsy, empty result).
 export async function listOrganizationLicenses(
   organizationId: string,
 ): Promise<OrganizationLicense[]> {
-  const rows = await db
-    .select()
-    .from(organizationLicenses)
-    .where(eq(organizationLicenses.organizationId, organizationId))
-    .orderBy(asc(organizationLicenses.createdAt));
+  const rows = await withTenant(organizationId, (tx) =>
+    tx
+      .select()
+      .from(organizationLicenses)
+      .where(eq(organizationLicenses.organizationId, organizationId))
+      .orderBy(asc(organizationLicenses.createdAt)),
+  );
 
   return rows.map((r) => ({
     id: r.id,

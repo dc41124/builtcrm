@@ -4,7 +4,7 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { auditEvents, organizationLicenses } from "@/db/schema";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { getSubcontractorOrgContext } from "@/domain/loaders/subcontractor-compliance";
@@ -53,20 +53,6 @@ export async function PATCH(
   try {
     const { orgId, userId } = await resolveAdminOrg(sessionShim);
 
-    const [existing] = await db
-      .select()
-      .from(organizationLicenses)
-      .where(
-        and(
-          eq(organizationLicenses.id, id),
-          eq(organizationLicenses.organizationId, orgId),
-        ),
-      )
-      .limit(1);
-    if (!existing) {
-      throw new AuthorizationError("License not found", "not_found");
-    }
-
     const patch = parsed.data;
     const updates: Record<string, unknown> = {};
     if (patch.kind != null) updates.kind = patch.kind;
@@ -80,7 +66,23 @@ export async function PATCH(
       return NextResponse.json({ ok: true, noop: true });
     }
 
-    await db.transaction(async (tx) => {
+    // organization_licenses has RLS enabled (Phase 2 of the RLS sprint);
+    // wrap the read+update+audit triple so the existing-row lookup,
+    // the UPDATE's WITH CHECK, and the audit-event INSERT all run
+    // inside one tenant-scoped transaction.
+    const result = await withTenant(orgId, async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(organizationLicenses)
+        .where(
+          and(
+            eq(organizationLicenses.id, id),
+            eq(organizationLicenses.organizationId, orgId),
+          ),
+        )
+        .limit(1);
+      if (!existing) return null;
+
       await tx
         .update(organizationLicenses)
         .set(updates)
@@ -99,7 +101,11 @@ export async function PATCH(
         previousState: prev,
         nextState: updates,
       });
+      return existing;
     });
+    if (!result) {
+      throw new AuthorizationError("License not found", "not_found");
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -133,21 +139,19 @@ export async function DELETE(
   try {
     const { orgId, userId } = await resolveAdminOrg(sessionShim);
 
-    const [existing] = await db
-      .select()
-      .from(organizationLicenses)
-      .where(
-        and(
-          eq(organizationLicenses.id, id),
-          eq(organizationLicenses.organizationId, orgId),
-        ),
-      )
-      .limit(1);
-    if (!existing) {
-      throw new AuthorizationError("License not found", "not_found");
-    }
+    const result = await withTenant(orgId, async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(organizationLicenses)
+        .where(
+          and(
+            eq(organizationLicenses.id, id),
+            eq(organizationLicenses.organizationId, orgId),
+          ),
+        )
+        .limit(1);
+      if (!existing) return null;
 
-    await db.transaction(async (tx) => {
       await tx
         .delete(organizationLicenses)
         .where(eq(organizationLicenses.id, existing.id));
@@ -164,7 +168,11 @@ export async function DELETE(
           expiresOn: existing.expiresOn,
         },
       });
+      return existing;
     });
+    if (!result) {
+      throw new AuthorizationError("License not found", "not_found");
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

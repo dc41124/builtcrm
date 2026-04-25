@@ -8,6 +8,7 @@ import {
   integer,
   numeric,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -295,6 +296,13 @@ export const organizations = pgTable(
 
 // License & credential entries per organization. Used by both contractor and
 // subcontractor Organization settings tabs.
+// RLS pilot table — Phase 2 of docs/specs/rls_sprint_plan.md.
+// Pattern A (direct org_id check). Policy denies any read/write whose
+// `app.current_org_id` GUC doesn't match the row's organization_id;
+// when the GUC is unset (caller didn't go through withTenant),
+// current_setting returns NULL and the comparison is falsy → row
+// denied. The admin role (builtcrm_admin) has BYPASSRLS so migrations,
+// seed, and admin tooling are unaffected.
 export const organizationLicenses = pgTable(
   "organization_licenses",
   {
@@ -310,8 +318,13 @@ export const organizationLicenses = pgTable(
   },
   (table) => ({
     orgIdx: index("organization_licenses_org_idx").on(table.organizationId),
+    tenantIsolation: pgPolicy("organization_licenses_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();
 
 // Self-managed certifications (sub-only today, but the table is generic so
 // contractors can adopt it without schema work).
