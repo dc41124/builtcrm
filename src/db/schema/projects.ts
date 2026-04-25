@@ -142,6 +142,12 @@ export const projects = pgTable(
     // within a project; adding more counter columns here as future
     // modules need their own sequences is fine.
     meetingCounter: integer("meeting_counter").default(0).notNull(),
+    // Per-project counter for transmittal numbering (TM-0001, TM-0002, …).
+    // Same atomic-bump pattern as meetingCounter. Bump happens on the
+    // first successful send, not on draft create — drafts don't hold
+    // numbers, which would otherwise gap the sequence every time
+    // someone abandoned a draft.
+    transmittalCounter: integer("transmittal_counter").default(0).notNull(),
 
     ...timestamps,
   },

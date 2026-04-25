@@ -381,6 +381,29 @@ export function renderNotification(
           base && relatedObjectId ? `${base}/meetings/${relatedObjectId}` : base,
       };
 
+    // ── Transmittals ─────────────────────────────────────────────
+    case "transmittal_received":
+      return {
+        title: `Transmittal received — ${str(v.number, "?")}`,
+        body: str(v.subject)
+          ? `${v.subject} — from ${str(v.actorName, "the GC")}.`
+          : `${str(v.actorName, "The GC")} sent you a document bundle.`,
+        linkUrl: str(v.shareUrl) ? String(v.shareUrl) : base,
+      };
+    case "transmittal_downloaded":
+      return {
+        title: `Bundle downloaded — ${str(v.number, "?")}`,
+        body: str(v.recipientName)
+          ? str(v.subject)
+            ? `${v.recipientName} downloaded "${v.subject}".`
+            : `${v.recipientName} downloaded the bundle.`
+          : "A recipient downloaded the bundle.",
+        linkUrl:
+          base && relatedObjectId
+            ? `${base}/transmittals/${relatedObjectId}`
+            : base,
+      };
+
     // ── Messages ─────────────────────────────────────────────────
     case "message_new":
       return {

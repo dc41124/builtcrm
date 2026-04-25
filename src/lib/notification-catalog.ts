@@ -174,6 +174,16 @@ export const NOTIFICATION_GROUPS: Record<
         },
       ],
     },
+    {
+      group: "Transmittals",
+      events: [
+        {
+          id: "transmittal_downloaded",
+          label: "Recipient downloaded bundle",
+          desc: "A recipient downloaded a transmittal you sent",
+        },
+      ],
+    },
   ],
   subcontractor: [
     {
@@ -283,6 +293,16 @@ export const NOTIFICATION_GROUPS: Record<
           id: "meeting_action_assigned",
           label: "Meeting action assigned",
           desc: "A meeting left you with an action item",
+        },
+      ],
+    },
+    {
+      group: "Transmittals",
+      events: [
+        {
+          id: "transmittal_received",
+          label: "Transmittal received",
+          desc: "The GC sent you a document bundle via transmittal",
         },
       ],
     },
@@ -470,6 +490,7 @@ const CRITICAL_EMAIL_EVENTS = new Set<string>([
   "meeting_invite",
   "meeting_minutes_published",
   "meeting_action_assigned",
+  "transmittal_received",
 ]);
 
 export type NotificationPrefState = Record<

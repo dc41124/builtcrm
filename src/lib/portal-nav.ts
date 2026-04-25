@@ -49,6 +49,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
             { label: "Punch List", href: `${base}/punch-list` },
             { label: "Inspections", href: `${base}/inspections` },
             { label: "Meetings", href: `${base}/meetings` },
+            { label: "Transmittals", href: `${base}/transmittals` },
             { label: "Submittals", href: `${base}/submittals` },
             { label: "RFIs", href: `${base}/rfis` },
             { label: "Change Orders", href: `${base}/change-orders` },

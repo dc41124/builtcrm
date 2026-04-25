@@ -15,6 +15,13 @@
       "when": 1777059857381,
       "tag": "0001_far_toro",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777072572574,
+      "tag": "0002_clumsy_living_tribunal",
+      "breakpoints": true
     }
   ]
 }

@@ -21,3 +21,4 @@ export * from "./savedReports";
 export * from "./drawings";
 export * from "./inspections";
 export * from "./meetings";
+export * from "./transmittals";
