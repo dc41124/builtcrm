@@ -144,9 +144,9 @@ Two roles:
 Each of these was explicitly deferred during the step-1 hardening pass. Entries list what, why deferred, and what the decision input is.
 
 ### `organizations.tax_id` encryption
-**Status:** plaintext.
-**Why deferred:** encrypting requires product decisions — display masking (`***-**-1234`?), who can view unmasked (org admins only? audit every read?), search/filter behavior, CSV export treatment. Not a migration; a design conversation.
-**Unblocker:** product decision on display and access policy.
+**Status:** plaintext; sprint plan drafted.
+**Plan:** [docs/specs/tax_id_encryption_plan.md](tax_id_encryption_plan.md) (drafted 2026-04-25). Decided approach: AES-256-GCM via a dedicated `TAX_ID_ENCRYPTION_KEY`, masked-by-default UI with click-to-reveal that writes a `tax_id.revealed` audit event, plaintext-fallback during the backfill window, single decrypt call site (loader). Forward-looking export/PDF policy: decrypt on demand with audit per render. ~1 implementation session.
+**Unblocker:** plan reviewed and approved → phase 1 begins.
 
 ### `webhook_events.payload` retention
 **Status:** RESOLVED (2026-04-23). 90-day scheduled purge via [src/jobs/webhook-payload-purge.ts](../../src/jobs/webhook-payload-purge.ts). Only `processed` / `delivered` rows get purged; failure states (`exhausted`, `*_failed`, `retrying`) retain indefinitely for forensics. Each run writes a batch-level audit event (`webhook-payload-purge.run_complete` with `deletedCount`).
