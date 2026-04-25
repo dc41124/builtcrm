@@ -41,6 +41,18 @@ export const passwordResetLimiter = new Ratelimit({
   analytics: false,
 });
 
+// Per-IP cap on /api/org/tax-id/reveal. Each reveal writes an audit
+// event, so the audit trail also catches enumeration — this limiter
+// is the script-driven-burst defense. 5/min is comfortable for a
+// human admin clicking through orgs; high-velocity programmatic
+// access trips it. See docs/specs/tax_id_encryption_plan.md §7.
+export const taxIdRevealLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "1 m"),
+  prefix: "bauth-rl:taxid-reveal",
+  analytics: false,
+});
+
 export function identifierFromRequest(req: Request): string {
   const fwd = req.headers.get("x-forwarded-for");
   if (fwd) return fwd.split(",")[0].trim();

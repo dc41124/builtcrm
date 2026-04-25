@@ -16,6 +16,11 @@ const envSchema = z.object({
   TRIGGER_DEV_API_KEY: z.string().min(1),
   UPSTASH_REDIS_REST_URL: z.string().url(),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
+  // 32 bytes base64-encoded; protects organizations.tax_id at rest.
+  // See docs/specs/security_posture.md §3 and
+  // docs/specs/tax_id_encryption_plan.md. Generate with
+  // `openssl rand -base64 32`.
+  TAX_ID_ENCRYPTION_KEY: z.string().min(1),
   // Sentry (optional). When unset, Sentry no-ops cleanly and the app
   // runs without error monitoring.
   SENTRY_DSN: z.string().url().optional(),

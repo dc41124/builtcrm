@@ -167,10 +167,13 @@ export const organizations = pgTable(
     // Shared across contractor and subcontractor portals; sub-specific fields are
     // flagged below.
     legalName: varchar("legal_name", { length: 255 }),
-    // Stored plaintext behind disk-level encryption + org-admin access policy.
-    // See `settings wiring` section of phase_4plus_build_guide.md for the
-    // encrypt-at-rest migration path if this ever needs hardening.
-    taxId: varchar("tax_id", { length: 40 }),
+    // AES-256-GCM ciphertext (base64). Encrypted via TAX_ID_ENCRYPTION_KEY
+    // through encryptTaxId() / decryptTaxId() in
+    // src/lib/integrations/crypto.ts. Column is text (not varchar(N)) because
+    // ciphertext for a 40-char plaintext is ~92 chars after base64. See
+    // docs/specs/tax_id_encryption_plan.md for the masking + reveal flow and
+    // backfill plan.
+    taxId: text("tax_id"),
     website: varchar("website", { length: 500 }),
     phone: varchar("phone", { length: 40 }),
 

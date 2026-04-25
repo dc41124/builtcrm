@@ -44,6 +44,7 @@ It does **not** protect against:
 | Table | Column(s) | Mechanism | Key source |
 |---|---|---|---|
 | `integration_connections` | `access_token_enc`, `refresh_token_enc` | [src/lib/integrations/crypto.ts](../../src/lib/integrations/crypto.ts) AES-256-GCM | `INTEGRATION_ENCRYPTION_KEY` (dedicated key) |
+| `organizations` | `tax_id` | [src/lib/integrations/crypto.ts](../../src/lib/integrations/crypto.ts) AES-256-GCM via `encryptTaxId` / `decryptTaxId`. Display masked (`***-**-NNNN`); plaintext only via `POST /api/org/tax-id/reveal` which writes a `tax_id.revealed` audit event. | `TAX_ID_ENCRYPTION_KEY` (dedicated key) |
 | `two_factor` | `secret`, `backup_codes` | Better Auth plugin default (`symmetricEncrypt`) | `BETTER_AUTH_SECRET` |
 | `auth_account` | `access_token`, `refresh_token`, `id_token` | Better Auth `account.encryptOAuthTokens: true` | `BETTER_AUTH_SECRET` |
 
@@ -63,7 +64,6 @@ It does **not** protect against:
 | Table | Column | Rationale |
 |---|---|---|
 | `sso_providers` | `certificate_pem` | IdP signing certificate is public material by design — SAML libraries consume it plaintext. |
-| `organizations` | `tax_id` | Policy decision deferred (see §6). Currently protected only by disk-level encryption + org-admin access policy. |
 | `webhook_events` | `payload` | Debuggability vs. retention trade-off — retention TTL planned instead of encryption (see §6). |
 
 ---
@@ -101,6 +101,12 @@ Rotation is therefore not a routine hygiene activity — it's an incident-respon
 
   **Decision criteria:** rotation support, audit trail, access control granularity.
   **Default starting posture** if no stronger case emerges: Render env vars, with an explicit commit to revisit when rotation cadence or audit-trail needs exceed Render's surface. Re-evaluation trigger: any of (a) first planned rotation event, (b) first compliance/audit engagement requiring secret-access logs, (c) more than ~3 engineers with Render prod access.
+
+### Other dedicated keys
+
+`INTEGRATION_ENCRYPTION_KEY` (32 bytes base64) protects `integration_connections.access_token_enc` / `refresh_token_enc`. `TAX_ID_ENCRYPTION_KEY` (32 bytes base64) protects `organizations.tax_id`. Held separately from `BETTER_AUTH_SECRET` and from each other so a leak of one key does not compromise the others. Same generation pattern: `openssl rand -base64 32`.
+
+Rotation impact for either key: all rows protected by the rotated key become unreadable until re-encrypted with the old-and-new-key pair. Treat as a planned activity, not routine hygiene. The backfill script pattern in [scripts/backfill-encrypt-tax-id.ts](../../scripts/backfill-encrypt-tax-id.ts) is the template for re-encryption work.
 
 ---
 
@@ -144,9 +150,10 @@ Two roles:
 Each of these was explicitly deferred during the step-1 hardening pass. Entries list what, why deferred, and what the decision input is.
 
 ### `organizations.tax_id` encryption
-**Status:** plaintext; sprint plan drafted.
-**Plan:** [docs/specs/tax_id_encryption_plan.md](tax_id_encryption_plan.md) (drafted 2026-04-25). Decided approach: AES-256-GCM via a dedicated `TAX_ID_ENCRYPTION_KEY`, masked-by-default UI with click-to-reveal that writes a `tax_id.revealed` audit event, plaintext-fallback during the backfill window, single decrypt call site (loader). Forward-looking export/PDF policy: decrypt on demand with audit per render. ~1 implementation session.
-**Unblocker:** plan reviewed and approved → phase 1 begins.
+**Status:** RESOLVED (2026-04-25). AES-256-GCM via `TAX_ID_ENCRYPTION_KEY` and `encryptTaxId` / `decryptTaxId` in [src/lib/integrations/crypto.ts](../../src/lib/integrations/crypto.ts). Loader returns masked value (`***-**-NNNN`); plaintext only via `POST /api/org/tax-id/reveal` (rate-limited 5/min, contractor_admin / subcontractor_owner only) which writes a `tax_id.revealed` audit event. PATCH writes encrypt; mask-shape submissions are no-ops to avoid re-encrypting the display string.
+**Backfill:** [scripts/backfill-encrypt-tax-id.ts](../../scripts/backfill-encrypt-tax-id.ts) — idempotent; encrypts any legacy plaintext rows. Run after deploy, then in a follow-up commit remove the decrypt-with-plaintext-fallback branches in `organization-profile.ts` and `tax-id/reveal/route.ts`.
+**Forward-looking export/PDF policy:** when a future PDF (W-9, lien waiver) or "with-EIN" CSV needs `tax_id`, decrypt on render with a `tax_id.rendered_in_pdf` (or analogous) audit event per render. Mirrors the reveal-endpoint pattern; never log the value itself.
+**Plan source:** [docs/specs/tax_id_encryption_plan.md](tax_id_encryption_plan.md).
 
 ### `webhook_events.payload` retention
 **Status:** RESOLVED (2026-04-23). 90-day scheduled purge via [src/jobs/webhook-payload-purge.ts](../../src/jobs/webhook-payload-purge.ts). Only `processed` / `delivered` rows get purged; failure states (`exhausted`, `*_failed`, `retrying`) retain indefinitely for forensics. Each run writes a batch-level audit event (`webhook-payload-purge.run_complete` with `deletedCount`).
@@ -241,6 +248,7 @@ This mapping is maintained manually — update it when any of the above statemen
 
 ## 9. Changelog
 
+- **2026-04-25** — `organizations.tax_id` encrypted at rest via AES-256-GCM with a dedicated `TAX_ID_ENCRYPTION_KEY`. Loader returns masked value; plaintext only via `POST /api/org/tax-id/reveal` (rate-limited 5/min, audit-logged). UI replaces the inline input with a `<TaxIdField>` component (Reveal/Hide button) across contractor / subcontractor / commercial-client portals (residential has no tax_id). Schema migration widens the column from `varchar(40)` to `text` to accommodate ciphertext. Backfill script `scripts/backfill-encrypt-tax-id.ts` is idempotent; the decrypt-with-plaintext-fallback in the loader and reveal endpoint stays in until backfill confirms in prod, then is removed in a follow-up commit. §6 entry marked RESOLVED.
 - **2026-04-25** — Session hardening pass: typed `getServerSession()` / `requireServerSession()` helpers in [src/auth/session.ts](../../src/auth/session.ts) replace the 298+ files of `session.session as unknown as { appUserId? }` casts at the auth boundary. Idle-window tightened from 7d to 24h (`session.expiresIn` lowered, `updateAge` unchanged) — active users renew on each request, idle users sign out after 24h. Per-refresh OAuth audit events verified present (`oauth.refresh.succeeded`/`oauth.refresh.failed` in [src/lib/integrations/oauth.ts](../../src/lib/integrations/oauth.ts)) and §6 entry marked RESOLVED.
 - **2026-04-25** — Fresh-env bootstrap validated and a critical defect fixed. The original flow used the Neon "Create role" UI for `builtcrm_app`; validation discovered Neon-UI-created roles inherit `neon_superuser` membership and several superuser-equivalent attributes that no SQL-accessible role can revoke, defeating the §5 role split. `scripts/new-env-bootstrap.sql` rewritten to create the role itself via SQL with explicit least-privilege attributes (random password printed to stdout); `docs/specs/bootstrap_new_env.md` rewritten to forbid the Neon UI path and added a Step 5 verification check. §6 "Fresh-env bootstrap flow" entry marked RESOLVED.
 - **2026-04-25** — Retention coverage extended. Added 90-day scheduled purges for `notifications` ([src/jobs/notification-purge.ts](../../src/jobs/notification-purge.ts)), `audit_events` ([src/jobs/audit-event-purge.ts](../../src/jobs/audit-event-purge.ts)), and `activity_feed_items` ([src/jobs/activity-feed-purge.ts](../../src/jobs/activity-feed-purge.ts)) — all mirroring the `webhook-payload-purge.ts` pattern with system audit events on completion. Two new gaps explicitly recorded in §6: `messages` retention (deferred — no conversation lifecycle state) and R2 orphan cleanup (deferred — needs mark-and-sweep design). §8 Data row updated.

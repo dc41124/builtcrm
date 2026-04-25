@@ -73,7 +73,7 @@ Residual code-level items:
 | Control | Where |
 |---|---|
 | Database privilege separation | Two-role split: runtime `builtcrm_app` (DML-only) via `DATABASE_URL`, admin via `DATABASE_ADMIN_URL`. Runtime role cannot `DROP`/`ALTER`/`TRUNCATE` even on credential leak. See [security_posture.md §5](security_posture.md#5-authorization). |
-| Encryption at rest for secrets | AES-256-GCM for OAuth integration tokens; Better Auth symmetric encryption for 2FA TOTP secrets + backup codes + OAuth-login tokens (future) |
+| Encryption at rest for secrets | AES-256-GCM for OAuth integration tokens (`INTEGRATION_ENCRYPTION_KEY`) and `organizations.tax_id` (`TAX_ID_ENCRYPTION_KEY`); Better Auth symmetric encryption for 2FA TOTP secrets + backup codes + OAuth-login tokens (future) |
 | Bounded retention on payloads | 90-day purges scheduled daily: `webhook_events` success-state rows ([webhook-payload-purge.ts](../../src/jobs/webhook-payload-purge.ts)), read `notifications` ([notification-purge.ts](../../src/jobs/notification-purge.ts)), `audit_events` ([audit-event-purge.ts](../../src/jobs/audit-event-purge.ts)), `activity_feed_items` ([activity-feed-purge.ts](../../src/jobs/activity-feed-purge.ts)) |
 
 ---

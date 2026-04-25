@@ -57,6 +57,13 @@
       "when": 1777137085233,
       "tag": "0007_careless_serpent_society",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1777153430845,
+      "tag": "0008_flat_iron_monger",
+      "breakpoints": true
     }
   ]
 }

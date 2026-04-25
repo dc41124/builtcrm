@@ -6,7 +6,9 @@ import {
   organizationLicenses,
   organizations,
 } from "@/db/schema";
+import { decryptTaxId } from "@/lib/integrations/crypto";
 import { presignDownloadUrl } from "@/lib/storage";
+import { maskTaxId } from "@/lib/tax-id-mask";
 
 // Settings-page shape for the organizations row. Everything except `id`,
 // `name`, and `organizationType` is nullable in the DB; we preserve that here.
@@ -16,7 +18,12 @@ export type OrganizationProfile = {
   // Shared
   displayName: string; // stored in organizations.name
   legalName: string | null;
+  // Mask form of the stored tax_id ("***-**-1234") — never the plaintext.
+  // Plaintext is only ever returned by POST /api/org/tax-id/reveal which
+  // writes a tax_id.revealed audit event. See
+  // docs/specs/tax_id_encryption_plan.md.
   taxId: string | null;
+  taxIdHasValue: boolean;
   website: string | null;
   phone: string | null;
   addr1: string | null;
@@ -120,12 +127,28 @@ export async function getOrganizationProfile(
     }
   }
 
+  // tax_id is encrypted at rest. Decrypt to compute the mask we ship to
+  // the client. Plaintext-fallback: a row that pre-dates the encryption
+  // backfill (or one whose value is leftover plaintext) decrypts as
+  // garbage / throws — fall back to the stored value treated as plaintext.
+  // The fallback is removed in the cleanup commit after backfill confirms.
+  let taxIdPlain: string | null = null;
+  if (row.taxId) {
+    try {
+      taxIdPlain = decryptTaxId(row.taxId);
+    } catch {
+      taxIdPlain = row.taxId;
+    }
+  }
+  const taxIdMasked = taxIdPlain ? maskTaxId(taxIdPlain) : null;
+
   return {
     id: row.id,
     organizationType: row.organizationType,
     displayName: row.name,
     legalName: row.legalName,
-    taxId: row.taxId,
+    taxId: taxIdMasked,
+    taxIdHasValue: taxIdPlain !== null,
     website: row.website,
     phone: row.phone,
     addr1: row.addr1,

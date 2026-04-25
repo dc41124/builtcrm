@@ -6,9 +6,10 @@ import { z } from "zod";
 
 import { db } from "@/db/client";
 import { auditEvents, organizations } from "@/db/schema";
-import { getContractorOrgContext } from "@/domain/loaders/integrations";
-import { getSubcontractorOrgContext } from "@/domain/loaders/subcontractor-compliance";
+import { resolveOrgEditContext } from "@/domain/loaders/resolve-org-context";
 import { AuthorizationError } from "@/domain/permissions";
+import { encryptTaxId } from "@/lib/integrations/crypto";
+import { looksLikeTaxIdMask } from "@/lib/tax-id-mask";
 
 // All fields are optional: the client sends only what changed. Arrays are
 // replace-semantics — send the new full list, not a diff.
@@ -62,30 +63,6 @@ function redact(snap: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
-// Resolve which portal the caller belongs to. Contractor takes priority — if a
-// user has both assignments (rare), they can edit the contractor org via this
-// route; sub-only users go through the sub gate.
-async function resolveOrgContext(sessionShim: { appUserId?: string | null }) {
-  try {
-    const ctx = await getContractorOrgContext(sessionShim);
-    return {
-      kind: "contractor" as const,
-      orgId: ctx.organization.id,
-      userId: ctx.user.id,
-      isAdmin: ctx.role === "contractor_admin",
-    };
-  } catch (err) {
-    if (!(err instanceof AuthorizationError)) throw err;
-    const ctx = await getSubcontractorOrgContext(sessionShim);
-    return {
-      kind: "subcontractor" as const,
-      orgId: ctx.organization.id,
-      userId: ctx.user.id,
-      isAdmin: ctx.role === "subcontractor_owner",
-    };
-  }
-}
-
 export async function PATCH(req: Request) {
   const { session } = await requireServerSession();
   const sessionShim = session;
@@ -99,7 +76,7 @@ export async function PATCH(req: Request) {
   }
 
   try {
-    const ctx = await resolveOrgContext(sessionShim);
+    const ctx = await resolveOrgEditContext(sessionShim);
     if (!ctx.isAdmin) {
       throw new AuthorizationError(
         "Only organization admins can edit org details",
@@ -115,7 +92,18 @@ export async function PATCH(req: Request) {
     if (patch.displayName != null) updates.name = patch.displayName;
     if (patch.legalName !== undefined)
       updates.legalName = patch.legalName || null;
-    if (patch.taxId !== undefined) updates.taxId = patch.taxId || null;
+    // tax_id: encrypt non-empty new values, null on clear. If the
+    // submitted value matches the masked display ("***-**-NNNN"), the
+    // user did not edit the field — skip the update so we don't
+    // re-encrypt the mask string. See docs/specs/tax_id_encryption_plan.md.
+    if (patch.taxId !== undefined) {
+      const incoming = patch.taxId;
+      if (!incoming) {
+        updates.taxId = null;
+      } else if (!looksLikeTaxIdMask(incoming)) {
+        updates.taxId = encryptTaxId(incoming);
+      }
+    }
     if (patch.website !== undefined) updates.website = patch.website || null;
     if (patch.phone !== undefined) updates.phone = patch.phone || null;
     if (patch.addr1 !== undefined) updates.addr1 = patch.addr1 || null;

@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ALTER COLUMN "tax_id" SET DATA TYPE text;

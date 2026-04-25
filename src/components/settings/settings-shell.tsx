@@ -35,6 +35,7 @@ import type {
 } from "@/domain/loaders/organization-profile";
 import { IntegrationsView } from "@/app/(portal)/contractor/(global)/settings/integrations/integrations-ui";
 import { PaymentsView } from "@/app/(portal)/contractor/(global)/settings/payments/payments-ui";
+import { TaxIdField } from "./tax-id-field";
 
 export type ContractorSettingsBundle = {
   orgId: string;
@@ -9556,12 +9557,13 @@ function ContractorOrganizationLiveTab({
           </Field>
         </FieldRow>
         <FieldRow>
-          <Field label="Tax ID (EIN)" help="Stored encrypted at the disk layer; admin-only access.">
-            <input
-              style={{ ...fieldStyle(), fontFamily: "'JetBrains Mono',monospace", letterSpacing: ".02em" }}
+          <Field label="Tax ID (EIN)" help="Encrypted at rest. Click Reveal to see the full value.">
+            <TaxIdField
               value={org.taxId}
-              onChange={(e) => update("taxId", e.target.value)}
+              hasValue={contractor.orgProfile?.taxIdHasValue ?? false}
+              onChange={(v) => update("taxId", v)}
               readOnly={!canManage}
+              fieldStyle={fieldStyle()}
             />
           </Field>
           <Field label="Website">
@@ -10768,12 +10770,13 @@ function SubcontractorOrganizationLiveTab({
         </Field>
 
         <FieldRow>
-          <Field label="Tax ID (EIN)" help="Stored encrypted at the disk layer; admin-only access.">
-            <input
-              style={{ ...fieldStyle(), fontFamily: "'JetBrains Mono',monospace", letterSpacing: ".02em" }}
+          <Field label="Tax ID (EIN)" help="Encrypted at rest. Click Reveal to see the full value.">
+            <TaxIdField
               value={org.taxId}
-              onChange={(e) => update("taxId", e.target.value)}
+              hasValue={subcontractor.orgProfile?.taxIdHasValue ?? false}
+              onChange={(v) => update("taxId", v)}
               readOnly={!canManage}
+              fieldStyle={fieldStyle()}
             />
           </Field>
           <Field label="Website">
@@ -14567,12 +14570,13 @@ function CommercialCompanyLiveTab({
           </Field>
         </FieldRow>
         <FieldRow>
-          <Field label="Tax ID / EIN">
-            <input
-              style={{ ...fieldStyle(), fontFamily: "'JetBrains Mono',monospace", letterSpacing: ".02em" }}
+          <Field label="Tax ID / EIN" help="Encrypted at rest. Click Reveal to see the full value.">
+            <TaxIdField
               value={company.taxId}
-              onChange={(e) => update("taxId", e.target.value)}
+              hasValue={profile.taxIdHasValue}
+              onChange={(v) => update("taxId", v)}
               readOnly={!canManage}
+              fieldStyle={fieldStyle()}
             />
           </Field>
           <Field label="Website">
