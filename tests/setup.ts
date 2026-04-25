@@ -5,6 +5,19 @@ if (process.env.TEST_DATABASE_URL && !process.env.DATABASE_URL) {
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 }
 
+// --- React `cache()` stub -----------------------------------------------
+// `react.cache` is exposed by Next.js / RSC but absent in the plain Node
+// test runtime. Step 49's `getActivePrequalForPair` wraps with `cache`
+// for per-request memoization; in tests we replace it with an identity
+// wrapper so the loader is just a regular async fn.
+vi.mock("react", async () => {
+  const actual = await vi.importActual<typeof import("react")>("react");
+  return {
+    ...actual,
+    cache: <T extends (...args: never[]) => unknown>(fn: T): T => fn,
+  };
+});
+
 // --- Next.js `headers()` stub -------------------------------------------
 // Route handlers call `await headers()` before touching the request body,
 // which normally requires running inside the Next request context. We

@@ -31,6 +31,9 @@ import {
   lienWaivers,
   organizations,
   organizationUsers,
+  prequalProjectExemptions,
+  prequalSubmissions,
+  prequalTemplates,
   projectOrganizationMemberships,
   projectUserMemberships,
   projects,
@@ -99,7 +102,30 @@ async function purge() {
   // projects will cascade on project delete, but audit_events and
   // authUser/authAccount are not cascaded from projects, so clean
   // explicitly.
+
+  // Step 49 — prequal rows. Drop them first so their FKs to users/orgs
+  // don't block the user/org delete below. Org-scoped to test orgs ONLY
+  // (memory: dev + tests share DATABASE_URL, so unscoped deletes blow
+  // away dev seed data). Cascade deletes handle prequal_submissions,
+  // prequal_documents, and prequal_project_exemptions when their parent
+  // template/submission/contractor-org is deleted.
+  await db
+    .delete(prequalProjectExemptions)
+    .where(inArray(prequalProjectExemptions.contractorOrgId, allOrgIds));
+  await db
+    .delete(prequalSubmissions)
+    .where(inArray(prequalSubmissions.contractorOrgId, allOrgIds));
+  await db
+    .delete(prequalTemplates)
+    .where(inArray(prequalTemplates.orgId, allOrgIds));
+  // prequal_documents cascades on submissions delete; the unscoped
+  // delete above for prequalDocuments is gone.
+
+  // Audit events: cleanup by project AND by actor — prequal audit events
+  // are project-less so the projectId filter alone leaves orphans
+  // pointing at users we're about to delete.
   await db.delete(auditEvents).where(inArray(auditEvents.projectId, allProjectIds));
+  await db.delete(auditEvents).where(inArray(auditEvents.actorUserId, allUserIds));
   await db.delete(lienWaivers).where(inArray(lienWaivers.projectId, allProjectIds));
   await db.delete(drawLineItems).where(inArray(drawLineItems.drawRequestId, [IDS.draw.projectA]));
   await db.delete(drawRequests).where(inArray(drawRequests.projectId, allProjectIds));

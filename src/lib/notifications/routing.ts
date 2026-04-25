@@ -404,6 +404,161 @@ export function renderNotification(
             : base,
       };
 
+    // ── Closeout packages ────────────────────────────────────────
+    case "closeout_package_delivered": {
+      const link =
+        base && relatedObjectId
+          ? portalType === "contractor"
+            ? `${base}/closeout-packages/${relatedObjectId}`
+            : `${base}/closeout`
+          : base;
+      return portalType === "residential"
+        ? {
+            title: `Final handover package delivered`,
+            body: str(v.projectName)
+              ? `${v.projectName} — your builder sent the handover package for your review.`
+              : "Your builder sent the final handover package for your review.",
+            linkUrl: link,
+          }
+        : {
+            title: `Closeout package ${str(v.number, "delivered")}`,
+            body: str(v.projectName)
+              ? `${v.projectName} — ready for your review and sign-off.`
+              : "Your contractor delivered the closeout package for review.",
+            linkUrl: link,
+          };
+    }
+    case "closeout_package_commented":
+      return {
+        title: `New comment on ${str(v.number, "closeout package")}`,
+        body: str(v.actorName)
+          ? str(v.preview)
+            ? `${v.actorName}: "${String(v.preview).slice(0, 140)}"`
+            : `${v.actorName} left a comment on the closeout package.`
+          : "The owner posted a comment on the closeout package.",
+        linkUrl:
+          base && relatedObjectId
+            ? `${base}/closeout-packages/${relatedObjectId}`
+            : base,
+      };
+    case "closeout_package_accepted":
+      return {
+        title: `Closeout package ${str(v.number, "accepted")}`,
+        body: str(v.actorName)
+          ? `${v.actorName} signed off — project marked closed.`
+          : "The owner accepted the closeout package. Project marked closed.",
+        linkUrl:
+          base && relatedObjectId
+            ? `${base}/closeout-packages/${relatedObjectId}`
+            : base,
+      };
+
+    // ── Prequalification (Step 49) — org-scoped events ──────────
+    case "prequal_invited":
+      return {
+        title: "Prequalification invitation",
+        body: str(v.contractorOrgName)
+          ? `${v.contractorOrgName} invited your org to prequalify.`
+          : "A contractor invited your org to prequalify.",
+        linkUrl:
+          str(v.contractorOrgId)
+            ? `/subcontractor/prequalification/${v.contractorOrgId}`
+            : "/subcontractor/prequalification",
+      };
+    case "prequal_submitted":
+      return {
+        title: "Prequalification submitted",
+        body: str(v.subOrgName)
+          ? `${v.subOrgName} submitted their prequalification — review pending.`
+          : "A subcontractor submitted their prequalification — review pending.",
+        linkUrl:
+          str(v.submissionId)
+            ? `/contractor/prequalification/${v.submissionId}`
+            : "/contractor/prequalification",
+      };
+    case "prequal_approved":
+      return {
+        title: "Prequalification approved",
+        body: str(v.contractorOrgName)
+          ? `Your prequalification with ${v.contractorOrgName} was approved${
+              str(v.expiresAt) ? `, valid through ${v.expiresAt}` : ""
+            }.`
+          : "Your prequalification was approved.",
+        linkUrl:
+          str(v.contractorOrgId)
+            ? `/subcontractor/prequalification/${v.contractorOrgId}`
+            : "/subcontractor/prequalification",
+      };
+    case "prequal_rejected":
+      return {
+        title: "Prequalification rejected",
+        body: str(v.contractorOrgName)
+          ? str(v.reviewerNotes)
+            ? `${v.contractorOrgName} rejected your prequalification: "${String(
+                v.reviewerNotes,
+              ).slice(0, 160)}"`
+            : `${v.contractorOrgName} rejected your prequalification.`
+          : "Your prequalification was rejected.",
+        linkUrl:
+          str(v.contractorOrgId)
+            ? `/subcontractor/prequalification/${v.contractorOrgId}`
+            : "/subcontractor/prequalification",
+      };
+    case "prequal_expired":
+      return portalType === "contractor"
+        ? {
+            title: "Prequalification expired",
+            body: str(v.subOrgName)
+              ? `${v.subOrgName}'s approved prequalification has expired.`
+              : "An approved prequalification has expired.",
+            linkUrl:
+              str(v.subOrgId)
+                ? `/contractor/subcontractors/${v.subOrgId}/prequalification`
+                : "/contractor/prequalification",
+          }
+        : {
+            title: "Prequalification expired",
+            body: str(v.contractorOrgName)
+              ? `Your approval with ${v.contractorOrgName} has expired. Resubmit to renew.`
+              : "Your prequalification has expired. Resubmit to renew.",
+            linkUrl:
+              str(v.contractorOrgId)
+                ? `/subcontractor/prequalification/${v.contractorOrgId}`
+                : "/subcontractor/prequalification",
+          };
+    case "prequal_expiring_soon": {
+      const days = str(v.daysRemaining, "30");
+      return portalType === "contractor"
+        ? {
+            title: `Prequal expiring in ${days} days`,
+            body: str(v.subOrgName)
+              ? `${v.subOrgName}'s approval expires in ${days} days.`
+              : `An approved prequal expires in ${days} days.`,
+            linkUrl:
+              str(v.subOrgId)
+                ? `/contractor/subcontractors/${v.subOrgId}/prequalification`
+                : "/contractor/prequalification",
+          }
+        : {
+            title: `Your prequal expires in ${days} days`,
+            body: str(v.contractorOrgName)
+              ? `Your approval with ${v.contractorOrgName} expires in ${days} days. Renew to stay eligible.`
+              : `Your prequalification expires in ${days} days.`,
+            linkUrl:
+              str(v.contractorOrgId)
+                ? `/subcontractor/prequalification/${v.contractorOrgId}`
+                : "/subcontractor/prequalification",
+          };
+    }
+    case "prequal_override_used":
+      return {
+        title: "Prequal warning override used",
+        body: str(v.actorName)
+          ? `${v.actorName} added ${str(v.subOrgName, "a sub")} to a project despite a prequal warning.`
+          : "Someone proceeded with a sub assignment despite a prequal warning.",
+        linkUrl: "/contractor/prequalification",
+      };
+
     // ── Messages ─────────────────────────────────────────────────
     case "message_new":
       return {

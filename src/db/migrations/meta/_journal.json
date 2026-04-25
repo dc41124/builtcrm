@@ -22,6 +22,27 @@
       "when": 1777072572574,
       "tag": "0002_clumsy_living_tribunal",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777081421761,
+      "tag": "0003_tricky_bishop",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777090724157,
+      "tag": "0004_stiff_gertrude_yorkes",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777091096216,
+      "tag": "0005_curvy_roxanne_simpson",
+      "breakpoints": true
     }
   ]
 }

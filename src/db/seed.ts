@@ -8,7 +8,7 @@
  * inserting duplicates.
  */
 
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 
 import { hashPassword } from "better-auth/crypto";
@@ -65,6 +65,15 @@ import {
   inspections,
   inspectionResults,
   type InspectionLineItemDef,
+  closeoutPackages,
+  closeoutPackageSections,
+  closeoutPackageItems,
+  closeoutPackageComments,
+  closeoutCounters,
+  prequalTemplates,
+  prequalSubmissions,
+  prequalDocuments,
+  prequalProjectExemptions,
 } from "./schema";
 
 // ---------------------------------------------------------------------------
@@ -595,6 +604,18 @@ async function seed() {
     subUserId: pacificUser.id,
     subOrgId: pacificOrg.id,
     residential: true,
+  });
+
+  // ---- Prequalification (Step 49) — org-scoped, no project context ----
+  await seedPrequalification({
+    contractorOrgId: summitOrg.id,
+    contractorAdminUserId: summitAdmin.id,
+    contractorPmUserId: summitPm.id,
+    northlineOrgId: northlineOrg.id,
+    northlineUserId: northlineUser.id,
+    pacificOrgId: pacificOrg.id,
+    pacificUserId: pacificUser.id,
+    commercialProjectId: commercial.id,
   });
 
   // ---- Auth credentials (dev only, password123) ------------------------
@@ -1944,6 +1965,13 @@ async function seedProjectContent(ctx: ProjectContext) {
   // the residential portal doesn't surface inspections in Phase 4+.
   if (!residential) {
     await seedInspections(ctx);
+  }
+
+  // ---- Closeout packages (Step 48) -------------------------------------
+  // Commercial only — one delivered package with two open client comments,
+  // demonstrating the review state for the demo.
+  if (!residential) {
+    await seedCloseoutPackage(ctx);
   }
 }
 
@@ -3552,6 +3580,479 @@ async function seedInspections(ctx: ProjectContext): Promise<void> {
       }
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Closeout package seed
+//
+// Creates one delivered closeout package per commercial project. The package
+// has 4 sections (O&M manuals, warranties, as-builts, permits_final) each
+// pulling in 1-3 of the project's existing documents, plus two open client
+// comments demonstrating the review-state UI.
+//
+// Idempotent on (orgId, sequenceYear, sequenceNumber). Re-running uses the
+// existing package row.
+// ---------------------------------------------------------------------------
+
+async function seedCloseoutPackage(ctx: ProjectContext): Promise<void> {
+  const { project, contractorOrgId, pmUserId, clientUserId } = ctx;
+  const year = new Date().getUTCFullYear();
+
+  // Allocate / fetch counter row.
+  const [counterRow] = await db
+    .select({ lastSeq: closeoutCounters.lastSeq })
+    .from(closeoutCounters)
+    .where(
+      and(
+        eq(closeoutCounters.organizationId, contractorOrgId),
+        eq(closeoutCounters.sequenceYear, year),
+      ),
+    )
+    .limit(1);
+
+  let seq = 1;
+  if (!counterRow) {
+    await db.insert(closeoutCounters).values({
+      organizationId: contractorOrgId,
+      sequenceYear: year,
+      lastSeq: 1,
+    });
+  } else {
+    seq = counterRow.lastSeq;
+  }
+
+  const existingPkg = await db
+    .select({ id: closeoutPackages.id })
+    .from(closeoutPackages)
+    .where(eq(closeoutPackages.projectId, project.id))
+    .limit(1);
+  if (existingPkg[0]) return; // already seeded
+
+  // Bump the counter row to allocate this package's slot.
+  if (counterRow) {
+    const [bumped] = await db
+      .update(closeoutCounters)
+      .set({ lastSeq: sql`${closeoutCounters.lastSeq} + 1` })
+      .where(
+        and(
+          eq(closeoutCounters.organizationId, contractorOrgId),
+          eq(closeoutCounters.sequenceYear, year),
+        ),
+      )
+      .returning({ lastSeq: closeoutCounters.lastSeq });
+    seq = bumped.lastSeq;
+  }
+
+  const deliveredAt = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+
+  const [pkg] = await db
+    .insert(closeoutPackages)
+    .values({
+      projectId: project.id,
+      organizationId: contractorOrgId,
+      sequenceYear: year,
+      sequenceNumber: seq,
+      title: `${project.name} — closeout package`,
+      status: "delivered",
+      preparedByUserId: pmUserId,
+      deliveredAt,
+      deliveredByUserId: pmUserId,
+    })
+    .returning();
+
+  // Pull a handful of existing project documents to populate sections.
+  const docRows = await db
+    .select({
+      id: documents.id,
+      title: documents.title,
+      category: documents.category,
+    })
+    .from(documents)
+    .where(eq(documents.projectId, project.id))
+    .limit(20);
+
+  if (docRows.length === 0) return;
+
+  // Distribute docs across the four section types based on category, with
+  // a fallback to "other".
+  const sectionDefs: Array<{
+    type: "om_manuals" | "warranties" | "as_builts" | "permits_final" | "other";
+    pickFrom: (d: { category: string | null }) => boolean;
+    customLabel: string | null;
+  }> = [
+    {
+      type: "om_manuals",
+      pickFrom: (d) => d.category === "specifications" || d.category === "submittal",
+      customLabel: null,
+    },
+    {
+      type: "warranties",
+      pickFrom: (d) => d.category === "contracts",
+      customLabel: null,
+    },
+    {
+      type: "as_builts",
+      pickFrom: (d) => d.category === "drawings",
+      customLabel: null,
+    },
+    {
+      type: "permits_final",
+      pickFrom: (d) => d.category === "permits" || d.category === "compliance",
+      customLabel: null,
+    },
+  ];
+
+  const seenDocIds = new Set<string>();
+  let orderIndex = 1;
+  for (const def of sectionDefs) {
+    const matching = docRows.filter(
+      (d) => def.pickFrom(d) && !seenDocIds.has(d.id),
+    );
+    // If a category has no matches, fall back to 1 doc from anywhere.
+    const picks = matching.length > 0
+      ? matching.slice(0, 3)
+      : docRows.filter((d) => !seenDocIds.has(d.id)).slice(0, 1);
+    if (picks.length === 0) continue;
+
+    const [secRow] = await db
+      .insert(closeoutPackageSections)
+      .values({
+        packageId: pkg.id,
+        sectionType: def.type,
+        customLabel: def.customLabel,
+        orderIndex: orderIndex++,
+      })
+      .returning();
+
+    for (let i = 0; i < picks.length; i++) {
+      const d = picks[i];
+      seenDocIds.add(d.id);
+      await db.insert(closeoutPackageItems).values({
+        sectionId: secRow.id,
+        documentId: d.id,
+        notes:
+          def.type === "warranties"
+            ? "Warranty start: substantial completion + 30 days."
+            : null,
+        sortOrder: i + 1,
+        attachedByUserId: pmUserId,
+      });
+    }
+  }
+
+  // Two open client comments to make the review state non-trivial.
+  await db.insert(closeoutPackageComments).values([
+    {
+      packageId: pkg.id,
+      scope: "package",
+      sectionId: null,
+      itemId: null,
+      authorUserId: clientUserId,
+      body: "Overall the package looks complete. A couple of clarifications below before I sign off.",
+    },
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// Prequalification seed (Step 49)
+//
+// Org-scoped — Summit Contracting owns 3 templates (general default,
+// Electrical, Mechanical). Submissions span every UI state so reviewers
+// see realistic data on first login:
+//
+//   Northline Electrical → APPROVED on Electrical (active, expires in 10 mo)
+//   Northline Electrical → APPROVED on General  (expires in 10 days — soon)
+//   Pacific Plumbing     → SUBMITTED awaiting review (gating fail flagged)
+//   Pacific Plumbing     → REJECTED (history, with reviewer notes)
+//
+// Enforcement: warn (so the invitation hook fires non-blocking warnings).
+// One project exemption granted on the commercial project for Pacific.
+//
+// Idempotent on re-run: deletes by orgId before inserting.
+// ---------------------------------------------------------------------------
+
+async function seedPrequalification(input: {
+  contractorOrgId: string;
+  contractorAdminUserId: string;
+  contractorPmUserId: string;
+  northlineOrgId: string;
+  northlineUserId: string;
+  pacificOrgId: string;
+  pacificUserId: string;
+  commercialProjectId: string;
+}): Promise<void> {
+  // Purge existing prequal data for this org.
+  const existingTemplates = await db
+    .select({ id: prequalTemplates.id })
+    .from(prequalTemplates)
+    .where(eq(prequalTemplates.orgId, input.contractorOrgId));
+  if (existingTemplates.length > 0) {
+    const tIds = existingTemplates.map((t) => t.id);
+    const subs = await db
+      .select({ id: prequalSubmissions.id })
+      .from(prequalSubmissions)
+      .where(inArray(prequalSubmissions.templateId, tIds));
+    if (subs.length > 0) {
+      const sIds = subs.map((s) => s.id);
+      await db
+        .delete(prequalDocuments)
+        .where(inArray(prequalDocuments.submissionId, sIds));
+      await db
+        .delete(prequalSubmissions)
+        .where(inArray(prequalSubmissions.id, sIds));
+    }
+    await db
+      .delete(prequalTemplates)
+      .where(inArray(prequalTemplates.id, tIds));
+  }
+  await db
+    .delete(prequalProjectExemptions)
+    .where(eq(prequalProjectExemptions.contractorOrgId, input.contractorOrgId));
+
+  // Set enforcement mode to warn so the invitation hook fires.
+  await db
+    .update(organizations)
+    .set({ prequalEnforcementMode: "warn" })
+    .where(eq(organizations.id, input.contractorOrgId));
+
+  // -- Templates -------------------------------------------------------
+  const baseQuestions = [
+    {
+      key: "years_in_business",
+      label: "How many years has your company been in business?",
+      type: "number",
+      required: true,
+      scoreBands: [
+        { min: 0, max: 2, points: 0 },
+        { min: 3, max: 5, points: 5 },
+        { min: 6, max: 999, points: 10 },
+      ],
+    },
+    {
+      key: "crew_size",
+      label: "Average crew size on a typical project?",
+      type: "number",
+      required: true,
+      scoreBands: [
+        { min: 0, max: 4, points: 2 },
+        { min: 5, max: 9, points: 5 },
+        { min: 10, max: 999, points: 8 },
+      ],
+    },
+    {
+      key: "insurance_limit",
+      label: "General liability insurance limit ($M)?",
+      type: "select_one",
+      required: true,
+      options: [
+        { key: "lt1", label: "Below $1M", points: 0 },
+        { key: "1_to_2", label: "$1M – $2M", points: 5 },
+        { key: "2_to_5", label: "$2M – $5M", points: 10 },
+        { key: "5_plus", label: "Above $5M", points: 15 },
+      ],
+    },
+    {
+      key: "safety_program",
+      label: "Describe your safety program",
+      type: "select_one",
+      required: true,
+      options: [
+        { key: "informal", label: "Informal / verbal", points: 2 },
+        { key: "documented", label: "Documented manual", points: 8 },
+        { key: "comprehensive", label: "Comprehensive program with quarterly drills", points: 15 },
+      ],
+    },
+    {
+      key: "trade_certifications",
+      label: "Trade certifications held",
+      type: "multi_select",
+      required: false,
+      options: [
+        { key: "c10", label: "C-10 Electrical", points: 3 },
+        { key: "c36", label: "C-36 Plumbing", points: 3 },
+        { key: "c45", label: "C-45 Sign", points: 2 },
+        { key: "c61", label: "C-61 Specialty", points: 2 },
+      ],
+    },
+    {
+      key: "bankruptcy_history",
+      label: "Has your company filed for bankruptcy in the last 5 years?",
+      type: "yes_no",
+      required: true,
+      weight: 0,
+      gating: true,
+    },
+    {
+      key: "active_litigation",
+      label: "Any active material litigation against your company?",
+      type: "yes_no",
+      required: true,
+      weight: 0,
+      gating: true,
+    },
+    {
+      key: "notes",
+      label: "Anything else we should know?",
+      type: "long_text",
+      required: false,
+    },
+  ];
+  const scoringRules = {
+    passThreshold: 30,
+    gatingFailValues: {
+      bankruptcy_history: true,
+      active_litigation: true,
+    },
+  };
+
+  const [generalTemplate] = await db
+    .insert(prequalTemplates)
+    .values({
+      orgId: input.contractorOrgId,
+      name: "General prequalification",
+      description: "Default template for any trade.",
+      tradeCategory: null,
+      isDefault: true,
+      validityMonths: 12,
+      questionsJson: baseQuestions,
+      scoringRules,
+      createdByUserId: input.contractorAdminUserId,
+    })
+    .returning({ id: prequalTemplates.id });
+
+  const [electricalTemplate] = await db
+    .insert(prequalTemplates)
+    .values({
+      orgId: input.contractorOrgId,
+      name: "Electrical prequalification",
+      description: "For electrical subcontractors. Adds C-10 + EMR scoring.",
+      tradeCategory: "Electrical",
+      isDefault: true,
+      validityMonths: 12,
+      questionsJson: baseQuestions,
+      scoringRules,
+      createdByUserId: input.contractorAdminUserId,
+    })
+    .returning({ id: prequalTemplates.id });
+
+  await db.insert(prequalTemplates).values({
+    orgId: input.contractorOrgId,
+    name: "Mechanical prequalification",
+    description: "For HVAC + mechanical subs.",
+    tradeCategory: "Mechanical",
+    isDefault: true,
+    validityMonths: 12,
+    questionsJson: baseQuestions,
+    scoringRules,
+    createdByUserId: input.contractorAdminUserId,
+  });
+
+  // -- Submissions -----------------------------------------------------
+  const now = new Date();
+  const day = 24 * 60 * 60 * 1000;
+
+  const goodAnswers = {
+    years_in_business: 12,
+    crew_size: 14,
+    insurance_limit: "2_to_5",
+    safety_program: "comprehensive",
+    trade_certifications: ["c10", "c45"],
+    bankruptcy_history: false,
+    active_litigation: false,
+    notes: "Strong references available on request.",
+  };
+  const flaggedAnswers = {
+    years_in_business: 6,
+    crew_size: 8,
+    insurance_limit: "1_to_2",
+    safety_program: "documented",
+    trade_certifications: ["c36"],
+    bankruptcy_history: true,
+    active_litigation: false,
+    notes: "Disclosed bankruptcy 4 years ago; restructuring complete.",
+  };
+
+  // 1) Northline — APPROVED on Electrical, expires in ~10 months
+  const expires10mo = new Date(now.getTime() + 10 * 30 * day);
+  const submitted10mo = new Date(now.getTime() - 60 * day);
+  await db.insert(prequalSubmissions).values({
+    templateId: electricalTemplate.id,
+    submittedByOrgId: input.northlineOrgId,
+    contractorOrgId: input.contractorOrgId,
+    answersJson: goodAnswers,
+    scoreTotal: 47,
+    gatingFailures: [],
+    status: "approved",
+    submittedAt: submitted10mo,
+    reviewedByUserId: input.contractorAdminUserId,
+    reviewedAt: submitted10mo,
+    reviewerNotes: "Strong record. Approved for the standard 12-month window.",
+    expiresAt: expires10mo,
+  });
+
+  // 2) Northline — APPROVED on General, expires in ~10 days (expiring soon)
+  const expires10d = new Date(now.getTime() + 10 * day);
+  const submitted355d = new Date(now.getTime() - 355 * day);
+  await db.insert(prequalSubmissions).values({
+    templateId: generalTemplate.id,
+    submittedByOrgId: input.northlineOrgId,
+    contractorOrgId: input.contractorOrgId,
+    answersJson: goodAnswers,
+    scoreTotal: 47,
+    gatingFailures: [],
+    status: "approved",
+    submittedAt: submitted355d,
+    reviewedByUserId: input.contractorPmUserId,
+    reviewedAt: submitted355d,
+    reviewerNotes: null,
+    expiresAt: expires10d,
+    remindersSentJson: { "30": new Date(now.getTime() - 5 * day).toISOString() },
+  });
+
+  // 3) Pacific — SUBMITTED, awaiting review, gating flagged
+  const submittedNow = new Date(now.getTime() - 4 * 60 * 60 * 1000);
+  await db.insert(prequalSubmissions).values({
+    templateId: generalTemplate.id,
+    submittedByOrgId: input.pacificOrgId,
+    contractorOrgId: input.contractorOrgId,
+    answersJson: flaggedAnswers,
+    scoreTotal: 25,
+    gatingFailures: ["bankruptcy_history"],
+    status: "submitted",
+    submittedAt: submittedNow,
+  });
+
+  // 4) Pacific — REJECTED (history)
+  const rejectedAt = new Date(now.getTime() - 90 * day);
+  await db.insert(prequalSubmissions).values({
+    templateId: generalTemplate.id,
+    submittedByOrgId: input.pacificOrgId,
+    contractorOrgId: input.contractorOrgId,
+    answersJson: { ...flaggedAnswers, insurance_limit: "lt1" },
+    scoreTotal: 18,
+    gatingFailures: ["bankruptcy_history"],
+    status: "rejected",
+    submittedAt: rejectedAt,
+    reviewedByUserId: input.contractorAdminUserId,
+    reviewedAt: rejectedAt,
+    reviewerNotes:
+      "Insurance below project floor and undisclosed material risk. Resubmit with $2M COI and updated bankruptcy disclosure.",
+  });
+
+  // 5) Northline — DRAFT in progress on Mechanical (sub started but didn't finish)
+  // Skipping for v1 — drafts aren't created without a contractor invite,
+  // and we already cover the populated states above.
+
+  // -- Project exemption (block-mode escape demo) ---------------------
+  await db.insert(prequalProjectExemptions).values({
+    projectId: input.commercialProjectId,
+    subOrgId: input.pacificOrgId,
+    contractorOrgId: input.contractorOrgId,
+    grantedByUserId: input.contractorAdminUserId,
+    reason:
+      "Pacific is mid-resubmission after rejection; granted limited project exemption while their new prequal lands.",
+    grantedAt: new Date(now.getTime() - 5 * day),
+  });
 }
 
 // ---------------------------------------------------------------------------

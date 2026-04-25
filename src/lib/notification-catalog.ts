@@ -184,6 +184,46 @@ export const NOTIFICATION_GROUPS: Record<
         },
       ],
     },
+    {
+      group: "Closeout",
+      events: [
+        {
+          id: "closeout_package_commented",
+          label: "Client comment on closeout package",
+          desc: "The owner posted a question or comment on a delivered closeout package",
+        },
+        {
+          id: "closeout_package_accepted",
+          label: "Closeout package accepted",
+          desc: "The owner signed off on the closeout package — project marked closed",
+        },
+      ],
+    },
+    {
+      group: "Prequalification",
+      events: [
+        {
+          id: "prequal_submitted",
+          label: "Prequalification submitted",
+          desc: "A subcontractor submitted their prequalification for review",
+        },
+        {
+          id: "prequal_expired",
+          label: "Prequalification expired",
+          desc: "An approved prequalification reached its expiry date",
+        },
+        {
+          id: "prequal_expiring_soon",
+          label: "Prequalification expiring soon",
+          desc: "30/14/7-day warnings before an approved prequalification lapses",
+        },
+        {
+          id: "prequal_override_used",
+          label: "Assignment override used",
+          desc: "Someone proceeded with adding a sub to a project despite a prequal warning",
+        },
+      ],
+    },
   ],
   subcontractor: [
     {
@@ -306,6 +346,36 @@ export const NOTIFICATION_GROUPS: Record<
         },
       ],
     },
+    {
+      group: "Prequalification",
+      events: [
+        {
+          id: "prequal_invited",
+          label: "Prequalification invitation",
+          desc: "A contractor invited your org to prequalify",
+        },
+        {
+          id: "prequal_approved",
+          label: "Prequalification approved",
+          desc: "A contractor approved your prequalification submission",
+        },
+        {
+          id: "prequal_rejected",
+          label: "Prequalification rejected",
+          desc: "A contractor rejected your prequalification submission",
+        },
+        {
+          id: "prequal_expired",
+          label: "Prequalification expired",
+          desc: "Your approved prequalification lapsed and needs renewal",
+        },
+        {
+          id: "prequal_expiring_soon",
+          label: "Prequalification expiring soon",
+          desc: "Your approval lapses in 30/14/7 days — renew to stay eligible",
+        },
+      ],
+    },
   ],
   commercial: [
     {
@@ -365,6 +435,11 @@ export const NOTIFICATION_GROUPS: Record<
           id: "daily_log_posted",
           label: "Daily log posted",
           desc: "Your contractor posted the log for a day on site",
+        },
+        {
+          id: "closeout_package_delivered",
+          label: "Closeout package delivered",
+          desc: "Your contractor delivered the final closeout package — review and sign off",
         },
       ],
     },
@@ -443,6 +518,11 @@ export const NOTIFICATION_GROUPS: Record<
           label: "New journal entry",
           desc: "Your builder posted a new day in the project journal",
         },
+        {
+          id: "closeout_package_delivered",
+          label: "Final handover package delivered",
+          desc: "Your builder delivered the final handover package — review and sign off",
+        },
       ],
     },
     {
@@ -491,6 +571,19 @@ const CRITICAL_EMAIL_EVENTS = new Set<string>([
   "meeting_minutes_published",
   "meeting_action_assigned",
   "transmittal_received",
+  "closeout_package_delivered",
+  "closeout_package_commented",
+  "closeout_package_accepted",
+  // Step 49 — prequalification. Invitations + decisions are critical
+  // (subs need to act); expirations and the override audit alert are
+  // critical for contractors.
+  "prequal_invited",
+  "prequal_submitted",
+  "prequal_approved",
+  "prequal_rejected",
+  "prequal_expired",
+  "prequal_expiring_soon",
+  "prequal_override_used",
 ]);
 
 export type NotificationPrefState = Record<

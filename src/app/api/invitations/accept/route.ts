@@ -10,9 +10,11 @@ import {
   invitations,
   organizationUsers,
   projectUserMemberships,
+  projects,
   roleAssignments,
   users,
 } from "@/db/schema";
+import { checkPrequalForAssignment } from "@/domain/prequal";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { hashInvitationToken } from "@/lib/invitations/token";
 import { enforceLimit, inviteLimiter } from "@/lib/ratelimit";
@@ -20,6 +22,24 @@ import { enforceLimit, inviteLimiter } from "@/lib/ratelimit";
 const BodySchema = z.object({
   token: z.string().min(1),
 });
+
+// Thrown inside the accept transaction when prequal enforcement is set to
+// `block` and the sub doesn't have an active approved prequalification (or
+// a project exemption). The txn rolls back; the route returns 403 with the
+// reason so the inviting contractor knows to either approve a pending
+// prequal or grant an exemption.
+class PrequalBlockedError extends Error {
+  constructor(
+    message: string,
+    public readonly detail: {
+      activeStatus: string;
+      submissionId?: string;
+    },
+  ) {
+    super(message);
+    this.name = "PrequalBlockedError";
+  }
+}
 
 export async function POST(req: Request) {
   return withErrorHandler(async () => {
@@ -94,7 +114,13 @@ export async function POST(req: Request) {
     // Idempotently provision: org membership → role assignment → optional
     // project membership → mark invitation accepted. Wrapped so a partial
     // failure leaves no half-accepted state.
-    const result = await db.transaction(async (tx) => {
+    let result: {
+      portalType: string;
+      clientSubtype: string | null;
+      projectId: string | null;
+    };
+    try {
+      result = await db.transaction(async (tx) => {
       const existingOrgUser = await tx
         .select({ id: organizationUsers.id })
         .from(organizationUsers)
@@ -165,6 +191,39 @@ export async function POST(req: Request) {
         roleAssignmentId = newRole.id;
       }
 
+      // Prequal-enforcement gate (Step 49). When a subcontractor is being
+      // added to a project, consult the contractor org's enforcement
+      // setting. `block` rejects the accept; `warn` proceeds but writes
+      // an override audit event. `ok` flows through normally. Runs inside
+      // the same transaction so a blocked accept leaves no partial state.
+      let prequalOverride:
+        | { activeStatus: string; submissionId?: string }
+        | null = null;
+      if (invitation.projectId && invitation.portalType === "subcontractor") {
+        const [proj] = await tx
+          .select({ contractorOrgId: projects.contractorOrganizationId })
+          .from(projects)
+          .where(eq(projects.id, invitation.projectId))
+          .limit(1);
+        if (proj?.contractorOrgId) {
+          const decision = await checkPrequalForAssignment(
+            proj.contractorOrgId,
+            invitation.organizationId,
+            invitation.projectId,
+          );
+          if (decision.kind === "block") {
+            // Surface a controlled error; the txn will roll back.
+            throw new PrequalBlockedError(decision.reason, decision);
+          }
+          if (decision.kind === "warn") {
+            prequalOverride = {
+              activeStatus: decision.activeStatus,
+              submissionId: decision.submissionId,
+            };
+          }
+        }
+      }
+
       if (invitation.projectId) {
         const existingMembership = await tx
           .select({ id: projectUserMemberships.id })
@@ -186,6 +245,18 @@ export async function POST(req: Request) {
             accessState: "active",
           });
         }
+      }
+
+      if (prequalOverride) {
+        await tx.insert(auditEvents).values({
+          actorUserId: appUserId,
+          projectId: invitation.projectId,
+          organizationId: invitation.organizationId,
+          objectType: "prequal_assignment_override",
+          objectId: invitation.id,
+          actionName: "warn_override_accepted",
+          metadataJson: prequalOverride,
+        });
       }
 
       await tx
@@ -217,6 +288,20 @@ export async function POST(req: Request) {
         projectId: invitation.projectId,
       };
     });
+    } catch (err) {
+      if (err instanceof PrequalBlockedError) {
+        return NextResponse.json(
+          {
+            error: "prequal_blocked",
+            message: err.message,
+            activeStatus: err.detail.activeStatus,
+            submissionId: err.detail.submissionId ?? null,
+          },
+          { status: 403 },
+        );
+      }
+      throw err;
+    }
 
     return NextResponse.json({
       ok: true,

@@ -126,6 +126,44 @@ async function projectContractors(projectId: string): Promise<Recipient[]> {
   return dedup([...fromPum, ...fromStaff]);
 }
 
+// Step 49 — used by prequalification events. Routes to "all members of org
+// X" without a project context. Mirrors the membership lookup that
+// `getOrgContext` uses when resolving a user's primary org. Filters by
+// portal type so contractor-only events skip subs/clients in the same org
+// (theoretically rare; defensive).
+export async function orgMembersByPortal(
+  organizationId: string,
+  portalType: SettingsPortalType,
+): Promise<Recipient[]> {
+  const rows = await db
+    .select({
+      userId: roleAssignments.userId,
+      portalType: roleAssignments.portalType,
+      clientSubtype: roleAssignments.clientSubtype,
+    })
+    .from(roleAssignments)
+    .where(eq(roleAssignments.organizationId, organizationId));
+
+  const out: Recipient[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const resolved: SettingsPortalType =
+      r.portalType === "contractor"
+        ? "contractor"
+        : r.portalType === "subcontractor"
+          ? "subcontractor"
+          : r.clientSubtype === "residential"
+            ? "residential"
+            : "commercial";
+    if (resolved !== portalType) continue;
+    const key = `${r.userId}:${resolved}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ userId: r.userId, portalType: resolved });
+  }
+  return out;
+}
+
 async function projectClients(
   projectId: string,
   subtype?: "commercial" | "residential",
@@ -225,17 +263,39 @@ export type RecipientResolveOptions = {
   projectId: string | null;
   conversationId?: string;
   targetOrganizationId?: string;
+  // Step 49 — explicit (orgId, portalType) target for events that emit
+  // to multiple org directions (e.g. prequal_expired notifies both the
+  // sub and the contractor; the action layer emits twice).
+  targetOrganizationByPortal?: {
+    orgId: string;
+    portalType: SettingsPortalType;
+  };
 };
 
 export async function getEventRecipients(
   eventId: string,
   opts: RecipientResolveOptions,
 ): Promise<Recipient[]> {
-  const { actorUserId, projectId, conversationId, targetOrganizationId } = opts;
+  const {
+    actorUserId,
+    projectId,
+    conversationId,
+    targetOrganizationId,
+    targetOrganizationByPortal,
+  } = opts;
 
   let recipients: Recipient[] = [];
 
-  if (!projectId && !conversationId) return [];
+  // Org-scoped events (Step 49 prequalification) may have no project
+  // context. Allow them through when an org target is set.
+  if (
+    !projectId &&
+    !conversationId &&
+    !targetOrganizationId &&
+    !targetOrganizationByPortal
+  ) {
+    return [];
+  }
 
   switch (eventId) {
     case "co_submitted":
@@ -285,6 +345,62 @@ export async function getEventRecipients(
       // commercial + residential). The contractor's send action also
       // surfaces this list in the "Sending to" footer.
       if (projectId) recipients = await projectClients(projectId);
+      break;
+
+    case "closeout_package_delivered":
+      // Delivered closeout goes to all client members on the project.
+      // Portal-specific copy is rendered in routing.ts.
+      if (projectId) recipients = await projectClients(projectId);
+      break;
+
+    case "closeout_package_commented":
+    case "closeout_package_accepted":
+      // Client-driven events — go back to the contractor staff on the
+      // project. V1 is client-write-only for comments; if bidirectional
+      // ever ships, split into _commented_by_client / _commented_by_contractor
+      // rather than broadening this event (notification preferences would
+      // break otherwise).
+      if (projectId) recipients = await projectContractors(projectId);
+      break;
+
+    // ── Prequalification (Step 49) — org-scoped, no project context ──
+    // Each event targets one org direction. `targetOrganizationId` carries
+    // the destination org; the case picks the right portal type.
+    case "prequal_invited":
+    case "prequal_approved":
+    case "prequal_rejected":
+      // Sub-direction: notify all subcontractor users in the sub org.
+      if (targetOrganizationId) {
+        recipients = await orgMembersByPortal(
+          targetOrganizationId,
+          "subcontractor",
+        );
+      }
+      break;
+
+    case "prequal_submitted":
+    case "prequal_override_used":
+      // Contractor-direction: notify all contractor users in the contractor org.
+      if (targetOrganizationId) {
+        recipients = await orgMembersByPortal(
+          targetOrganizationId,
+          "contractor",
+        );
+      }
+      break;
+
+    case "prequal_expired":
+    case "prequal_expiring_soon":
+      // Direction depends on which side is being notified. The action
+      // layer emits this event twice (once per portal type), each call
+      // setting `targetOrganizationByPortal` to the right (orgId,
+      // portalType) tuple. The resolver branches on it.
+      if (targetOrganizationByPortal) {
+        recipients = await orgMembersByPortal(
+          targetOrganizationByPortal.orgId,
+          targetOrganizationByPortal.portalType,
+        );
+      }
       break;
 
     case "message_new":

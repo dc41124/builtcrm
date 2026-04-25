@@ -215,6 +215,103 @@ export async function getEffectiveContext(
   };
 }
 
+// -----------------------------------------------------------------------------
+// Org-scoped context (no project)
+//
+// Most prequalification surfaces aren't project-scoped — template management,
+// review queue, sub list of contractors, settings. The standard
+// `getEffectiveContext(session, projectId)` requires a project and throws
+// `not_found` without one. This sibling resolves user → primary org → role
+// without touching projects so org-scoped loaders compile and authorize
+// cleanly.
+//
+// Uses the same role-collapse rules as `getEffectiveContext`. Picks the
+// user's first active role assignment if they have multiple; multi-role
+// users in this codebase are extremely rare and always within the same org
+// (admin + estimator etc.). If a user truly belongs to multiple orgs, we'd
+// need a session-stored "current org" — out of scope for v1 prequal.
+// -----------------------------------------------------------------------------
+
+export type OrgContext = {
+  user: { id: string; email: string; displayName: string | null };
+  organization: { id: string; name: string; type: string };
+  role: EffectiveRole;
+  permissions: Permissions;
+};
+
+export async function getOrgContext(
+  session: SessionLike | null | undefined,
+): Promise<OrgContext> {
+  if (!session?.appUserId) {
+    throw new AuthorizationError("Not signed in", "unauthenticated");
+  }
+  const appUserId = session.appUserId;
+
+  const [user] = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      displayName: users.displayName,
+      isActive: users.isActive,
+    })
+    .from(users)
+    .where(eq(users.id, appUserId))
+    .limit(1);
+  if (!user || !user.isActive) {
+    throw new AuthorizationError(
+      "User not found or inactive",
+      "unauthenticated",
+    );
+  }
+
+  const [assignment] = await db
+    .select({
+      organizationId: roleAssignments.organizationId,
+      portalType: roleAssignments.portalType,
+      roleKey: roleAssignments.roleKey,
+      clientSubtype: roleAssignments.clientSubtype,
+    })
+    .from(roleAssignments)
+    .where(eq(roleAssignments.userId, appUserId))
+    .limit(1);
+  if (!assignment) {
+    throw new AuthorizationError(
+      "No active organization membership",
+      "forbidden",
+    );
+  }
+
+  const [org] = await db
+    .select({
+      id: organizations.id,
+      name: organizations.name,
+      type: organizations.organizationType,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, assignment.organizationId))
+    .limit(1);
+  if (!org) {
+    throw new AuthorizationError("Organization not found", "forbidden");
+  }
+
+  const role = resolveEffectiveRole({
+    portalType: assignment.portalType,
+    roleKey: assignment.roleKey,
+    clientSubtype: assignment.clientSubtype,
+  });
+
+  return {
+    user: {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+    },
+    organization: org,
+    role,
+    permissions: buildPermissions(role),
+  };
+}
+
 function resolveEffectiveRole(input: {
   portalType: string;
   roleKey: string;

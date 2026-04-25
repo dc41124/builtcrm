@@ -42,7 +42,11 @@ export type PlanFeatureKey =
   | "calendar.direct_oauth"
   | "migration.procore_buildertrend"
   | "support.priority_email"
-  | "support.dedicated_manager";
+  | "support.dedicated_manager"
+  // Subcontractor prequalification (Step 49). Templates, intake, review,
+  // badge, assignment hook, expiry sweep. Gated to Professional+ — sits
+  // alongside other Professional features the SMB GC market expects.
+  | "prequalification";
 
 export const PLAN_FEATURES: Record<PlanFeatureKey, PlanTier> = {
   "sso.saml": "enterprise",
@@ -66,6 +70,7 @@ export const PLAN_FEATURES: Record<PlanFeatureKey, PlanTier> = {
   "migration.procore_buildertrend": "enterprise",
   "support.priority_email": "professional",
   "support.dedicated_manager": "enterprise",
+  "prequalification": "professional",
 };
 
 export type SubscriptionStatus =

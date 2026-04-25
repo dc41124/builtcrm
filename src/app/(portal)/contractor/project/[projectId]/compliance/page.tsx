@@ -6,9 +6,18 @@ import {
   getContractorProjectView,
   type ContractorProjectView,
 } from "@/domain/loaders/project-home";
+import {
+  getActivePrequalForPair,
+  type PrequalBadgeStatus,
+} from "@/domain/loaders/prequal";
 import { AuthorizationError } from "@/domain/permissions";
 
-import { ContractorComplianceWorkspace } from "./compliance-workspace";
+import {
+  ContractorComplianceWorkspace,
+  type PrequalBadgeData,
+} from "./compliance-workspace";
+
+import "../../../../prequalification.css";
 
 export default async function ContractorCompliancePage({
   params,
@@ -34,12 +43,41 @@ export default async function ContractorCompliancePage({
     throw err;
   }
 
+  // Resolve a prequal badge for every distinct sub org that appears in
+  // the compliance records. The loader is request-memoized via react.cache,
+  // so multiple compliance rows for the same sub still hit the DB once.
+  const subOrgIds = Array.from(
+    new Set(view.complianceRecords.map((r) => r.organizationId)),
+  );
+  const contractorOrgId = view.project.contractorOrganizationId;
+  const prequalEntries = await Promise.all(
+    subOrgIds.map(async (subOrgId) => {
+      try {
+        const active = await getActivePrequalForPair(contractorOrgId, subOrgId);
+        return [subOrgId, active] as const;
+      } catch {
+        return [
+          subOrgId,
+          { status: "none" as PrequalBadgeStatus, expiresAt: undefined },
+        ] as const;
+      }
+    }),
+  );
+  const prequalByOrg: Record<string, PrequalBadgeData> = {};
+  for (const [orgId, active] of prequalEntries) {
+    prequalByOrg[orgId] = {
+      status: active.status,
+      expiresAt: active.expiresAt ? active.expiresAt.toISOString() : null,
+    };
+  }
+
   return (
     <ContractorComplianceWorkspace
       nowMs={Date.now()}
       projectId={view.project.id}
       projectName={view.project.name}
       records={view.complianceRecords}
+      prequalByOrg={prequalByOrg}
     />
   );
 }

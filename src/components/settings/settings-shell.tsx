@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -295,8 +296,21 @@ type TabId =
   | "company"
   | "household"
   | "access"
-  | "payment";
-type TabDescriptor = { id: TabId; label: string; desc: string; icon: ReactNode };
+  | "payment"
+  | "prequalification";
+type TabDescriptor = {
+  id: TabId;
+  label: string;
+  desc: string;
+  icon: ReactNode;
+  /**
+   * When set, the tab is a discovery link that navigates to a sibling
+   * route instead of switching the in-page pane. Used for surfaces (like
+   * prequalification, Step 49) that own their own page tree but should
+   * still appear in the settings sub-nav.
+   */
+  link?: string;
+};
 const BASE_TABS: TabDescriptor[] = [
   { id: "profile", label: "Profile", icon: I.user, desc: "Name, contact info, and how you appear to others" },
   { id: "security", label: "Security", icon: I.shield, desc: "Password, two-factor authentication, and active sessions" },
@@ -311,6 +325,15 @@ const CONTRACTOR_TABS: TabDescriptor[] = [
   { id: "orgsec", label: "Org security", icon: I.lock, desc: "SSO, domain rules, and the audit log" },
   { id: "integrations", label: "Integrations", icon: I.link, desc: "Accounting, calendar, and productivity tools" },
   { id: "payments", label: "Payments", icon: I.card, desc: "Stripe Connect, payouts, and payment history" },
+  // Step 49 — prequal owns its own page tree at /contractor/settings/prequalification.
+  // The `link` field renders this entry as a navigate-out link instead of a pane.
+  {
+    id: "prequalification",
+    label: "Prequalification",
+    icon: I.shield,
+    desc: "Templates, scoring, and assignment-time enforcement",
+    link: "/contractor/settings/prequalification",
+  },
 ];
 const SUBCONTRACTOR_TABS: TabDescriptor[] = [
   { id: "organization", label: "Organization", icon: I.building, desc: "Company profile, trade, and licensing" },
@@ -489,6 +512,70 @@ function SettingsSubNav({
     >
       {tabs.map((t) => {
         const on = tab === t.id;
+        // Discovery-link tabs (e.g. Prequalification) navigate out instead
+        // of switching the in-page pane. They're never `on`.
+        if (t.link) {
+          return (
+            <Link
+              key={t.id}
+              href={t.link}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 12,
+                padding: "11px 12px",
+                borderRadius: 10,
+                textAlign: "left",
+                transition: "all 120ms",
+                color: "var(--t2)",
+                background: "transparent",
+                cursor: "pointer",
+                width: "100%",
+                textDecoration: "none",
+                fontFamily: "'Instrument Sans',system-ui,sans-serif",
+              }}
+            >
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  background: "var(--s2)",
+                  color: "var(--t2)",
+                  display: "grid",
+                  placeItems: "center",
+                  flexShrink: 0,
+                  marginTop: 1,
+                }}
+              >
+                {t.icon}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontFamily: "'DM Sans',system-ui,sans-serif",
+                    fontSize: 13,
+                    fontWeight: 650,
+                    letterSpacing: "-.01em",
+                  }}
+                >
+                  {t.label} →
+                </div>
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--t3)",
+                    marginTop: 2,
+                    lineHeight: 1.35,
+                    fontWeight: 500,
+                  }}
+                >
+                  {t.desc}
+                </div>
+              </div>
+            </Link>
+          );
+        }
         return (
           <button
             key={t.id}

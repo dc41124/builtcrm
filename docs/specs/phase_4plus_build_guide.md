@@ -3066,7 +3066,7 @@ git commit -m "Step 46 (5.2 #46): Meetings module — agendas, minutes, attendee
 
 ---
 
-## Step 47 — Transmittals Module
+## Step 47 — Transmittals Module ✅ DONE (2026-04-24)
 
 **Mode:** Safe-to-autorun
 **Item:** 5.2 #47
@@ -3111,7 +3111,7 @@ git commit -m "Step 47 (5.2 #47): Transmittals module"
 
 ---
 
-## Step 48 — Closeout Packages
+## Step 48 — Closeout Packages ✅ DONE (2026-04-24)
 
 **Mode:** Require-design-input
 **Item:** 5.3 #48
@@ -3158,7 +3158,7 @@ git commit -m "Step 48 (5.3 #48): Closeout packages"
 
 ---
 
-## Step 49 — Subcontractor Prequalification
+## Step 49 — Subcontractor Prequalification ✅ DONE (2026-04-24)
 
 **Mode:** Require-design-input
 **Item:** 5.3 #49
@@ -3207,7 +3207,7 @@ git commit -m "Step 49 (5.3 #49): Subcontractor prequalification"
 
 ---
 
-## Step 49.5 — Schedule Module Split (milestone.kind enum)
+## Step 49.5 — Schedule Module Split (milestone.kind enum) 
 
 **Mode:** Require-design-input
 **Effort:** M

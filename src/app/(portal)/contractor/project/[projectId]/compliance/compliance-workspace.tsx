@@ -7,9 +7,47 @@ import { Button } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
 import { Pill, type PillColor } from "@/components/pill";
 import type { ContractorProjectView } from "@/domain/loaders/project-home";
+import type { PrequalBadgeStatus } from "@/domain/loaders/prequal";
 
 type ComplianceRow = ContractorProjectView["complianceRecords"][number];
 type TabId = "review" | "atrisk" | "restricted" | "accepted";
+
+// Pre-resolved prequal badge state for each sub org appearing in the
+// compliance records — fetched server-side in page.tsx via the memoized
+// `getActivePrequalForPair` loader and passed in as plain data.
+export type PrequalBadgeData = {
+  status: PrequalBadgeStatus;
+  expiresAt: string | null;
+};
+
+const PREQUAL_LABEL: Record<PrequalBadgeStatus, string> = {
+  approved: "Prequal: Approved",
+  pending: "Prequal: Pending",
+  rejected: "Prequal: Rejected",
+  expired: "Prequal: Expired",
+  none: "No prequal",
+};
+
+function PrequalScorecardBadge({
+  data,
+}: {
+  data: PrequalBadgeData | undefined;
+}) {
+  if (!data) return null;
+  return (
+    <span
+      className={`pq-badge ${data.status}`}
+      style={{ marginLeft: 8, verticalAlign: "middle" }}
+      title={
+        data.status === "approved" && data.expiresAt
+          ? `Approved · expires ${new Date(data.expiresAt).toLocaleDateString()}`
+          : PREQUAL_LABEL[data.status]
+      }
+    >
+      {PREQUAL_LABEL[data.status]}
+    </span>
+  );
+}
 
 const THRESHOLD_DAYS = 14;
 
@@ -104,11 +142,13 @@ export function ContractorComplianceWorkspace({
   projectId,
   records,
   nowMs: now,
+  prequalByOrg,
 }: {
   projectId: string;
   projectName: string;
   records: ComplianceRow[];
   nowMs: number;
+  prequalByOrg: Record<string, PrequalBadgeData>;
 }) {
 
   const tagged = useMemo(
@@ -143,12 +183,21 @@ export function ContractorComplianceWorkspace({
   const scorecard = useMemo(() => {
     const map = new Map<
       string,
-      { name: string; total: number; accepted: number; atRisk: number; problem: number }
+      {
+        orgId: string;
+        name: string;
+        total: number;
+        accepted: number;
+        atRisk: number;
+        problem: number;
+      }
     >();
     for (const r of records) {
       const key = r.organizationId;
       const name = r.organizationName ?? "Unknown org";
-      const prev = map.get(key) ?? { name, total: 0, accepted: 0, atRisk: 0, problem: 0 };
+      const prev =
+        map.get(key) ??
+        { orgId: key, name, total: 0, accepted: 0, atRisk: 0, problem: 0 };
       prev.total += 1;
       if (r.complianceStatus === "active" || r.complianceStatus === "waived") {
         if (isAtRisk(r, now)) prev.atRisk += 1;
@@ -389,8 +438,11 @@ export function ContractorComplianceWorkspace({
                 <p className="cmp-rc-p">No requirements tracked yet.</p>
               ) : (
                 scorecard.map((o) => (
-                  <div key={o.name} className="cmp-orow">
-                    <div className="cmp-oname">{o.name}</div>
+                  <div key={o.orgId} className="cmp-orow">
+                    <div className="cmp-oname">
+                      {o.name}
+                      <PrequalScorecardBadge data={prequalByOrg[o.orgId]} />
+                    </div>
                     <div className="cmp-odots">
                       {Array.from({ length: o.total }).map((_, i) => {
                         let cls = "empty";

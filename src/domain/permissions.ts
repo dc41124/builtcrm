@@ -22,7 +22,15 @@ export type Resource =
   | "invitation"
   | "audit_log"
   | "drawing"
-  | "drawing_markup";
+  | "drawing_markup"
+  // Subcontractor prequalification (Step 49). Three resources covering the
+  // template lifecycle, the submission lifecycle, and the org-level
+  // enforcement-mode setting. Per-row org scoping (actor's org ==
+  // submittedByOrgId / contractorOrgId, etc.) is enforced inside each
+  // action handler — the coarse role gate lives here.
+  | "prequal_template"
+  | "prequal_submission"
+  | "prequal_enforcement_settings";
 
 export type Action = "read" | "write" | "approve";
 
@@ -111,6 +119,33 @@ const POLICY: Record<Resource, Policy> = {
   drawing_markup: {
     read: EVERYONE,
     write: new Set([...ALL_CONTRACTOR, "subcontractor_user"]),
+  },
+  // Subcontractor prequalification templates. Contractor org admins manage
+  // them (CRUD). Contractor PMs can read so review surfaces can render the
+  // active template alongside a submission. Subs see template content only
+  // through the form they're filling — the loader scopes that read.
+  prequal_template: {
+    read: ALL_CONTRACTOR,
+    write: new Set(["contractor_admin"]),
+  },
+  // Submissions. Subs write (fill + save draft + submit) on their own org's
+  // behalf. Contractor admins and PMs read for review and write reviewer
+  // notes on existing rows; only those two roles `approve`. Per-row org
+  // scoping (actor.org == submittedByOrgId for sub writes,
+  // actor.org == contractorOrgId for contractor reads/approvals) is
+  // enforced inside the action handlers — the coarse gate here only
+  // restricts by role.
+  prequal_submission: {
+    read: new Set([...ALL_CONTRACTOR, "subcontractor_user"]),
+    write: new Set([...ALL_CONTRACTOR, "subcontractor_user"]),
+    approve: ALL_CONTRACTOR,
+  },
+  // Org-level enforcement-mode setting (warn / block / off) plus per-project
+  // exemptions. Only contractor admins configure; PMs read so the warn /
+  // block banners render correctly during assignment.
+  prequal_enforcement_settings: {
+    read: ALL_CONTRACTOR,
+    write: new Set(["contractor_admin"]),
   },
 };
 

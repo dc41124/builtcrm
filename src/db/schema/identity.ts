@@ -17,6 +17,15 @@ import {
 } from "drizzle-orm/pg-core";
 import { timestamps } from "./_shared";
 
+// Declared here (not in prequal.ts) so the column on `organizations` can
+// reference it without a circular import (identity ↔ prequal). prequal.ts
+// re-exports it.
+export const prequalEnforcementModeEnum = pgEnum("prequal_enforcement_mode", [
+  "off",
+  "warn",
+  "block",
+]);
+
 // -----------------------------------------------------------------------------
 // User-preference enums (used by users.theme / users.density and elsewhere)
 // -----------------------------------------------------------------------------
@@ -245,6 +254,15 @@ export const organizations = pgTable(
       scale: 2,
     })
       .default("0.00")
+      .notNull(),
+
+    // Subcontractor prequalification enforcement (Step 49). Reads at
+    // sub-to-project assignment time. Default 'off' for migration safety;
+    // new contractor orgs get 'warn' assigned by the org-creation server
+    // action. Only meaningful for contractor-type orgs; sub + client orgs
+    // ignore it.
+    prequalEnforcementMode: prequalEnforcementModeEnum("prequal_enforcement_mode")
+      .default("off")
       .notNull(),
 
     ...timestamps,

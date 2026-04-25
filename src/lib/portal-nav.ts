@@ -7,6 +7,13 @@ export type BuildNavOptions = {
   activeHref?: string;
   /** Map of href → unread/pending count. Items with a count > 0 get a badge. */
   counts?: NavCounts;
+  /**
+   * Sub portal: show the "Prequalification" nav entry when the sub has at
+   * least one prequal_submissions row (i.e. a contractor invited them).
+   * Resolved server-side via `getSubPrequalNavVisibility` and threaded
+   * here so the nav stays a pure render fn.
+   */
+  subPrequalVisible?: boolean;
 };
 
 // Builds the sidebar nav sections for a portal. Structure matches the grouped
@@ -15,7 +22,8 @@ export type BuildNavOptions = {
 // those routes are part of the remaining build and will render 404 or
 // ComingSoon placeholders until implemented.
 export function buildNavSections(options: BuildNavOptions): NavSection[] {
-  const { portalType, projectId, activeHref, counts } = options;
+  const { portalType, projectId, activeHref, counts, subPrequalVisible } =
+    options;
   const mark = (items: NavItem[]): NavItem[] =>
     items.map((i) => {
       const badge = counts?.[i.href];
@@ -50,6 +58,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
             { label: "Inspections", href: `${base}/inspections` },
             { label: "Meetings", href: `${base}/meetings` },
             { label: "Transmittals", href: `${base}/transmittals` },
+            { label: "Closeout Packages", href: `${base}/closeout-packages` },
             { label: "Submittals", href: `${base}/submittals` },
             { label: "RFIs", href: `${base}/rfis` },
             { label: "Change Orders", href: `${base}/change-orders` },
@@ -95,6 +104,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
           { label: "RFIs", href: "/contractor/rfis" },
           { label: "Change Orders", href: "/contractor/change-orders" },
           { label: "Compliance", href: "/contractor/compliance" },
+          { label: "Prequalification", href: "/contractor/prequalification" },
           { label: "Upload Requests", href: "/contractor/upload-requests" },
           { label: "Documents", href: "/contractor/documents" },
         ]),
@@ -194,6 +204,17 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
         defaultOpen: true,
         items: mark([
           { label: "Insurance & Certs", href: "/subcontractor/compliance" },
+          // Visibility: only show when this sub has been invited to
+          // prequalify by at least one contractor. Resolved server-side
+          // via getSubPrequalNavVisibility (Step 49).
+          ...(subPrequalVisible
+            ? [
+                {
+                  label: "Prequalification",
+                  href: "/subcontractor/prequalification",
+                },
+              ]
+            : []),
         ]),
       },
       {
@@ -259,6 +280,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
         defaultOpen: true,
         items: mark([
           { label: "Project Files", href: `${base}/documents` },
+          { label: "Closeout", href: `${base}/closeout` },
         ]),
       },
       {
@@ -312,6 +334,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
       items: mark([
         { label: "Budget", href: `${base}/budget` },
         { label: "Documents", href: `${base}/documents` },
+        { label: "Final handover", href: `${base}/closeout` },
       ]),
     },
     {
