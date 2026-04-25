@@ -154,6 +154,7 @@ export async function PATCH(
         }),
         ...(updates.startDate !== undefined && {
           startDate: updates.startDate ? new Date(updates.startDate) : null,
+          kind: updates.startDate ? "task" : "marker",
         }),
         ...(updates.phase !== undefined && { phase: updates.phase }),
         ...(updates.visibilityScope !== undefined && {

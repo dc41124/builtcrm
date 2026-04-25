@@ -21,6 +21,7 @@ export * from "./schedule.shared";
 
 import type {
   MilestoneDependency,
+  MilestoneKind,
   MilestoneRow,
   MilestoneStatus,
   MilestoneType,
@@ -71,6 +72,7 @@ export async function getScheduleView(
       description: milestones.description,
       milestoneType: milestones.milestoneType,
       milestoneStatus: milestones.milestoneStatus,
+      kind: milestones.kind,
       startDate: milestones.startDate,
       scheduledDate: milestones.scheduledDate,
       completedDate: milestones.completedDate,
@@ -101,6 +103,7 @@ export async function getScheduleView(
     description: r.description,
     milestoneType: r.milestoneType as MilestoneType,
     milestoneStatus: r.milestoneStatus as MilestoneStatus,
+    kind: r.kind as MilestoneKind,
     startDate: r.startDate,
     scheduledDate: r.scheduledDate,
     completedDate: r.completedDate,

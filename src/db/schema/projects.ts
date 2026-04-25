@@ -91,6 +91,8 @@ export const milestoneTypeEnum = pgEnum("milestone_type", [
   "custom",
 ]);
 
+export const milestoneKindEnum = pgEnum("milestone_kind", ["marker", "task"]);
+
 // -----------------------------------------------------------------------------
 // Projects
 // -----------------------------------------------------------------------------
@@ -240,26 +242,9 @@ export const projectUserMemberships = pgTable(
 );
 
 // -----------------------------------------------------------------------------
-// Milestones
-//
-// Dual-semantics heads up (Step 23): this table stores two conceptually
-// different things.
-//
-//   - Point-in-time markers (start_date IS NULL) — inspections, deliveries,
-//     approvals. Zero-duration nodes in CPM (critical-path-method) terms.
-//     These are what the table was originally designed for; existing seed
-//     data is all in this shape.
-//
-//   - Duration tasks (start_date IS NOT NULL) — excavation, framing,
-//     drywall. Rendered as bars in the Gantt view from start_date →
-//     scheduled_date. When start_date is set, treat scheduled_date as the
-//     TERMINAL / TARGET date of the task.
-//
-// If scheduling grows deeper in a later phase we can split these into
-// separate tables or add a `kind` enum. For now the nullability of
-// start_date carries the distinction, and the loader + Gantt adapter
-// branch on it. Dependencies live in the `milestoneDependencies` edge
-// table below and apply to both shapes uniformly.
+// Milestones — markers (zero-duration) and tasks (duration). The `kind`
+// column + CHECK constraint enforce the invariant: kind='marker' iff
+// start_date IS NULL, kind='task' iff start_date IS NOT NULL.
 // -----------------------------------------------------------------------------
 
 export const milestones = pgTable(
@@ -273,9 +258,7 @@ export const milestones = pgTable(
     description: text("description"),
     milestoneType: milestoneTypeEnum("milestone_type").default("custom").notNull(),
     milestoneStatus: milestoneStatusEnum("milestone_status").default("scheduled").notNull(),
-    // Nullable. When set, the milestone is a duration task rendered as
-    // a Gantt bar from startDate → scheduledDate. When null, the row is
-    // a zero-duration marker (existing behaviour).
+    kind: milestoneKindEnum("kind").notNull(),
     startDate: timestamp("start_date", { withTimezone: true }),
     scheduledDate: timestamp("scheduled_date", { withTimezone: true }).notNull(),
     completedDate: timestamp("completed_date", { withTimezone: true }),
@@ -300,6 +283,11 @@ export const milestones = pgTable(
       table.scheduledDate,
     ),
     startDateIdx: index("milestones_start_date_idx").on(table.startDate),
+    kindStartDateCheck: check(
+      "milestones_kind_start_date_check",
+      sql`(${table.kind} = 'marker' AND ${table.startDate} IS NULL)
+        OR (${table.kind} = 'task' AND ${table.startDate} IS NOT NULL)`,
+    ),
   }),
 );
 

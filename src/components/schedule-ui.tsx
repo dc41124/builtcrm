@@ -45,7 +45,14 @@ type ScheduleViewProps = {
   nowMs: number;
 };
 
-type FilterKey = "all" | "upcoming" | "in_progress" | "completed" | "missed";
+type FilterKey =
+  | "all"
+  | "upcoming"
+  | "in_progress"
+  | "completed"
+  | "missed"
+  | "markers"
+  | "tasks";
 
 const ROLE_TO_PORTAL: Record<ScheduleRole, PortalVariant> = {
   contractor_admin: "contractor",
@@ -192,7 +199,12 @@ function StandardSchedule({
 
       {viewMode === "timeline" ? (
         <>
-          <FilterTabs filter={filter} setFilter={setFilter} stats={stats} />
+          <FilterTabs
+            filter={filter}
+            setFilter={setFilter}
+            stats={stats}
+            milestones={milestones}
+          />
 
           {showCreate && canWrite && (
             <CreateMilestoneForm projectId={projectId} />
@@ -380,17 +392,23 @@ function FilterTabs({
   filter,
   setFilter,
   stats,
+  milestones,
 }: {
   filter: FilterKey;
   setFilter: (k: FilterKey) => void;
   stats: ScheduleStats;
+  milestones: MilestoneRow[];
 }) {
+  const markerCount = milestones.filter((m) => m.kind === "marker").length;
+  const taskCount = milestones.filter((m) => m.kind === "task").length;
   const tabs: Array<{ key: FilterKey; label: string; count: number }> = [
     { key: "all", label: "All", count: stats.total },
     { key: "upcoming", label: "Upcoming", count: stats.upcoming },
     { key: "in_progress", label: "In Progress", count: stats.inProgress },
     { key: "completed", label: "Completed", count: stats.completed },
     { key: "missed", label: "Missed", count: stats.missed },
+    { key: "markers", label: "Markers", count: markerCount },
+    { key: "tasks", label: "Tasks", count: taskCount },
   ];
   return (
     <div className="sch-tabs">
@@ -419,6 +437,8 @@ function applyFilter(
     if (filter === "completed") return m.milestoneStatus === "completed";
     if (filter === "in_progress") return m.milestoneStatus === "in_progress";
     if (filter === "missed") return m.milestoneStatus === "missed";
+    if (filter === "markers") return m.kind === "marker";
+    if (filter === "tasks") return m.kind === "task";
     if (filter === "upcoming") {
       if (m.milestoneStatus !== "scheduled") return false;
       const days = (m.scheduledDate.getTime() - now) / (24 * 60 * 60 * 1000);

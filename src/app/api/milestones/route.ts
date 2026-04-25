@@ -55,6 +55,7 @@ export async function POST(req: Request) {
         description: parsed.data.description ?? null,
         milestoneType: parsed.data.milestoneType,
         milestoneStatus: "scheduled",
+        kind: "marker",
         scheduledDate: new Date(parsed.data.scheduledDate),
         phase: parsed.data.phase ?? null,
         visibilityScope: parsed.data.visibilityScope,

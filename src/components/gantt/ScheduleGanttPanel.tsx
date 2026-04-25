@@ -67,7 +67,10 @@ export function ScheduleGanttPanel({
         projectId,
         // Marker = zero-duration node (startMs == endMs). Duration
         // task = startDate → scheduledDate window.
-        startMs: (m.startDate ?? m.scheduledDate).getTime(),
+        startMs:
+          m.kind === "task" && m.startDate
+            ? m.startDate.getTime()
+            : m.scheduledDate.getTime(),
         endMs: m.scheduledDate.getTime(),
       })),
     [milestones, projectId],

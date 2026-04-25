@@ -858,6 +858,7 @@ async function seedProjectContent(ctx: ProjectContext) {
         title: m.title,
         milestoneType: m.type,
         milestoneStatus: "scheduled",
+        kind: "marker",
         scheduledDate,
         sortOrder: i,
         assignedToUserId: pmUserId,

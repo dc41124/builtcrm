@@ -1,7 +1,7 @@
 // Adapter: milestone rows (app shape) ↔ frappe-gantt Task (library shape).
 //
-// Marker milestones (startDate null) are zero-duration in our model but
-// frappe-gantt doesn't draw zero-width bars, so we expand them to a
+// Marker milestones (kind === 'marker') are zero-duration in our model
+// but frappe-gantt doesn't draw zero-width bars, so we expand them to a
 // single-day width for visualization only. The custom_class carries
 // the distinction so the CSS can style them as diamond markers rather
 // than full bars.
@@ -66,7 +66,7 @@ export function milestoneToGanttTask(input: {
   isCritical: boolean;
 }): { task: GanttTask; extraClasses: string[] } {
   const { milestone: m, edges, isCritical } = input;
-  const isMarker = !m.startDate;
+  const isMarker = m.kind === "marker";
   const start = m.startDate ?? m.scheduledDate;
   // For markers, give a 1-day width so frappe-gantt draws something
   // recognisable; for tasks, use the scheduled (target) date.
@@ -141,14 +141,13 @@ export function buildGanttTasks(input: {
 // the drag's start position and ignores the synthetic end.
 // Duration tasks update both endpoints preserving the dragged edges.
 export function ganttDatesToMilestoneUpdate(input: {
-  milestone: Pick<MilestoneRow, "startDate" | "scheduledDate">;
+  milestone: Pick<MilestoneRow, "kind" | "scheduledDate">;
   newStart: Date | string;
   newEnd: Date | string;
 }): { startDate: Date | null; scheduledDate: Date } {
   const newStart = new Date(input.newStart);
   const newEnd = new Date(input.newEnd);
-  const isMarker = !input.milestone.startDate;
-  if (isMarker) {
+  if (input.milestone.kind === "marker") {
     return { startDate: null, scheduledDate: newStart };
   }
   return { startDate: newStart, scheduledDate: newEnd };

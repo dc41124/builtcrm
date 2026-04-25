@@ -32,6 +32,9 @@ export const MILESTONE_TYPE_VALUES = [
 ] as const;
 export type MilestoneType = (typeof MILESTONE_TYPE_VALUES)[number];
 
+export const MILESTONE_KIND_VALUES = ["marker", "task"] as const;
+export type MilestoneKind = (typeof MILESTONE_KIND_VALUES)[number];
+
 export const MILESTONE_VISIBILITY_VALUES = [
   "internal_only",
   "client_visible",
@@ -50,9 +53,8 @@ export type MilestoneRow = {
   description: string | null;
   milestoneType: MilestoneType;
   milestoneStatus: MilestoneStatus;
-  // Step 23: nullable. When set, the milestone is a duration task
-  // from startDate → scheduledDate. When null, it's a zero-duration
-  // marker (historic behaviour).
+  kind: MilestoneKind;
+  // startDate is non-null iff kind === 'task' — the DB CHECK enforces this.
   startDate: Date | null;
   scheduledDate: Date;
   completedDate: Date | null;
