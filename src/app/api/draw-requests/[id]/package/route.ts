@@ -1,12 +1,12 @@
 import { and, eq } from "drizzle-orm";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { Readable } from "node:stream";
 import archiver from "archiver";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { renderToBuffer } from "@react-pdf/renderer";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import {
   documentLinks,
@@ -42,11 +42,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: drawId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const [draw] = await db
     .select({
       id: drawRequests.id,
@@ -78,7 +74,7 @@ export async function GET(
 
   try {
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       draw.projectId,
     );
     assertCan(ctx.permissions, "draw_request", "read");

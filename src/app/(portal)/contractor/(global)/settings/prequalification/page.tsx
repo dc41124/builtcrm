@@ -1,8 +1,7 @@
-import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { getServerSession } from "@/auth/session";
 import { getPrequalEnforcementSettingsView } from "@/domain/loaders/prequal";
 import { AuthorizationError } from "@/domain/permissions";
 import { PlanGateError } from "@/domain/policies/plan";
@@ -11,11 +10,9 @@ import "../../../../prequalification.css";
 import { EnforcementModeForm } from "./mode-form";
 
 export default async function ContractorPrequalSettingsPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-  const sessionLike = session.session as unknown as {
-    appUserId?: string | null;
-  };
+  const sessionData = await getServerSession();
+  if (!sessionData) redirect("/login");
+  const sessionLike = sessionData.session;
 
   let view: Awaited<ReturnType<typeof getPrequalEnforcementSettingsView>>;
   try {

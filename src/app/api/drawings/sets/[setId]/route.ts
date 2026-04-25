@@ -7,12 +7,12 @@
 // contractor flips it explicitly on whichever version is the as-built
 // record of truth.
 
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { drawingSets } from "@/db/schema";
 import { getEffectiveContext } from "@/domain/context";
@@ -41,12 +41,7 @@ export async function PATCH(
   ) {
     return NextResponse.json({ error: "empty_patch" }, { status: 400 });
   }
-
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const [set] = await db
     .select()
     .from(drawingSets)
@@ -56,7 +51,7 @@ export async function PATCH(
 
   try {
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       set.projectId,
     );
     assertCan(ctx.permissions, "drawing", "write");

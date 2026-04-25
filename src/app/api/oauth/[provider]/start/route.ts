@@ -1,7 +1,6 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { auth } from "@/auth/config";
+import { getServerSession } from "@/auth/session";
 import {
   getContractorOrgContext,
   type IntegrationProviderKey,
@@ -40,15 +39,13 @@ export async function GET(
   }
   const providerKey = provider as IntegrationProviderKey;
 
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
+  const sessionData = await getServerSession();
+  if (!sessionData) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
   try {
-    const ctx = await getContractorOrgContext(
-      session.session as unknown as { appUserId?: string | null },
-    );
+    const ctx = await getContractorOrgContext(sessionData.session);
     if (ctx.role !== "contractor_admin") {
       throw new AuthorizationError(
         "Only org admins can connect integrations",

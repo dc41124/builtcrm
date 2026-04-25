@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { milestones } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
@@ -74,11 +74,7 @@ export async function PATCH(
   const { id } = await params;
   return withErrorHandler(
     async () => {
-      const session = await auth.api.getSession({ headers: await headers() });
-      if (!session) {
-        return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-      }
-
+  const { session } = await requireServerSession();
       const parsed = PatchSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) {
         return NextResponse.json(
@@ -97,7 +93,7 @@ export async function PATCH(
       }
 
       const ctx = await getEffectiveContext(
-        session.session as unknown as { appUserId?: string | null },
+        session,
         existing.projectId,
       );
       assertCan(ctx.permissions, "milestone", "write");

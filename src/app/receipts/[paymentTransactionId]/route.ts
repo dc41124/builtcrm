@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { db } from "@/db/client";
 import { paymentTransactions } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
@@ -45,11 +45,7 @@ export async function GET(
   { params }: { params: Promise<{ paymentTransactionId: string }> },
 ) {
   const { paymentTransactionId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const [txn] = await db
     .select({
       id: paymentTransactions.id,
@@ -67,7 +63,7 @@ export async function GET(
 
   try {
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       txn.projectId,
     );
     assertCan(

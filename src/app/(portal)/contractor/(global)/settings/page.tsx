@@ -1,8 +1,7 @@
 import { eq } from "drizzle-orm";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
 import { db } from "@/db/client";
 import { ssoProviders } from "@/db/schema";
 import { getUserSettingsView } from "@/domain/loaders/user-settings";
@@ -27,15 +26,13 @@ import { AuthorizationError } from "@/domain/permissions";
 import { SettingsShell } from "@/components/settings/settings-shell";
 
 export default async function ContractorSettingsPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
-  const sessionShim = session.session as unknown as { appUserId?: string | null };
+  const { session } = await requireServerSession();
+  const sessionShim = session;
 
   try {
     const view = await getUserSettingsView({
       session: sessionShim,
-      sessionId: (session.session as { id?: string }).id,
+      sessionId: session.id,
       portalType: "contractor",
     });
 

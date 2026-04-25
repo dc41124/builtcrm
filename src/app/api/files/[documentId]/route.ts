@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { db } from "@/db/client";
 import { documents } from "@/db/schema";
 import { getEffectiveContext } from "@/domain/context";
@@ -14,11 +14,7 @@ export async function GET(
   { params }: { params: Promise<{ documentId: string }> },
 ) {
   const { documentId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const [doc] = await db
     .select()
     .from(documents)
@@ -30,7 +26,7 @@ export async function GET(
 
   try {
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       doc.projectId,
     );
     assertCan(ctx.permissions, "document", "read");

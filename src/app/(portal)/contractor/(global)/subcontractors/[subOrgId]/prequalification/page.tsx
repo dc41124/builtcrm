@@ -1,8 +1,7 @@
-import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { getServerSession } from "@/auth/session";
 import { getPrequalSubcontractorHistoryView } from "@/domain/loaders/prequal";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -15,11 +14,9 @@ export default async function ContractorSubPrequalHistoryPage({
   params: Promise<{ subOrgId: string }>;
 }) {
   const { subOrgId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-  const sessionLike = session.session as unknown as {
-    appUserId?: string | null;
-  };
+  const sessionData = await getServerSession();
+  if (!sessionData) redirect("/login");
+  const sessionLike = sessionData.session;
 
   try {
     const view = await getPrequalSubcontractorHistoryView({

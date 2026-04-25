@@ -10,12 +10,12 @@
 //   POST — called by the client once the PUT completes; updates the
 //          drawing_sheets row with the thumbnail_key.
 
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { drawingSets, drawingSheets } from "@/db/schema";
 import { getEffectiveContext } from "@/domain/context";
@@ -45,18 +45,13 @@ export async function GET(
   if (url.searchParams.get("action") !== "presign") {
     return NextResponse.json({ error: "unknown_action" }, { status: 400 });
   }
-
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const row = await loadSheetWithSet(sheetId);
   if (!row) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   try {
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       row.set.projectId,
     );
     // Anyone who can read drawings can render thumbnails. We don't gate
@@ -96,18 +91,13 @@ export async function POST(
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
-
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const row = await loadSheetWithSet(sheetId);
   if (!row) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   try {
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       row.set.projectId,
     );
     assertCan(ctx.permissions, "drawing", "read");

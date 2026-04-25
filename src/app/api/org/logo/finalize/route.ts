@@ -1,9 +1,9 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { auditEvents, organizations } from "@/db/schema";
 import { getObjectSize, objectExists, presignDownloadUrl } from "@/lib/storage";
@@ -33,11 +33,8 @@ async function resolveAdminOrg(sessionShim: { appUserId?: string | null }) {
 }
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const sessionShim = session.session as unknown as { appUserId?: string | null };
+  const { session } = await requireServerSession();
+  const sessionShim = session;
 
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -124,11 +121,8 @@ export async function POST(req: Request) {
 // Clear the logo reference (doesn't delete the R2 object — orphan cleanup is a
 // later concern, same as the avatar finalize path).
 export async function DELETE() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const sessionShim = session.session as unknown as { appUserId?: string | null };
+  const { session } = await requireServerSession();
+  const sessionShim = session;
 
   try {
     const { orgId, userId } = await resolveAdminOrg(sessionShim);

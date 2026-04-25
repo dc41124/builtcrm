@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import {
   getCarryForwardPreview,
   type MeetingType,
@@ -28,11 +28,7 @@ const QuerySchema = z.object({
 });
 
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const url = new URL(req.url);
   const parsed = QuerySchema.safeParse({
     projectId: url.searchParams.get("projectId") ?? undefined,
@@ -47,7 +43,7 @@ export async function GET(req: Request) {
 
   try {
     const preview = await getCarryForwardPreview({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       projectId: parsed.data.projectId,
       type: parsed.data.type as MeetingType,
     });

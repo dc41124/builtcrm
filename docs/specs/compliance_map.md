@@ -74,7 +74,7 @@ Residual code-level items:
 |---|---|
 | Database privilege separation | Two-role split: runtime `builtcrm_app` (DML-only) via `DATABASE_URL`, admin via `DATABASE_ADMIN_URL`. Runtime role cannot `DROP`/`ALTER`/`TRUNCATE` even on credential leak. See [security_posture.md §5](security_posture.md#5-authorization). |
 | Encryption at rest for secrets | AES-256-GCM for OAuth integration tokens; Better Auth symmetric encryption for 2FA TOTP secrets + backup codes + OAuth-login tokens (future) |
-| Bounded retention on payloads | 90-day purge of `webhook_events` (success-state rows) via [src/jobs/webhook-payload-purge.ts](../../src/jobs/webhook-payload-purge.ts) |
+| Bounded retention on payloads | 90-day purges scheduled daily: `webhook_events` success-state rows ([webhook-payload-purge.ts](../../src/jobs/webhook-payload-purge.ts)), read `notifications` ([notification-purge.ts](../../src/jobs/notification-purge.ts)), `audit_events` ([audit-event-purge.ts](../../src/jobs/audit-event-purge.ts)), `activity_feed_items` ([activity-feed-purge.ts](../../src/jobs/activity-feed-purge.ts)) |
 
 ---
 
@@ -147,7 +147,7 @@ Residual code-level items:
 | Criterion | Where |
 |---|---|
 | C1.1 — information protected per policy | [security_posture.md §2](security_posture.md#2-data-at-rest-protections-table-by-table) tables every sensitive field + its mechanism |
-| C1.2 — information disposed per policy | 90-day webhook payload purge; sync-event cleanup; drizzle-kit-managed baseline prevents orphan migration SQL |
+| C1.2 — information disposed per policy | 90-day purges on `webhook_events`, `notifications` (read), `audit_events`, `activity_feed_items`; sync-event cleanup; drizzle-kit-managed baseline prevents orphan migration SQL |
 
 ---
 
@@ -178,4 +178,5 @@ Residual code-level items:
 
 ## Changelog
 
+- **2026-04-25** — Retention coverage row in CC5.2 + C1.2 expanded to enumerate the four 90-day purge jobs (was just `webhook_events`). Two new known gaps cross-referenced from `security_posture.md §6`: `messages` retention deferred and R2 orphan cleanup deferred.
 - **2026-04-23** — Initial map, written at the close of the observability + hardening sprint. Reflects the state of the codebase as of commits `84807ae` through `f56929c`. Expect this doc to drift if the code changes and this file doesn't — keep it paired with reality by updating during reviews that touch security-adjacent code.

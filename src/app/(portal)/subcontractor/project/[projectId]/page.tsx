@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { getSubcontractorProjectView } from "@/domain/loaders/project-home";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -52,13 +52,11 @@ export default async function SubcontractorProjectHomePage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let view;
   try {
     view = await getSubcontractorProjectView({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       projectId,
     });
   } catch (err) {

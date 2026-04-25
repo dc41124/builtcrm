@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { renderToBuffer } from "@react-pdf/renderer";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { dailyLogs } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -38,14 +38,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   try {
     const log = await getDailyLog({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       logId: id,
     });
 
@@ -72,7 +68,7 @@ export async function GET(
         return NextResponse.json({ error: "not_found" }, { status: 404 });
       }
       const ctx = await getEffectiveContext(
-        session.session as unknown as { appUserId?: string | null },
+        session,
         row.projectId,
       );
       if (ctx.role === "residential_client") {

@@ -1,10 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { auditEvents, invitations, organizations, projects } from "@/db/schema";
 import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
@@ -44,12 +44,7 @@ export async function POST(req: Request) {
         },
       );
     }
-
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) {
-      return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-    }
-
+  const { session } = await requireServerSession();
     const parsed = BodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json(
@@ -59,7 +54,7 @@ export async function POST(req: Request) {
     }
 
     const ctx = await requireOrgAdminContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
     );
 
     // Client subtype consistency. Commercial/residential owners can only

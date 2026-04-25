@@ -1,6 +1,6 @@
 # Security Posture
 
-**Last reviewed:** 2026-04-23
+**Last reviewed:** 2026-04-25
 **Scope:** Data-at-rest protections, authentication storage, authorization model, and known gaps as of the pre-baseline hardening pass.
 
 This document exists so that future contributors — including future me — can understand *what security properties we're relying on, what we're deliberately not protecting against, and why the decisions were made the way they were*. If you're making a schema change, a new integration, or a change to `src/auth/`, read the relevant section here first.
@@ -153,6 +153,27 @@ Each of these was explicitly deferred during the step-1 hardening pass. Entries 
 **Why deferred originally:** encryption would have hurt debuggability; retention TTL achieves the same leak-bound goal with less friction.
 **Residual:** failure-state rows retain payloads indefinitely. Acceptable because their volume is low and they carry diagnostic value a human needs to trace.
 
+### Unbounded-growth tables: `notifications`, `audit_events`, `activity_feed_items`
+**Status:** RESOLVED (2026-04-25). Three new 90-day scheduled purges:
+- [src/jobs/notification-purge.ts](../../src/jobs/notification-purge.ts) — deletes rows where `read_at IS NOT NULL AND read_at < cutoff`. Unread notifications retain indefinitely (presumed actionable).
+- [src/jobs/audit-event-purge.ts](../../src/jobs/audit-event-purge.ts) — deletes all rows older than 90 days. `notifications.source_audit_event_id` is `ON DELETE SET NULL`, so back-links null out cleanly; the notification's denormalized title/body copy is preserved.
+- [src/jobs/activity-feed-purge.ts](../../src/jobs/activity-feed-purge.ts) — deletes all rows older than 90 days. `audit_events` remains the system-of-record for the underlying state changes.
+
+All three follow the `webhook-payload-purge.ts` pattern, write a `*-purge.run_complete` system audit event with `deletedCount`, and are scheduled at 04:00 / 04:15 / 04:30 UTC respectively to avoid pool overlap with the existing 03:30 / 03:45 jobs.
+
+**Residual:** 90 days of deep audit-event history is the dial — incident look-back longer than that requires a different retention number. The `audit-event-purge.run_complete` rows themselves form a self-witnessing log of the purge job.
+
+### `messages` retention
+**Status:** open — purge intentionally not implemented.
+**Why deferred:** messages are real user content with long-tail PM value (RFI threads, change-order discussions become part of the project record). The `conversations` table has no `closed`/`archived` state, only `last_message_at`, so there's no clean predicate for "this conversation is settled, its messages can age out." The 90d webhook precedent doesn't apply to user-generated content.
+**Unblocker:** any of (a) a conversation lifecycle state is added (closed/archived), (b) DB size becomes a real constraint, (c) a compliance requirement around user-data minimization arrives.
+
+### R2 orphan cleanup
+**Status:** open — known leak.
+**Why gap exists:** [src/lib/storage.ts](../../src/lib/storage.ts) `deleteObject()` is only called in the upload-supersede path ([src/app/api/documents/[id]/supersede/route.ts](../../src/app/api/documents/[id]/supersede/route.ts)). Every other deletion path leaks the R2 object: cascade-deletes from project removal, direct row deletes, organization logo replacement, expired exports. Four tables hold storage keys: `documents.storage_key`, `prequal_documents.storage_key`, `exports.storage_key`, `organizations.logo_storage_key`.
+**Why deferred:** the right fix is a mark-and-sweep design (queue table + daily processor + cascade-trigger handling), not a naive listing sweep. Needs a dedicated session.
+**Unblocker:** any of (a) R2 storage cost becomes visible, (b) a compliance audit asks about file lifecycle, (c) bandwidth to design the queue + trigger architecture.
+
 ### `auth_account.{access,refresh,id}_token` encryption config
 **Status:** `encryptOAuthTokens: true` is set, but the columns are always NULL today because no social providers are configured.
 **Why deferred:** nothing to decrypt until social login is added. Config-flag is future-proofing only.
@@ -169,14 +190,13 @@ Each of these was explicitly deferred during the step-1 hardening pass. Entries 
 **Unblocker:** first real consumer — provision then.
 
 ### Per-refresh OAuth audit events
-**Status:** open.
-**Why gap exists:** `src/lib/integrations/oauth.ts` `refreshToken()` doesn't currently write a per-invocation audit event. The `integration-token-refresh` scheduled job writes a batch-level audit with `checked / refreshed / failed` counts (sufficient for compliance), but individual refresh success/failure rows would be useful for incident triage ("which specific connection started failing on date X").
-**Unblocker:** dedicated small pass on `oauth.ts` to emit `oauth.refresh.success` / `oauth.refresh.failure` per connection. Out of scope for the Step 4 hardening — that step was explicitly batch-level.
+**Status:** RESOLVED (verified 2026-04-25). `src/lib/integrations/oauth.ts` `refreshToken()` writes `oauth.refresh.succeeded` per successful refresh (lines 358–365, with provider metadata) and `oauth.refresh.failed` per failure via `flagNeedsReauth()` (lines 391–404, with provider + error message). The `integration-token-refresh` scheduled job's batch-level audit remains as the run-summary; the per-invocation rows give incident-triage surface ("which specific connection started failing on date X").
+**Residual:** the implementation uses direct `tx.insert(auditEvents)` rather than the `writeSystemAuditEvent` helper; behavior is equivalent but the pattern is inconsistent. Consider unifying in a future cleanup.
 
 ### Fresh-env bootstrap flow
-**Status:** documented but untested. [docs/specs/bootstrap_new_env.md](bootstrap_new_env.md) walks through the full sequence: role creation in Neon, env vars, `scripts/new-env-bootstrap.sql` for extension + default privileges, `npm run db:migrate` to apply the baseline. Script is idempotent.
-**Why still listed here:** the flow hasn't been exercised against a real fresh environment — current dev DB was built incrementally before the baseline collapse. First provisioning of a new env (prod, new Neon branch, clean dev) is the ground-truth test; if anything's wrong, update the doc.
-**Unblocker:** resolved once first fresh env is successfully stood up and the walkthrough is confirmed accurate.
+**Status:** RESOLVED (2026-04-25). Validated against a Neon branch. Validation uncovered a critical defect: Neon's "Create role" UI grants new roles `neon_superuser` membership plus `CREATEROLE`/`CREATEDB`/`REPLICATION`/`BYPASSRLS`, **and neither `neondb_owner` nor any SQL-accessible role can downgrade these privileges** (the ADMIN OPTION is held by Neon's platform admin only). Without this fix, the entire role-split premise of §5 was a paper guarantee — `builtcrm_app` could `DROP` tables, create roles, and bypass any future RLS.
+**Fix:** `scripts/new-env-bootstrap.sql` now creates `builtcrm_app` itself via SQL with explicit `NOCREATEROLE NOCREATEDB NOREPLICATION NOBYPASSRLS` attributes and a generated random password printed to stdout. The doc walkthrough was rewritten to forbid using the Neon UI for role creation, and a Step 5 verification script was added that fails loud if the runtime role can `CREATE TABLE`.
+**Residual:** the verification step is manual (operator must run it after bootstrap). A future hardening pass could fold it into a `scripts/verify-bootstrap.ts` that exits non-zero on privilege drift.
 
 ---
 
@@ -190,6 +210,8 @@ Currently pinned in [src/auth/config.ts](../../src/auth/config.ts):
 | `session.storeSessionInDatabase` | `false` | §4 — the whole session-in-Redis property depends on this |
 | `session.cookieCache.strategy` | `"compact"` | Prevents a future default-flip to `"jwe"` from silently changing cookie cryptography |
 | `session.freshAge` | `60 * 60 * 24` (1d) | Sensitive operations use fresh-age; shouldn't drift with library default |
+| `session.expiresIn` | `60 * 60 * 24` (24h) | Sliding-window idle timeout — combined with `updateAge` below, gives 24h-idle semantics. Tightened 2026-04-25 from 7d. |
+| `session.updateAge` | `60 * 60 * 24` (1d) | How often `expiresAt` is bumped on use. Equal to `expiresIn` so any request within 24h fully renews the window; an idle session expires after 24h. |
 | `verification.storeIdentifier` | `"hashed"` | §2 — step-1 hardening |
 | `account.encryptOAuthTokens` | `true` | §2 — step-1 hardening |
 | `emailAndPassword.resetPasswordTokenExpiresIn` | `60 * 30` (30m) | Password reset is a high-value attacker target; 30m is tight enough to limit token-replay windows without hurting normal users on fast email pipes |
@@ -205,8 +227,8 @@ Microsoft's Zero Trust framework maps security controls across six pillars. This
 
 | Pillar | Current posture | Gaps |
 |---|---|---|
-| **Identity** | Better Auth with email+password, 2FA (TOTP+backup codes, encrypted at rest via Better Auth plugin default), SSO scaffolded for Enterprise (SAML), per-org 2FA-required gate, per-org session-timeout cap, [session tokens hashed/moved-to-Redis](#4-session-storage-upstash-secondary-storage), [invitation tokens SHA-256 at rest](#2-data-at-rest-protections-table-by-table) | Idle-based session timeout (wall-clock only today); user-initiated account deletion not yet surfaced |
-| **Data** | AES-256-GCM for OAuth integration tokens, Better Auth master-key encryption for 2FA/OAuth-login tokens, SHA-256 hashes for verification identifiers + invitation tokens, bounded 90-day retention on webhook payloads, Neon disk encryption at rest, TLS in transit everywhere | `tax_id` still plaintext (policy-pending); no column-level masking; no user-deletion / anonymization primitive |
+| **Identity** | Better Auth with email+password, 2FA (TOTP+backup codes, encrypted at rest via Better Auth plugin default), SSO scaffolded for Enterprise (SAML), per-org 2FA-required gate, per-org session-timeout cap (hard cap from session creation), 24h sliding-window idle timeout (Better Auth `updateAge` + `expiresIn`), [session tokens hashed/moved-to-Redis](#4-session-storage-upstash-secondary-storage), [invitation tokens SHA-256 at rest](#2-data-at-rest-protections-table-by-table) | User-initiated account deletion not yet surfaced |
+| **Data** | AES-256-GCM for OAuth integration tokens, Better Auth master-key encryption for 2FA/OAuth-login tokens, SHA-256 hashes for verification identifiers + invitation tokens, bounded 90-day retention on webhook payloads + notifications + audit events + activity feed, Neon disk encryption at rest, TLS in transit everywhere | `tax_id` still plaintext (policy-pending); no column-level masking; no user-deletion / anonymization primitive; R2 orphan cleanup not implemented (see §6) |
 | **Apps** | Backend-mediated authorization via the single `getEffectiveContext()` chokepoint; policy matrix in `src/domain/permissions.ts`; input validation via Zod on all mutation routes; global API error boundary in `src/lib/api/error-handler.ts` (sanitized 500s, no stack-trace leak); rate limiting on auth + invitation endpoints via `@upstash/ratelimit` | Input validation not 100% uniform across read endpoints (~5% gap, code hygiene not risk); opportunistic error-handler retrofit of the remaining ~170 routes still to do |
 | **Infrastructure** | Two-role DB privilege split (`builtcrm_app` DML-only runtime, `builtcrm_admin` DDL); secrets in .env.local and Neon/Upstash consoles; Sentry error monitoring (opt-in via DSN); comprehensive audit logging via `audit_events` + `writeSystemAuditEvent` for background jobs; all managed services (Neon, Upstash, R2, Render) handle underlying platform security | No RLS (deferred — see §6); no formal incident response plan documented; source-map upload to Sentry not wired (deferred until deploy time) |
 | **Network** | TLS-only connections (Neon requires it, Upstash requires it, R2 via HTTPS); CSRF protection via Better Auth's state cookie + SameSite cookies; rate limiting defends auth endpoints at the network edge | No WAF in front of the origin; no explicit IP-allowlist support for admin functions |
@@ -218,6 +240,9 @@ This mapping is maintained manually — update it when any of the above statemen
 
 ## 9. Changelog
 
+- **2026-04-25** — Session hardening pass: typed `getServerSession()` / `requireServerSession()` helpers in [src/auth/session.ts](../../src/auth/session.ts) replace the 298+ files of `session.session as unknown as { appUserId? }` casts at the auth boundary. Idle-window tightened from 7d to 24h (`session.expiresIn` lowered, `updateAge` unchanged) — active users renew on each request, idle users sign out after 24h. Per-refresh OAuth audit events verified present (`oauth.refresh.succeeded`/`oauth.refresh.failed` in [src/lib/integrations/oauth.ts](../../src/lib/integrations/oauth.ts)) and §6 entry marked RESOLVED.
+- **2026-04-25** — Fresh-env bootstrap validated and a critical defect fixed. The original flow used the Neon "Create role" UI for `builtcrm_app`; validation discovered Neon-UI-created roles inherit `neon_superuser` membership and several superuser-equivalent attributes that no SQL-accessible role can revoke, defeating the §5 role split. `scripts/new-env-bootstrap.sql` rewritten to create the role itself via SQL with explicit least-privilege attributes (random password printed to stdout); `docs/specs/bootstrap_new_env.md` rewritten to forbid the Neon UI path and added a Step 5 verification check. §6 "Fresh-env bootstrap flow" entry marked RESOLVED.
+- **2026-04-25** — Retention coverage extended. Added 90-day scheduled purges for `notifications` ([src/jobs/notification-purge.ts](../../src/jobs/notification-purge.ts)), `audit_events` ([src/jobs/audit-event-purge.ts](../../src/jobs/audit-event-purge.ts)), and `activity_feed_items` ([src/jobs/activity-feed-purge.ts](../../src/jobs/activity-feed-purge.ts)) — all mirroring the `webhook-payload-purge.ts` pattern with system audit events on completion. Two new gaps explicitly recorded in §6: `messages` retention (deferred — no conversation lifecycle state) and R2 orphan cleanup (deferred — needs mark-and-sweep design). §8 Data row updated.
 - **2026-04-23** — Initial version. Captures step-1 hardening decisions: Upstash secondary storage for sessions, `verification.storeIdentifier: "hashed"`, `account.encryptOAuthTokens: true`, `invitations.token` SHA-256 at rest, two-role DB privilege split (`builtcrm_app` + `builtcrm_admin`), `BETTER_AUTH_SECRET` master-key model.
 - **2026-04-23** — Baseline collapse (Option A). 27 hand-authored migrations flattened into a single `0000_baseline.sql` + drizzle-kit-native `meta/_journal.json` + snapshot. 8 FKs whose long-form auto-names exceeded Postgres' 63-char limit were renamed to short-form (`{src}_{col}_fk`) and declared explicitly via `foreignKey({...name})` to prevent drift. Routine schema changes now flow through `npm run db:generate` + `npm run db:migrate`; `scripts/apply-sql.ts` remains for one-off SQL. Fresh-env setup flow (new prod DB or Neon branch requires role creation + pgcrypto + `ALTER DEFAULT PRIVILEGES` before baseline) is documented here as a known gap — see §6.
 - **2026-04-23** — Observability and hardening sprint (six-step, commits `84807ae` through `f56929c`).

@@ -3,12 +3,12 @@
 //       subdirectory route; this file is resolve/edit/delete on the
 //       root (or reply) comment itself.
 
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { drawingComments, drawingSets, drawingSheets } from "@/db/schema";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
@@ -47,18 +47,13 @@ export async function PATCH(
   if (body.text === undefined && body.resolved === undefined) {
     return NextResponse.json({ error: "empty_patch" }, { status: 400 });
   }
-
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const loaded = await loadComment(commentId);
   if (!loaded) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   try {
     const access = await resolveSheetAccess({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       sheetId: loaded.sheetId,
     });
     assertCan(access.ctx.permissions, "drawing_markup", "write");
@@ -116,17 +111,13 @@ export async function DELETE(
   { params }: { params: Promise<{ commentId: string }> },
 ) {
   const { commentId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const loaded = await loadComment(commentId);
   if (!loaded) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   try {
     const access = await resolveSheetAccess({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       sheetId: loaded.sheetId,
     });
     assertCan(access.ctx.permissions, "drawing_markup", "write");

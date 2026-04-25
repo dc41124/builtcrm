@@ -1,11 +1,11 @@
 import { and, asc, eq, gte, lte } from "drizzle-orm";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { Readable } from "node:stream";
 import archiver from "archiver";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { documents, users } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
@@ -47,14 +47,10 @@ export async function GET(
   { params }: { params: Promise<{ projectId: string }> },
 ) {
   const { projectId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   try {
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       projectId,
     );
     assertCan(ctx.permissions, "document", "read");

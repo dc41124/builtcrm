@@ -1,7 +1,6 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
 
 // Stub endpoint for account deletion. Real deletion cascades across org
 // memberships, outstanding invoices, and audit trails — tracked as a
@@ -9,10 +8,7 @@ import { auth } from "@/auth/config";
 // never calls this endpoint, but it exists so the route is reserved and a
 // smoke-test can confirm the auth gate works.
 export async function POST() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
+  await requireServerSession();
   return NextResponse.json(
     {
       error: "not_implemented",

@@ -1,8 +1,8 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { db } from "@/db/client";
 import { notifications } from "@/db/schema";
 
@@ -14,11 +14,8 @@ import { notifications } from "@/db/schema";
 // current portal's backlog.
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const appUserId = (session.session as unknown as { appUserId?: string | null })
+  const { session } = await requireServerSession();
+  const appUserId = (session)
     .appUserId;
   if (!appUserId) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });

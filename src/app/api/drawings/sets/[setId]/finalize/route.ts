@@ -7,11 +7,11 @@
 // Trigger.dev task later; until then inline is fine — a 40-sheet PDF
 // parses in a few seconds well within a serverless function budget.
 
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { drawingSets } from "@/db/schema";
 import { getEffectiveContext } from "@/domain/context";
@@ -24,11 +24,7 @@ export async function POST(
   { params }: { params: Promise<{ setId: string }> },
 ) {
   const { setId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const [set] = await db
     .select()
     .from(drawingSets)
@@ -40,7 +36,7 @@ export async function POST(
 
   try {
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       set.projectId,
     );
     assertCan(ctx.permissions, "drawing", "write");

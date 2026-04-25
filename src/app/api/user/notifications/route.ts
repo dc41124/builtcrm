@@ -1,9 +1,9 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { userNotificationPreferences } from "@/db/schema";
 import {
@@ -36,11 +36,8 @@ const ResetBody = z.object({
 
 // PUT replaces (upsert) the user's prefs for the given portal.
 export async function PUT(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const appUserId = (session.session as unknown as { appUserId?: string | null })
+  const { session } = await requireServerSession();
+  const appUserId = (session)
     .appUserId;
   if (!appUserId) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });

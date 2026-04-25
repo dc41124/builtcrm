@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+
+import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { dailyLogs } from "@/db/schema";
 
@@ -21,9 +21,7 @@ export default async function SubcontractorGlobalLogRedirect({
   params: Promise<{ logId: string }>;
 }) {
   const { logId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  await requireServerSession();
   const [log] = await db
     .select({ projectId: dailyLogs.projectId })
     .from(dailyLogs)

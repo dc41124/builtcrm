@@ -1,9 +1,9 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
 import { objectExists, getObjectSize, presignDownloadUrl } from "@/lib/storage";
@@ -17,11 +17,8 @@ const BodySchema = z.object({
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2MB
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const appUserId = (session.session as unknown as { appUserId?: string | null })
+  const { session } = await requireServerSession();
+  const appUserId = (session)
     .appUserId;
   if (!appUserId) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
@@ -83,11 +80,8 @@ export async function POST(req: Request) {
 // DELETE removes the avatar reference from the user record (but doesn't
 // delete from R2 — orphan cleanup is a later concern).
 export async function DELETE() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const appUserId = (session.session as unknown as { appUserId?: string | null })
+  const { session } = await requireServerSession();
+  const appUserId = (session)
     .appUserId;
   if (!appUserId) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });

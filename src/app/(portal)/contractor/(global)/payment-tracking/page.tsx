@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import {
   getContractorCrossProjectPayments,
   type ContractorCrossProjectPaymentsView,
@@ -16,13 +16,11 @@ import { PaymentTrackingWorkspace } from "./payment-tracking-ui";
 export const revalidate = 60;
 
 export default async function ContractorPaymentTrackingPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let view: ContractorCrossProjectPaymentsView;
   try {
     view = await getContractorCrossProjectPayments({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
     });
   } catch (err) {
     if (err instanceof AuthorizationError) {

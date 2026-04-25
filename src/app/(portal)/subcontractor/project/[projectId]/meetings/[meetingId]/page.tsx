@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { getMeeting, type MeetingDetail } from "@/domain/loaders/meetings";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -14,13 +14,11 @@ export default async function SubMeetingDetailPage({
   params: Promise<{ projectId: string; meetingId: string }>;
 }) {
   const { projectId, meetingId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let detail: MeetingDetail | null = null;
   try {
     detail = await getMeeting({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       meetingId,
     });
   } catch (err) {

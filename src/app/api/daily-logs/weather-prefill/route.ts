@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { projects } from "@/db/schema";
 import { getEffectiveContext } from "@/domain/context";
@@ -23,11 +23,7 @@ import { fetchDailyWeather } from "@/lib/weather/open-meteo";
 // the GC-side create/edit drawer. Clients and subs never need it.
 
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const url = new URL(req.url);
   const projectId = url.searchParams.get("projectId");
   const date = url.searchParams.get("date");
@@ -43,7 +39,7 @@ export async function GET(req: Request) {
 
   try {
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       projectId,
     );
     if (ctx.role !== "contractor_admin" && ctx.role !== "contractor_pm") {

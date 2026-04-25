@@ -1,9 +1,9 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import archiver from "archiver";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { auditEvents, dataExports, organizations } from "@/db/schema";
 import { getOrgPlanContext } from "@/domain/loaders/billing";
@@ -30,13 +30,8 @@ import { slugForFilename } from "@/lib/exports/csv";
 // Synchronous — same portfolio-scope caveat as documents-zip.
 
 export async function POST() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const sessionShim = session.session as unknown as {
-    appUserId?: string | null;
-  };
+  const { session } = await requireServerSession();
+  const sessionShim = session;
 
   try {
     const ctx = await getContractorOrgContext(sessionShim);

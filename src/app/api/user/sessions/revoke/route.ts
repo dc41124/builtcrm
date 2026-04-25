@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
 import { db } from "@/db/client";
 import { authSession, authUser } from "@/db/schema";
 
@@ -19,14 +20,11 @@ const BodySchema = z.union([
 ]);
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
+  const { session, user } = await requireServerSession();
 
   // The Better Auth user id for the currently signed-in request.
-  const authUserId = (session.user as { id: string }).id;
-  const currentSessionId = (session.session as { id: string }).id;
+  const authUserId = user.id;
+  const currentSessionId = session.id;
 
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {

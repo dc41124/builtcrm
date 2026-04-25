@@ -1,7 +1,6 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { getServerSession } from "@/auth/session";
 import { loadUserPortalContext } from "@/domain/loaders/portals";
 import MarketingPage from "@/components/marketing/marketing-page";
 
@@ -9,11 +8,10 @@ import MarketingPage from "@/components/marketing/marketing-page";
 // dispatched to their portal (or to /select-portal if they have more than
 // one, or /no-portal if they have none).
 export default async function Home() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const sessionData = await getServerSession();
 
-  if (session) {
-    const appUserId = (session.session as unknown as { appUserId?: string | null })
-      .appUserId;
+  if (sessionData) {
+    const appUserId = sessionData.session.appUserId;
     if (appUserId) {
       const ctx = await loadUserPortalContext(appUserId);
       if (ctx.options.length === 0) redirect("/no-portal");

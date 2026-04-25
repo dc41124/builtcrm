@@ -1,9 +1,9 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { inspectionTemplates } from "@/db/schema";
 import { AuthorizationError } from "@/domain/permissions";
@@ -53,11 +53,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const appUserId = (session.session as unknown as { appUserId?: string | null })
+  const { session } = await requireServerSession();
+  const appUserId = (session)
     .appUserId;
   if (!appUserId) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
@@ -131,11 +128,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const appUserId = (session.session as unknown as { appUserId?: string | null })
+  const { session } = await requireServerSession();
+  const appUserId = (session)
     .appUserId;
   if (!appUserId) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });

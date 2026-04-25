@@ -1,9 +1,9 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { auditEvents, roleAssignments } from "@/db/schema";
 import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
@@ -22,11 +22,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
@@ -39,7 +35,7 @@ export async function PATCH(
 
   try {
     const ctx = await requireOrgAdminContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
     );
 
     // Role rows are portal-scoped. The caller's portal context decides which

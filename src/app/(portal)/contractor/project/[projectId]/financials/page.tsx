@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { ContractorFinancialPanel } from "@/components/financial-view";
 import { getContractorFinancialView } from "@/domain/loaders/financial";
 import { AuthorizationError } from "@/domain/permissions";
@@ -12,13 +12,11 @@ export default async function ContractorFinancialsPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let view;
   try {
     view = await getContractorFinancialView({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       projectId,
     });
   } catch (err) {

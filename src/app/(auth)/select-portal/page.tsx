@@ -1,18 +1,17 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
-import { auth } from "@/auth/config";
+import { getServerSession } from "@/auth/session";
 import { loadUserPortalContext, portalLabel } from "@/domain/loaders/portals";
 
 export default async function SelectPortalPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
+  const sessionData = await getServerSession();
+  if (!sessionData) {
     redirect("/login?next=/select-portal");
   }
+  const { session, user } = sessionData;
 
-  const appUserId = (session.session as unknown as { appUserId?: string | null })
-    .appUserId;
+  const appUserId = session.appUserId;
   if (!appUserId) {
     redirect("/login");
   }
@@ -91,7 +90,7 @@ export default async function SelectPortalPage() {
       </div>
 
       <div className="auth-footer">
-        Signed in as <strong>{session.user.email}</strong>
+        Signed in as <strong>{user.email}</strong>
       </div>
     </>
   );

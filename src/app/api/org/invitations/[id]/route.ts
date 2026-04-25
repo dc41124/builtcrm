@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { auditEvents, invitations } from "@/db/schema";
 import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
@@ -13,16 +13,12 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const { id } = await params;
 
   try {
     const ctx = await requireOrgAdminContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
     );
 
     const [invite] = await db

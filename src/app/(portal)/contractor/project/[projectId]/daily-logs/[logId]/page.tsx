@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import {
   getDailyLog,
   type DailyLogDetailFull,
@@ -16,13 +16,11 @@ export default async function ContractorDailyLogDetailPage({
   params: Promise<{ projectId: string; logId: string }>;
 }) {
   const { projectId, logId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let log: DailyLogDetailFull;
   try {
     const result = await getDailyLog({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       logId,
     });
     if (result.mode !== "full") {

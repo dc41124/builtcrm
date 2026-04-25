@@ -1,8 +1,7 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
+import { getServerSession } from "@/auth/session";
 import {
   decidePrequalSubmission,
   moveSubmissionToUnderReview,
@@ -80,8 +79,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
+  const sessionData = await getServerSession();
+  if (!sessionData) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));
@@ -92,9 +91,7 @@ export async function PATCH(
     );
   }
   const body = parsed.data;
-  const sessionLike = session.session as unknown as {
-    appUserId?: string | null;
-  };
+  const sessionLike = sessionData.session;
 
   try {
     if (body.action === "save_draft") {

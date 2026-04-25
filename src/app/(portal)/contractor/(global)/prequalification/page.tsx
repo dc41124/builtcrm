@@ -1,7 +1,6 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { getServerSession } from "@/auth/session";
 import {
   getPrequalQueueView,
   getPrequalSubmissionDetailView,
@@ -23,11 +22,9 @@ export default async function ContractorPrequalReviewQueuePage({
   }>;
 }) {
   const sp = await searchParams;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-  const sessionLike = session.session as unknown as {
-    appUserId?: string | null;
-  };
+  const sessionData = await getServerSession();
+  if (!sessionData) redirect("/login");
+  const sessionLike = sessionData.session;
 
   let view: Awaited<ReturnType<typeof getPrequalQueueView>>;
   try {

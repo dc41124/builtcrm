@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import {
   getPrequalDocumentDownloadUrl,
   removePrequalDocument,
@@ -17,13 +17,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
+  const { session } = await requireServerSession();
   try {
     const result = await getPrequalDocumentDownloadUrl({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       documentId: id,
     });
     return NextResponse.json(result);
@@ -49,13 +46,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
+  const { session } = await requireServerSession();
   try {
     await removePrequalDocument({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       documentId: id,
     });
     return NextResponse.json({ ok: true });

@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import {
   getMeetings,
   getMyMeetingActionItems,
@@ -21,24 +21,22 @@ export default async function SubMeetingsPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let rows: MeetingListRow[] = [];
   let myActions: MyActionItemRow[] = [];
   let recentMinutes: RecentPublishedMinutesRow[] = [];
   try {
     const [view, actions, minutes] = await Promise.all([
       getMeetings({
-        session: session.session as unknown as { appUserId?: string | null },
+        session: session,
         projectId,
       }),
       getMyMeetingActionItems({
-        session: session.session as unknown as { appUserId?: string | null },
+        session: session,
         projectId,
       }),
       getRecentPublishedMinutes({
-        session: session.session as unknown as { appUserId?: string | null },
+        session: session,
         projectId,
         limit: 3,
       }),

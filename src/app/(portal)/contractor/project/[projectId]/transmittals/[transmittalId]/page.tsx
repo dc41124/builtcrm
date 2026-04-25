@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import {
   getTransmittal,
   type TransmittalDetail,
@@ -17,13 +17,11 @@ export default async function ContractorTransmittalDetailPage({
   params: Promise<{ projectId: string; transmittalId: string }>;
 }) {
   const { projectId, transmittalId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let detail: TransmittalDetail | null = null;
   try {
     detail = await getTransmittal({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       transmittalId,
     });
   } catch (err) {

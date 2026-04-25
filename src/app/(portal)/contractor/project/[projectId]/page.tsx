@@ -1,9 +1,9 @@
-import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+
+import { requireServerSession } from "@/auth/session";
 import type { ReactNode } from "react";
 
-import { auth } from "@/auth/config";
 import {
   getContractorProjectView,
   type ContractorProjectView,
@@ -56,13 +56,11 @@ export default async function ContractorProjectHomePage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let view: ContractorProjectView;
   try {
     view = await getContractorProjectView({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       projectId,
     });
   } catch (err) {

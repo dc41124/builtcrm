@@ -1,9 +1,9 @@
 import { and, eq } from "drizzle-orm";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { renderToBuffer } from "@react-pdf/renderer";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import {
   changeOrders,
@@ -148,11 +148,7 @@ export async function GET(
   { params }: { params: Promise<{ paymentTransactionId: string }> },
 ) {
   const { paymentTransactionId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const [txn] = await db
     .select()
     .from(paymentTransactions)
@@ -164,7 +160,7 @@ export async function GET(
 
   try {
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       txn.projectId,
     );
     assertCan(ctx.permissions, resourceForRelatedType(txn.relatedEntityType), "read");

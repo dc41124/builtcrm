@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { renderToBuffer } from "@react-pdf/renderer";
 
-import { auth } from "@/auth/config";
 import { getContractorReportsData } from "@/domain/loaders/reports";
 import { AuthorizationError } from "@/domain/permissions";
 import { ReportsDocument, type ReportsPdfData } from "@/lib/pdf/reports-template";
@@ -15,14 +15,10 @@ import { ReportsDocument, type ReportsPdfData } from "@/lib/pdf/reports-template
 // resolves the signed-in contractor's org automatically.
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   try {
     const view = await getContractorReportsData({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
     });
 
     const data: ReportsPdfData = {

@@ -7,12 +7,12 @@
 // the root pin in the side panel; the coords aren't used positionally
 // for replies).
 
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { drawingComments, drawingSets, drawingSheets } from "@/db/schema";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
@@ -31,12 +31,7 @@ export async function POST(
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
-
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const [parent] = await db
     .select({
       comment: drawingComments,
@@ -61,7 +56,7 @@ export async function POST(
 
   try {
     const access = await resolveSheetAccess({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       sheetId: parent.sheetId,
     });
     assertCan(access.ctx.permissions, "drawing_markup", "write");

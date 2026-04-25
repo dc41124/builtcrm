@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
-import { headers } from "next/headers";
 
-import { auth } from "@/auth/config";
+import { getServerSession } from "@/auth/session";
 import AppShell from "@/components/shell/AppShell";
 import { getSubPrequalNavVisibility } from "@/domain/loaders/prequal";
 import { buildNavSections } from "@/lib/portal-nav";
@@ -9,9 +8,9 @@ import { loadPortalShell } from "@/lib/portal-shell";
 
 export default async function SubcontractorGlobalLayout({ children }: { children: ReactNode }) {
   const shell = await loadPortalShell("subcontractor");
-  const session = await auth.api.getSession({ headers: await headers() });
+  const sessionData = await getServerSession();
   const subPrequalVisible = await getSubPrequalNavVisibility(
-    (session?.session ?? null) as unknown as { appUserId?: string | null } | null,
+    sessionData?.session ?? null,
   );
   const navSections = buildNavSections({
     portalType: "subcontractor",

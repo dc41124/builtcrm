@@ -1,9 +1,9 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { approvals } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
@@ -26,11 +26,7 @@ const BodySchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
@@ -41,7 +37,7 @@ export async function POST(req: Request) {
 
   try {
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       parsed.data.projectId,
     );
     if (ctx.role !== "contractor_admin" && ctx.role !== "contractor_pm") {

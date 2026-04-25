@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import {
   computeDisciplineCounts,
   getDrawingSetIndex,
@@ -18,12 +18,10 @@ export default async function ContractorSheetIndexPage({
   params: Promise<{ projectId: string; setId: string }>;
 }) {
   const { projectId, setId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   try {
     const view = await getDrawingSetIndex({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       projectId,
       setId,
     });

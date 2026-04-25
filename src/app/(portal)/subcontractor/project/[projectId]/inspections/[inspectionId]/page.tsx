@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { getInspection } from "@/domain/loaders/inspections";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -14,12 +14,10 @@ export default async function SubInspectionDetailPage({
   params: Promise<{ projectId: string; inspectionId: string }>;
 }) {
   const { projectId, inspectionId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   try {
     const detail = await getInspection({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       inspectionId,
     });
     return (

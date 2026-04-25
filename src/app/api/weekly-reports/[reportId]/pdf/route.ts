@@ -1,10 +1,10 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { createElement, type ReactElement } from "react";
 import type { DocumentProps } from "@react-pdf/renderer";
 import { eq, inArray } from "drizzle-orm";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { documents, weeklyReports } from "@/db/schema";
 import { getEffectiveContext } from "@/domain/context";
@@ -46,14 +46,8 @@ export async function GET(
   const { reportId } = await params;
   const url = new URL(req.url);
   const portalParam = url.searchParams.get("portal");
-
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const sessionLike = session.session as unknown as {
-    appUserId?: string | null;
-  };
+  const { session } = await requireServerSession();
+  const sessionLike = session;
 
   // Look up the project so we can resolve the caller's role + scope.
   const [report] = await db

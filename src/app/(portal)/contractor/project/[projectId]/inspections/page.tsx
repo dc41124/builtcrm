@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+
+import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import {
   organizations,
@@ -26,20 +26,18 @@ export default async function ContractorInspectionsPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let rows: InspectionListRow[] = [];
   let templates: InspectionTemplateRow[] = [];
   let projectName = "";
   try {
     const [insList, tpls, projRow] = await Promise.all([
       getInspections({
-        session: session.session as unknown as { appUserId?: string | null },
+        session: session,
         projectId,
       }),
       getInspectionTemplates({
-        session: session.session as unknown as { appUserId?: string | null },
+        session: session,
         projectId,
       }),
       db

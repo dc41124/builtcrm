@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { getCloseoutPackagesForProject } from "@/domain/loaders/closeout-packages";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -14,11 +14,8 @@ export default async function CommercialCloseoutPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-  const sessionLike = session.session as unknown as {
-    appUserId?: string | null;
-  };
+  const { session } = await requireServerSession();
+  const sessionLike = session;
 
   try {
     const { rows } = await getCloseoutPackagesForProject({

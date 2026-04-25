@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+
+import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { organizations, projectOrganizationMemberships, projects } from "@/db/schema";
 import {
@@ -19,14 +19,12 @@ export default async function ContractorPunchListPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let items: PunchItemListRow[] = [];
   let projectName = "";
   try {
     items = await getPunchItems({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       projectId,
     });
     const [row] = await db

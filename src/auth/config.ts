@@ -58,7 +58,14 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24,
   },
   session: {
-    expiresIn: 60 * 60 * 24 * 7,
+    // 24-hour idle window. Combined with updateAge below, this gives
+    // sliding-window idle-timeout semantics: any request within
+    // updateAge bumps expiresAt by another 24h, so an active user
+    // stays signed in indefinitely while an idle user is signed out
+    // after 24 hours of no activity. See docs/specs/security_posture.md
+    // §7. The earlier 7-day value gave a much wider idle window;
+    // tightened 2026-04-25.
+    expiresIn: 60 * 60 * 24,
     updateAge: 60 * 60 * 24,
     // Pinned default — sessions must not be mirrored to Postgres.
     // This pin is load-bearing: flipping it back would silently

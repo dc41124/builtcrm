@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { DocumentsWorkspace } from "@/components/documents-workspace";
 import { getDocumentsView } from "@/domain/loaders/documents";
 import { AuthorizationError } from "@/domain/permissions";
@@ -12,13 +12,11 @@ export default async function Page({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   try {
     const view = await getDocumentsView(
       {
-        session: session.session as unknown as { appUserId?: string | null },
+        session: session,
         projectId,
       },
       "subcontractor",

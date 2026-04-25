@@ -1,9 +1,9 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import {
   closeoutPackageSections,
@@ -43,11 +43,7 @@ export async function PATCH(
   { params }: { params: Promise<{ sectionId: string }> },
 ) {
   const { sectionId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
@@ -63,7 +59,7 @@ export async function PATCH(
     }
 
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       sec.projectId,
     );
     if (ctx.role !== "contractor_admin" && ctx.role !== "contractor_pm") {
@@ -122,11 +118,7 @@ export async function DELETE(
   { params }: { params: Promise<{ sectionId: string }> },
 ) {
   const { sectionId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   try {
     const sec = await loadSection(sectionId);
     if (!sec) {
@@ -134,7 +126,7 @@ export async function DELETE(
     }
 
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       sec.projectId,
     );
     if (ctx.role !== "contractor_admin" && ctx.role !== "contractor_pm") {

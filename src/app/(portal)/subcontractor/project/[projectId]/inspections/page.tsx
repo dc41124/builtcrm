@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import {
   getInspections,
   type InspectionListRow,
@@ -24,13 +24,11 @@ export default async function SubInspectionsPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let rows: InspectionListRow[] = [];
   try {
     const view = await getInspections({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       projectId,
     });
     rows = view.rows;

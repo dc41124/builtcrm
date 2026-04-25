@@ -1,7 +1,6 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { getServerSession } from "@/auth/session";
 import { getSubPrequalListView } from "@/domain/loaders/prequal";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -14,11 +13,9 @@ export default async function SubPrequalListPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const sp = await searchParams;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-  const sessionLike = session.session as unknown as {
-    appUserId?: string | null;
-  };
+  const sessionData = await getServerSession();
+  if (!sessionData) redirect("/login");
+  const sessionLike = sessionData.session;
 
   try {
     const view = await getSubPrequalListView({ session: sessionLike });

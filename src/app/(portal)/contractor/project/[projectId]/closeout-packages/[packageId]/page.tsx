@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import {
   getCloseoutPackage,
   getProjectDocumentLibrary,
@@ -17,11 +17,8 @@ export default async function ContractorCloseoutPackageDetailPage({
   params: Promise<{ projectId: string; packageId: string }>;
 }) {
   const { projectId, packageId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-  const sessionLike = session.session as unknown as {
-    appUserId?: string | null;
-  };
+  const { session } = await requireServerSession();
+  const sessionLike = session;
 
   try {
     const [pkg, lib] = await Promise.all([

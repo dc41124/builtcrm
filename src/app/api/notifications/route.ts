@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import {
   getUnreadNotificationCount,
   listNotifications,
@@ -41,12 +41,9 @@ const QuerySchema = z.object({
 export async function GET(req: Request) {
   return withErrorHandler(
     async () => {
-      const session = await auth.api.getSession({ headers: await headers() });
-      if (!session) {
-        return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-      }
+  const { session } = await requireServerSession();
       const appUserId = (
-        session.session as unknown as { appUserId?: string | null }
+        session
       ).appUserId;
       if (!appUserId) {
         return NextResponse.json({ error: "unauthenticated" }, { status: 401 });

@@ -1,9 +1,8 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
 import { db } from "@/db/client";
 import { scheduleOfValues, sovLineItems } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
@@ -45,10 +44,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; lineId: string }> },
 ) {
   const { id: sovId, lineId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
+  const { session } = await requireServerSession();
 
   const parsed = PatchSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -59,7 +55,7 @@ export async function PATCH(
   }
 
   try {
-    const loaded = await loadContext(sovId, lineId, session.session);
+    const loaded = await loadContext(sovId, lineId, session);
     if (!loaded) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
@@ -155,13 +151,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; lineId: string }> },
 ) {
   const { id: sovId, lineId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
+  const { session } = await requireServerSession();
 
   try {
-    const loaded = await loadContext(sovId, lineId, session.session);
+    const loaded = await loadContext(sovId, lineId, session);
     if (!loaded) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }

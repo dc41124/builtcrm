@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 
 import "@/styles/globals.css";
 import "@/styles/workspaces.css";
 
-import { auth } from "@/auth/config";
+import { getServerSession } from "@/auth/session";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
 
@@ -34,9 +33,8 @@ const themeInitScript = `(function(){try{
 
 async function readThemePref(): Promise<"light" | "dark" | "system"> {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    const appUserId = (session?.session as unknown as { appUserId?: string | null })
-      ?.appUserId;
+    const sessionData = await getServerSession();
+    const appUserId = sessionData?.session.appUserId;
     if (!appUserId) return "system";
     const [row] = await db
       .select({ theme: users.theme })

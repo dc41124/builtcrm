@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import {
   getSubDailyLogsPageView,
   type SubDailyLogsPageView,
@@ -11,13 +11,11 @@ import { AuthorizationError } from "@/domain/permissions";
 import { SubcontractorDailyLogsWorkspace } from "./daily-logs-workspace";
 
 export default async function SubcontractorDailyLogsPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let view: SubDailyLogsPageView;
   try {
     view = await getSubDailyLogsPageView({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
     });
   } catch (err) {
     if (err instanceof AuthorizationError) {

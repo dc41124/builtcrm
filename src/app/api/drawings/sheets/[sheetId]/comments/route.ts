@@ -7,12 +7,12 @@
 // sheet) we retry up to a small bound — Postgres will happily serialize
 // us into distinct pins on the retry.
 
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
 import { resolveSheetAccess } from "@/lib/drawings/access";
@@ -37,15 +37,10 @@ export async function POST(
       { status: 400 },
     );
   }
-
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   try {
     const access = await resolveSheetAccess({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       sheetId,
     });
     assertCan(access.ctx.permissions, "drawing_markup", "write");

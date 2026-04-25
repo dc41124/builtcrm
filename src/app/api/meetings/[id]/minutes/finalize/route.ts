@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { meetingMinutes, meetings } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
@@ -24,11 +24,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   try {
     const [head] = await db
       .select({
@@ -46,7 +42,7 @@ export async function POST(
     }
 
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       head.projectId,
     );
     if (ctx.role !== "contractor_admin" && ctx.role !== "contractor_pm") {

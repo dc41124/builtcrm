@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { getDrawingSheetDetail } from "@/domain/loaders/drawings";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -14,12 +14,10 @@ export default async function ContractorSheetDetailPage({
   params: Promise<{ projectId: string; setId: string; sheetId: string }>;
 }) {
   const { projectId, setId, sheetId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   try {
     const view = await getDrawingSheetDetail({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       projectId,
       setId,
       sheetId,

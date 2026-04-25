@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import {
   getContractorApprovals,
   type ContractorApprovalView,
@@ -19,13 +19,11 @@ export default async function ContractorApprovalsPage({
 }) {
   const { projectId } = await params;
   const { open } = await searchParams;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let view: ContractorApprovalView;
   try {
     view = await getContractorApprovals({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       projectId,
     });
   } catch (err) {

@@ -1,20 +1,18 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { getContractorIntegrationsView } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
 
 import { IntegrationsView } from "./integrations-ui";
 
 export default async function ContractorIntegrationsPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let view;
   try {
     view = await getContractorIntegrationsView({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
     });
   } catch (err) {
     if (err instanceof AuthorizationError) {

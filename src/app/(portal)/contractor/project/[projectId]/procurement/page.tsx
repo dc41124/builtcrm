@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { getProcurementProjectView } from "@/domain/loaders/procurement";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -18,12 +18,10 @@ export default async function ContractorProcurementPage({
 }) {
   const { projectId } = await params;
   const { po } = await searchParams;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   try {
     const view = await getProcurementProjectView({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       projectId,
       activePoId: po,
     });

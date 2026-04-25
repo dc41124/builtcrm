@@ -1,9 +1,9 @@
 import { and, eq } from "drizzle-orm";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { documentLinks, documents } from "@/db/schema";
 import { isInChain } from "@/domain/documents/versioning";
@@ -50,11 +50,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: priorId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
@@ -74,7 +70,7 @@ export async function POST(
 
   try {
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       prior.projectId,
     );
     assertCan(ctx.permissions, "document", "write");

@@ -1,19 +1,17 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { getVendorsPortfolioView } from "@/domain/loaders/procurement";
 import { AuthorizationError } from "@/domain/permissions";
 
 import { VendorsWorkspace } from "./vendors-workspace";
 
 export default async function ContractorVendorsPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   try {
     const view = await getVendorsPortfolioView({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
     });
     return <VendorsWorkspace view={view} />;
   } catch (err) {

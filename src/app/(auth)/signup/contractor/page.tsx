@@ -1,7 +1,6 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { getServerSession } from "@/auth/session";
 
 import { ContractorSignupFlow } from "./signup-contractor-form";
 
@@ -10,8 +9,8 @@ import { ContractorSignupFlow } from "./signup-contractor-form";
 // route is paywalled: the flow completes only after Stripe Checkout
 // succeeds (webhook creates the subscription row).
 export default async function ContractorSignupPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (session) {
+  const sessionData = await getServerSession();
+  if (sessionData) {
     // Already signed in — send them home. If they want a second org, they
     // need to sign out first.
     redirect("/");

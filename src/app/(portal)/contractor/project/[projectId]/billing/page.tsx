@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import {
   getContractorProjectView,
   type ContractorProjectView,
@@ -16,13 +16,11 @@ export default async function ContractorBillingPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let view: ContractorProjectView;
   try {
     view = await getContractorProjectView({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       projectId,
     });
   } catch (err) {

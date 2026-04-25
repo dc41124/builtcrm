@@ -1,9 +1,9 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { auditEvents, ssoProviders } from "@/db/schema";
 import { getOrgPlanContext } from "@/domain/loaders/billing";
@@ -31,13 +31,8 @@ const UpsertSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const sessionShim = session.session as unknown as {
-    appUserId?: string | null;
-  };
+  const { session } = await requireServerSession();
+  const sessionShim = session;
 
   const parsed = UpsertSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -148,13 +143,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const sessionShim = session.session as unknown as {
-    appUserId?: string | null;
-  };
+  const { session } = await requireServerSession();
+  const sessionShim = session;
 
   try {
     const ctx = await getContractorOrgContext(sessionShim);

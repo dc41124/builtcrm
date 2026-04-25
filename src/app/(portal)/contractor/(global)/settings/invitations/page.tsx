@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import {
   listInvitationsForOrganization,
@@ -12,13 +12,11 @@ import { AuthorizationError } from "@/domain/permissions";
 import { InvitationsView } from "./invitations-ui";
 
 export default async function ContractorInvitationsPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let context;
   try {
     context = await getContractorOrgContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
     );
   } catch (err) {
     if (err instanceof AuthorizationError) {

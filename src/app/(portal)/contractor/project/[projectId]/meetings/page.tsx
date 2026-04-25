@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+
+import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import {
   organizations,
@@ -28,20 +28,18 @@ export default async function ContractorMeetingsPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let rows: MeetingListRow[] = [];
   let activity: MeetingActivityRow[] = [];
   let projectName = "";
   try {
     const [view, act, projRow] = await Promise.all([
       getMeetings({
-        session: session.session as unknown as { appUserId?: string | null },
+        session: session,
         projectId,
       }),
       getMeetingActivity({
-        session: session.session as unknown as { appUserId?: string | null },
+        session: session,
         projectId,
         limit: 10,
       }),

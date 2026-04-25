@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { and, eq, sql } from "drizzle-orm";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { scheduleOfValues, sovLineItems } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
@@ -18,11 +18,7 @@ const RULES = {
 };
 
 export async function handleTransition(_req: Request, id: string, kind: Transition) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   try {
     const [sov] = await db
       .select()
@@ -34,7 +30,7 @@ export async function handleTransition(_req: Request, id: string, kind: Transiti
     }
 
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       sov.projectId,
     );
     if (ctx.role !== "contractor_admin" && ctx.role !== "contractor_pm") {

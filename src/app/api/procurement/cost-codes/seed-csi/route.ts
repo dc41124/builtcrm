@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { db } from "@/db/client";
 import { costCodes } from "@/db/schema";
 import { CSI_STARTER_CODES } from "@/domain/procurement/csi-starter";
@@ -18,13 +18,10 @@ import { AuthorizationError } from "@/domain/permissions";
 // zero cost codes configured.
 
 export async function POST() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
+  const { session } = await requireServerSession();
   try {
     const ctx = await getContractorOrgContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
     );
 
     const orgId = ctx.organization.id;

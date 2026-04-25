@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { presignUploadUrl } from "@/lib/storage";
 
 const BodySchema = z.object({
@@ -15,11 +15,8 @@ const BodySchema = z.object({
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2MB
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const appUserId = (session.session as unknown as { appUserId?: string | null })
+  const { session } = await requireServerSession();
+  const appUserId = (session)
     .appUserId;
   if (!appUserId) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });

@@ -1,8 +1,7 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { and, eq, inArray, lte, or } from "drizzle-orm";
 
-import { auth } from "@/auth/config";
+import { getServerSession } from "@/auth/session";
 import {
   getAccessibleProjects,
   loadUserPortalContext,
@@ -36,11 +35,11 @@ export async function loadPortalShell(
   portalType: PortalType,
   activeProjectId?: string,
 ): Promise<PortalShellData> {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
+  const sessionData = await getServerSession();
+  if (!sessionData) redirect("/login");
+  const { session, user } = sessionData;
 
-  const appUserId = (session.session as unknown as { appUserId?: string | null })
-    .appUserId;
+  const appUserId = session.appUserId;
   if (!appUserId) redirect("/login");
 
   const ctx = await loadUserPortalContext(appUserId);
@@ -88,13 +87,12 @@ export async function loadPortalShell(
     active: activeProjectId ? p.projectId === activeProjectId : false,
   }));
 
-  const userRow = session.user as unknown as { name?: string | null; email: string };
-  const userName = userRow.name ?? userRow.email ?? "User";
+  const userName = user.name ?? user.email ?? "User";
 
   return {
     userId: appUserId,
     userName,
-    userEmail: userRow.email,
+    userEmail: user.email,
     userRole: roleLabel(portalType),
     orgName: option.organizationName,
     orgId: option.organizationId,

@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { presignUploadUrl } from "@/lib/storage";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { getSubcontractorOrgContext } from "@/domain/loaders/subcontractor-compliance";
@@ -34,11 +34,8 @@ async function resolveAdminOrg(sessionShim: { appUserId?: string | null }) {
 }
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const sessionShim = session.session as unknown as { appUserId?: string | null };
+  const { session } = await requireServerSession();
+  const sessionShim = session;
 
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {

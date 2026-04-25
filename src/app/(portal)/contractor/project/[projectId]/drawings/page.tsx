@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import { getDrawingSetsIndex } from "@/domain/loaders/drawings";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -97,12 +97,10 @@ export default async function ContractorDrawingsSetsPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   try {
     const view = await getDrawingSetsIndex({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       projectId,
     });
 

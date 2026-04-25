@@ -5,12 +5,12 @@
 // on the composite key. Clients should debounce their writes (800ms is
 // the viewer default) so rapid pen strokes don't hammer the route.
 
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { drawingMarkups } from "@/db/schema";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
@@ -67,15 +67,10 @@ export async function PUT(
       { status: 400 },
     );
   }
-
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   try {
     const access = await resolveSheetAccess({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       sheetId,
     });
     assertCan(access.ctx.permissions, "drawing_markup", "write");
@@ -126,14 +121,10 @@ export async function DELETE(
   { params }: { params: Promise<{ sheetId: string }> },
 ) {
   const { sheetId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   try {
     const access = await resolveSheetAccess({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       sheetId,
     });
     assertCan(access.ctx.permissions, "drawing_markup", "write");

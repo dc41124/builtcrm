@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { getOrgPlanContext } from "@/domain/loaders/billing";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
@@ -35,13 +35,8 @@ const BodySchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const sessionShim = session.session as unknown as {
-    appUserId?: string | null;
-  };
+  const { session } = await requireServerSession();
+  const sessionShim = session;
 
   const parsedBody = BodySchema.safeParse(await req.json().catch(() => null));
   if (!parsedBody.success) {

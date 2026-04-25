@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import {
   buildCsvExport,
   isCsvExportEntity,
@@ -9,11 +9,7 @@ import {
 import { AuthorizationError } from "@/domain/permissions";
 
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const url = new URL(req.url);
   const entity = url.searchParams.get("entity") ?? "projects";
   if (!isCsvExportEntity(entity)) {
@@ -22,7 +18,7 @@ export async function GET(req: Request) {
 
   try {
     const file = await buildCsvExport({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       entity,
     });
     return new NextResponse(file.content, {

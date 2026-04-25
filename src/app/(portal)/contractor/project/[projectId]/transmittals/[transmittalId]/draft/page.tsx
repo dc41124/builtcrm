@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+
+import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { documents } from "@/db/schema";
 import {
@@ -20,13 +20,11 @@ export default async function ContractorTransmittalDraftPage({
   params: Promise<{ projectId: string; transmittalId: string }>;
 }) {
   const { projectId, transmittalId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let detail: TransmittalDetail | null = null;
   try {
     detail = await getTransmittal({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       transmittalId,
     });
   } catch (err) {

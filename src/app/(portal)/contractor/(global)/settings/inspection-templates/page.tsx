@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import {
   getInspectionTemplates,
   type InspectionTemplateRow,
@@ -16,13 +16,11 @@ import {
 import "../../../../inspections.css";
 
 export default async function ContractorTemplateLibraryPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let templates: InspectionTemplateRow[] = [];
   try {
     templates = await getInspectionTemplates({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
     });
   } catch (err) {
     if (err instanceof AuthorizationError) {

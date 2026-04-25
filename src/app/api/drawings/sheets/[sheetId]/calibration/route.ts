@@ -6,12 +6,12 @@
 // recalibrated via two-point; `source: 'title_block'` is written by the
 // extraction job when it reads the scale off the title block.
 
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { db } from "@/db/client";
 import { drawingSheets } from "@/db/schema";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
@@ -31,15 +31,10 @@ export async function PATCH(
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
-
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   try {
     const access = await resolveSheetAccess({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       sheetId,
     });
     // Calibration is set-wide state. Subs don't own it — keep it to

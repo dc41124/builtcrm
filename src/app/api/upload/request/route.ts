@@ -1,8 +1,8 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { auth } from "@/auth/config";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError, assertCan } from "@/domain/permissions";
 import { buildStorageKey, presignUploadUrl } from "@/lib/storage";
@@ -15,11 +15,7 @@ const BodySchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
+  const { session } = await requireServerSession();
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
@@ -30,7 +26,7 @@ export async function POST(req: Request) {
 
   try {
     const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
+      session,
       parsed.data.projectId,
     );
     assertCan(ctx.permissions, "document", "write");

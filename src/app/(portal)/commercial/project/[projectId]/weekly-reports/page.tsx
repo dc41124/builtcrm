@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { auth } from "@/auth/config";
+import { requireServerSession } from "@/auth/session";
+
 import {
   getClientWeeklyReportDetail,
   getClientWeeklyReports,
@@ -26,13 +26,11 @@ export default async function CommercialWeeklyReportsPage({
 }) {
   const { projectId } = await params;
   const { report: reportParam } = await searchParams;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-
+  const { session } = await requireServerSession();
   let listView: ClientWeeklyReportsView;
   try {
     listView = await getClientWeeklyReports({
-      session: session.session as unknown as { appUserId?: string | null },
+      session: session,
       projectId,
     });
   } catch (err) {
@@ -56,7 +54,7 @@ export default async function CommercialWeeklyReportsPage({
   if (activeId) {
     try {
       detail = await getClientWeeklyReportDetail({
-        session: session.session as unknown as { appUserId?: string | null },
+        session: session,
         projectId,
         reportId: activeId,
       });
