@@ -38,6 +38,11 @@ export const auth = betterAuth({
     requireEmailVerification: false,
     autoSignIn: true,
     minPasswordLength: 8,
+    // Pinned default — password-reset tokens expire after 30 minutes.
+    // Tighter than Better Auth's default (~24h); reset is a high-value
+    // attacker target and email pipes are usually fast enough that 30m
+    // is comfortable. See docs/specs/security_posture.md §7.
+    resetPasswordTokenExpiresIn: 60 * 30,
     sendResetPassword: async ({ user, url }) => {
       // Dev stub: no email infrastructure is wired up yet (see Phase 1 build
       // notes — Postmark/SendGrid integration is catalog-only). Log the link
@@ -45,6 +50,12 @@ export const auth = betterAuth({
       // Replace with a Trigger.dev email job once an SMTP provider is live.
       console.log(`[auth] Password reset link for ${user.email}: ${url}`);
     },
+  },
+  // Email-verification tokens: 24h is the Better Auth default; pinned
+  // explicitly so a future library default-flip is visible.
+  // See docs/specs/security_posture.md §7.
+  emailVerification: {
+    expiresIn: 60 * 60 * 24,
   },
   session: {
     expiresIn: 60 * 60 * 24 * 7,

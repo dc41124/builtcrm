@@ -50,6 +50,13 @@
       "when": 1777133558234,
       "tag": "0006_dazzling_jean_grey",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1777137085233,
+      "tag": "0007_careless_serpent_society",
+      "breakpoints": true
     }
   ]
 }

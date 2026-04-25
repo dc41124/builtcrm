@@ -15,6 +15,7 @@ import {
   type MilestoneStatus,
 } from "@/domain/loaders/schedule";
 import { AuthorizationError, assertCan } from "@/domain/permissions";
+import { withErrorHandler } from "@/lib/api/error-handler";
 
 const PatchSchema = z
   .object({
@@ -71,144 +72,133 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-
-  const parsed = PatchSchema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "invalid_body", issues: parsed.error.issues },
-      { status: 400 },
-    );
-  }
-
-  const [existing] = await db
-    .select()
-    .from(milestones)
-    .where(eq(milestones.id, id))
-    .limit(1);
-  if (!existing) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
-  }
-
-  try {
-    const ctx = await getEffectiveContext(
-      session.session as unknown as { appUserId?: string | null },
-      existing.projectId,
-    );
-    assertCan(ctx.permissions, "milestone", "write");
-
-    const updates = parsed.data;
-    const nextStatus = updates.milestoneStatus;
-    const statusChanged =
-      nextStatus !== undefined && nextStatus !== existing.milestoneStatus;
-    if (statusChanged) {
-      assertValidTransition(
-        existing.milestoneStatus as MilestoneStatus,
-        nextStatus!,
-      );
-    }
-
-    // Stamp completedDate automatically on transition to completed; clear it
-    // if moving out of completed (back to missed/in_progress etc).
-    let completedDate: Date | null | undefined = undefined;
-    if (statusChanged) {
-      if (nextStatus === "completed") {
-        completedDate = new Date();
-      } else if (existing.milestoneStatus === "completed") {
-        completedDate = null;
+  return withErrorHandler(
+    async () => {
+      const session = await auth.api.getSession({ headers: await headers() });
+      if (!session) {
+        return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
       }
-    }
 
-    const previousState = {
-      title: existing.title,
-      description: existing.description,
-      milestoneType: existing.milestoneType,
-      milestoneStatus: existing.milestoneStatus,
-      scheduledDate: existing.scheduledDate.toISOString(),
-      completedDate: existing.completedDate?.toISOString() ?? null,
-      phase: existing.phase,
-      visibilityScope: existing.visibilityScope,
-      assignedToUserId: existing.assignedToUserId,
-      assignedToOrganizationId: existing.assignedToOrganizationId,
-      sortOrder: existing.sortOrder,
-    };
+      const parsed = PatchSchema.safeParse(await req.json().catch(() => null));
+      if (!parsed.success) {
+        return NextResponse.json(
+          { error: "invalid_body", issues: parsed.error.issues },
+          { status: 400 },
+        );
+      }
 
-    const [updated] = await db
-      .update(milestones)
-      .set({
-        ...(updates.title !== undefined && { title: updates.title }),
-        ...(updates.description !== undefined && {
-          description: updates.description,
-        }),
-        ...(updates.milestoneType !== undefined && {
-          milestoneType: updates.milestoneType,
-        }),
-        ...(updates.milestoneStatus !== undefined && {
-          milestoneStatus: updates.milestoneStatus,
-        }),
-        ...(updates.scheduledDate !== undefined && {
-          scheduledDate: new Date(updates.scheduledDate),
-        }),
-        ...(updates.startDate !== undefined && {
-          startDate: updates.startDate ? new Date(updates.startDate) : null,
-          kind: updates.startDate ? "task" : "marker",
-        }),
-        ...(updates.phase !== undefined && { phase: updates.phase }),
-        ...(updates.visibilityScope !== undefined && {
-          visibilityScope: updates.visibilityScope,
-        }),
-        ...(updates.assignedToUserId !== undefined && {
-          assignedToUserId: updates.assignedToUserId,
-        }),
-        ...(updates.assignedToOrganizationId !== undefined && {
-          assignedToOrganizationId: updates.assignedToOrganizationId,
-        }),
-        ...(updates.sortOrder !== undefined && { sortOrder: updates.sortOrder }),
-        ...(completedDate !== undefined && { completedDate }),
-        updatedAt: new Date(),
-      })
-      .where(eq(milestones.id, id))
-      .returning();
+      const [existing] = await db
+        .select()
+        .from(milestones)
+        .where(eq(milestones.id, id))
+        .limit(1);
+      if (!existing) {
+        return NextResponse.json({ error: "not_found" }, { status: 404 });
+      }
 
-    await writeAuditEvent(ctx, {
-      action: statusChanged ? "status_changed" : "updated",
-      resourceType: "milestone",
-      resourceId: id,
-      details: {
-        previousState,
-        nextState: {
-          title: updated.title,
-          description: updated.description,
-          milestoneType: updated.milestoneType,
-          milestoneStatus: updated.milestoneStatus,
-          scheduledDate: updated.scheduledDate.toISOString(),
-          completedDate: updated.completedDate?.toISOString() ?? null,
-          phase: updated.phase,
-          visibilityScope: updated.visibilityScope,
-          assignedToUserId: updated.assignedToUserId,
-          assignedToOrganizationId: updated.assignedToOrganizationId,
-          sortOrder: updated.sortOrder,
-        },
-      },
-    });
-
-    return NextResponse.json({ id: updated.id });
-  } catch (err) {
-    if (err instanceof AuthorizationError) {
-      const status =
-        err.code === "unauthenticated"
-          ? 401
-          : err.code === "not_found"
-            ? 404
-            : 403;
-      return NextResponse.json(
-        { error: err.code, message: err.message },
-        { status },
+      const ctx = await getEffectiveContext(
+        session.session as unknown as { appUserId?: string | null },
+        existing.projectId,
       );
-    }
-    throw err;
-  }
+      assertCan(ctx.permissions, "milestone", "write");
+
+      const updates = parsed.data;
+      const nextStatus = updates.milestoneStatus;
+      const statusChanged =
+        nextStatus !== undefined && nextStatus !== existing.milestoneStatus;
+      if (statusChanged) {
+        assertValidTransition(
+          existing.milestoneStatus as MilestoneStatus,
+          nextStatus!,
+        );
+      }
+
+      // Stamp completedDate automatically on transition to completed; clear it
+      // if moving out of completed (back to missed/in_progress etc).
+      let completedDate: Date | null | undefined = undefined;
+      if (statusChanged) {
+        if (nextStatus === "completed") {
+          completedDate = new Date();
+        } else if (existing.milestoneStatus === "completed") {
+          completedDate = null;
+        }
+      }
+
+      const previousState = {
+        title: existing.title,
+        description: existing.description,
+        milestoneType: existing.milestoneType,
+        milestoneStatus: existing.milestoneStatus,
+        scheduledDate: existing.scheduledDate.toISOString(),
+        completedDate: existing.completedDate?.toISOString() ?? null,
+        phase: existing.phase,
+        visibilityScope: existing.visibilityScope,
+        assignedToUserId: existing.assignedToUserId,
+        assignedToOrganizationId: existing.assignedToOrganizationId,
+        sortOrder: existing.sortOrder,
+      };
+
+      const [updated] = await db
+        .update(milestones)
+        .set({
+          ...(updates.title !== undefined && { title: updates.title }),
+          ...(updates.description !== undefined && {
+            description: updates.description,
+          }),
+          ...(updates.milestoneType !== undefined && {
+            milestoneType: updates.milestoneType,
+          }),
+          ...(updates.milestoneStatus !== undefined && {
+            milestoneStatus: updates.milestoneStatus,
+          }),
+          ...(updates.scheduledDate !== undefined && {
+            scheduledDate: new Date(updates.scheduledDate),
+          }),
+          ...(updates.startDate !== undefined && {
+            startDate: updates.startDate ? new Date(updates.startDate) : null,
+            kind: updates.startDate ? "task" : "marker",
+          }),
+          ...(updates.phase !== undefined && { phase: updates.phase }),
+          ...(updates.visibilityScope !== undefined && {
+            visibilityScope: updates.visibilityScope,
+          }),
+          ...(updates.assignedToUserId !== undefined && {
+            assignedToUserId: updates.assignedToUserId,
+          }),
+          ...(updates.assignedToOrganizationId !== undefined && {
+            assignedToOrganizationId: updates.assignedToOrganizationId,
+          }),
+          ...(updates.sortOrder !== undefined && { sortOrder: updates.sortOrder }),
+          ...(completedDate !== undefined && { completedDate }),
+          updatedAt: new Date(),
+        })
+        .where(eq(milestones.id, id))
+        .returning();
+
+      await writeAuditEvent(ctx, {
+        action: statusChanged ? "status_changed" : "updated",
+        resourceType: "milestone",
+        resourceId: id,
+        details: {
+          previousState,
+          nextState: {
+            title: updated.title,
+            description: updated.description,
+            milestoneType: updated.milestoneType,
+            milestoneStatus: updated.milestoneStatus,
+            scheduledDate: updated.scheduledDate.toISOString(),
+            completedDate: updated.completedDate?.toISOString() ?? null,
+            phase: updated.phase,
+            visibilityScope: updated.visibilityScope,
+            assignedToUserId: updated.assignedToUserId,
+            assignedToOrganizationId: updated.assignedToOrganizationId,
+            sortOrder: updated.sortOrder,
+          },
+        },
+      });
+
+      return NextResponse.json({ id: updated.id });
+    },
+    { path: "/api/milestones/[id]", method: "PATCH" },
+  );
 }

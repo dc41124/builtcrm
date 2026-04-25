@@ -192,6 +192,8 @@ Currently pinned in [src/auth/config.ts](../../src/auth/config.ts):
 | `session.freshAge` | `60 * 60 * 24` (1d) | Sensitive operations use fresh-age; shouldn't drift with library default |
 | `verification.storeIdentifier` | `"hashed"` | §2 — step-1 hardening |
 | `account.encryptOAuthTokens` | `true` | §2 — step-1 hardening |
+| `emailAndPassword.resetPasswordTokenExpiresIn` | `60 * 30` (30m) | Password reset is a high-value attacker target; 30m is tight enough to limit token-replay windows without hurting normal users on fast email pipes |
+| `emailVerification.expiresIn` | `60 * 60 * 24` (24h) | Pinned to library default; verification is lower-stakes than reset, but the explicit value survives library-default flips |
 
 When adding a new Better Auth config, ask: *does this setting affect data-at-rest, session lifecycle, or tenant isolation?* If yes, pin it and add a row to this table.
 

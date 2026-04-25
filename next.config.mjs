@@ -1,11 +1,39 @@
 import { withSentryConfig } from "@sentry/nextjs";
 
+// Security headers applied globally. CSP is intentionally NOT set here —
+// a working CSP for a Next.js + Sentry + frappe-gantt + react-pdf wasm
+// app needs per-vendor allowlists and is its own sprint. See
+// docs/specs/security_posture.md §8 (Apps pillar) for backlog status.
+const SECURITY_HEADERS = [
+  // 2 years, includeSubDomains, preload — standard hardened HSTS.
+  // Only takes effect when served over HTTPS.
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains; preload",
+  },
+  // Disallow framing entirely — clickjacking defense. We do not embed
+  // ourselves in iframes anywhere.
+  { key: "X-Frame-Options", value: "DENY" },
+  // Disable MIME-type sniffing in old IE/Edge.
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  // Send origin only on cross-origin nav; full URL same-origin.
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // Lock down powerful browser APIs we don't use. Re-enable per-route
+  // if a future feature legitimately needs them.
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   async rewrites() {
     return [
       { source: "/marketing", destination: "/marketing.html" },
+    ];
+  },
+  async headers() {
+    return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
     ];
   },
 };

@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
 import { auth } from "@/auth/config";
 import {
@@ -7,6 +8,21 @@ import {
   listNotifications,
   type ListNotificationsInput,
 } from "@/domain/loaders/notifications";
+import { withErrorHandler } from "@/lib/api/error-handler";
+
+// Bounded query-param schema. coerce.number() handles missing/string
+// values uniformly so a missing param falls back to its default rather
+// than producing NaN downstream.
+const QuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+  unread: z.enum(["1"]).optional(),
+  projectId: z.string().uuid().optional(),
+  eventId: z.string().min(1).max(120).optional(),
+  portalType: z
+    .enum(["contractor", "subcontractor", "commercial", "residential"])
+    .optional(),
+});
 
 // GET /api/notifications — list the caller's notifications.
 //
@@ -23,42 +39,49 @@ import {
 // can poll this endpoint and update the bell badge in one round trip.
 
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const appUserId = (session.session as unknown as { appUserId?: string | null })
-    .appUserId;
-  if (!appUserId) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
+  return withErrorHandler(
+    async () => {
+      const session = await auth.api.getSession({ headers: await headers() });
+      if (!session) {
+        return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+      }
+      const appUserId = (
+        session.session as unknown as { appUserId?: string | null }
+      ).appUserId;
+      if (!appUserId) {
+        return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+      }
 
-  const url = new URL(req.url);
-  const portalParam = url.searchParams.get("portalType");
-  const portalType =
-    portalParam === "contractor" ||
-    portalParam === "subcontractor" ||
-    portalParam === "commercial" ||
-    portalParam === "residential"
-      ? portalParam
-      : undefined;
+      const url = new URL(req.url);
+      const parsed = QuerySchema.safeParse(
+        Object.fromEntries(url.searchParams.entries()),
+      );
+      if (!parsed.success) {
+        return NextResponse.json(
+          { error: "invalid_query", issues: parsed.error.issues },
+          { status: 400 },
+        );
+      }
 
-  const input: ListNotificationsInput = {
-    limit: Number(url.searchParams.get("limit") ?? 20),
-    offset: Number(url.searchParams.get("offset") ?? 0),
-    unreadOnly: url.searchParams.get("unread") === "1",
-    projectId: url.searchParams.get("projectId") ?? undefined,
-    eventId: url.searchParams.get("eventId") ?? undefined,
-    portalType,
-  };
+      const input: ListNotificationsInput = {
+        limit: parsed.data.limit,
+        offset: parsed.data.offset,
+        unreadOnly: parsed.data.unread === "1",
+        projectId: parsed.data.projectId,
+        eventId: parsed.data.eventId,
+        portalType: parsed.data.portalType,
+      };
 
-  const [rows, unreadCount] = await Promise.all([
-    listNotifications(appUserId, input),
-    getUnreadNotificationCount(appUserId, portalType),
-  ]);
+      const [rows, unreadCount] = await Promise.all([
+        listNotifications(appUserId, input),
+        getUnreadNotificationCount(appUserId, parsed.data.portalType),
+      ]);
 
-  return NextResponse.json({
-    notifications: rows,
-    unreadCount,
-  });
+      return NextResponse.json({
+        notifications: rows,
+        unreadCount,
+      });
+    },
+    { path: "/api/notifications", method: "GET" },
+  );
 }

@@ -1,0 +1,1 @@
+CREATE INDEX "messages_attached_document_idx" ON "messages" USING btree ("attached_document_id");

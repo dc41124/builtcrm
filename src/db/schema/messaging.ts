@@ -95,5 +95,8 @@ export const messages = pgTable(
     conversationIdx: index("messages_conversation_idx").on(table.conversationId),
     senderIdx: index("messages_sender_idx").on(table.senderUserId),
     createdIdx: index("messages_created_idx").on(table.createdAt),
+    attachedDocumentIdx: index("messages_attached_document_idx").on(
+      table.attachedDocumentId,
+    ),
   }),
 );

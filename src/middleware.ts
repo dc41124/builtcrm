@@ -10,7 +10,13 @@ export function middleware(req: NextRequest) {
   }
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-pathname", req.nextUrl.pathname);
-  return NextResponse.next({ request: { headers: requestHeaders } });
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
+  // Same-origin app — no CORS allowlist exists. Setting Vary: Origin
+  // signals correct caching behaviour to upstream caches and prevents
+  // a same-origin response from being served to a future cross-origin
+  // request via shared cache.
+  res.headers.set("Vary", "Origin");
+  return res;
 }
 
 export const config = {
