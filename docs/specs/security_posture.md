@@ -94,13 +94,15 @@ Rotation is therefore not a routine hygiene activity — it's an incident-respon
 
 ### Storage
 - **Dev:** `.env.local` (not committed; documented in the env example)
-- **Prod:** TBD — decision required before Render prod deploy. Candidates under consideration:
-  - *Render environment variables* — simplest, acceptable baseline. Encrypted at rest, access-controlled by Render role.
-  - *Doppler* — mid-range. Better audit trail and rotation story than Render env vars, integrates with Render, low operational overhead.
-  - *AWS Secrets Manager* — heavyweight. Appropriate only if we're already in AWS elsewhere.
+- **Prod:** **Pending hosting decision.** No prod deploy target has been chosen yet (Render is one candidate; Vercel, Fly, self-hosted are also under consideration). Once the host is picked, the secret-storage decision tree below applies. Candidates:
+  - *Host-native env vars* (Render env, Vercel env, etc.) — simplest, acceptable baseline. Encrypted at rest, access-controlled by host role.
+  - *Doppler* — mid-range. Better audit trail and rotation story than host env vars, integrates with most hosts, low operational overhead.
+  - *AWS Secrets Manager* — heavyweight. Appropriate only if AWS is already in the stack.
 
   **Decision criteria:** rotation support, audit trail, access control granularity.
-  **Default starting posture** if no stronger case emerges: Render env vars, with an explicit commit to revisit when rotation cadence or audit-trail needs exceed Render's surface. Re-evaluation trigger: any of (a) first planned rotation event, (b) first compliance/audit engagement requiring secret-access logs, (c) more than ~3 engineers with Render prod access.
+  **Default starting posture** when the host is picked: host-native env vars, with an explicit commit to revisit when rotation cadence or audit-trail needs exceed the host's surface. Re-evaluation triggers: any of (a) first planned rotation event, (b) first compliance/audit engagement requiring secret-access logs, (c) more than ~3 engineers with prod env access.
+
+  **All secrets blocked on this decision:** `BETTER_AUTH_SECRET`, `INTEGRATION_ENCRYPTION_KEY`, `INTEGRATION_STATE_SECRET`, `TAX_ID_ENCRYPTION_KEY`, `DATABASE_URL`, `DATABASE_ADMIN_URL`, `R2_*`, `UPSTASH_*`, `TRIGGER_SECRET_KEY`, `SENTRY_DSN`, plus per-provider OAuth client secrets and webhook keys.
 
 ### Other dedicated keys
 
@@ -148,6 +150,14 @@ Two roles:
 ## 6. Known gaps (post-baseline backlog)
 
 Each of these was explicitly deferred during the step-1 hardening pass. Entries list what, why deferred, and what the decision input is.
+
+### Hosting + secrets-storage decision (blocks every prod deploy step)
+**Status:** open. No prod hosting target chosen yet (Render / Vercel / Fly / self-hosted all open). Until that's decided, none of the encryption keys, DB URLs, OAuth client secrets, or webhook secrets can be set in a real prod env. See §3 "Storage" for the full blocked-secrets list. **Every "set X in prod env" follow-up across the rest of this doc is gated on this decision.**
+**Unblocker:** pick the host (and the secrets-storage layer if not host-native), then walk the §3 storage section + the per-env-var entries below.
+
+### Transactional email infrastructure (blocks user-facing email flows)
+**Status:** open. Email is a console-log stub everywhere it's referenced: password reset ([src/auth/config.ts](../../src/auth/config.ts) `sendResetPassword`), account-deletion confirmation + 7-day reminder ([src/lib/user-deletion/email.ts](../../src/lib/user-deletion/email.ts)), GDPR export download link ([src/lib/user-export/email.ts](../../src/lib/user-export/email.ts)). The deletion + export flows are functional in dev (the URL is logged) but cannot ship to real users until emails actually leave the building.
+**Unblocker:** acquire a domain, point its DNS at a transactional-email provider (Postmark and Resend are the active candidates; both have entries in [src/lib/integrations/registry.ts](../../src/lib/integrations/registry.ts)), wire SPF/DKIM/DMARC, then replace the three `console.log` stubs with real sends. Single unblock removes the prod-readiness gap on multiple shipped features.
 
 ### `organizations.tax_id` encryption
 **Status:** RESOLVED (2026-04-25). AES-256-GCM via `TAX_ID_ENCRYPTION_KEY` and `encryptTaxId` / `decryptTaxId` in [src/lib/integrations/crypto.ts](../../src/lib/integrations/crypto.ts). Loader returns masked value (`***-**-NNNN`); plaintext only via `POST /api/org/tax-id/reveal` (rate-limited 5/min, contractor_admin / subcontractor_owner only) which writes a `tax_id.revealed` audit event. PATCH writes encrypt; mask-shape submissions are no-ops to avoid re-encrypting the display string.

@@ -162,7 +162,7 @@ Residual code-level items:
 | P5 — access to personal info | Users can see their own profile data via the portal | No export-my-data flow (GDPR Article 15) |
 | P6.1 — disclosure to third parties | Only Stripe, Upstash, R2, Neon, Trigger.dev — all listed in .env.example; no other data sharing | No formal DPA list maintained |
 
-**Primary blocker for CA/EU launch (RESOLVED 2026-04-25):** user deletion + GDPR Article 15 export both shipped. Approach per [user_deletion_and_export_plan.md](user_deletion_and_export_plan.md): anonymize-with-30-day-grace for deletion (preserves construction-contract authorship via the 39 RESTRICT FKs); JSON manifest to R2 with 7-day signed URL for export. Email infra is still a console-log stub — wire to Postmark/SendGrid before actually serving EU/CA customers so the cancel-link + download-link emails reach inboxes.
+**Primary blocker for CA/EU launch (code-side RESOLVED 2026-04-25; ship-side blocked on email):** user deletion + GDPR Article 15 export both shipped per [user_deletion_and_export_plan.md](user_deletion_and_export_plan.md). Approach: anonymize-with-30-day-grace for deletion (preserves construction-contract authorship via the 39 RESTRICT FKs); JSON manifest to R2 with 7-day signed URL for export. **Cannot actually serve EU/CA customers until transactional email is wired** — the cancel-link and download-link emails are console-log stubs today. See [security_posture.md §6 "Transactional email infrastructure"](security_posture.md#transactional-email-infrastructure-blocks-user-facing-email-flows) for the unblock path.
 
 ---
 
