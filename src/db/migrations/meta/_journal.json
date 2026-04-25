@@ -64,6 +64,13 @@
       "when": 1777153430845,
       "tag": "0008_flat_iron_monger",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777155179317,
+      "tag": "0009_lonely_arclight",
+      "breakpoints": true
     }
   ]
 }

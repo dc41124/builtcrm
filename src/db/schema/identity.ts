@@ -117,10 +117,28 @@ export const users = pgTable(
     language: varchar("language", { length: 10 }).default("en").notNull(),
     avatarUrl: text("avatar_url"),
     isActive: boolean("is_active").default(true).notNull(),
+    // Self-serve deletion lifecycle. See
+    // docs/specs/user_deletion_and_export_plan.md.
+    //   - pendingDeletionAt: when the grace window ends (now() + 30d at
+    //     request time). NULL = no deletion in flight. While set, the
+    //     user is signed out everywhere and login is blocked at the
+    //     auth.session.create hook. Cleared by the tokenized cancel
+    //     endpoint, or consumed by the anonymization sweep when reached.
+    //   - deletedAt: when anonymization actually completed. NULL until
+    //     the row has been scrubbed.
+    pendingDeletionAt: timestamp("pending_deletion_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    // Hashed (SHA-256) cancel-deletion token. Plaintext goes out in the
+    // confirmation email; the hash is what we compare against. Same
+    // pattern as invitations.token.
+    pendingDeletionTokenHash: text("pending_deletion_token_hash"),
     ...timestamps,
   },
   (table) => ({
     emailUnique: unique("users_email_unique").on(table.email),
+    pendingDeletionIdx: index("users_pending_deletion_idx").on(
+      table.pendingDeletionAt,
+    ),
   }),
 );
 

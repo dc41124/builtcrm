@@ -147,6 +147,22 @@ export const auth = betterAuth({
             .limit(1);
           if (!u?.appUserId) return { data: session };
 
+          // Block sign-in for accounts pending deletion. Tokenized
+          // cancel link in the confirmation email is the only path
+          // back; allowing sign-in would create new audit events that
+          // survive anonymization (a footgun). See
+          // docs/specs/user_deletion_and_export_plan.md.
+          const [appUserRow] = await db
+            .select({ pendingDeletionAt: users.pendingDeletionAt })
+            .from(users)
+            .where(eq(users.id, u.appUserId))
+            .limit(1);
+          if (appUserRow?.pendingDeletionAt) {
+            throw new Error(
+              "ACCOUNT_PENDING_DELETION: Your account is scheduled for deletion. Use the cancel link in your confirmation email to restore access.",
+            );
+          }
+
           const [primary] = await db
             .select()
             .from(roleAssignments)

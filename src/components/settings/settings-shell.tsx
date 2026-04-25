@@ -2169,6 +2169,47 @@ function AppearanceTab({
 }
 
 function DeleteAccountModal({ onClose }: { onClose: () => void }) {
+  const [confirmText, setConfirmText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [blockers, setBlockers] = useState<{ id: string; name: string }[]>([]);
+  const [scheduledFor, setScheduledFor] = useState<string | null>(null);
+
+  const canConfirm = confirmText === "DELETE" && !busy && !scheduledFor;
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    setBlockers([]);
+    try {
+      const res = await fetch("/api/user/delete", { method: "POST" });
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        blockers?: { id: string; name: string }[];
+        scheduledForAnonymizationAt?: string;
+      };
+      if (!res.ok) {
+        if (res.status === 401 && body.error === "stale_session") {
+          setError(
+            "Re-enter your password to continue. Sign out and back in, then click Delete again.",
+          );
+        } else if (res.status === 409 && body.error === "sole_owner") {
+          setBlockers(body.blockers ?? []);
+          setError(body.message ?? "Transfer ownership before deleting.");
+        } else {
+          setError(body.message ?? "Could not initiate deletion.");
+        }
+        return;
+      }
+      setScheduledFor(body.scheduledForAnonymizationAt ?? null);
+    } catch {
+      setError("Network error initiating deletion.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div
       onClick={onClose}
@@ -2202,39 +2243,77 @@ function DeleteAccountModal({ onClose }: { onClose: () => void }) {
             margin: 0,
           }}
         >
-          Delete account
+          {scheduledFor ? "Deletion scheduled" : "Delete account"}
         </h3>
-        <p
-          style={{
-            fontSize: 13,
-            color: "var(--t2)",
-            marginTop: 8,
-            fontWeight: 520,
-            lineHeight: 1.55,
-          }}
-        >
-          Self-serve account deletion isn&apos;t live yet. To delete your account, email{" "}
-          <strong>support@builtcrm.com</strong> from this account&apos;s email address and we&apos;ll take it
-          from there.
-        </p>
-        <p
-          style={{
-            fontSize: 12.5,
-            color: "var(--t3)",
-            marginTop: 10,
-            fontWeight: 500,
-            lineHeight: 1.5,
-          }}
-        >
-          We review deletion requests to preserve project records you&apos;re party to — for example,
-          signed lien waivers or approvals you&apos;ve issued on a project stay tied to the project
-          even after your account is closed.
-        </p>
-        <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button style={btnGhostSm()} onClick={onClose}>
-            Close
-          </button>
-        </div>
+
+        {scheduledFor ? (
+          <>
+            <p style={{ fontSize: 13, color: "var(--t2)", marginTop: 8, fontWeight: 520, lineHeight: 1.55 }}>
+              We&apos;ve sent a confirmation email with a cancel link. Your account will be anonymized
+              on <strong>{new Date(scheduledFor).toLocaleString()}</strong> unless you click cancel
+              before then.
+            </p>
+            <p style={{ fontSize: 12.5, color: "var(--t3)", marginTop: 10, fontWeight: 500, lineHeight: 1.5 }}>
+              You&apos;ve been signed out everywhere. Authorship records on RFIs, change orders, lien
+              waivers, and similar documents stay tied to the project for legal continuity, but your
+              identifying details are scrubbed at anonymization.
+            </p>
+            <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button style={btnGhostSm()} onClick={() => (window.location.href = "/login")}>
+                Go to sign-in
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: 13, color: "var(--t2)", marginTop: 8, fontWeight: 520, lineHeight: 1.55 }}>
+              Your account will be deleted after a 30-day grace period. We&apos;ll send a cancel link
+              to your email. Authorship records on RFIs, change orders, lien waivers, and similar
+              documents stay tied to the project for legal continuity, but your identifying details
+              are scrubbed.
+            </p>
+            <p style={{ fontSize: 12.5, color: "var(--t3)", marginTop: 10, fontWeight: 500, lineHeight: 1.5 }}>
+              Type <strong>DELETE</strong> to confirm.
+            </p>
+            <input
+              autoFocus
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="DELETE"
+              style={{
+                marginTop: 8,
+                width: "100%",
+                padding: "10px 12px",
+                border: "1px solid var(--s3)",
+                borderRadius: 8,
+                background: "var(--s2)",
+                color: "var(--t1)",
+                fontFamily: "'JetBrains Mono',monospace",
+                letterSpacing: ".05em",
+              }}
+            />
+            {error && (
+              <p style={{ fontSize: 12, color: "var(--wr)", marginTop: 10, fontWeight: 500 }}>
+                {error}
+              </p>
+            )}
+            {blockers.length > 0 && (
+              <ul style={{ fontSize: 12, color: "var(--wr)", marginTop: 6, paddingLeft: 16 }}>
+                {blockers.map((b) => (
+                  <li key={b.id}>{b.name}</li>
+                ))}
+              </ul>
+            )}
+            <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button style={btnGhostSm()} onClick={onClose} disabled={busy}>
+                Cancel
+              </button>
+              <button style={btnDangerSm()} onClick={submit} disabled={!canConfirm}>
+                {busy ? "Submitting…" : "Delete my account"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
