@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-import { requireServerSession } from "@/auth/session";
+import { getServerSession } from "@/auth/session";
 
 import { db } from "@/db/client";
 import { documents } from "@/db/schema";
@@ -14,7 +14,11 @@ export async function GET(
   { params }: { params: Promise<{ documentId: string }> },
 ) {
   const { documentId } = await params;
-  const { session } = await requireServerSession();
+  const sessionData = await getServerSession();
+  if (!sessionData) {
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  }
+  const { session } = sessionData;
   const [doc] = await db
     .select()
     .from(documents)

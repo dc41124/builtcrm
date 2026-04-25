@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireServerSession } from "@/auth/session";
+import { getServerSession } from "@/auth/session";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -72,7 +72,11 @@ const BodySchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const { session } = await requireServerSession();
+  const sessionData = await getServerSession();
+  if (!sessionData) {
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  }
+  const { session } = sessionData;
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
