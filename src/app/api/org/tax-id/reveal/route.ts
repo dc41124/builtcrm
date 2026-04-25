@@ -60,16 +60,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ taxId: null });
     }
 
-    // Decrypt-with-plaintext-fallback. A row that pre-dates the
-    // encryption backfill (or any leftover plaintext) decrypts as
-    // garbage / throws — return the stored value as-is. The fallback
-    // is removed in the cleanup commit after the backfill confirms.
-    let plaintext: string;
-    try {
-      plaintext = decryptTaxId(row.taxId);
-    } catch {
-      plaintext = row.taxId;
-    }
+    // Post-backfill, every non-null tax_id is well-formed ciphertext.
+    // A decrypt failure is a real integrity bug — let it propagate to
+    // the global error handler rather than mask it with the stored
+    // value (which would expose ciphertext as if it were plaintext).
+    const plaintext = decryptTaxId(row.taxId);
 
     await db.insert(auditEvents).values({
       actorUserId: ctx.userId,

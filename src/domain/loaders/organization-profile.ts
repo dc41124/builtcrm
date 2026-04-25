@@ -128,18 +128,10 @@ export async function getOrganizationProfile(
   }
 
   // tax_id is encrypted at rest. Decrypt to compute the mask we ship to
-  // the client. Plaintext-fallback: a row that pre-dates the encryption
-  // backfill (or one whose value is leftover plaintext) decrypts as
-  // garbage / throws — fall back to the stored value treated as plaintext.
-  // The fallback is removed in the cleanup commit after backfill confirms.
-  let taxIdPlain: string | null = null;
-  if (row.taxId) {
-    try {
-      taxIdPlain = decryptTaxId(row.taxId);
-    } catch {
-      taxIdPlain = row.taxId;
-    }
-  }
+  // the client. A decrypt failure indicates a real data integrity bug
+  // (post-backfill, every non-null tax_id row is well-formed
+  // ciphertext) — let it propagate.
+  const taxIdPlain = row.taxId ? decryptTaxId(row.taxId) : null;
   const taxIdMasked = taxIdPlain ? maskTaxId(taxIdPlain) : null;
 
   return {

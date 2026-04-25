@@ -151,7 +151,7 @@ Each of these was explicitly deferred during the step-1 hardening pass. Entries 
 
 ### `organizations.tax_id` encryption
 **Status:** RESOLVED (2026-04-25). AES-256-GCM via `TAX_ID_ENCRYPTION_KEY` and `encryptTaxId` / `decryptTaxId` in [src/lib/integrations/crypto.ts](../../src/lib/integrations/crypto.ts). Loader returns masked value (`***-**-NNNN`); plaintext only via `POST /api/org/tax-id/reveal` (rate-limited 5/min, contractor_admin / subcontractor_owner only) which writes a `tax_id.revealed` audit event. PATCH writes encrypt; mask-shape submissions are no-ops to avoid re-encrypting the display string.
-**Backfill:** [scripts/backfill-encrypt-tax-id.ts](../../scripts/backfill-encrypt-tax-id.ts) — idempotent; encrypts any legacy plaintext rows. Run after deploy, then in a follow-up commit remove the decrypt-with-plaintext-fallback branches in `organization-profile.ts` and `tax-id/reveal/route.ts`.
+**Backfill:** [scripts/backfill-encrypt-tax-id.ts](../../scripts/backfill-encrypt-tax-id.ts) — idempotent; encrypts any legacy plaintext rows. Sequencing for the prod cutover: set `TAX_ID_ENCRYPTION_KEY` → deploy the encryption-with-plaintext-fallback commit (`be12f48`) → run the backfill → deploy the fallback-removal commit. After fallback removal, any decrypt failure surfaces as a 500 (real data-integrity bug, not silently masked as plaintext).
 **Forward-looking export/PDF policy:** when a future PDF (W-9, lien waiver) or "with-EIN" CSV needs `tax_id`, decrypt on render with a `tax_id.rendered_in_pdf` (or analogous) audit event per render. Mirrors the reveal-endpoint pattern; never log the value itself.
 **Plan source:** [docs/specs/tax_id_encryption_plan.md](tax_id_encryption_plan.md).
 
