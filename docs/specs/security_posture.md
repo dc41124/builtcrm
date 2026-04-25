@@ -180,9 +180,10 @@ All three follow the `webhook-payload-purge.ts` pattern, write a `*-purge.run_co
 **Unblocker:** N/A — inert until social login is enabled.
 
 ### Row-Level Security (RLS)
-**Status:** not implemented.
+**Status:** not implemented; sprint plan drafted.
 **Why deferred:** RLS requires `SET LOCAL` of tenant context on every connection via middleware. A bug in that plumbing (connection pool reuse, missed reset, request cross-contamination) can cause worse leaks than the current app-layer-only approach. Needs a dedicated sprint with policy coverage, pooling integration, and failure-mode testing.
-**Unblocker:** scheduled as a post-Phase-4+ hardening sprint.
+**Plan:** [docs/specs/rls_sprint_plan.md](rls_sprint_plan.md) (drafted 2026-04-25). Scopes 26 tenant-scoped tables across 5 phases (~4–5 sessions): plumbing → pilot one table → org-scoped wave → project-scoped waves → cleanup. Policy backbone is `SET LOCAL app.current_org_id` inside a `withTenant(orgId, async tx => ...)` helper that wraps the existing 156 `db.transaction()` call sites.
+**Unblocker:** sprint plan reviewed and approved → phase 1 begins.
 
 ### Read-only DB role
 **Status:** not provisioned.
