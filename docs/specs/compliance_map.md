@@ -162,7 +162,7 @@ Residual code-level items:
 | P5 — access to personal info | Users can see their own profile data via the portal | No export-my-data flow (GDPR Article 15) |
 | P6.1 — disclosure to third parties | Only Stripe, Upstash, R2, Neon, Trigger.dev — all listed in .env.example; no other data sharing | No formal DPA list maintained |
 
-**Primary blocker for CA/EU launch:** user deletion + data export flows. Sprint plan drafted in [user_deletion_and_export_plan.md](user_deletion_and_export_plan.md); approach is anonymize-with-30-day-grace (deletion) + Trigger.dev-job-to-R2 (export). 2 implementation sessions; ships paired.
+**Primary blocker for CA/EU launch (RESOLVED 2026-04-25):** user deletion + GDPR Article 15 export both shipped. Approach per [user_deletion_and_export_plan.md](user_deletion_and_export_plan.md): anonymize-with-30-day-grace for deletion (preserves construction-contract authorship via the 39 RESTRICT FKs); JSON manifest to R2 with 7-day signed URL for export. Email infra is still a console-log stub — wire to Postmark/SendGrid before actually serving EU/CA customers so the cancel-link + download-link emails reach inboxes.
 
 ---
 

@@ -58,7 +58,7 @@ export const dataExports = pgTable(
     ),
     kindCheck: check(
       "data_exports_kind_check",
-      sql`${table.exportKind} in ('projects_csv','financial_csv','documents_zip','full_archive','audit_log_csv')`,
+      sql`${table.exportKind} in ('projects_csv','financial_csv','documents_zip','full_archive','audit_log_csv','user_data_gdpr')`,
     ),
     statusCheck: check(
       "data_exports_status_check",

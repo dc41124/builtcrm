@@ -94,3 +94,21 @@ export async function deleteObject(key: string): Promise<void> {
     // intentional no-op
   }
 }
+
+// Server-side put. Used by background jobs that generate content
+// directly (e.g. GDPR exports) rather than handing a presigned URL
+// to a browser. Throws on failure — callers want to know.
+export async function putObject(params: {
+  key: string;
+  body: Buffer | string;
+  contentType: string;
+}): Promise<void> {
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: params.key,
+      Body: params.body,
+      ContentType: params.contentType,
+    }),
+  );
+}

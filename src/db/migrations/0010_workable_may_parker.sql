@@ -1,0 +1,2 @@
+ALTER TABLE "data_exports" DROP CONSTRAINT "data_exports_kind_check";--> statement-breakpoint
+ALTER TABLE "data_exports" ADD CONSTRAINT "data_exports_kind_check" CHECK ("data_exports"."export_kind" in ('projects_csv','financial_csv','documents_zip','full_archive','audit_log_csv','user_data_gdpr'));

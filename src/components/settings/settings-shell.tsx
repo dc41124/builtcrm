@@ -2116,6 +2116,7 @@ function AppearanceTab({
           <button style={btnDangerSm()} onClick={() => setShowDelete(true)}>
             Delete my account
           </button>
+          <DataExportRow />
         </div>
       )}
 
@@ -2165,6 +2166,66 @@ function AppearanceTab({
 
       {showDelete && <DeleteAccountModal onClose={() => setShowDelete(false)} />}
     </>
+  );
+}
+
+function DataExportRow() {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ url: string; expiresAt: string } | null>(null);
+
+  async function request() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/user/data-export", { method: "POST" });
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        downloadUrl?: string;
+        expiresAt?: string;
+      };
+      if (!res.ok) {
+        if (res.status === 401 && body.error === "stale_session") {
+          setError("Re-enter your password to continue. Sign out and back in, then click again.");
+        } else {
+          setError(body.message ?? "Could not generate the export.");
+        }
+        return;
+      }
+      if (body.downloadUrl && body.expiresAt) {
+        setResult({ url: body.downloadUrl, expiresAt: body.expiresAt });
+      }
+    } catch {
+      setError("Network error generating the export.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--dg)" }}>
+      <h4 style={{ fontFamily: "'DM Sans',system-ui,sans-serif", fontSize: 13, fontWeight: 700, color: "var(--dg)", margin: 0 }}>
+        Export my data
+      </h4>
+      <p style={{ fontSize: 12.5, color: "var(--dg)", opacity: 0.85, marginTop: 6, marginBottom: 10, fontWeight: 500, lineHeight: 1.45 }}>
+        Download a JSON bundle of your profile, preferences, audit events, messages, notifications, and memberships. Link expires in 7 days. GDPR Article 15.
+      </p>
+      <button style={btnGhostSm()} onClick={request} disabled={busy || !!result}>
+        {busy ? "Generating…" : result ? "Generated" : "Generate export"}
+      </button>
+      {error && (
+        <p style={{ fontSize: 12, color: "var(--wr)", marginTop: 8, fontWeight: 500 }}>{error}</p>
+      )}
+      {result && (
+        <p style={{ fontSize: 12, color: "var(--t2)", marginTop: 8, fontWeight: 500, lineHeight: 1.45 }}>
+          <a href={result.url} target="_blank" rel="noreferrer" style={{ color: "var(--accent)", fontWeight: 620 }}>
+            Download JSON
+          </a>{" "}
+          — expires {new Date(result.expiresAt).toLocaleString()}
+        </p>
+      )}
+    </div>
   );
 }
 
