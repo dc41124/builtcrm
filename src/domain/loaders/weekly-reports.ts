@@ -385,13 +385,15 @@ async function loadReportSummaries(
 
   // Section counts in one batched query.
   const reportIds = rows.map((r) => r.id);
-  const counts = await db
-    .select({
-      reportId: weeklyReportSections.reportId,
-      sectionType: weeklyReportSections.sectionType,
-    })
-    .from(weeklyReportSections)
-    .where(inArray(weeklyReportSections.reportId, reportIds));
+  const counts = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        reportId: weeklyReportSections.reportId,
+        sectionType: weeklyReportSections.sectionType,
+      })
+      .from(weeklyReportSections)
+      .where(inArray(weeklyReportSections.reportId, reportIds)),
+  );
 
   const countByReport = new Map<string, number>();
   for (const c of counts) {
@@ -448,16 +450,18 @@ async function loadReportDetail(args: {
   );
   if (!reportRow) return null;
 
-  const sectionRows = await db
-    .select({
-      id: weeklyReportSections.id,
-      sectionType: weeklyReportSections.sectionType,
-      content: weeklyReportSections.content,
-      orderIndex: weeklyReportSections.orderIndex,
-    })
-    .from(weeklyReportSections)
-    .where(eq(weeklyReportSections.reportId, reportRow.id))
-    .orderBy(asc(weeklyReportSections.orderIndex));
+  const sectionRows = await withTenant(args.callerOrgId, (tx) =>
+    tx
+      .select({
+        id: weeklyReportSections.id,
+        sectionType: weeklyReportSections.sectionType,
+        content: weeklyReportSections.content,
+        orderIndex: weeklyReportSections.orderIndex,
+      })
+      .from(weeklyReportSections)
+      .where(eq(weeklyReportSections.reportId, reportRow.id))
+      .orderBy(asc(weeklyReportSections.orderIndex)),
+  );
 
   // Resolve actor names if any.
   const userIds = [

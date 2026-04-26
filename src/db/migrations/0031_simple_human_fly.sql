@@ -1,0 +1,14 @@
+ALTER TABLE "weekly_report_sections" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "inspection_result_photos" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "inspection_results" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "meeting_action_items" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "meeting_agenda_items" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "meeting_attendees" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "meeting_minutes" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE POLICY "weekly_report_sections_tenant_isolation" ON "weekly_report_sections" AS PERMISSIVE FOR ALL TO public USING ("weekly_report_sections"."report_id" IN (SELECT id FROM weekly_reports)) WITH CHECK ("weekly_report_sections"."report_id" IN (SELECT id FROM weekly_reports));--> statement-breakpoint
+CREATE POLICY "inspection_result_photos_tenant_isolation" ON "inspection_result_photos" AS PERMISSIVE FOR ALL TO public USING ("inspection_result_photos"."inspection_result_id" IN (SELECT id FROM inspection_results)) WITH CHECK ("inspection_result_photos"."inspection_result_id" IN (SELECT id FROM inspection_results));--> statement-breakpoint
+CREATE POLICY "inspection_results_tenant_isolation" ON "inspection_results" AS PERMISSIVE FOR ALL TO public USING ("inspection_results"."inspection_id" IN (SELECT id FROM inspections)) WITH CHECK ("inspection_results"."inspection_id" IN (SELECT id FROM inspections));--> statement-breakpoint
+CREATE POLICY "meeting_action_items_tenant_isolation" ON "meeting_action_items" AS PERMISSIVE FOR ALL TO public USING ("meeting_action_items"."meeting_id" IN (SELECT id FROM meetings)) WITH CHECK ("meeting_action_items"."meeting_id" IN (SELECT id FROM meetings));--> statement-breakpoint
+CREATE POLICY "meeting_agenda_items_tenant_isolation" ON "meeting_agenda_items" AS PERMISSIVE FOR ALL TO public USING ("meeting_agenda_items"."meeting_id" IN (SELECT id FROM meetings)) WITH CHECK ("meeting_agenda_items"."meeting_id" IN (SELECT id FROM meetings));--> statement-breakpoint
+CREATE POLICY "meeting_attendees_tenant_isolation" ON "meeting_attendees" AS PERMISSIVE FOR ALL TO public USING ("meeting_attendees"."meeting_id" IN (SELECT id FROM meetings)) WITH CHECK ("meeting_attendees"."meeting_id" IN (SELECT id FROM meetings));--> statement-breakpoint
+CREATE POLICY "meeting_minutes_tenant_isolation" ON "meeting_minutes" AS PERMISSIVE FOR ALL TO public USING ("meeting_minutes"."meeting_id" IN (SELECT id FROM meetings)) WITH CHECK ("meeting_minutes"."meeting_id" IN (SELECT id FROM meetings));

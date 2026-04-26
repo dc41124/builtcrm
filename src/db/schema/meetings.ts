@@ -190,8 +190,16 @@ export const meetingAgendaItems = pgTable(
       foreignColumns: [meetings.id],
       name: "meeting_agenda_items_carried_from_meeting_id_fk",
     }).onDelete("set null"),
+    // Phase 4 wave 2 — nested under meetings. Inner subquery applies the
+    // meetings policy, which already encodes the project-scoped multi-org
+    // logic; this policy stays uniform across all nested children.
+    tenantIsolation: pgPolicy("meeting_agenda_items_tenant_isolation", {
+      for: "all",
+      using: sql`${table.meetingId} IN (SELECT id FROM meetings)`,
+      withCheck: sql`${table.meetingId} IN (SELECT id FROM meetings)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // meeting_attendees — one row per invitee.
@@ -245,8 +253,14 @@ export const meetingAttendees = pgTable(
       "meeting_attendees_identity_check",
       sql`(${table.userId} IS NOT NULL) <> (${table.email} IS NOT NULL)`,
     ),
+    // Phase 4 wave 2 — nested under meetings.
+    tenantIsolation: pgPolicy("meeting_attendees_tenant_isolation", {
+      for: "all",
+      using: sql`${table.meetingId} IN (SELECT id FROM meetings)`,
+      withCheck: sql`${table.meetingId} IN (SELECT id FROM meetings)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // meeting_minutes — one row per meeting (unique(meetingId)).
@@ -281,7 +295,15 @@ export const meetingMinutes = pgTable(
     }),
     ...timestamps,
   },
-);
+  (table) => ({
+    // Phase 4 wave 2 — nested under meetings.
+    tenantIsolation: pgPolicy("meeting_minutes_tenant_isolation", {
+      for: "all",
+      using: sql`${table.meetingId} IN (SELECT id FROM meetings)`,
+      withCheck: sql`${table.meetingId} IN (SELECT id FROM meetings)`,
+    }),
+  }),
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // meeting_action_items — outcomes from the meeting assigned to a user.
@@ -344,5 +366,11 @@ export const meetingActionItems = pgTable(
       foreignColumns: [meetings.id],
       name: "meeting_action_items_carried_from_meeting_fk",
     }).onDelete("set null"),
+    // Phase 4 wave 2 — nested under meetings.
+    tenantIsolation: pgPolicy("meeting_action_items_tenant_isolation", {
+      for: "all",
+      using: sql`${table.meetingId} IN (SELECT id FROM meetings)`,
+      withCheck: sql`${table.meetingId} IN (SELECT id FROM meetings)`,
+    }),
   }),
-);
+).enableRLS();

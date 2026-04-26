@@ -5,6 +5,8 @@ import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import {
   documents,
   inspectionResultPhotos,
@@ -45,7 +47,8 @@ export async function POST(req: Request) {
 
   try {
     // Resolve the result → parent inspection → project for auth + doc validation.
-    const [row] = await db
+    // Pre-tenant: head lookup via admin pool (Slice 3 entry-point pattern).
+    const [row] = await dbAdmin
       .select({
         resultId: inspectionResults.id,
         inspectionId: inspectionResults.inspectionId,
@@ -98,7 +101,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       // max+1 sort order so photos land in upload order without any
       // client-side bookkeeping. Concurrent uploads would collide on
       // sort_order but that's visually harmless.

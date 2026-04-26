@@ -176,5 +176,11 @@ export const weeklyReportSections = pgTable(
       table.reportId,
       table.sectionType,
     ),
+    // Phase 4 wave 2 — nested under weekly_reports.
+    tenantIsolation: pgPolicy("weekly_report_sections_tenant_isolation", {
+      for: "all",
+      using: sql`${table.reportId} IN (SELECT id FROM weekly_reports)`,
+      withCheck: sql`${table.reportId} IN (SELECT id FROM weekly_reports)`,
+    }),
   }),
-);
+).enableRLS();

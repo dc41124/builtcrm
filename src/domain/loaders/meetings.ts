@@ -158,19 +158,21 @@ async function meetingsVisibleToSub(
   userId: string,
   orgId: string,
 ): Promise<Set<string>> {
-  const rows = await db
-    .select({ meetingId: meetingAttendees.meetingId })
-    .from(meetingAttendees)
-    .innerJoin(meetings, eq(meetings.id, meetingAttendees.meetingId))
-    .where(
-      and(
-        eq(meetings.projectId, projectId),
-        or(
-          eq(meetingAttendees.userId, userId),
-          eq(meetingAttendees.orgId, orgId),
+  const rows = await withTenant(orgId, (tx) =>
+    tx
+      .select({ meetingId: meetingAttendees.meetingId })
+      .from(meetingAttendees)
+      .innerJoin(meetings, eq(meetings.id, meetingAttendees.meetingId))
+      .where(
+        and(
+          eq(meetings.projectId, projectId),
+          or(
+            eq(meetingAttendees.userId, userId),
+            eq(meetingAttendees.orgId, orgId),
+          ),
         ),
       ),
-    );
+  );
   const ids = new Set<string>();
   for (const r of rows) ids.add(r.meetingId);
   return ids;
@@ -392,21 +394,23 @@ export async function getMeeting(input: GetMeetingInput): Promise<MeetingDetail>
     .limit(1);
 
   // Agenda items
-  const agendaRows = await db
-    .select({
-      id: meetingAgendaItems.id,
-      orderIndex: meetingAgendaItems.orderIndex,
-      title: meetingAgendaItems.title,
-      description: meetingAgendaItems.description,
-      assignedUserId: meetingAgendaItems.assignedUserId,
-      assignedUserName: users.displayName,
-      estimatedMinutes: meetingAgendaItems.estimatedMinutes,
-      carriedFromMeetingId: meetingAgendaItems.carriedFromMeetingId,
-    })
-    .from(meetingAgendaItems)
-    .leftJoin(users, eq(users.id, meetingAgendaItems.assignedUserId))
-    .where(eq(meetingAgendaItems.meetingId, head.id))
-    .orderBy(asc(meetingAgendaItems.orderIndex));
+  const agendaRows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: meetingAgendaItems.id,
+        orderIndex: meetingAgendaItems.orderIndex,
+        title: meetingAgendaItems.title,
+        description: meetingAgendaItems.description,
+        assignedUserId: meetingAgendaItems.assignedUserId,
+        assignedUserName: users.displayName,
+        estimatedMinutes: meetingAgendaItems.estimatedMinutes,
+        carriedFromMeetingId: meetingAgendaItems.carriedFromMeetingId,
+      })
+      .from(meetingAgendaItems)
+      .leftJoin(users, eq(users.id, meetingAgendaItems.assignedUserId))
+      .where(eq(meetingAgendaItems.meetingId, head.id))
+      .orderBy(asc(meetingAgendaItems.orderIndex)),
+  );
 
   // Resolve carriedFrom labels (MTG-XXXX) in one query
   const carriedFromIds = Array.from(
@@ -444,28 +448,30 @@ export async function getMeeting(input: GetMeetingInput): Promise<MeetingDetail>
   }));
 
   // Attendees
-  const attendeeRows = await db
-    .select({
-      id: meetingAttendees.id,
-      userId: meetingAttendees.userId,
-      userName: users.displayName,
-      userEmail: users.email,
-      orgId: meetingAttendees.orgId,
-      orgName: organizations.name,
-      email: meetingAttendees.email,
-      displayName: meetingAttendees.displayName,
-      roleLabel: meetingAttendees.roleLabel,
-      scope: meetingAttendees.scope,
-      attendedStatus: meetingAttendees.attendedStatus,
-      isChair: meetingAttendees.isChair,
-      declineReason: meetingAttendees.declineReason,
-      respondedAt: meetingAttendees.respondedAt,
-    })
-    .from(meetingAttendees)
-    .leftJoin(users, eq(users.id, meetingAttendees.userId))
-    .leftJoin(organizations, eq(organizations.id, meetingAttendees.orgId))
-    .where(eq(meetingAttendees.meetingId, head.id))
-    .orderBy(desc(meetingAttendees.isChair), asc(meetingAttendees.createdAt));
+  const attendeeRows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: meetingAttendees.id,
+        userId: meetingAttendees.userId,
+        userName: users.displayName,
+        userEmail: users.email,
+        orgId: meetingAttendees.orgId,
+        orgName: organizations.name,
+        email: meetingAttendees.email,
+        displayName: meetingAttendees.displayName,
+        roleLabel: meetingAttendees.roleLabel,
+        scope: meetingAttendees.scope,
+        attendedStatus: meetingAttendees.attendedStatus,
+        isChair: meetingAttendees.isChair,
+        declineReason: meetingAttendees.declineReason,
+        respondedAt: meetingAttendees.respondedAt,
+      })
+      .from(meetingAttendees)
+      .leftJoin(users, eq(users.id, meetingAttendees.userId))
+      .leftJoin(organizations, eq(organizations.id, meetingAttendees.orgId))
+      .where(eq(meetingAttendees.meetingId, head.id))
+      .orderBy(desc(meetingAttendees.isChair), asc(meetingAttendees.createdAt)),
+  );
 
   const attendees: Attendee[] = attendeeRows.map((r) => ({
     id: r.id,
@@ -487,28 +493,30 @@ export async function getMeeting(input: GetMeetingInput): Promise<MeetingDetail>
   );
 
   // Action items
-  const actionRows = await db
-    .select({
-      id: meetingActionItems.id,
-      description: meetingActionItems.description,
-      assignedUserId: meetingActionItems.assignedUserId,
-      assignedUserName: users.displayName,
-      assignedOrgId: meetingActionItems.assignedOrgId,
-      assignedOrgName: organizations.name,
-      dueDate: meetingActionItems.dueDate,
-      status: meetingActionItems.status,
-      originAgendaItemId: meetingActionItems.originAgendaItemId,
-      carriedFromMeetingId: meetingActionItems.carriedFromMeetingId,
-      createdAt: meetingActionItems.createdAt,
-    })
-    .from(meetingActionItems)
-    .leftJoin(users, eq(users.id, meetingActionItems.assignedUserId))
-    .leftJoin(
-      organizations,
-      eq(organizations.id, meetingActionItems.assignedOrgId),
-    )
-    .where(eq(meetingActionItems.meetingId, head.id))
-    .orderBy(asc(meetingActionItems.createdAt));
+  const actionRows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: meetingActionItems.id,
+        description: meetingActionItems.description,
+        assignedUserId: meetingActionItems.assignedUserId,
+        assignedUserName: users.displayName,
+        assignedOrgId: meetingActionItems.assignedOrgId,
+        assignedOrgName: organizations.name,
+        dueDate: meetingActionItems.dueDate,
+        status: meetingActionItems.status,
+        originAgendaItemId: meetingActionItems.originAgendaItemId,
+        carriedFromMeetingId: meetingActionItems.carriedFromMeetingId,
+        createdAt: meetingActionItems.createdAt,
+      })
+      .from(meetingActionItems)
+      .leftJoin(users, eq(users.id, meetingActionItems.assignedUserId))
+      .leftJoin(
+        organizations,
+        eq(organizations.id, meetingActionItems.assignedOrgId),
+      )
+      .where(eq(meetingActionItems.meetingId, head.id))
+      .orderBy(asc(meetingActionItems.createdAt)),
+  );
 
   const actionCarriedIds = Array.from(
     new Set(
@@ -548,19 +556,21 @@ export async function getMeeting(input: GetMeetingInput): Promise<MeetingDetail>
   }));
 
   // Minutes (lazy — may not exist)
-  const [minRow] = await db
-    .select({
-      content: meetingMinutes.content,
-      draftedByUserId: meetingMinutes.draftedByUserId,
-      draftedByName: users.displayName,
-      finalizedAt: meetingMinutes.finalizedAt,
-      finalizedByUserId: meetingMinutes.finalizedByUserId,
-      updatedAt: meetingMinutes.updatedAt,
-    })
-    .from(meetingMinutes)
-    .leftJoin(users, eq(users.id, meetingMinutes.draftedByUserId))
-    .where(eq(meetingMinutes.meetingId, head.id))
-    .limit(1);
+  const [minRow] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        content: meetingMinutes.content,
+        draftedByUserId: meetingMinutes.draftedByUserId,
+        draftedByName: users.displayName,
+        finalizedAt: meetingMinutes.finalizedAt,
+        finalizedByUserId: meetingMinutes.finalizedByUserId,
+        updatedAt: meetingMinutes.updatedAt,
+      })
+      .from(meetingMinutes)
+      .leftJoin(users, eq(users.id, meetingMinutes.draftedByUserId))
+      .where(eq(meetingMinutes.meetingId, head.id))
+      .limit(1),
+  );
 
   const minutes: MeetingMinutesRow | null = minRow
     ? {
@@ -627,28 +637,30 @@ export async function getMyMeetingActionItems(input: {
 }): Promise<MyActionItemRow[]> {
   const ctx = await getEffectiveContext(input.session, input.projectId);
 
-  const rows = await db
-    .select({
-      id: meetingActionItems.id,
-      meetingId: meetingActionItems.meetingId,
-      meetingTitle: meetings.title,
-      meetingNumber: meetings.sequentialNumber,
-      description: meetingActionItems.description,
-      dueDate: meetingActionItems.dueDate,
-      status: meetingActionItems.status,
-    })
-    .from(meetingActionItems)
-    .innerJoin(meetings, eq(meetings.id, meetingActionItems.meetingId))
-    .where(
-      and(
-        eq(meetings.projectId, input.projectId),
-        or(
-          eq(meetingActionItems.assignedUserId, ctx.user.id),
-          eq(meetingActionItems.assignedOrgId, ctx.organization.id),
+  const rows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: meetingActionItems.id,
+        meetingId: meetingActionItems.meetingId,
+        meetingTitle: meetings.title,
+        meetingNumber: meetings.sequentialNumber,
+        description: meetingActionItems.description,
+        dueDate: meetingActionItems.dueDate,
+        status: meetingActionItems.status,
+      })
+      .from(meetingActionItems)
+      .innerJoin(meetings, eq(meetings.id, meetingActionItems.meetingId))
+      .where(
+        and(
+          eq(meetings.projectId, input.projectId),
+          or(
+            eq(meetingActionItems.assignedUserId, ctx.user.id),
+            eq(meetingActionItems.assignedOrgId, ctx.organization.id),
+          ),
         ),
-      ),
-    )
-    .orderBy(asc(meetingActionItems.dueDate));
+      )
+      .orderBy(asc(meetingActionItems.dueDate)),
+  );
 
   const today = new Date();
   const soonThreshold = 3; // days
@@ -744,29 +756,33 @@ export async function getCarryForwardPreview(input: {
     };
   }
 
-  const [actionCount] = await db
-    .select({ c: sql<number>`count(*)::int` })
-    .from(meetingActionItems)
-    .where(
-      and(
-        eq(meetingActionItems.meetingId, source.id),
-        sql`${meetingActionItems.status} <> 'done'`,
+  const [actionCount] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({ c: sql<number>`count(*)::int` })
+      .from(meetingActionItems)
+      .where(
+        and(
+          eq(meetingActionItems.meetingId, source.id),
+          sql`${meetingActionItems.status} <> 'done'`,
+        ),
       ),
-    );
+  );
 
   // Un-covered agenda items: for portfolio scope we carry any agenda
   // item that was on the completed meeting and wasn't already
   // carried-forward (i.e. the item's own carriedFromMeetingId is null).
   // A future "mark agenda item as covered" flag would narrow this.
-  const [agendaCount] = await db
-    .select({ c: sql<number>`count(*)::int` })
-    .from(meetingAgendaItems)
-    .where(
-      and(
-        eq(meetingAgendaItems.meetingId, source.id),
-        isNull(meetingAgendaItems.carriedFromMeetingId),
+  const [agendaCount] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({ c: sql<number>`count(*)::int` })
+      .from(meetingAgendaItems)
+      .where(
+        and(
+          eq(meetingAgendaItems.meetingId, source.id),
+          isNull(meetingAgendaItems.carriedFromMeetingId),
+        ),
       ),
-    );
+  );
 
   return {
     sourceMeetingId: source.id,
@@ -862,25 +878,27 @@ export async function getRecentPublishedMinutes(input: {
     if (visibleIds.size === 0) return [];
   }
 
-  const rows = await db
-    .select({
-      id: meetings.id,
-      sequentialNumber: meetings.sequentialNumber,
-      title: meetings.title,
-      type: meetings.type,
-      scheduledAt: meetings.scheduledAt,
-      finalizedAt: meetingMinutes.finalizedAt,
-    })
-    .from(meetingMinutes)
-    .innerJoin(meetings, eq(meetings.id, meetingMinutes.meetingId))
-    .where(
-      and(
-        eq(meetings.projectId, input.projectId),
-        isNotNull(meetingMinutes.finalizedAt),
-      ),
-    )
-    .orderBy(desc(meetingMinutes.finalizedAt))
-    .limit((input.limit ?? 3) * 4);
+  const rows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: meetings.id,
+        sequentialNumber: meetings.sequentialNumber,
+        title: meetings.title,
+        type: meetings.type,
+        scheduledAt: meetings.scheduledAt,
+        finalizedAt: meetingMinutes.finalizedAt,
+      })
+      .from(meetingMinutes)
+      .innerJoin(meetings, eq(meetings.id, meetingMinutes.meetingId))
+      .where(
+        and(
+          eq(meetings.projectId, input.projectId),
+          isNotNull(meetingMinutes.finalizedAt),
+        ),
+      )
+      .orderBy(desc(meetingMinutes.finalizedAt))
+      .limit((input.limit ?? 3) * 4),
+  );
 
   const scoped =
     isSub && visibleIds

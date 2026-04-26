@@ -224,15 +224,17 @@ export async function getInspections(
   }
 
   // Outcome counts per inspection.
-  const outcomeRows = await db
-    .select({
-      inspectionId: inspectionResults.inspectionId,
-      outcome: inspectionResults.outcome,
-      c: sql<number>`count(*)::int`,
-    })
-    .from(inspectionResults)
-    .where(inArray(inspectionResults.inspectionId, insIds))
-    .groupBy(inspectionResults.inspectionId, inspectionResults.outcome);
+  const outcomeRows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        inspectionId: inspectionResults.inspectionId,
+        outcome: inspectionResults.outcome,
+        c: sql<number>`count(*)::int`,
+      })
+      .from(inspectionResults)
+      .where(inArray(inspectionResults.inspectionId, insIds))
+      .groupBy(inspectionResults.inspectionId, inspectionResults.outcome),
+  );
   const countsBy = new Map<
     string,
     { pass: number; fail: number; conditional: number; na: number }
@@ -376,31 +378,35 @@ export async function getInspection(
   const snapshot = (full?.templateSnapshotJson as InspectionLineItemDef[]) ?? [];
 
   // All results for this inspection.
-  const resultRows = await db
-    .select({
-      id: inspectionResults.id,
-      lineItemKey: inspectionResults.lineItemKey,
-      outcome: inspectionResults.outcome,
-      notes: inspectionResults.notes,
-      recordedByUserId: inspectionResults.recordedByUserId,
-      recordedAt: inspectionResults.recordedAt,
-    })
-    .from(inspectionResults)
-    .where(eq(inspectionResults.inspectionId, input.inspectionId));
+  const resultRows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: inspectionResults.id,
+        lineItemKey: inspectionResults.lineItemKey,
+        outcome: inspectionResults.outcome,
+        notes: inspectionResults.notes,
+        recordedByUserId: inspectionResults.recordedByUserId,
+        recordedAt: inspectionResults.recordedAt,
+      })
+      .from(inspectionResults)
+      .where(eq(inspectionResults.inspectionId, input.inspectionId)),
+  );
   const resultsByKey = new Map(resultRows.map((r) => [r.lineItemKey, r]));
 
   // Photo counts per result.
   const resultIds = resultRows.map((r) => r.id);
   const photoCountBy = new Map<string, number>();
   if (resultIds.length) {
-    const phRows = await db
-      .select({
-        resultId: inspectionResultPhotos.inspectionResultId,
-        c: sql<number>`count(*)::int`,
-      })
-      .from(inspectionResultPhotos)
-      .where(inArray(inspectionResultPhotos.inspectionResultId, resultIds))
-      .groupBy(inspectionResultPhotos.inspectionResultId);
+    const phRows = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({
+          resultId: inspectionResultPhotos.inspectionResultId,
+          c: sql<number>`count(*)::int`,
+        })
+        .from(inspectionResultPhotos)
+        .where(inArray(inspectionResultPhotos.inspectionResultId, resultIds))
+        .groupBy(inspectionResultPhotos.inspectionResultId),
+    );
     for (const r of phRows) photoCountBy.set(r.resultId, r.c);
   }
 

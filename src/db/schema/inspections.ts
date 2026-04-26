@@ -251,8 +251,14 @@ export const inspectionResults = pgTable(
     inspectionIdx: index("inspection_results_inspection_idx").on(
       table.inspectionId,
     ),
+    // Phase 4 wave 2 — nested under inspections.
+    tenantIsolation: pgPolicy("inspection_results_tenant_isolation", {
+      for: "all",
+      using: sql`${table.inspectionId} IN (SELECT id FROM inspections)`,
+      withCheck: sql`${table.inspectionId} IN (SELECT id FROM inspections)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // inspection_result_photos — mirrors the punch_item_photos junction
@@ -289,5 +295,13 @@ export const inspectionResultPhotos = pgTable(
       foreignColumns: [inspectionResults.id],
       name: "inspection_result_photos_inspection_result_id_fk",
     }).onDelete("cascade"),
+    // Phase 4 wave 2 — depth-2 nesting through inspection_results
+    // (which itself filters via inspections). Inner subquery's RLS
+    // chains correctly; recursion terminates at the inspections policy.
+    tenantIsolation: pgPolicy("inspection_result_photos_tenant_isolation", {
+      for: "all",
+      using: sql`${table.inspectionResultId} IN (SELECT id FROM inspection_results)`,
+      withCheck: sql`${table.inspectionResultId} IN (SELECT id FROM inspection_results)`,
+    }),
   }),
-);
+).enableRLS();
