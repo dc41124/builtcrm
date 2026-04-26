@@ -126,7 +126,9 @@ export default async function ReviewerTokenPage({
   const unpinnedIds = packageJoinRows
     .filter((r) => !r.pinVersion)
     .map((r) => r.linkedDocumentId);
-  const headMap = await resolveCurrentVersionMap(unpinnedIds);
+  // Reviewer flow is pre-tenant (external token); pass null to opt
+  // into the dbAdmin BYPASSRLS pool inside the helper.
+  const headMap = await resolveCurrentVersionMap(unpinnedIds, null);
   const effectiveIds = packageJoinRows.map((r) =>
     r.pinVersion ? r.linkedDocumentId : headMap.get(r.linkedDocumentId) ?? r.linkedDocumentId,
   );

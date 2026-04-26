@@ -496,24 +496,26 @@ export async function loadPoDetail(
   }));
 
   // ---- Linked documents (via document_links) ----
-  const docRows = await db
-    .select({
-      id: documents.id,
-      title: documents.title,
-      category: documents.category,
-      fileSizeBytes: documents.fileSizeBytes,
-      isSuperseded: documents.isSuperseded,
-      createdAt: documents.createdAt,
-    })
-    .from(documentLinks)
-    .innerJoin(documents, eq(documents.id, documentLinks.documentId))
-    .where(
-      and(
-        eq(documentLinks.linkedObjectType, "purchase_order"),
-        eq(documentLinks.linkedObjectId, poId),
-      ),
-    )
-    .orderBy(desc(documents.createdAt));
+  const docRows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: documents.id,
+        title: documents.title,
+        category: documents.category,
+        fileSizeBytes: documents.fileSizeBytes,
+        isSuperseded: documents.isSuperseded,
+        createdAt: documents.createdAt,
+      })
+      .from(documentLinks)
+      .innerJoin(documents, eq(documents.id, documentLinks.documentId))
+      .where(
+        and(
+          eq(documentLinks.linkedObjectType, "purchase_order"),
+          eq(documentLinks.linkedObjectId, poId),
+        ),
+      )
+      .orderBy(desc(documents.createdAt)),
+  );
   const poDocs: PoDocumentRow[] = docRows.map((d) => ({
     id: d.id,
     title: d.title,

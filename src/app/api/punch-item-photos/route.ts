@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { documents, punchItemPhotos, punchItems } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -43,7 +44,9 @@ export async function POST(req: Request) {
   const input = parsed.data;
 
   try {
-    const [itemHead] = await db
+    // Entry-point dbAdmin: tenant unknown until we resolve project from
+    // the punch item row (punch_items not yet RLS-enabled).
+    const [itemHead] = await dbAdmin
       .select({
         id: punchItems.id,
         projectId: punchItems.projectId,
@@ -72,19 +75,18 @@ export async function POST(req: Request) {
       );
     }
 
-    const [doc] = await db
-      .select({ id: documents.id, projectId: documents.projectId })
-      .from(documents)
-      .where(eq(documents.id, input.documentId))
-      .limit(1);
-    if (!doc || doc.projectId !== itemHead.projectId) {
-      return NextResponse.json(
-        { error: "invalid_document", message: "Document not on this project" },
-        { status: 400 },
-      );
-    }
+    const result = await withTenant(ctx.organization.id, async (tx) => {
+      // Validate document is on the same project — runs inside withTenant
+      // so the documents read passes RLS.
+      const [doc] = await tx
+        .select({ id: documents.id, projectId: documents.projectId })
+        .from(documents)
+        .where(eq(documents.id, input.documentId))
+        .limit(1);
+      if (!doc || doc.projectId !== itemHead.projectId) {
+        throw new InvalidDocumentError();
+      }
 
-    const result = await db.transaction(async (tx) => {
       // Compute next sort order as max+1 (falls back to 0 for the
       // first photo). Same pattern as RFI sequentialNumber —
       // concurrent inserts are unlikely here and would just collide
@@ -124,6 +126,12 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ id: result.id });
   } catch (err) {
+    if (err instanceof InvalidDocumentError) {
+      return NextResponse.json(
+        { error: "invalid_document", message: "Document not on this project" },
+        { status: 400 },
+      );
+    }
     if (err instanceof AuthorizationError) {
       const status =
         err.code === "unauthenticated"
@@ -136,3 +144,5 @@ export async function POST(req: Request) {
     throw err;
   }
 }
+
+class InvalidDocumentError extends Error {}

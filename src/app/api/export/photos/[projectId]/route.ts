@@ -6,7 +6,7 @@ import { Readable } from "node:stream";
 import archiver from "archiver";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { documents, users } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -79,19 +79,21 @@ export async function GET(
     if (from) whereClauses.push(gte(documents.createdAt, from));
     if (to) whereClauses.push(lte(documents.createdAt, to));
 
-    const rows = await db
-      .select({
-        id: documents.id,
-        title: documents.title,
-        storageKey: documents.storageKey,
-        createdAt: documents.createdAt,
-        uploaderName: users.displayName,
-        uploaderEmail: users.email,
-      })
-      .from(documents)
-      .leftJoin(users, eq(users.id, documents.uploadedByUserId))
-      .where(and(...whereClauses))
-      .orderBy(asc(documents.createdAt));
+    const rows = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({
+          id: documents.id,
+          title: documents.title,
+          storageKey: documents.storageKey,
+          createdAt: documents.createdAt,
+          uploaderName: users.displayName,
+          uploaderEmail: users.email,
+        })
+        .from(documents)
+        .leftJoin(users, eq(users.id, documents.uploadedByUserId))
+        .where(and(...whereClauses))
+        .orderBy(asc(documents.createdAt)),
+    );
 
     const today = new Date().toISOString().slice(0, 10);
     const projectSlug = slug(ctx.project.name);

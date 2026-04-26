@@ -242,7 +242,14 @@ export async function getGlobalSearchResults(
       "changeOrders",
     ),
     safe(
-      () => searchDocuments(projectIds, input.portalType, like, prefix),
+      () =>
+        searchDocuments(
+          projectIds,
+          input.portalType,
+          like,
+          prefix,
+          input.callerOrgId,
+        ),
       "documents",
     ),
     safe(
@@ -389,6 +396,7 @@ async function searchDocuments(
   portal: SearchPortal,
   like: string,
   prefix: string,
+  callerOrgId: string,
 ) {
   if (projectIds.length === 0) return [];
   const audiences = allowedAudiencesFor(portal);
@@ -403,20 +411,22 @@ async function searchDocuments(
   if (forbiddenVis.length > 0) {
     whereClauses.push(notInArray(documents.visibilityScope, forbiddenVis));
   }
-  return db
-    .select({
-      id: documents.id,
-      projectId: documents.projectId,
-      title: documents.title,
-      documentType: documents.documentType,
-    })
-    .from(documents)
-    .where(and(...whereClauses))
-    .orderBy(
-      sql`CASE WHEN ${documents.title} ILIKE ${prefix} THEN 0 ELSE 1 END`,
-      desc(documents.createdAt),
-    )
-    .limit(RESULTS_PER_GROUP);
+  return withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: documents.id,
+        projectId: documents.projectId,
+        title: documents.title,
+        documentType: documents.documentType,
+      })
+      .from(documents)
+      .where(and(...whereClauses))
+      .orderBy(
+        sql`CASE WHEN ${documents.title} ILIKE ${prefix} THEN 0 ELSE 1 END`,
+        desc(documents.createdAt),
+      )
+      .limit(RESULTS_PER_GROUP),
+  );
 }
 
 async function searchMessages(

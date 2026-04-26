@@ -4,7 +4,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { documentLinks, documents } from "@/db/schema";
 import { isInChain } from "@/domain/documents/versioning";
 import { writeAuditEvent } from "@/domain/audit";
@@ -59,7 +60,9 @@ export async function POST(
     );
   }
 
-  const [prior] = await db
+  // Entry-point dbAdmin: tenant unknown until we resolve project from
+  // the document row. Slice 3 pattern.
+  const [prior] = await dbAdmin
     .select()
     .from(documents)
     .where(eq(documents.id, priorId))
@@ -112,7 +115,7 @@ export async function POST(
     // orphan cleanup on the new storage key.
     let result: { newId: string } | null = null;
     try {
-      result = await db.transaction(async (tx) => {
+      result = await withTenant(ctx.organization.id, async (tx) => {
         // Race re-check: re-read prior's status inside the txn.
         // Without this, two concurrent supersedes could both pass
         // the outer check, both insert, and one would fail on the
@@ -267,7 +270,7 @@ export async function POST(
     // predecessor was the prior id; a cycle would require the prior to
     // already be downstream of the new row, which can't happen on a
     // fresh insert but we assert anyway).
-    if (await isInChain(result.newId, prior.id)) {
+    if (await isInChain(result.newId, prior.id, ctx.organization.id)) {
       // Impossible under the current insert logic; kept as an assertion.
     }
 

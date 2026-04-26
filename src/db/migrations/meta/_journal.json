@@ -239,6 +239,13 @@
       "when": 1777230011976,
       "tag": "0033_swift_silver_centurion",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1777233708837,
+      "tag": "0034_nifty_corsair",
+      "breakpoints": true
     }
   ]
 }

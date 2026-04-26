@@ -309,9 +309,10 @@ export async function getSubmittal(
     throw new AuthorizationError("Not accessible", "forbidden");
   }
 
+  const ctx = await getEffectiveContext(input.session, head.projectId);
   const [docs, transmittals] = await Promise.all([
-    queryDocuments(input.submittalId),
-    queryTransmittals(input.submittalId),
+    queryDocuments(input.submittalId, ctx.organization.id),
+    queryTransmittals(input.submittalId, ctx.organization.id),
   ]);
 
   return { ...row, mode: "full", documents: docs, transmittals };
@@ -323,6 +324,7 @@ export async function getSubmittal(
 
 async function queryDocuments(
   submittalId: string,
+  callerOrgId: string,
 ): Promise<SubmittalDocumentRow[]> {
   // Step 22: respect submittal_documents.pin_version. When pin is
   // false (active review in progress) we resolve forward to the
@@ -353,21 +355,24 @@ async function queryDocuments(
   const unpinned = joinRows
     .filter((r) => !r.pinVersion)
     .map((r) => r.linkedDocumentId);
-  const headMap = await resolveCurrentVersionMap(unpinned);
+  const headMap = await resolveCurrentVersionMap(unpinned, callerOrgId);
   const effectiveIds = joinRows.map((r) =>
     r.pinVersion ? r.linkedDocumentId : headMap.get(r.linkedDocumentId) ?? r.linkedDocumentId,
   );
 
-  // Pull storage keys + titles for the effective id set.
-  const docRows = await db
-    .select({
-      id: documents.id,
-      title: documents.title,
-      storageKey: documents.storageKey,
-      fileSizeBytes: documents.fileSizeBytes,
-    })
-    .from(documents)
-    .where(inArray(documents.id, effectiveIds));
+  // Pull storage keys + titles for the effective id set. documents is
+  // RLS-enabled; route via withTenant.
+  const docRows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: documents.id,
+        title: documents.title,
+        storageKey: documents.storageKey,
+        fileSizeBytes: documents.fileSizeBytes,
+      })
+      .from(documents)
+      .where(inArray(documents.id, effectiveIds)),
+  );
   const docById = new Map(docRows.map((d) => [d.id, d]));
 
   const urls = await Promise.all(
@@ -400,9 +405,14 @@ async function queryDocuments(
 
 async function queryTransmittals(
   submittalId: string,
+  callerOrgId: string,
 ): Promise<SubmittalTransmittalRow[]> {
-  const rows = await db
-    .select({
+  // submittal_transmittals isn't RLS'd, but the leftJoin to documents
+  // (now RLS'd) needs tenant context to populate doc fields. Route the
+  // whole query through withTenant.
+  const rows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
       id: submittalTransmittals.id,
       direction: submittalTransmittals.direction,
       transmittedAt: submittalTransmittals.transmittedAt,
@@ -413,11 +423,12 @@ async function queryTransmittals(
       docTitle: documents.title,
       docStorageKey: documents.storageKey,
     })
-    .from(submittalTransmittals)
-    .leftJoin(users, eq(users.id, submittalTransmittals.transmittedByUserId))
-    .leftJoin(documents, eq(documents.id, submittalTransmittals.documentId))
-    .where(eq(submittalTransmittals.submittalId, submittalId))
-    .orderBy(asc(submittalTransmittals.transmittedAt));
+      .from(submittalTransmittals)
+      .leftJoin(users, eq(users.id, submittalTransmittals.transmittedByUserId))
+      .leftJoin(documents, eq(documents.id, submittalTransmittals.documentId))
+      .where(eq(submittalTransmittals.submittalId, submittalId))
+      .orderBy(asc(submittalTransmittals.transmittedAt)),
+  );
 
   const urls = await Promise.all(
     rows.map((r) =>

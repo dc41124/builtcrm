@@ -109,7 +109,7 @@ export async function POST(
       .where(eq(purchaseOrderLines.purchaseOrderId, id))
       .orderBy(purchaseOrderLines.sortOrder);
 
-    const priorPdfId = await findCurrentPoPdfDocumentId(id);
+    const priorPdfId = await findCurrentPoPdfDocumentId(id, ctx.organization.id);
 
     const now = new Date();
     const p = parsed.data;

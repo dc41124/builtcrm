@@ -5,8 +5,8 @@ import { createElement, type ReactElement } from "react";
 import type { DocumentProps } from "@react-pdf/renderer";
 import { eq, inArray } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { documents, weeklyReports } from "@/db/schema";
 import { getEffectiveContext } from "@/domain/context";
 import {
@@ -122,6 +122,7 @@ export async function GET(
       });
       const photoUrls = await buildPhotoUrlMap(
         collectPhotoDocumentIdsFromReshaped(detail.reshaped),
+        ctx.organization.id,
       );
       const { ResidentialReportDocument } = await import(
         "@/lib/weekly-reports/pdf/residential-pdf"
@@ -151,6 +152,7 @@ export async function GET(
             });
       const photoUrls = await buildPhotoUrlMap(
         collectPhotoDocumentIds(detail.report),
+        ctx.organization.id,
       );
       const { CommercialReportDocument } = await import(
         "@/lib/weekly-reports/pdf/commercial-pdf"
@@ -220,15 +222,18 @@ function collectPhotoDocumentIdsFromReshaped(
 // complete.
 async function buildPhotoUrlMap(
   documentIds: string[],
+  callerOrgId: string,
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   if (documentIds.length === 0) return map;
 
   try {
-    const rows = await db
-      .select({ id: documents.id, storageKey: documents.storageKey })
-      .from(documents)
-      .where(inArray(documents.id, documentIds));
+    const rows = await withTenant(callerOrgId, (tx) =>
+      tx
+        .select({ id: documents.id, storageKey: documents.storageKey })
+        .from(documents)
+        .where(inArray(documents.id, documentIds)),
+    );
 
     await Promise.all(
       rows.map(async (r) => {

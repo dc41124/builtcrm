@@ -3,6 +3,7 @@ import {
   boolean,
   index,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -81,9 +82,48 @@ export const documents = pgTable(
     supersedesUnique: uniqueIndex("documents_supersedes_unique")
       .on(table.supersedesDocumentId)
       .where(sql`${table.supersedesDocumentId} IS NOT NULL`),
+    // Phase 4 wave 5 — documents are inherently cross-org on a
+    // project (sub-uploaded compliance docs, contractor SOW, client
+    // signoffs all coexist). Same project-scoped 2-clause hybrid as
+    // milestones / daily_logs / wave-4 trio. The supersedes chain
+    // stays within a single project (cascade on project delete), so
+    // the policy correctly covers every chain node.
+    tenantIsolation: pgPolicy("documents_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
+// document_links is a polymorphic pivot: (documentId, linkedObjectType,
+// linkedObjectId, linkRole). It has no projectId column. We piggy-back on
+// the documents table's policy via the standard nested-via-parent shape:
+// a row is visible iff its parent document is visible. Inserts and
+// updates that target a document the caller can't see are denied by the
+// inner SELECT failing closed (RLS on documents returns no row → no row
+// matches → policy denies). This is the same uniform template applied
+// to wave-2 nested children (meeting_attendees, inspection_results, etc).
 export const documentLinks = pgTable(
   "document_links",
   {
@@ -108,5 +148,14 @@ export const documentLinks = pgTable(
       table.linkedObjectType,
       table.linkedObjectId,
     ),
+    tenantIsolation: pgPolicy("document_links_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.documentId} IN (SELECT id FROM documents)
+      `,
+      withCheck: sql`
+        ${table.documentId} IN (SELECT id FROM documents)
+      `,
+    }),
   }),
-);
+).enableRLS();

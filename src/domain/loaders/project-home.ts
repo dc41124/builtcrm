@@ -125,22 +125,24 @@ async function loadRfisWithResponses(
   // Enrichment: reference files + activity trail
   const rfiIds = rfiRows.map((r) => r.id);
   const [refFileRows, rfiActivityRows] = await Promise.all([
-    db
-      .select({
-        linkedObjectId: documentLinks.linkedObjectId,
-        documentId: documents.id,
-        title: documents.title,
-        documentType: documents.documentType,
-        linkRole: documentLinks.linkRole,
-      })
-      .from(documentLinks)
-      .innerJoin(documents, eq(documents.id, documentLinks.documentId))
-      .where(
-        and(
-          eq(documentLinks.linkedObjectType, "rfi"),
-          inArray(documentLinks.linkedObjectId, rfiIds),
+    withTenant(callerOrgId, (tx) =>
+      tx
+        .select({
+          linkedObjectId: documentLinks.linkedObjectId,
+          documentId: documents.id,
+          title: documents.title,
+          documentType: documents.documentType,
+          linkRole: documentLinks.linkRole,
+        })
+        .from(documentLinks)
+        .innerJoin(documents, eq(documents.id, documentLinks.documentId))
+        .where(
+          and(
+            eq(documentLinks.linkedObjectType, "rfi"),
+            inArray(documentLinks.linkedObjectId, rfiIds),
+          ),
         ),
-      ),
+    ),
     db
       .select({
         id: activityFeedItems.id,
@@ -392,7 +394,10 @@ export type DrawRequestActivityEvent = {
   createdAt: Date;
 };
 
-async function loadDrawRequestEnrichment(drawIds: string[]): Promise<{
+async function loadDrawRequestEnrichment(
+  drawIds: string[],
+  callerOrgId: string,
+): Promise<{
   filesById: Map<string, DrawRequestSupportingFile[]>;
   activityById: Map<string, DrawRequestActivityEvent[]>;
   receiptPaymentIdByDrawId: Map<string, string>;
@@ -404,22 +409,24 @@ async function loadDrawRequestEnrichment(drawIds: string[]): Promise<{
     return { filesById, activityById, receiptPaymentIdByDrawId };
 
   const [docRows, activityRows, paymentRows] = await Promise.all([
-    db
-      .select({
-        linkedObjectId: documentLinks.linkedObjectId,
-        documentId: documents.id,
-        title: documents.title,
-        documentType: documents.documentType,
-        linkRole: documentLinks.linkRole,
-      })
-      .from(documentLinks)
-      .innerJoin(documents, eq(documents.id, documentLinks.documentId))
-      .where(
-        and(
-          eq(documentLinks.linkedObjectType, "draw_request"),
-          inArray(documentLinks.linkedObjectId, drawIds),
+    withTenant(callerOrgId, (tx) =>
+      tx
+        .select({
+          linkedObjectId: documentLinks.linkedObjectId,
+          documentId: documents.id,
+          title: documents.title,
+          documentType: documents.documentType,
+          linkRole: documentLinks.linkRole,
+        })
+        .from(documentLinks)
+        .innerJoin(documents, eq(documents.id, documentLinks.documentId))
+        .where(
+          and(
+            eq(documentLinks.linkedObjectType, "draw_request"),
+            inArray(documentLinks.linkedObjectId, drawIds),
+          ),
         ),
-      ),
+    ),
     db
       .select({
         id: activityFeedItems.id,
@@ -944,30 +951,33 @@ export type DocumentAudience = "contractor" | "subcontractor" | "client";
 export async function loadDocumentsForProject(
   projectId: string,
   audience: DocumentAudience,
+  callerOrgId: string,
 ): Promise<DocumentRow[]> {
-  const rows = await db
-    .select({
-      id: documents.id,
-      projectId: documents.projectId,
-      documentType: documents.documentType,
-      category: documents.category,
-      title: documents.title,
-      storageKey: documents.storageKey,
-      uploadedByUserId: documents.uploadedByUserId,
-      uploadedByName: users.displayName,
-      visibilityScope: documents.visibilityScope,
-      audienceScope: documents.audienceScope,
-      documentStatus: documents.documentStatus,
-      isSuperseded: documents.isSuperseded,
-      supersedesDocumentId: documents.supersedesDocumentId,
-      fileSizeBytes: documents.fileSizeBytes,
-      createdAt: documents.createdAt,
-      updatedAt: documents.updatedAt,
-    })
-    .from(documents)
-    .leftJoin(users, eq(users.id, documents.uploadedByUserId))
-    .where(eq(documents.projectId, projectId))
-    .orderBy(desc(documents.createdAt));
+  const rows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: documents.id,
+        projectId: documents.projectId,
+        documentType: documents.documentType,
+        category: documents.category,
+        title: documents.title,
+        storageKey: documents.storageKey,
+        uploadedByUserId: documents.uploadedByUserId,
+        uploadedByName: users.displayName,
+        visibilityScope: documents.visibilityScope,
+        audienceScope: documents.audienceScope,
+        documentStatus: documents.documentStatus,
+        isSuperseded: documents.isSuperseded,
+        supersedesDocumentId: documents.supersedesDocumentId,
+        fileSizeBytes: documents.fileSizeBytes,
+        createdAt: documents.createdAt,
+        updatedAt: documents.updatedAt,
+      })
+      .from(documents)
+      .leftJoin(users, eq(users.id, documents.uploadedByUserId))
+      .where(eq(documents.projectId, projectId))
+      .orderBy(desc(documents.createdAt)),
+  );
 
   // Audience filter applied in JS so the loader stays readable. This list
   // is short per project and drizzle's enum-on-array predicates are noisier
@@ -1008,15 +1018,17 @@ export async function loadDocumentsForProject(
   if (filtered.length === 0) return [];
 
   const ids = filtered.map((r) => r.id);
-  const linkRows = await db
-    .select({
-      documentId: documentLinks.documentId,
-      linkedObjectType: documentLinks.linkedObjectType,
-      linkedObjectId: documentLinks.linkedObjectId,
-      linkRole: documentLinks.linkRole,
-    })
-    .from(documentLinks)
-    .where(inArray(documentLinks.documentId, ids));
+  const linkRows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        documentId: documentLinks.documentId,
+        linkedObjectType: documentLinks.linkedObjectType,
+        linkedObjectId: documentLinks.linkedObjectId,
+        linkRole: documentLinks.linkRole,
+      })
+      .from(documentLinks)
+      .where(inArray(documentLinks.documentId, ids)),
+  );
 
   const linksByDoc = new Map<string, DocumentLinkRow[]>();
   for (const l of linkRows) {
@@ -1033,13 +1045,15 @@ export async function loadDocumentsForProject(
   // column. For any doc in `ids` that has a successor (another doc
   // whose supersedes_document_id points at it), record that successor
   // id. Used by the UI to render "v3 (current)" pills on old rows.
-  const successorRows = await db
-    .select({
-      id: documents.id,
-      predecessorId: documents.supersedesDocumentId,
-    })
-    .from(documents)
-    .where(inArray(documents.supersedesDocumentId, ids));
+  const successorRows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: documents.id,
+        predecessorId: documents.supersedesDocumentId,
+      })
+      .from(documents)
+      .where(inArray(documents.supersedesDocumentId, ids)),
+  );
   const supersededByMap = new Map<string, string>();
   for (const s of successorRows) {
     if (s.predecessorId) {
@@ -1490,7 +1504,10 @@ export async function getContractorProjectView(
     createdAt: r.createdAt,
   }));
 
-  const drawEnrichment = await loadDrawRequestEnrichment(drawIds);
+  const drawEnrichment = await loadDrawRequestEnrichment(
+    drawIds,
+    context.organization.id,
+  );
 
   const drawRequestsView = drawRows.map((d) => ({
     id: d.id,
@@ -1540,7 +1557,11 @@ export async function getContractorProjectView(
 
   const selections = await loadSelectionsForProject(projectId);
   const conversationList = await loadConversationsForUser(projectId, context.user.id);
-  const documentList = await loadDocumentsForProject(projectId, "contractor");
+  const documentList = await loadDocumentsForProject(
+    projectId,
+    "contractor",
+    context.organization.id,
+  );
 
   // Recent project movement — activity feed for this project
   const activityRows = await db
@@ -1971,7 +1992,11 @@ export async function getSubcontractorProjectView(
     projectId,
     context.user.id,
   );
-  const subProjectDocuments = await loadDocumentsForProject(projectId, "subcontractor");
+  const subProjectDocuments = await loadDocumentsForProject(
+    projectId,
+    "subcontractor",
+    context.organization.id,
+  );
 
   const [activityRows, gcContactRows] = await Promise.all([
     db
@@ -2433,7 +2458,10 @@ export async function getClientProjectView(
     clientWaiversByDraw.set(w.drawRequestId, arr);
   }
 
-  const clientDrawEnrichment = await loadDrawRequestEnrichment(clientDrawIds);
+  const clientDrawEnrichment = await loadDrawRequestEnrichment(
+    clientDrawIds,
+    context.organization.id,
+  );
 
   const clientRetainageReleasesView: RetainageReleaseRow[] = clientReleaseRows.map(
     (r) => ({
@@ -2459,7 +2487,11 @@ export async function getClientProjectView(
     projectId,
     context.user.id,
   );
-  const clientDocuments = await loadDocumentsForProject(projectId, "client");
+  const clientDocuments = await loadDocumentsForProject(
+    projectId,
+    "client",
+    context.organization.id,
+  );
 
   const PHOTO_DOC_TYPES = ["photo", "photo_log", "progress_photo"];
   const [activityRows, projectMetaRow, projectPhotos, messageRows] = await Promise.all([
@@ -2487,24 +2519,26 @@ export async function getClientProjectView(
       .from(projects)
       .where(eq(projects.id, projectId))
       .limit(1),
-    db
-      .select({
-        id: documents.id,
-        title: documents.title,
-        documentType: documents.documentType,
-        storageKey: documents.storageKey,
-        createdAt: documents.createdAt,
-      })
-      .from(documents)
-      .where(
-        and(
-          eq(documents.projectId, projectId),
-          inArray(documents.documentType, PHOTO_DOC_TYPES),
-          eq(documents.documentStatus, "active"),
-        ),
-      )
-      .orderBy(desc(documents.createdAt))
-      .limit(100),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          id: documents.id,
+          title: documents.title,
+          documentType: documents.documentType,
+          storageKey: documents.storageKey,
+          createdAt: documents.createdAt,
+        })
+        .from(documents)
+        .where(
+          and(
+            eq(documents.projectId, projectId),
+            inArray(documents.documentType, PHOTO_DOC_TYPES),
+            eq(documents.documentStatus, "active"),
+          ),
+        )
+        .orderBy(desc(documents.createdAt))
+        .limit(100),
+    ),
     // Recent project messages to merge into the progress feed
     db
       .select({
@@ -2534,25 +2568,27 @@ export async function getClientProjectView(
   const photoIdSet = new Set(projectPhotos.map((p) => p.id));
   const docLinkRows =
     activityTargets.length > 0 && photoIdSet.size > 0
-      ? await db
-          .select({
-            documentId: documentLinks.documentId,
-            linkedObjectId: documentLinks.linkedObjectId,
-            linkedObjectType: documentLinks.linkedObjectType,
-          })
-          .from(documentLinks)
-          .where(
-            and(
-              inArray(
-                documentLinks.documentId,
-                Array.from(photoIdSet),
-              ),
-              inArray(
-                documentLinks.linkedObjectId,
-                activityTargets.map((t) => t.id),
+      ? await withTenant(context.organization.id, (tx) =>
+          tx
+            .select({
+              documentId: documentLinks.documentId,
+              linkedObjectId: documentLinks.linkedObjectId,
+              linkedObjectType: documentLinks.linkedObjectType,
+            })
+            .from(documentLinks)
+            .where(
+              and(
+                inArray(
+                  documentLinks.documentId,
+                  Array.from(photoIdSet),
+                ),
+                inArray(
+                  documentLinks.linkedObjectId,
+                  activityTargets.map((t) => t.id),
+                ),
               ),
             ),
-          )
+        )
       : ([] as Array<{
           documentId: string;
           linkedObjectId: string;

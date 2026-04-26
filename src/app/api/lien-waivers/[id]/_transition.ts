@@ -4,7 +4,6 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { documents, lienWaivers } from "@/db/schema";
 import { withTenant } from "@/db/with-tenant";
@@ -137,13 +136,15 @@ export async function handleLienWaiverTransition(
 
     if (kind === "submit") {
       const documentId = (body as z.infer<typeof submitBody>).documentId;
-      const [doc] = await db
-        .select({ id: documents.id })
-        .from(documents)
-        .where(
-          and(eq(documents.id, documentId), eq(documents.projectId, waiver.projectId)),
-        )
-        .limit(1);
+      const [doc] = await withTenant(ctx.organization.id, (tx) =>
+        tx
+          .select({ id: documents.id })
+          .from(documents)
+          .where(
+            and(eq(documents.id, documentId), eq(documents.projectId, waiver.projectId)),
+          )
+          .limit(1),
+      );
       if (!doc) {
         return NextResponse.json(
           { error: "document_not_found" },

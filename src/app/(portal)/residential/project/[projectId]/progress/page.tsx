@@ -33,7 +33,10 @@ export default async function ResidentialProgressPage({
     throw err;
   }
 
-  const photoData = await loadCommercialProjectPhotos(projectId);
+  const photoData = await loadCommercialProjectPhotos(
+    projectId,
+    view.context.organization.id,
+  );
 
   return (
     <ResidentialProgressView

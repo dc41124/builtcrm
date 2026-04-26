@@ -8,6 +8,7 @@ import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { renderToBuffer } from "@react-pdf/renderer";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   documentLinks,
   documents,
@@ -44,7 +45,11 @@ export async function GET(
 ) {
   const { id: drawId } = await params;
   const { session } = await requireServerSession();
-  const [draw] = await db
+  // Pre-tenant head lookup: caller passed only the draw id, so we read
+  // via the admin pool to derive projectId for getEffectiveContext.
+  // (drawRequests is not RLS-enabled in this wave, but routing through
+  // dbAdmin keeps the Slice 3 entry-point pattern consistent.)
+  const [draw] = await dbAdmin
     .select({
       id: drawRequests.id,
       projectId: drawRequests.projectId,
@@ -125,21 +130,23 @@ export async function GET(
         .limit(1),
     );
 
-    const supportingFiles = await db
-      .select({
-        documentId: documents.id,
-        title: documents.title,
-        storageKey: documents.storageKey,
-        linkRole: documentLinks.linkRole,
-      })
-      .from(documentLinks)
-      .innerJoin(documents, eq(documents.id, documentLinks.documentId))
-      .where(
-        and(
-          eq(documentLinks.linkedObjectType, "draw_request"),
-          eq(documentLinks.linkedObjectId, drawId),
+    const supportingFiles = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({
+          documentId: documents.id,
+          title: documents.title,
+          storageKey: documents.storageKey,
+          linkRole: documentLinks.linkRole,
+        })
+        .from(documentLinks)
+        .innerJoin(documents, eq(documents.id, documentLinks.documentId))
+        .where(
+          and(
+            eq(documentLinks.linkedObjectType, "draw_request"),
+            eq(documentLinks.linkedObjectId, drawId),
+          ),
         ),
-      );
+    );
 
     // Caller is contractor (verified earlier in this route via the
     // role gate). Multi-org policy clause B (project ownership) returns

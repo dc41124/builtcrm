@@ -4,7 +4,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { documents } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -55,7 +56,9 @@ export async function PATCH(
     );
   }
 
-  const [doc] = await db
+  // Entry-point dbAdmin: tenant unknown until we resolve project from
+  // the document row. Slice 3 pattern.
+  const [doc] = await dbAdmin
     .select()
     .from(documents)
     .where(eq(documents.id, id))
@@ -99,26 +102,29 @@ export async function PATCH(
     };
     const updates = parsed.data;
 
-    const [updated] = await db
-      .update(documents)
-      .set({
-        ...(updates.title !== undefined && { title: updates.title }),
-        ...(updates.documentType !== undefined && {
-          documentType: updates.documentType,
-        }),
-        ...(updates.visibilityScope !== undefined && {
-          visibilityScope: updates.visibilityScope,
-        }),
-        ...(updates.audienceScope !== undefined && {
-          audienceScope: updates.audienceScope,
-        }),
-        ...(updates.documentStatus !== undefined && {
-          documentStatus: updates.documentStatus,
-        }),
-        updatedAt: new Date(),
-      })
-      .where(eq(documents.id, id))
-      .returning();
+    const updated = await withTenant(ctx.organization.id, async (tx) => {
+      const [row] = await tx
+        .update(documents)
+        .set({
+          ...(updates.title !== undefined && { title: updates.title }),
+          ...(updates.documentType !== undefined && {
+            documentType: updates.documentType,
+          }),
+          ...(updates.visibilityScope !== undefined && {
+            visibilityScope: updates.visibilityScope,
+          }),
+          ...(updates.audienceScope !== undefined && {
+            audienceScope: updates.audienceScope,
+          }),
+          ...(updates.documentStatus !== undefined && {
+            documentStatus: updates.documentStatus,
+          }),
+          updatedAt: new Date(),
+        })
+        .where(eq(documents.id, id))
+        .returning();
+      return row;
+    });
 
     const action =
       updates.documentStatus === "archived"

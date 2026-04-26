@@ -697,23 +697,25 @@ export async function getProjectDocumentLibrary(input: {
   session: SessionLike | null | undefined;
   projectId: string;
 }): Promise<{ folders: DocLibraryFolder[] }> {
-  await requireContractor(input.session, input.projectId);
+  const ctx = await requireContractor(input.session, input.projectId);
 
-  const rows = await db
-    .select({
-      id: documents.id,
-      name: documents.title,
-      sizeBytes: documents.fileSizeBytes,
-      category: documents.category,
-    })
-    .from(documents)
-    .where(
-      and(
-        eq(documents.projectId, input.projectId),
-        eq(documents.documentStatus, "active"),
-      ),
-    )
-    .orderBy(asc(documents.title));
+  const rows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: documents.id,
+        name: documents.title,
+        sizeBytes: documents.fileSizeBytes,
+        category: documents.category,
+      })
+      .from(documents)
+      .where(
+        and(
+          eq(documents.projectId, input.projectId),
+          eq(documents.documentStatus, "active"),
+        ),
+      )
+      .orderBy(asc(documents.title)),
+  );
 
   const byCategory = new Map<string, DocLibraryDoc[]>();
   for (const r of rows) {

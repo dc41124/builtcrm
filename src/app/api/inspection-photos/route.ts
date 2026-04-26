@@ -4,7 +4,6 @@ import { requireServerSession } from "@/auth/session";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
 import {
@@ -89,11 +88,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const [doc] = await db
-      .select({ id: documents.id, projectId: documents.projectId })
-      .from(documents)
-      .where(eq(documents.id, input.documentId))
-      .limit(1);
+    const [doc] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({ id: documents.id, projectId: documents.projectId })
+        .from(documents)
+        .where(eq(documents.id, input.documentId))
+        .limit(1),
+    );
     if (!doc || doc.projectId !== row.projectId) {
       return NextResponse.json(
         { error: "invalid_document", message: "Document not on this project" },

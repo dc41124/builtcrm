@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { documents, users } from "@/db/schema";
 import { presignDownloadUrl } from "@/lib/storage";
 
@@ -47,9 +47,11 @@ function fmtSetDate(d: Date): string {
 
 export async function loadCommercialProjectPhotos(
   projectId: string,
+  callerOrgId: string,
 ): Promise<CommercialPhotosData> {
-  const rows = await db
-    .select({
+  const rows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
       id: documents.id,
       title: documents.title,
       documentType: documents.documentType,
@@ -59,17 +61,18 @@ export async function loadCommercialProjectPhotos(
       uploaderName: users.displayName,
       visibilityScope: documents.visibilityScope,
     })
-    .from(documents)
-    .leftJoin(users, eq(users.id, documents.uploadedByUserId))
-    .where(
-      and(
-        eq(documents.projectId, projectId),
-        inArray(documents.documentType, PHOTO_DOC_TYPES),
-        eq(documents.documentStatus, "active"),
-        inArray(documents.visibilityScope, ["project_wide", "client_visible"]),
-      ),
-    )
-    .orderBy(desc(documents.createdAt));
+      .from(documents)
+      .leftJoin(users, eq(users.id, documents.uploadedByUserId))
+      .where(
+        and(
+          eq(documents.projectId, projectId),
+          inArray(documents.documentType, PHOTO_DOC_TYPES),
+          eq(documents.documentStatus, "active"),
+          inArray(documents.visibilityScope, ["project_wide", "client_visible"]),
+        ),
+      )
+      .orderBy(desc(documents.createdAt)),
+  );
 
   // Presign GET urls for every photo in parallel. If presigning fails for
   // any row (e.g., storage misconfig), fall back to null so the view renders

@@ -4,7 +4,9 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { documents, projects } from "@/db/schema";
+import { getEffectiveContext } from "@/domain/context";
 import {
   getTransmittalActivity,
   getTransmittals,
@@ -26,7 +28,10 @@ export default async function ContractorTransmittalsPage({
   let rows: TransmittalListRow[] = [];
   let activity: TransmittalActivityRow[] = [];
   let projectName = "";
+  let callerOrgId = "";
   try {
+    const ctx = await getEffectiveContext(session, projectId);
+    callerOrgId = ctx.organization.id;
     const [view, act, projRow] = await Promise.all([
       getTransmittals({
         session: session,
@@ -57,20 +62,22 @@ export default async function ContractorTransmittalsPage({
 
   // Project documents grouped by category for the create-modal picker.
   // The picker mirrors the JSX prototype's collapsible folder list.
-  const docRows = await db
-    .select({
-      id: documents.id,
-      title: documents.title,
-      category: documents.category,
-      fileSizeBytes: documents.fileSizeBytes,
-    })
-    .from(documents)
-    .where(
-      and(
-        eq(documents.projectId, projectId),
-        eq(documents.documentStatus, "active"),
+  const docRows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: documents.id,
+        title: documents.title,
+        category: documents.category,
+        fileSizeBytes: documents.fileSizeBytes,
+      })
+      .from(documents)
+      .where(
+        and(
+          eq(documents.projectId, projectId),
+          eq(documents.documentStatus, "active"),
+        ),
       ),
-    );
+  );
 
   const projectDocs: ProjectDocPick[] = docRows.map((d) => ({
     id: d.id,

@@ -3,7 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { eq } from "drizzle-orm";
 
 import type { DB } from "@/db/client";
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   documentLinks,
   documents,
@@ -210,16 +210,19 @@ export async function generateAndStorePoPdf(
 // supersede.
 export async function findCurrentPoPdfDocumentId(
   poId: string,
+  callerOrgId: string,
 ): Promise<string | null> {
-  const rows = await db
-    .select({
-      id: documents.id,
-      isSuperseded: documents.isSuperseded,
-      createdAt: documents.createdAt,
-    })
-    .from(documentLinks)
-    .innerJoin(documents, eq(documents.id, documentLinks.documentId))
-    .where(eq(documentLinks.linkedObjectId, poId));
+  const rows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: documents.id,
+        isSuperseded: documents.isSuperseded,
+        createdAt: documents.createdAt,
+      })
+      .from(documentLinks)
+      .innerJoin(documents, eq(documents.id, documentLinks.documentId))
+      .where(eq(documentLinks.linkedObjectId, poId)),
+  );
   const notSuperseded = rows.filter((r) => !r.isSuperseded);
   if (notSuperseded.length === 0) return null;
   notSuperseded.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import {
   activityFeedItems,
   approvals,
@@ -89,7 +90,10 @@ const CLIENT_VISIBLE_STATUSES = [
   "needs_revision",
 ] as const;
 
-async function loadApprovalEnrichment(approvalIds: string[]): Promise<{
+async function loadApprovalEnrichment(
+  approvalIds: string[],
+  callerOrgId: string,
+): Promise<{
   docsById: Map<string, ApprovalSupportingDoc[]>;
   activityById: Map<string, ApprovalActivityEvent[]>;
 }> {
@@ -97,25 +101,26 @@ async function loadApprovalEnrichment(approvalIds: string[]): Promise<{
   const activityById = new Map<string, ApprovalActivityEvent[]>();
   if (approvalIds.length === 0) return { docsById, activityById };
 
-  const [docRows, activityRows] = await Promise.all([
-    db
-      .select({
-        linkedObjectId: documentLinks.linkedObjectId,
-        documentId: documents.id,
-        title: documents.title,
-        documentType: documents.documentType,
-        linkRole: documentLinks.linkRole,
-      })
-      .from(documentLinks)
-      .innerJoin(documents, eq(documents.id, documentLinks.documentId))
-      .where(
-        and(
-          eq(documentLinks.linkedObjectType, "approval"),
-          inArray(documentLinks.linkedObjectId, approvalIds),
+  const [docRows, activityRows] = await withTenant(callerOrgId, (tx) =>
+    Promise.all([
+      tx
+        .select({
+          linkedObjectId: documentLinks.linkedObjectId,
+          documentId: documents.id,
+          title: documents.title,
+          documentType: documents.documentType,
+          linkRole: documentLinks.linkRole,
+        })
+        .from(documentLinks)
+        .innerJoin(documents, eq(documents.id, documentLinks.documentId))
+        .where(
+          and(
+            eq(documentLinks.linkedObjectType, "approval"),
+            inArray(documentLinks.linkedObjectId, approvalIds),
+          ),
         ),
-      ),
-    db
-      .select({
+      tx
+        .select({
         id: activityFeedItems.id,
         relatedObjectId: activityFeedItems.relatedObjectId,
         title: activityFeedItems.title,
@@ -124,16 +129,17 @@ async function loadApprovalEnrichment(approvalIds: string[]): Promise<{
         createdAt: activityFeedItems.createdAt,
         actorName: users.displayName,
       })
-      .from(activityFeedItems)
-      .leftJoin(users, eq(users.id, activityFeedItems.actorUserId))
-      .where(
-        and(
-          eq(activityFeedItems.relatedObjectType, "approval"),
-          inArray(activityFeedItems.relatedObjectId, approvalIds),
-        ),
-      )
-      .orderBy(desc(activityFeedItems.createdAt)),
-  ]);
+        .from(activityFeedItems)
+        .leftJoin(users, eq(users.id, activityFeedItems.actorUserId))
+        .where(
+          and(
+            eq(activityFeedItems.relatedObjectType, "approval"),
+            inArray(activityFeedItems.relatedObjectId, approvalIds),
+          ),
+        )
+        .orderBy(desc(activityFeedItems.createdAt)),
+    ]),
+  );
 
   for (const d of docRows) {
     const arr = docsById.get(d.linkedObjectId) ?? [];
@@ -166,6 +172,7 @@ async function loadApprovalEnrichment(approvalIds: string[]): Promise<{
 async function loadRows(
   projectId: string,
   clientScoped: boolean,
+  callerOrgId: string,
 ): Promise<ApprovalRow[]> {
   const baseWhere = clientScoped
     ? and(
@@ -175,7 +182,9 @@ async function loadRows(
       )
     : eq(approvals.projectId, projectId);
 
-  const rows = await db
+  // approvals is not RLS-enabled (deferred); user/org lookups are also
+  // not RLS-enabled. dbAdmin is fine here for the parent set.
+  const rows = await dbAdmin
     .select({
       id: approvals.id,
       approvalNumber: approvals.approvalNumber,
@@ -209,7 +218,7 @@ async function loadRows(
   );
   const nameMap = new Map<string, string | null>();
   if (userIds.length > 0) {
-    const uRows = await db
+    const uRows = await dbAdmin
       .select({ id: users.id, displayName: users.displayName })
       .from(users)
       .where(inArray(users.id, userIds));
@@ -225,7 +234,7 @@ async function loadRows(
   );
   const orgMap = new Map<string, string>();
   if (orgIds.length > 0) {
-    const oRows = await db
+    const oRows = await dbAdmin
       .select({ id: organizations.id, name: organizations.name })
       .from(organizations)
       .where(inArray(organizations.id, orgIds));
@@ -234,6 +243,7 @@ async function loadRows(
 
   const { docsById, activityById } = await loadApprovalEnrichment(
     rows.map((r) => r.id),
+    callerOrgId,
   );
 
   return rows.map<ApprovalRow>((r) => ({
@@ -302,7 +312,7 @@ function computeTotals(rows: ApprovalRow[]): ApprovalTotals {
 }
 
 async function loadContractValueCents(projectId: string): Promise<number> {
-  const [row] = await db
+  const [row] = await dbAdmin
     .select({ contractValueCents: projects.contractValueCents })
     .from(projects)
     .where(eq(projects.id, projectId))
@@ -320,7 +330,7 @@ export async function getContractorApprovals(
       "forbidden",
     );
   }
-  const rows = await loadRows(context.project.id, false);
+  const rows = await loadRows(context.project.id, false, context.organization.id);
   return {
     context,
     project: context.project,
@@ -344,7 +354,7 @@ export async function getClientApprovals(
   }
   const projectId = context.project.id;
   const [rows, originalContractCents] = await Promise.all([
-    loadRows(projectId, true),
+    loadRows(projectId, true, context.organization.id),
     loadContractValueCents(projectId),
   ]);
   return {

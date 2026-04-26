@@ -3,8 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { documents } from "@/db/schema";
+import { getEffectiveContext } from "@/domain/context";
 import {
   getTransmittal,
   type TransmittalDetail,
@@ -22,7 +23,10 @@ export default async function ContractorTransmittalDraftPage({
   const { projectId, transmittalId } = await params;
   const { session } = await requireServerSession();
   let detail: TransmittalDetail | null = null;
+  let callerOrgId = "";
   try {
+    const ctx = await getEffectiveContext(session, projectId);
+    callerOrgId = ctx.organization.id;
     detail = await getTransmittal({
       session: session,
       transmittalId,
@@ -42,20 +46,22 @@ export default async function ContractorTransmittalDraftPage({
     redirect(`/contractor/project/${projectId}/transmittals/${transmittalId}`);
   }
 
-  const docRows = await db
-    .select({
-      id: documents.id,
-      title: documents.title,
-      category: documents.category,
-      fileSizeBytes: documents.fileSizeBytes,
-    })
-    .from(documents)
-    .where(
-      and(
-        eq(documents.projectId, projectId),
-        eq(documents.documentStatus, "active"),
+  const docRows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: documents.id,
+        title: documents.title,
+        category: documents.category,
+        fileSizeBytes: documents.fileSizeBytes,
+      })
+      .from(documents)
+      .where(
+        and(
+          eq(documents.projectId, projectId),
+          eq(documents.documentStatus, "active"),
+        ),
       ),
-    );
+  );
 
   const projectDocs: ProjectDocPick[] = docRows.map((d) => ({
     id: d.id,

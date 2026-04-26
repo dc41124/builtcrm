@@ -11,6 +11,7 @@ import {
   transmittalRecipients,
   transmittals,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -89,11 +90,14 @@ export async function PUT(
     }
 
     if (input.documentIds && input.documentIds.length > 0) {
-      const docRows = await db
-        .select({ id: documents.id, projectId: documents.projectId })
-        .from(documents)
-        .where(inArray(documents.id, input.documentIds));
-      if (docRows.length !== input.documentIds.length) {
+      const documentIds = input.documentIds;
+      const docRows = await withTenant(ctx.organization.id, (tx) =>
+        tx
+          .select({ id: documents.id, projectId: documents.projectId })
+          .from(documents)
+          .where(inArray(documents.id, documentIds)),
+      );
+      if (docRows.length !== documentIds.length) {
         return NextResponse.json(
           { error: "document_not_found" },
           { status: 400 },

@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { documentLinks, documents, uploadRequests } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
@@ -35,7 +36,9 @@ export async function POST(
   }
 
   try {
-    const [request] = await db
+    // Entry-point dbAdmin: tenant unknown until we resolve project from
+    // the upload_requests row. uploadRequests is not yet RLS-enabled.
+    const [request] = await dbAdmin
       .select()
       .from(uploadRequests)
       .where(eq(uploadRequests.id, id))
@@ -77,19 +80,21 @@ export async function POST(
       return NextResponse.json({ error: "no_documents" }, { status: 400 });
     }
 
-    // Validate all documents exist in the same project
-    const docRows = await db
-      .select({ id: documents.id, title: documents.title, projectId: documents.projectId })
-      .from(documents)
-      .where(and(inArray(documents.id, allDocIds), eq(documents.projectId, request.projectId)));
-    if (docRows.length !== allDocIds.length) {
-      return NextResponse.json({ error: "document_not_found" }, { status: 404 });
-    }
-
-    const primaryDoc = docRows[0];
     const previousState = request.requestStatus;
 
-    await db.transaction(async (tx) => {
+    const documentCount = await withTenant(ctx.organization.id, async (tx) => {
+      // Validate all documents exist in the same project — runs inside
+      // withTenant so the documents read passes RLS (caller has POM).
+      const docRows = await tx
+        .select({ id: documents.id, title: documents.title, projectId: documents.projectId })
+        .from(documents)
+        .where(and(inArray(documents.id, allDocIds), eq(documents.projectId, request.projectId)));
+      if (docRows.length !== allDocIds.length) {
+        throw new DocumentMissingError();
+      }
+      const primaryDoc = docRows[0];
+
+
       await tx
         .update(uploadRequests)
         .set({
@@ -143,10 +148,15 @@ export async function POST(
         },
         tx,
       );
+
+      return docRows.length;
     });
 
-    return NextResponse.json({ id: request.id, status: "submitted", documentCount: docRows.length });
+    return NextResponse.json({ id: request.id, status: "submitted", documentCount });
   } catch (err) {
+    if (err instanceof DocumentMissingError) {
+      return NextResponse.json({ error: "document_not_found" }, { status: 404 });
+    }
     if (err instanceof AuthorizationError) {
       const status =
         err.code === "unauthenticated"
@@ -159,3 +169,5 @@ export async function POST(
     throw err;
   }
 }
+
+class DocumentMissingError extends Error {}

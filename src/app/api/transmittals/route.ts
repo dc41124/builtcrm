@@ -11,6 +11,7 @@ import {
   transmittalRecipients,
   transmittals,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -65,10 +66,12 @@ export async function POST(req: Request) {
     // Validate attached docs belong to this project — prevents cross-
     // project exfil via the create form.
     if (input.documentIds.length > 0) {
-      const docRows = await db
-        .select({ id: documents.id, projectId: documents.projectId })
-        .from(documents)
-        .where(inArray(documents.id, input.documentIds));
+      const docRows = await withTenant(ctx.organization.id, (tx) =>
+        tx
+          .select({ id: documents.id, projectId: documents.projectId })
+          .from(documents)
+          .where(inArray(documents.id, input.documentIds)),
+      );
       if (docRows.length !== input.documentIds.length) {
         return NextResponse.json(
           { error: "document_not_found" },

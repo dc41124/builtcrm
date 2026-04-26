@@ -416,10 +416,12 @@ export async function getSubcontractorTodayData(input: {
 
   // Quick access counts (cross-project)
   const [docCountRow, unreadRows] = await Promise.all([
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(documents)
-      .where(inArray(documents.projectId, projectIds)),
+    withTenant(subOrgId, (tx) =>
+      tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(documents)
+        .where(inArray(documents.projectId, projectIds)),
+    ),
     userId
       ? db
           .select({
@@ -458,22 +460,24 @@ export async function getSubcontractorTodayData(input: {
 
   // Recent documents across projects
   const recentDocRows = projectIds.length > 0
-    ? await db
-        .select({
-          id: documents.id,
-          title: documents.title,
-          documentType: documents.documentType,
-          projectId: documents.projectId,
-          projectName: projects.name,
-          uploaderName: users.displayName,
-          createdAt: documents.createdAt,
-        })
-        .from(documents)
-        .leftJoin(projects, eq(projects.id, documents.projectId))
-        .leftJoin(users, eq(users.id, documents.uploadedByUserId))
-        .where(inArray(documents.projectId, projectIds))
-        .orderBy(desc(documents.createdAt))
-        .limit(12)
+    ? await withTenant(subOrgId, (tx) =>
+        tx
+          .select({
+            id: documents.id,
+            title: documents.title,
+            documentType: documents.documentType,
+            projectId: documents.projectId,
+            projectName: projects.name,
+            uploaderName: users.displayName,
+            createdAt: documents.createdAt,
+          })
+          .from(documents)
+          .leftJoin(projects, eq(projects.id, documents.projectId))
+          .leftJoin(users, eq(users.id, documents.uploadedByUserId))
+          .where(inArray(documents.projectId, projectIds))
+          .orderBy(desc(documents.createdAt))
+          .limit(12),
+      )
     : [];
   const recentDocuments: SubTodayDocument[] = recentDocRows.map((d) => ({
     id: d.id,

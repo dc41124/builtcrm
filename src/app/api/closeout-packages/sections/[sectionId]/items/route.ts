@@ -5,12 +5,14 @@ import { eq, max } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   closeoutPackageItems,
   closeoutPackageSections,
   closeoutPackages,
   documents,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -36,7 +38,10 @@ export async function POST(
   const input = parsed.data;
 
   try {
-    const [sec] = await db
+    // Pre-tenant head lookup (Slice 3 pattern): caller passed only a
+    // section id, so we read via the admin pool to derive projectId for
+    // getEffectiveContext.
+    const [sec] = await dbAdmin
       .select({
         packageId: closeoutPackageSections.packageId,
         projectId: closeoutPackages.projectId,
@@ -65,11 +70,13 @@ export async function POST(
     }
 
     // Document must belong to this project.
-    const [doc] = await db
-      .select({ id: documents.id, projectId: documents.projectId })
-      .from(documents)
-      .where(eq(documents.id, input.documentId))
-      .limit(1);
+    const [doc] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({ id: documents.id, projectId: documents.projectId })
+        .from(documents)
+        .where(eq(documents.id, input.documentId))
+        .limit(1),
+    );
     if (!doc) {
       return NextResponse.json(
         { error: "document_not_found" },

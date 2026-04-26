@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 import { getServerSession } from "@/auth/session";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { documents } from "@/db/schema";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError, assertCan } from "@/domain/permissions";
@@ -19,7 +19,9 @@ export async function GET(
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
   const { session } = sessionData;
-  const [doc] = await db
+  // Entry-point dbAdmin: tenant unknown until we resolve project from
+  // the document row. getEffectiveContext below verifies project access.
+  const [doc] = await dbAdmin
     .select()
     .from(documents)
     .where(eq(documents.id, documentId))

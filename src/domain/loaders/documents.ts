@@ -74,7 +74,11 @@ export async function getDocumentsView(
   }
 
   const audience = PORTAL_TO_AUDIENCE[expected];
-  const docs = await loadDocumentsForProject(context.project.id, audience);
+  const docs = await loadDocumentsForProject(
+    context.project.id,
+    audience,
+    context.organization.id,
+  );
 
   // Linkable items: only the contractor UI exposes the linking picker in
   // the upload modal. Subs/clients can upload but link to their own scope

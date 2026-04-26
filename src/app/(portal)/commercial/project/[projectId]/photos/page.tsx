@@ -15,11 +15,13 @@ export default async function CommercialPhotosPage({
 }) {
   const { projectId } = await params;
   const { session } = await requireServerSession();
+  let callerOrgId: string;
   try {
-    await getClientProjectView({
+    const view = await getClientProjectView({
       session: session,
       projectId,
     });
+    callerOrgId = view.context.organization.id;
   } catch (err) {
     if (err instanceof AuthorizationError) {
       if (err.code === "not_found") notFound();
@@ -29,7 +31,7 @@ export default async function CommercialPhotosPage({
     throw err;
   }
 
-  const data = await loadCommercialProjectPhotos(projectId);
+  const data = await loadCommercialProjectPhotos(projectId, callerOrgId);
 
   return <CommercialPhotosView projectId={projectId} data={data} nowMs={Date.now()} />;
 }

@@ -370,18 +370,20 @@ export async function appendOrgDocumentsToArchive(
   }>;
 }> {
   const prefix = opts.pathPrefix ? `${opts.pathPrefix.replace(/\/$/, "")}/` : "";
-  const rows = await db
-    .select({
-      id: documents.id,
-      title: documents.title,
-      documentType: documents.documentType,
-      storageKey: documents.storageKey,
-      projectCode: projects.projectCode,
-      projectName: projects.name,
-    })
-    .from(documents)
-    .innerJoin(projects, eq(projects.id, documents.projectId))
-    .where(eq(projects.contractorOrganizationId, organizationId));
+  const rows = await withTenant(organizationId, (tx) =>
+    tx
+      .select({
+        id: documents.id,
+        title: documents.title,
+        documentType: documents.documentType,
+        storageKey: documents.storageKey,
+        projectCode: projects.projectCode,
+        projectName: projects.name,
+      })
+      .from(documents)
+      .innerJoin(projects, eq(projects.id, documents.projectId))
+      .where(eq(projects.contractorOrganizationId, organizationId)),
+  );
 
   const skippedIds: string[] = [];
   for (const doc of rows) {

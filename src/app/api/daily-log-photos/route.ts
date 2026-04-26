@@ -4,7 +4,6 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
 import { dailyLogPhotos, dailyLogs, documents } from "@/db/schema";
@@ -68,11 +67,13 @@ export async function POST(req: Request) {
     // Defense in depth: the document must exist on the same project as
     // the log. Prevents attaching a document owned by a different project
     // even if the caller guesses the uuid.
-    const [doc] = await db
-      .select({ id: documents.id, projectId: documents.projectId })
-      .from(documents)
-      .where(eq(documents.id, input.documentId))
-      .limit(1);
+    const [doc] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({ id: documents.id, projectId: documents.projectId })
+        .from(documents)
+        .where(eq(documents.id, input.documentId))
+        .limit(1),
+    );
     if (!doc || doc.projectId !== logHead.projectId) {
       return NextResponse.json(
         { error: "invalid_document", message: "Document not on this project" },
