@@ -4,7 +4,7 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { dailyLogCrewEntries, dailyLogs } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -77,18 +77,20 @@ export async function POST(req: Request) {
 
     // Look up a matching log (if one exists) so we can auto-attach.
     // Otherwise dailyLogId stays null until the GC creates the log.
-    const [matchingLog] = await db
-      .select({ id: dailyLogs.id })
-      .from(dailyLogs)
-      .where(
-        and(
-          eq(dailyLogs.projectId, input.projectId),
-          eq(dailyLogs.logDate, input.logDate),
-        ),
-      )
-      .limit(1);
+    const [matchingLog] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({ id: dailyLogs.id })
+        .from(dailyLogs)
+        .where(
+          and(
+            eq(dailyLogs.projectId, input.projectId),
+            eq(dailyLogs.logDate, input.logDate),
+          ),
+        )
+        .limit(1),
+    );
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       // Upsert by (projectId, logDate, orgId). Postgres ON CONFLICT
       // lets us collapse the "submit or update my entry" call into
       // one round-trip.

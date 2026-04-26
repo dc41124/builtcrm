@@ -5,6 +5,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   dailyLogCrewEntries,
   dailyLogDelays,
@@ -113,16 +114,18 @@ export async function POST(req: Request) {
 
     // Reject duplicates explicitly so the UI gets a 409 (not a 500) and
     // can redirect to the existing log for editing.
-    const [existing] = await db
-      .select({ id: dailyLogs.id })
-      .from(dailyLogs)
-      .where(
-        and(
-          eq(dailyLogs.projectId, input.projectId),
-          eq(dailyLogs.logDate, input.logDate),
-        ),
-      )
-      .limit(1);
+    const [existing] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({ id: dailyLogs.id })
+        .from(dailyLogs)
+        .where(
+          and(
+            eq(dailyLogs.projectId, input.projectId),
+            eq(dailyLogs.logDate, input.logDate),
+          ),
+        )
+        .limit(1),
+    );
     if (existing) {
       return NextResponse.json(
         {
@@ -140,7 +143,7 @@ export async function POST(req: Request) {
       ? computeEditWindowClosesAt(submittedAt)
       : null;
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       const [row] = await tx
         .insert(dailyLogs)
         .values({

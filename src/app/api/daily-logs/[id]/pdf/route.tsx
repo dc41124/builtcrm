@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { renderToBuffer } from "@react-pdf/renderer";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { dailyLogs } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getEffectiveContext } from "@/domain/context";
@@ -59,7 +59,7 @@ export async function GET(
       // getEffectiveContext is redundant with the loader but keeps this
       // branch self-contained; could be optimized later by threading
       // role through getDailyLog's return.
-      const [row] = await db
+      const [row] = await dbAdmin
         .select({ projectId: dailyLogs.projectId })
         .from(dailyLogs)
         .where(eq(dailyLogs.id, id))

@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { dailyLogs } from "@/db/schema";
 
 // Sub-portal global "detail" route. The sub's daily-logs feed is cross-
@@ -22,7 +22,9 @@ export default async function SubcontractorGlobalLogRedirect({
 }) {
   const { logId } = await params;
   await requireServerSession();
-  const [log] = await db
+  // Pre-tenant: just resolving log id → project id for redirect.
+  // The destination page does the full auth check via getDailyLog.
+  const [log] = await dbAdmin
     .select({ projectId: dailyLogs.projectId })
     .from(dailyLogs)
     .where(eq(dailyLogs.id, logId))

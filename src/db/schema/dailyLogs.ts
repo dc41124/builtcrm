@@ -7,6 +7,7 @@ import {
   jsonb,
   numeric,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -158,8 +159,36 @@ export const dailyLogs = pgTable(
       table.logDate,
     ),
     reportedByIdx: index("daily_logs_reported_by_idx").on(table.reportedByUserId),
+    // Phase 4 wave 3 — same project-scoped 2-clause hybrid as milestones.
+    // daily_logs is the canonical hot-table case; perf check post-migration
+    // verifies the planner doesn't pick a worse shape here than on milestones.
+    tenantIsolation: pgPolicy("daily_logs_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // daily_log_crew_entries — one row per sub org per day per project.

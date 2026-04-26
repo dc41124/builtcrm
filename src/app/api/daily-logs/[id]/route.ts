@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { dailyLogs } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -100,7 +101,8 @@ export async function PATCH(
   const input = parsed.data;
 
   try {
-    const [logHead] = await db
+    // Pre-tenant entry-point: log id only — admin pool head lookup.
+    const [logHead] = await dbAdmin
       .select({
         id: dailyLogs.id,
         projectId: dailyLogs.projectId,
@@ -153,7 +155,7 @@ export async function PATCH(
       submittedAt: logHead.submittedAt?.toISOString() ?? null,
     };
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       const patch: Partial<typeof dailyLogs.$inferInsert> = {};
       if (input.weather) {
         if (input.weather.conditions !== undefined)

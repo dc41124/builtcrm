@@ -1,6 +1,8 @@
 import { and, asc, between, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import {
   dailyLogAmendments,
   dailyLogCrewEntries,
@@ -246,7 +248,8 @@ export async function getDailyLog(
   // First hop: resolve the log's projectId without any auth check so we
   // can then call getEffectiveContext(projectId) for the real gate.
   // Missing log → 404 via AuthorizationError with code 'not_found'.
-  const [logHead] = await db
+  // Pre-tenant lookup — admin pool (Slice 3 entry-point pattern).
+  const [logHead] = await dbAdmin
     .select({ id: dailyLogs.id, projectId: dailyLogs.projectId })
     .from(dailyLogs)
     .where(eq(dailyLogs.id, input.logId))
@@ -286,7 +289,10 @@ export async function getDailyLog(
       residentialHeroTitle: head.residentialHeroTitle,
       residentialSummary: head.residentialSummary,
       residentialMood: head.residentialMood,
-      residentialTeamNote: await queryResidentialTeamNote(input.logId),
+      residentialTeamNote: await queryResidentialTeamNote(
+        input.logId,
+        ctx.organization.id,
+      ),
       residentialTeamNoteByUserId: null,
       residentialTeamNoteByName: null,
       hadWeatherDelay: head.delayCount > 0,
@@ -298,7 +304,7 @@ export async function getDailyLog(
     queryDelays(input.logId),
     queryIssues(input.logId),
     queryAmendments(input.logId),
-    queryResidentialTeamNoteWithAuthor(input.logId),
+    queryResidentialTeamNoteWithAuthor(input.logId, ctx.organization.id),
   ]);
 
   return {
@@ -415,7 +421,7 @@ export async function getAmendmentsForLog(
   session: SessionLike | null | undefined,
   logId: string,
 ): Promise<DailyLogAmendmentRow[]> {
-  const [logHead] = await db
+  const [logHead] = await dbAdmin
     .select({ projectId: dailyLogs.projectId })
     .from(dailyLogs)
     .where(eq(dailyLogs.id, logId))
@@ -447,46 +453,48 @@ async function queryLogsBase(
   opts: BaseQueryOpts,
 ): Promise<DailyLogListRow[]> {
   // Pull logs, join reporter name, aggregate child counts in one pass.
-  const logs = await db
-    .select({
-      id: dailyLogs.id,
-      projectId: dailyLogs.projectId,
-      projectName: projects.name,
-      logDate: dailyLogs.logDate,
-      status: dailyLogs.status,
-      reportedByUserId: dailyLogs.reportedByUserId,
-      reportedByName: users.displayName,
-      submittedAt: dailyLogs.submittedAt,
-      editWindowClosesAt: dailyLogs.editWindowClosesAt,
-      weatherConditions: dailyLogs.weatherConditions,
-      weatherHighC: dailyLogs.weatherHighC,
-      weatherLowC: dailyLogs.weatherLowC,
-      weatherPrecipPct: dailyLogs.weatherPrecipPct,
-      weatherWindKmh: dailyLogs.weatherWindKmh,
-      weatherSource: dailyLogs.weatherSource,
-      weatherCapturedAt: dailyLogs.weatherCapturedAt,
-      notes: dailyLogs.notes,
-      clientSummary: dailyLogs.clientSummary,
-      clientHighlights: dailyLogs.clientHighlights,
-      milestone: dailyLogs.milestone,
-      milestoneType: dailyLogs.milestoneType,
-      residentialHeroTitle: dailyLogs.residentialHeroTitle,
-      residentialSummary: dailyLogs.residentialSummary,
-      residentialMood: dailyLogs.residentialMood,
-    })
-    .from(dailyLogs)
-    .innerJoin(projects, eq(projects.id, dailyLogs.projectId))
-    .leftJoin(users, eq(users.id, dailyLogs.reportedByUserId))
-    .where(
-      and(
-        inArray(dailyLogs.projectId, opts.projectIds),
-        opts.logIds ? inArray(dailyLogs.id, opts.logIds) : undefined,
-        opts.from && opts.to
-          ? between(dailyLogs.logDate, opts.from, opts.to)
-          : undefined,
-      ),
-    )
-    .orderBy(desc(dailyLogs.logDate));
+  const logs = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: dailyLogs.id,
+        projectId: dailyLogs.projectId,
+        projectName: projects.name,
+        logDate: dailyLogs.logDate,
+        status: dailyLogs.status,
+        reportedByUserId: dailyLogs.reportedByUserId,
+        reportedByName: users.displayName,
+        submittedAt: dailyLogs.submittedAt,
+        editWindowClosesAt: dailyLogs.editWindowClosesAt,
+        weatherConditions: dailyLogs.weatherConditions,
+        weatherHighC: dailyLogs.weatherHighC,
+        weatherLowC: dailyLogs.weatherLowC,
+        weatherPrecipPct: dailyLogs.weatherPrecipPct,
+        weatherWindKmh: dailyLogs.weatherWindKmh,
+        weatherSource: dailyLogs.weatherSource,
+        weatherCapturedAt: dailyLogs.weatherCapturedAt,
+        notes: dailyLogs.notes,
+        clientSummary: dailyLogs.clientSummary,
+        clientHighlights: dailyLogs.clientHighlights,
+        milestone: dailyLogs.milestone,
+        milestoneType: dailyLogs.milestoneType,
+        residentialHeroTitle: dailyLogs.residentialHeroTitle,
+        residentialSummary: dailyLogs.residentialSummary,
+        residentialMood: dailyLogs.residentialMood,
+      })
+      .from(dailyLogs)
+      .innerJoin(projects, eq(projects.id, dailyLogs.projectId))
+      .leftJoin(users, eq(users.id, dailyLogs.reportedByUserId))
+      .where(
+        and(
+          inArray(dailyLogs.projectId, opts.projectIds),
+          opts.logIds ? inArray(dailyLogs.id, opts.logIds) : undefined,
+          opts.from && opts.to
+            ? between(dailyLogs.logDate, opts.from, opts.to)
+            : undefined,
+        ),
+      )
+      .orderBy(desc(dailyLogs.logDate)),
+  );
   if (logs.length === 0) return [];
 
   const logIds = logs.map((l) => l.id);
@@ -769,28 +777,36 @@ async function queryAmendments(
   }));
 }
 
-async function queryResidentialTeamNote(logId: string): Promise<string | null> {
-  const [row] = await db
-    .select({ note: dailyLogs.residentialTeamNote })
-    .from(dailyLogs)
-    .where(eq(dailyLogs.id, logId))
-    .limit(1);
+async function queryResidentialTeamNote(
+  logId: string,
+  callerOrgId: string,
+): Promise<string | null> {
+  const [row] = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({ note: dailyLogs.residentialTeamNote })
+      .from(dailyLogs)
+      .where(eq(dailyLogs.id, logId))
+      .limit(1),
+  );
   return row?.note ?? null;
 }
 
 async function queryResidentialTeamNoteWithAuthor(
   logId: string,
+  callerOrgId: string,
 ): Promise<{ note: string | null; byUserId: string | null; byName: string | null } | null> {
-  const [row] = await db
-    .select({
-      note: dailyLogs.residentialTeamNote,
-      byUserId: dailyLogs.residentialTeamNoteByUserId,
-      byName: users.displayName,
-    })
-    .from(dailyLogs)
-    .leftJoin(users, eq(users.id, dailyLogs.residentialTeamNoteByUserId))
-    .where(eq(dailyLogs.id, logId))
-    .limit(1);
+  const [row] = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        note: dailyLogs.residentialTeamNote,
+        byUserId: dailyLogs.residentialTeamNoteByUserId,
+        byName: users.displayName,
+      })
+      .from(dailyLogs)
+      .leftJoin(users, eq(users.id, dailyLogs.residentialTeamNoteByUserId))
+      .where(eq(dailyLogs.id, logId))
+      .limit(1),
+  );
   if (!row) return null;
   return { note: row.note, byUserId: row.byUserId, byName: row.byName };
 }

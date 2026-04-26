@@ -233,32 +233,36 @@ export async function getSubDailyLogsPageView(
     crewByKey.set(`${c.projectId}::${c.logDate}`, c);
   }
 
-  // GC-posted daily logs on the sub's projects, last 30 days.
-  const gcRows = await db
-    .select({
-      id: dailyLogs.id,
-      projectId: dailyLogs.projectId,
-      projectName: projects.name,
-      logDate: dailyLogs.logDate,
-      status: dailyLogs.status,
-      reportedByName: users.displayName,
-      weatherConditions: dailyLogs.weatherConditions,
-      weatherHighC: dailyLogs.weatherHighC,
-      weatherLowC: dailyLogs.weatherLowC,
-      notes: dailyLogs.notes,
-      clientSummary: dailyLogs.clientSummary,
-    })
-    .from(dailyLogs)
-    .innerJoin(projects, eq(projects.id, dailyLogs.projectId))
-    .leftJoin(users, eq(users.id, dailyLogs.reportedByUserId))
-    .where(
-      and(
-        inArray(dailyLogs.projectId, projectIds),
-        eq(dailyLogs.status, "submitted"),
-        between(dailyLogs.logDate, last30Start, today),
-      ),
-    )
-    .orderBy(desc(dailyLogs.logDate));
+  // GC-posted daily logs on the sub's projects, last 30 days. Sub
+  // caller — multi-org clause B (POM on project) returns logs on
+  // every project the sub is invited to.
+  const gcRows = await withTenant(assignment.organizationId, (tx) =>
+    tx
+      .select({
+        id: dailyLogs.id,
+        projectId: dailyLogs.projectId,
+        projectName: projects.name,
+        logDate: dailyLogs.logDate,
+        status: dailyLogs.status,
+        reportedByName: users.displayName,
+        weatherConditions: dailyLogs.weatherConditions,
+        weatherHighC: dailyLogs.weatherHighC,
+        weatherLowC: dailyLogs.weatherLowC,
+        notes: dailyLogs.notes,
+        clientSummary: dailyLogs.clientSummary,
+      })
+      .from(dailyLogs)
+      .innerJoin(projects, eq(projects.id, dailyLogs.projectId))
+      .leftJoin(users, eq(users.id, dailyLogs.reportedByUserId))
+      .where(
+        and(
+          inArray(dailyLogs.projectId, projectIds),
+          eq(dailyLogs.status, "submitted"),
+          between(dailyLogs.logDate, last30Start, today),
+        ),
+      )
+      .orderBy(desc(dailyLogs.logDate)),
+  );
 
   const gcLogIds = gcRows.map((g) => g.id);
   const photoCountsByLog = gcLogIds.length > 0

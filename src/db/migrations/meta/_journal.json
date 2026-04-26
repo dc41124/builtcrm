@@ -225,6 +225,13 @@
       "when": 1777226618586,
       "tag": "0031_simple_human_fly",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1777228883064,
+      "tag": "0032_famous_hellcat",
+      "breakpoints": true
     }
   ]
 }

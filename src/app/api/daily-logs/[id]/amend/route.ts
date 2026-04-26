@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { dailyLogAmendments, dailyLogs } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -71,7 +72,7 @@ export async function POST(
   const input = parsed.data;
 
   try {
-    const [logHead] = await db
+    const [logHead] = await dbAdmin
       .select({ id: dailyLogs.id, projectId: dailyLogs.projectId })
       .from(dailyLogs)
       .where(eq(dailyLogs.id, id))
@@ -91,7 +92,7 @@ export async function POST(
       );
     }
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       const [row] = await tx
         .insert(dailyLogAmendments)
         .values({

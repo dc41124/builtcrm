@@ -5,6 +5,8 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { dailyLogPhotos, dailyLogs, documents } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -43,7 +45,7 @@ export async function POST(req: Request) {
   const input = parsed.data;
 
   try {
-    const [logHead] = await db
+    const [logHead] = await dbAdmin
       .select({ id: dailyLogs.id, projectId: dailyLogs.projectId })
       .from(dailyLogs)
       .where(eq(dailyLogs.id, input.dailyLogId))
@@ -78,7 +80,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       if (input.isHero) {
         await tx
           .update(dailyLogPhotos)

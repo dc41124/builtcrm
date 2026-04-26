@@ -5,6 +5,8 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { dailyLogPhotos, dailyLogs } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -62,7 +64,7 @@ export async function PATCH(
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
-    const [logHead] = await db
+    const [logHead] = await dbAdmin
       .select({ id: dailyLogs.id, projectId: dailyLogs.projectId })
       .from(dailyLogs)
       .where(eq(dailyLogs.id, photo.dailyLogId))
@@ -82,7 +84,7 @@ export async function PATCH(
       );
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       if (input.isHero === true && !photo.isHero) {
         await tx
           .update(dailyLogPhotos)

@@ -221,12 +221,12 @@ async function loadSectionPayloads(args: {
     changeOrdersSection,
     issuesSection,
   ] = await Promise.all([
-    loadDailyLogsSection(projectId, window),
-    loadPhotosSection(projectId, window),
+    loadDailyLogsSection(projectId, window, contractorOrgId),
+    loadPhotosSection(projectId, window, contractorOrgId),
     loadMilestonesSection(projectId, window, contractorOrgId),
     loadRfisSection(projectId, window),
     loadChangeOrdersSection(projectId, window),
-    loadIssuesSection(projectId, window),
+    loadIssuesSection(projectId, window, contractorOrgId),
   ]);
 
   // Order matches the prototype's editor layout: logs → photos → milestones
@@ -244,29 +244,32 @@ async function loadSectionPayloads(args: {
 async function loadDailyLogsSection(
   projectId: string,
   window: WeekWindow,
+  contractorOrgId: string,
 ): Promise<SectionPayload> {
-  const rows = await db
-    .select({
-      id: dailyLogs.id,
-      logDate: dailyLogs.logDate,
-      reporterName: users.displayName,
-      notes: dailyLogs.notes,
-      clientSummary: dailyLogs.clientSummary,
-      weatherConditions: dailyLogs.weatherConditions,
-      weatherHighC: dailyLogs.weatherHighC,
-      weatherLowC: dailyLogs.weatherLowC,
-    })
-    .from(dailyLogs)
-    .leftJoin(users, eq(users.id, dailyLogs.reportedByUserId))
-    .where(
-      and(
-        eq(dailyLogs.projectId, projectId),
-        eq(dailyLogs.status, "submitted"),
-        gte(dailyLogs.logDate, window.weekStartLocalDate),
-        lte(dailyLogs.logDate, window.weekEndLocalDate),
-      ),
-    )
-    .orderBy(dailyLogs.logDate);
+  const rows = await withTenant(contractorOrgId, (tx) =>
+    tx
+      .select({
+        id: dailyLogs.id,
+        logDate: dailyLogs.logDate,
+        reporterName: users.displayName,
+        notes: dailyLogs.notes,
+        clientSummary: dailyLogs.clientSummary,
+        weatherConditions: dailyLogs.weatherConditions,
+        weatherHighC: dailyLogs.weatherHighC,
+        weatherLowC: dailyLogs.weatherLowC,
+      })
+      .from(dailyLogs)
+      .leftJoin(users, eq(users.id, dailyLogs.reportedByUserId))
+      .where(
+        and(
+          eq(dailyLogs.projectId, projectId),
+          eq(dailyLogs.status, "submitted"),
+          gte(dailyLogs.logDate, window.weekStartLocalDate),
+          lte(dailyLogs.logDate, window.weekEndLocalDate),
+        ),
+      )
+      .orderBy(dailyLogs.logDate),
+  );
 
   const entries = rows.map((r) => ({
     logId: r.id,
@@ -292,21 +295,24 @@ async function loadDailyLogsSection(
 async function loadPhotosSection(
   projectId: string,
   window: WeekWindow,
+  contractorOrgId: string,
 ): Promise<SectionPayload> {
   // Two-step: find this week's logs, then their photos. Avoids a join
   // that would inflate row count when a log has many photos.
   const logIds = (
-    await db
-      .select({ id: dailyLogs.id })
-      .from(dailyLogs)
-      .where(
-        and(
-          eq(dailyLogs.projectId, projectId),
-          eq(dailyLogs.status, "submitted"),
-          gte(dailyLogs.logDate, window.weekStartLocalDate),
-          lte(dailyLogs.logDate, window.weekEndLocalDate),
+    await withTenant(contractorOrgId, (tx) =>
+      tx
+        .select({ id: dailyLogs.id })
+        .from(dailyLogs)
+        .where(
+          and(
+            eq(dailyLogs.projectId, projectId),
+            eq(dailyLogs.status, "submitted"),
+            gte(dailyLogs.logDate, window.weekStartLocalDate),
+            lte(dailyLogs.logDate, window.weekEndLocalDate),
+          ),
         ),
-      )
+    )
   ).map((r) => r.id);
 
   if (logIds.length === 0) {
@@ -552,23 +558,26 @@ async function loadChangeOrdersSection(
 async function loadIssuesSection(
   projectId: string,
   window: WeekWindow,
+  contractorOrgId: string,
 ): Promise<SectionPayload> {
   // Issues source = daily_log_issues for this week's logs. The build guide
   // anticipated punch_list as another source eventually; that wiring lands
   // when a "weekly issue rollup" surface is built. For now, daily-log
   // issues are the only feed.
   const logIds = (
-    await db
-      .select({ id: dailyLogs.id })
-      .from(dailyLogs)
-      .where(
-        and(
-          eq(dailyLogs.projectId, projectId),
-          eq(dailyLogs.status, "submitted"),
-          gte(dailyLogs.logDate, window.weekStartLocalDate),
-          lte(dailyLogs.logDate, window.weekEndLocalDate),
+    await withTenant(contractorOrgId, (tx) =>
+      tx
+        .select({ id: dailyLogs.id })
+        .from(dailyLogs)
+        .where(
+          and(
+            eq(dailyLogs.projectId, projectId),
+            eq(dailyLogs.status, "submitted"),
+            gte(dailyLogs.logDate, window.weekStartLocalDate),
+            lte(dailyLogs.logDate, window.weekEndLocalDate),
+          ),
         ),
-      )
+    )
   ).map((r) => r.id);
 
   if (logIds.length === 0) {

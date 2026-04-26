@@ -5,6 +5,8 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { dailyLogAmendments, dailyLogs } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -103,7 +105,7 @@ export async function PATCH(
       );
     }
 
-    const [logHead] = await db
+    const [logHead] = await dbAdmin
       .select({ id: dailyLogs.id, projectId: dailyLogs.projectId })
       .from(dailyLogs)
       .where(eq(dailyLogs.id, amendment.dailyLogId))
@@ -125,7 +127,7 @@ export async function PATCH(
 
     const now = new Date();
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       if (input.status === "approved") {
         // Merge `changedFields.<k>.after` into the parent log. Skip any
         // key not in APPLY_ALLOWED defensively, even though the request
