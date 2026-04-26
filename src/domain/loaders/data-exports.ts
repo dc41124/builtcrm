@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { dataExports, users } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 
 // Read-only audit trail view of past exports for the Data tab's "Recent
 // exports" panel. Currently every export is synchronous + inline-delivered
@@ -26,24 +26,26 @@ export async function listRecentDataExports(
   opts: { limit?: number } = {},
 ): Promise<RecentDataExportView[]> {
   const limit = Math.min(opts.limit ?? 20, 100);
-  const rows = await db
-    .select({
-      id: dataExports.id,
-      exportKind: dataExports.exportKind,
-      status: dataExports.status,
-      storageKey: dataExports.storageKey,
-      expiresAt: dataExports.expiresAt,
-      completedAt: dataExports.completedAt,
-      createdAt: dataExports.createdAt,
-      requesterId: users.id,
-      requesterName: users.displayName,
-      requesterEmail: users.email,
-    })
-    .from(dataExports)
-    .innerJoin(users, eq(users.id, dataExports.requestedByUserId))
-    .where(eq(dataExports.organizationId, organizationId))
-    .orderBy(desc(dataExports.createdAt))
-    .limit(limit);
+  const rows = await withTenant(organizationId, (tx) =>
+    tx
+      .select({
+        id: dataExports.id,
+        exportKind: dataExports.exportKind,
+        status: dataExports.status,
+        storageKey: dataExports.storageKey,
+        expiresAt: dataExports.expiresAt,
+        completedAt: dataExports.completedAt,
+        createdAt: dataExports.createdAt,
+        requesterId: users.id,
+        requesterName: users.displayName,
+        requesterEmail: users.email,
+      })
+      .from(dataExports)
+      .innerJoin(users, eq(users.id, dataExports.requestedByUserId))
+      .where(eq(dataExports.organizationId, organizationId))
+      .orderBy(desc(dataExports.createdAt))
+      .limit(limit),
+  );
 
   return rows.map((r) => ({
     id: r.id,

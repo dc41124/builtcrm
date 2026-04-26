@@ -6,6 +6,7 @@ import archiver from "archiver";
 
 import { db } from "@/db/client";
 import { auditEvents, dataExports, organizations } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getOrgPlanContext } from "@/domain/loaders/billing";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
@@ -119,20 +120,22 @@ export async function POST() {
       .from(organizations)
       .where(eq(organizations.id, ctx.organization.id))
       .limit(1);
-    const [exportRow] = await db
-      .insert(dataExports)
-      .values({
-        organizationId: ctx.organization.id,
-        requestedByUserId: ctx.user.id,
-        exportKind: "full_archive",
-        scope: null,
-        status: "ready",
-        storageKey: null,
-        expiresAt: null,
-        startedAt: now,
-        completedAt: now,
-      })
-      .returning({ id: dataExports.id });
+    const [exportRow] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .insert(dataExports)
+        .values({
+          organizationId: ctx.organization.id,
+          requestedByUserId: ctx.user.id,
+          exportKind: "full_archive",
+          scope: null,
+          status: "ready",
+          storageKey: null,
+          expiresAt: null,
+          startedAt: now,
+          completedAt: now,
+        })
+        .returning({ id: dataExports.id }),
+    );
 
     await db.insert(auditEvents).values({
       actorUserId: ctx.user.id,

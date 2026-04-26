@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { and, eq, isNotNull, lt } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { dataExports } from "@/db/schema";
 import { writeSystemAuditEvent } from "@/domain/audit";
 import { deleteObject } from "@/lib/storage";
@@ -29,7 +29,9 @@ export const dataExportCleanup = schedules.task({
   run: async (payload) => {
     const cutoff = payload.timestamp;
 
-    const expired = await db
+    // Cross-org sweep — use the admin pool so RLS doesn't silently
+    // hide rows for orgs other than the (nonexistent) current GUC.
+    const expired = await dbAdmin
       .select({
         id: dataExports.id,
         storageKey: dataExports.storageKey,
@@ -58,7 +60,7 @@ export const dataExportCleanup = schedules.task({
           });
         }
       }
-      await db.delete(dataExports).where(eq(dataExports.id, row.id));
+      await dbAdmin.delete(dataExports).where(eq(dataExports.id, row.id));
       deletedRows++;
     }
 

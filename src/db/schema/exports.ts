@@ -3,6 +3,7 @@ import {
   check,
   index,
   jsonb,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -21,6 +22,15 @@ import { organizations, users } from "./identity";
 // and `audit.csv_export` keys. Routes call requireFeature before inserting.
 // `expired` is computed at read time from `expires_at < now()` — no separate
 // status value, no background job to flip state.
+//
+// RLS Phase 3b — Pattern A. Two non-tenant-scoped call sites use the
+// admin pool: (a) src/jobs/data-export-cleanup.ts is a daily cross-org
+// sweep, and (b) src/app/api/user/data-export/route.ts GET reads the
+// caller's GDPR-export history, which intentionally spans every org
+// they've belonged to. Everything else (4× org/exports/* routes, the
+// listRecentDataExports loader, the POST half of user/data-export)
+// has a tenant context and goes through `withTenant`. See
+// docs/specs/rls_sprint_plan.md §3.4.
 // -----------------------------------------------------------------------------
 
 export const dataExports = pgTable(
@@ -64,5 +74,10 @@ export const dataExports = pgTable(
       "data_exports_status_check",
       sql`${table.status} in ('queued','running','ready','failed')`,
     ),
+    tenantIsolation: pgPolicy("data_exports_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();

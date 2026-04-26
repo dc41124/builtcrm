@@ -3,7 +3,9 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { requireServerSession } from "@/auth/session";
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { dataExports, roleAssignments } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeSystemAuditEvent } from "@/domain/audit";
 import { buildUserExportManifest } from "@/lib/user-export/build";
 import { sendDataExportReadyEmail } from "@/lib/user-export/email";
@@ -73,17 +75,19 @@ export async function POST() {
 
   const expiresAt = new Date(Date.now() + EXPORT_TTL_MS);
 
-  const [exportRow] = await db
-    .insert(dataExports)
-    .values({
-      organizationId: primary.organizationId,
-      requestedByUserId: appUserId,
-      exportKind: "user_data_gdpr",
-      status: "running",
-      expiresAt,
-      startedAt: new Date(),
-    })
-    .returning({ id: dataExports.id });
+  const [exportRow] = await withTenant(primary.organizationId, (tx) =>
+    tx
+      .insert(dataExports)
+      .values({
+        organizationId: primary.organizationId,
+        requestedByUserId: appUserId,
+        exportKind: "user_data_gdpr",
+        status: "running",
+        expiresAt,
+        startedAt: new Date(),
+      })
+      .returning({ id: dataExports.id }),
+  );
 
   await writeSystemAuditEvent({
     resourceType: "data_export",
@@ -105,14 +109,16 @@ export async function POST() {
       contentType: "application/json",
     });
 
-    await db
-      .update(dataExports)
-      .set({
-        status: "ready",
-        storageKey,
-        completedAt: new Date(),
-      })
-      .where(eq(dataExports.id, exportRow.id));
+    await withTenant(primary.organizationId, (tx) =>
+      tx
+        .update(dataExports)
+        .set({
+          status: "ready",
+          storageKey,
+          completedAt: new Date(),
+        })
+        .where(eq(dataExports.id, exportRow.id)),
+    );
 
     const downloadUrl = await presignDownloadUrl({
       key: storageKey,
@@ -149,10 +155,12 @@ export async function POST() {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await db
-      .update(dataExports)
-      .set({ status: "failed", errorMessage: message.slice(0, 500) })
-      .where(eq(dataExports.id, exportRow.id));
+    await withTenant(primary.organizationId, (tx) =>
+      tx
+        .update(dataExports)
+        .set({ status: "failed", errorMessage: message.slice(0, 500) })
+        .where(eq(dataExports.id, exportRow.id)),
+    );
     return NextResponse.json(
       { error: "export_failed", message: "Could not generate the export. Try again." },
       { status: 500 },
@@ -167,7 +175,13 @@ export async function GET() {
     return NextResponse.json({ error: "no_app_user" }, { status: 400 });
   }
 
-  const rows = await db
+  // Cross-org by design — a user's GDPR export history should include
+  // every org they've ever belonged to (the row's organizationId is
+  // just the org the export was filed under at the time, derived from
+  // their then-primary role assignment). Wrapping in withTenant for
+  // the user's CURRENT primary org would silently hide history filed
+  // under a previous primary. Use the admin pool to read the truth.
+  const rows = await dbAdmin
     .select({
       id: dataExports.id,
       status: dataExports.status,
