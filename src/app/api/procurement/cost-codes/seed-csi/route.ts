@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 
 import { requireServerSession } from "@/auth/session";
 
-import { db } from "@/db/client";
 import { costCodes } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { CSI_STARTER_CODES } from "@/domain/procurement/csi-starter";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
@@ -32,13 +32,15 @@ export async function POST() {
       sortOrder: c.sortOrder,
     }));
 
-    const result = await db
-      .insert(costCodes)
-      .values(values)
-      .onConflictDoNothing({
-        target: [costCodes.organizationId, costCodes.code],
-      })
-      .returning({ id: costCodes.id });
+    const result = await withTenant(orgId, (tx) =>
+      tx
+        .insert(costCodes)
+        .values(values)
+        .onConflictDoNothing({
+          target: [costCodes.organizationId, costCodes.code],
+        })
+        .returning({ id: costCodes.id }),
+    );
 
     return NextResponse.json({
       insertedCount: result.length,

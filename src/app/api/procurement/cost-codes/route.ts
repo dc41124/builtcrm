@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { costCodes } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -30,15 +30,17 @@ export async function POST(req: Request) {
     );
 
     try {
-      const [row] = await db
-        .insert(costCodes)
-        .values({
-          organizationId: ctx.organization.id,
-          code: parsed.data.code,
-          description: parsed.data.description,
-          sortOrder: parsed.data.sortOrder ?? 0,
-        })
-        .returning();
+      const [row] = await withTenant(ctx.organization.id, (tx) =>
+        tx
+          .insert(costCodes)
+          .values({
+            organizationId: ctx.organization.id,
+            code: parsed.data.code,
+            description: parsed.data.description,
+            sortOrder: parsed.data.sortOrder ?? 0,
+          })
+          .returning(),
+      );
       return NextResponse.json({ costCode: row });
     } catch (err) {
       // Unique (organizationId, code) violation — surface as clean 409

@@ -53,6 +53,8 @@ export const poStatusEnum = pgEnum("procurement_po_status", [
 // on first use, or add their own.
 // -----------------------------------------------------------------------------
 
+// RLS Phase 3c — Pattern A. Same shape as vendors above (also in this
+// file): all tenant-scoped, no admin-pool work needed.
 export const costCodes = pgTable(
   "cost_codes",
   {
@@ -75,8 +77,13 @@ export const costCodes = pgTable(
       table.organizationId,
       table.active,
     ),
+    tenantIsolation: pgPolicy("cost_codes_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Vendors

@@ -680,17 +680,19 @@ export async function loadVendorListForOrg(
 export async function loadCostCodeListForOrg(
   orgId: string,
 ): Promise<CostCodeRow[]> {
-  const rows = await db
-    .select({
-      id: costCodes.id,
-      code: costCodes.code,
-      description: costCodes.description,
-      active: costCodes.active,
-      sortOrder: costCodes.sortOrder,
-    })
-    .from(costCodes)
-    .where(eq(costCodes.organizationId, orgId))
-    .orderBy(asc(costCodes.sortOrder), asc(costCodes.code));
+  const rows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: costCodes.id,
+        code: costCodes.code,
+        description: costCodes.description,
+        active: costCodes.active,
+        sortOrder: costCodes.sortOrder,
+      })
+      .from(costCodes)
+      .where(eq(costCodes.organizationId, orgId))
+      .orderBy(asc(costCodes.sortOrder), asc(costCodes.code)),
+  );
 
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);

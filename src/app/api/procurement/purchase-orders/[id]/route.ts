@@ -111,14 +111,16 @@ export async function PATCH(
       }
     }
     if (p.costCodeId) {
-      const [code] = await db
-        .select({
-          id: costCodes.id,
-          organizationId: costCodes.organizationId,
-        })
-        .from(costCodes)
-        .where(eq(costCodes.id, p.costCodeId))
-        .limit(1);
+      const [code] = await withTenant(ctx.organization.id, (tx) =>
+        tx
+          .select({
+            id: costCodes.id,
+            organizationId: costCodes.organizationId,
+          })
+          .from(costCodes)
+          .where(eq(costCodes.id, p.costCodeId!))
+          .limit(1),
+      );
       if (!code || code.organizationId !== ctx.organization.id) {
         return NextResponse.json({ error: "invalid_cost_code" }, { status: 400 });
       }

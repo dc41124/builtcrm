@@ -80,11 +80,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "invalid_vendor" }, { status: 400 });
     }
     if (parsed.data.costCodeId) {
-      const [code] = await db
-        .select({ id: costCodes.id, organizationId: costCodes.organizationId })
-        .from(costCodes)
-        .where(eq(costCodes.id, parsed.data.costCodeId))
-        .limit(1);
+      const [code] = await withTenant(orgId, (tx) =>
+        tx
+          .select({ id: costCodes.id, organizationId: costCodes.organizationId })
+          .from(costCodes)
+          .where(eq(costCodes.id, parsed.data.costCodeId!))
+          .limit(1),
+      );
       if (!code || code.organizationId !== orgId) {
         return NextResponse.json(
           { error: "invalid_cost_code" },

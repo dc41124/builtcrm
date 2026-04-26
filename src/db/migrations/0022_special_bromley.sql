@@ -1,0 +1,2 @@
+ALTER TABLE "cost_codes" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE POLICY "cost_codes_tenant_isolation" ON "cost_codes" AS PERMISSIVE FOR ALL TO public USING ("cost_codes"."organization_id" = current_setting('app.current_org_id', true)::uuid) WITH CHECK ("cost_codes"."organization_id" = current_setting('app.current_org_id', true)::uuid);
