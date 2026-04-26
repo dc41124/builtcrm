@@ -355,6 +355,14 @@ export const organizationCertifications = pgTable(
   }),
 ).enableRLS();
 
+// RLS Phase 3b — Pattern A. Several call sites are intrinsically
+// cross-org or pre-tenant and use the `dbAdmin` admin pool: the SSO
+// callback (auth/sso-plugin.ts), signup-bootstrap (creates the org
+// itself), GDPR user-export build (cross-org "what we hold on you"
+// view), and the messages contractor participant picker (cross-org
+// enumeration of project participants). The org-scoped sites
+// (organization-members loader, org/members route, accept-invitation
+// transaction) all use `withTenant`. See docs/specs/rls_sprint_plan.md.
 export const organizationUsers = pgTable(
   "organization_users",
   {
@@ -376,8 +384,13 @@ export const organizationUsers = pgTable(
     ),
     orgIdx: index("organization_users_org_idx").on(table.organizationId),
     userIdx: index("organization_users_user_idx").on(table.userId),
+    tenantIsolation: pgPolicy("organization_users_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();
 
 export const roleAssignments = pgTable(
   "role_assignments",

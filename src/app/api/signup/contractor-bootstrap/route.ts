@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   authSession,
   auditEvents,
@@ -70,7 +71,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "user_not_found" }, { status: 404 });
   }
 
-  const result = await db.transaction(async (tx) => {
+  // Pre-tenant: org is created inside this transaction, so there's no
+  // pre-existing GUC to set. Whole bootstrap runs through the admin
+  // pool. Once org_users is RLS-enabled (this slice), the WITH CHECK
+  // policy would deny the insert under any other connection because
+  // current_setting returns NULL for the unset GUC.
+  const result = await dbAdmin.transaction(async (tx) => {
     const [org] = await tx
       .insert(organizations)
       .values({

@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { auditEvents, organizationUsers, roleAssignments } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
 import { countAdminsInOrganization } from "@/domain/loaders/organization-members";
 import { AuthorizationError } from "@/domain/permissions";
@@ -38,19 +39,21 @@ export async function DELETE(
       );
     }
 
-    const [membership] = await db
-      .select({
-        id: organizationUsers.id,
-        status: organizationUsers.membershipStatus,
-      })
-      .from(organizationUsers)
-      .where(
-        and(
-          eq(organizationUsers.userId, targetUserId),
-          eq(organizationUsers.organizationId, ctx.orgId),
-        ),
-      )
-      .limit(1);
+    const [membership] = await withTenant(ctx.orgId, (tx) =>
+      tx
+        .select({
+          id: organizationUsers.id,
+          status: organizationUsers.membershipStatus,
+        })
+        .from(organizationUsers)
+        .where(
+          and(
+            eq(organizationUsers.userId, targetUserId),
+            eq(organizationUsers.organizationId, ctx.orgId),
+          ),
+        )
+        .limit(1),
+    );
     if (!membership) {
       throw new AuthorizationError(
         "Member not found in this organization",
@@ -94,7 +97,7 @@ export async function DELETE(
       }
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.orgId, async (tx) => {
       await tx
         .update(organizationUsers)
         .set({ membershipStatus: "removed" })

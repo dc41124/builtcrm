@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   organizationUsers,
   organizations,
@@ -79,7 +79,14 @@ export async function getMessagesView(
   // composers that post into existing threads with the contractor team.
   let participantOptions: MessagesParticipantOption[] = [];
   if (expected === "contractor") {
-    const projectUserRows = await db
+    // Contractor participant picker — enumerates every user with a
+    // role on this project, including users from sub/client orgs
+    // (cross-org by design). RLS on organization_users would silently
+    // strip every joined row whose org doesn't match the contractor's
+    // GUC, breaking the picker. Authorization for the picker is
+    // already enforced at the loader entry (getEffectiveContext +
+    // contractor role check), so admin-pool reads are safe here.
+    const projectUserRows = await dbAdmin
       .select({
         userId: projectUserMemberships.userId,
         displayName: users.displayName,
@@ -104,7 +111,7 @@ export async function getMessagesView(
         ),
       );
 
-    const contractorOrgRows = await db
+    const contractorOrgRows = await dbAdmin
       .select({
         userId: organizationUsers.userId,
         displayName: users.displayName,
@@ -127,7 +134,7 @@ export async function getMessagesView(
         ),
       );
 
-    const clientOrgUserRows = await db
+    const clientOrgUserRows = await dbAdmin
       .select({
         userId: organizationUsers.userId,
         displayName: users.displayName,

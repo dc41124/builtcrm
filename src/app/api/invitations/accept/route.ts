@@ -14,6 +14,7 @@ import {
   roleAssignments,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { checkPrequalForAssignment } from "@/domain/prequal";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { hashInvitationToken } from "@/lib/invitations/token";
@@ -116,7 +117,12 @@ export async function POST(req: Request) {
       projectId: string | null;
     };
     try {
-      result = await db.transaction(async (tx) => {
+      // Token resolved → invitation.organizationId known. Wrap the
+      // whole accept transaction in withTenant so the organization_users
+      // INSERT (and any future RLS-enforced sibling tables touched
+      // here — roleAssignments, projectUserMemberships, invitations,
+      // auditEvents) all run with the correct GUC.
+      result = await withTenant(invitation.organizationId, async (tx) => {
       const existingOrgUser = await tx
         .select({ id: organizationUsers.id })
         .from(organizationUsers)

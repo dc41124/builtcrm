@@ -202,8 +202,9 @@ export function ssoPlugin(): BetterAuthPlugin {
 
           // Idempotently ensure the organization_users membership row is
           // active (it usually will be if roleAssignment exists, but defence
-          // against inconsistent state is cheap).
-          const [membership] = await db
+          // against inconsistent state is cheap). Pre-session — admin pool
+          // for the RLS-enabled organization_users table.
+          const [membership] = await dbAdmin
             .select({ id: organizationUsers.id })
             .from(organizationUsers)
             .where(
@@ -217,7 +218,7 @@ export function ssoPlugin(): BetterAuthPlugin {
             )
             .limit(1);
           if (!membership) {
-            await db.insert(organizationUsers).values({
+            await dbAdmin.insert(organizationUsers).values({
               userId: appUserId,
               organizationId: provider.organizationId,
               membershipStatus: "active",

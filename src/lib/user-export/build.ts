@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   auditEvents,
   conversationParticipants,
@@ -67,7 +68,11 @@ export async function buildUserExportManifest(
     .from(roleAssignments)
     .where(eq(roleAssignments.userId, userId));
 
-  const orgMemberships = await db
+  // Cross-org by design — the GDPR bundle is a "what we hold on you"
+  // view spanning every org the user has ever been a member of. RLS
+  // would silently restrict this to the current GUC's org, breaking
+  // the contract. Use admin pool.
+  const orgMemberships = await dbAdmin
     .select()
     .from(organizationUsers)
     .where(eq(organizationUsers.userId, userId));

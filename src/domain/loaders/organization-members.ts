@@ -8,6 +8,7 @@ import {
   roleAssignments,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 
 export type OrganizationMember = {
   id: string;
@@ -61,25 +62,27 @@ export async function listOrganizationMembers(
     roleJoinConditions.push(eq(roleAssignments.clientSubtype, portal));
   }
 
-  const rows = await db
-    .select({
-      membershipId: organizationUsers.id,
-      userId: users.id,
-      email: users.email,
-      displayName: users.displayName,
-      avatarUrl: users.avatarUrl,
-      jobTitle: organizationUsers.jobTitle,
-      membershipStatus: organizationUsers.membershipStatus,
-      joinedAt: organizationUsers.createdAt,
-      roleAssignmentId: roleAssignments.id,
-      roleKey: roleAssignments.roleKey,
-      lastActiveAt: LAST_ACTIVE_SQL,
-    })
-    .from(organizationUsers)
-    .innerJoin(users, eq(users.id, organizationUsers.userId))
-    .leftJoin(roleAssignments, and(...roleJoinConditions))
-    .where(eq(organizationUsers.organizationId, organizationId))
-    .orderBy(desc(organizationUsers.createdAt));
+  const rows = await withTenant(organizationId, (tx) =>
+    tx
+      .select({
+        membershipId: organizationUsers.id,
+        userId: users.id,
+        email: users.email,
+        displayName: users.displayName,
+        avatarUrl: users.avatarUrl,
+        jobTitle: organizationUsers.jobTitle,
+        membershipStatus: organizationUsers.membershipStatus,
+        joinedAt: organizationUsers.createdAt,
+        roleAssignmentId: roleAssignments.id,
+        roleKey: roleAssignments.roleKey,
+        lastActiveAt: LAST_ACTIVE_SQL,
+      })
+      .from(organizationUsers)
+      .innerJoin(users, eq(users.id, organizationUsers.userId))
+      .leftJoin(roleAssignments, and(...roleJoinConditions))
+      .where(eq(organizationUsers.organizationId, organizationId))
+      .orderBy(desc(organizationUsers.createdAt)),
+  );
 
   return rows.map((r) => ({
     id: r.membershipId,
