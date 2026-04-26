@@ -5,7 +5,9 @@ import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { purchaseOrderLines, purchaseOrders } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -61,7 +63,7 @@ export async function POST(
     );
   }
 
-  const [po] = await db
+  const [po] = await dbAdmin
     .select()
     .from(purchaseOrders)
     .where(eq(purchaseOrders.id, id))
@@ -113,7 +115,7 @@ export async function POST(
     const p = parsed.data;
     const nextRevision = po.revisionNumber + 1;
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       // Update header + bump revision number.
       await tx
         .update(purchaseOrders)

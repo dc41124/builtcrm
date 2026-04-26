@@ -1,0 +1,2 @@
+ALTER TABLE "purchase_orders" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE POLICY "purchase_orders_tenant_isolation" ON "purchase_orders" AS PERMISSIVE FOR ALL TO public USING ("purchase_orders"."organization_id" = current_setting('app.current_org_id', true)::uuid) WITH CHECK ("purchase_orders"."organization_id" = current_setting('app.current_org_id', true)::uuid);

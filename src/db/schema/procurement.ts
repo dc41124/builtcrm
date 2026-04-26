@@ -145,6 +145,12 @@ export const vendors = pgTable(
 // creation time (contractor can override per-PO).
 // -----------------------------------------------------------------------------
 
+// RLS Phase 3c — Pattern A. Purchase orders are contractor-only:
+// vendors are external (not orgs in the data model), and there's no
+// sub/client side to PO mutation. Single-org, plain Pattern A. Routes
+// receive only the PO id, so the entry-point lookup pattern from
+// closeout_packages applies: dbAdmin head SELECT (extracts orgId),
+// then withTenant for the mutation.
 export const purchaseOrders = pgTable(
   "purchase_orders",
   {
@@ -196,8 +202,13 @@ export const purchaseOrders = pgTable(
     ),
     vendorIdx: index("purchase_orders_vendor_idx").on(table.vendorId),
     costCodeIdx: index("purchase_orders_cost_code_idx").on(table.costCodeId),
+    tenantIsolation: pgPolicy("purchase_orders_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Purchase order line items

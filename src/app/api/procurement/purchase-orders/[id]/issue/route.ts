@@ -4,8 +4,9 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { purchaseOrders } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -44,7 +45,8 @@ export async function POST(
     );
   }
 
-  const [po] = await db
+  // Pre-context lookup via admin pool — derive projectId for getEffectiveContext.
+  const [po] = await dbAdmin
     .select()
     .from(purchaseOrders)
     .where(eq(purchaseOrders.id, id))
@@ -78,7 +80,7 @@ export async function POST(
     }
 
     const now = new Date();
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(purchaseOrders)
         .set({

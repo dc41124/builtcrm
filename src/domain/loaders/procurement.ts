@@ -306,27 +306,29 @@ export async function getProcurementProjectView(
     .limit(1);
 
   // ---- PO rows for this project ----
-  const poRows = await db
-    .select({
-      id: purchaseOrders.id,
-      poNumber: purchaseOrders.poNumber,
-      status: purchaseOrders.status,
-      orderedAt: purchaseOrders.orderedAt,
-      expectedDeliveryAt: purchaseOrders.expectedDeliveryAt,
-      vendorId: purchaseOrders.vendorId,
-      vendorName: vendors.name,
-      costCodeId: purchaseOrders.costCodeId,
-      costCodeCode: costCodes.code,
-      costCodeDescription: costCodes.description,
-      taxRatePercent: purchaseOrders.taxRatePercent,
-      revisionNumber: purchaseOrders.revisionNumber,
-      createdAt: purchaseOrders.createdAt,
-    })
-    .from(purchaseOrders)
-    .innerJoin(vendors, eq(vendors.id, purchaseOrders.vendorId))
-    .leftJoin(costCodes, eq(costCodes.id, purchaseOrders.costCodeId))
-    .where(eq(purchaseOrders.projectId, input.projectId))
-    .orderBy(desc(purchaseOrders.createdAt));
+  const poRows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: purchaseOrders.id,
+        poNumber: purchaseOrders.poNumber,
+        status: purchaseOrders.status,
+        orderedAt: purchaseOrders.orderedAt,
+        expectedDeliveryAt: purchaseOrders.expectedDeliveryAt,
+        vendorId: purchaseOrders.vendorId,
+        vendorName: vendors.name,
+        costCodeId: purchaseOrders.costCodeId,
+        costCodeCode: costCodes.code,
+        costCodeDescription: costCodes.description,
+        taxRatePercent: purchaseOrders.taxRatePercent,
+        revisionNumber: purchaseOrders.revisionNumber,
+        createdAt: purchaseOrders.createdAt,
+      })
+      .from(purchaseOrders)
+      .innerJoin(vendors, eq(vendors.id, purchaseOrders.vendorId))
+      .leftJoin(costCodes, eq(costCodes.id, purchaseOrders.costCodeId))
+      .where(eq(purchaseOrders.projectId, input.projectId))
+      .orderBy(desc(purchaseOrders.createdAt)),
+  );
 
   const poIds = poRows.map((p) => p.id);
   const linesByPo = await loadLinesForPos(poIds);
@@ -432,38 +434,40 @@ export async function loadPoDetail(
   poId: string,
   ctx: EffectiveContext,
 ): Promise<PoDetailView | null> {
-  const [row] = await db
-    .select({
-      id: purchaseOrders.id,
-      poNumber: purchaseOrders.poNumber,
-      status: purchaseOrders.status,
-      vendorId: purchaseOrders.vendorId,
-      vendorName: vendors.name,
-      vendorContactName: vendors.contactName,
-      vendorContactEmail: vendors.contactEmail,
-      paymentTerms: vendors.paymentTerms,
-      projectId: purchaseOrders.projectId,
-      projectName: projects.name,
-      costCodeId: purchaseOrders.costCodeId,
-      costCodeCode: costCodes.code,
-      costCodeDescription: costCodes.description,
-      taxRatePercent: purchaseOrders.taxRatePercent,
-      orderedAt: purchaseOrders.orderedAt,
-      orderedByUserId: purchaseOrders.orderedByUserId,
-      orderedByDisplayName: users.displayName,
-      expectedDeliveryAt: purchaseOrders.expectedDeliveryAt,
-      notes: purchaseOrders.notes,
-      revisionNumber: purchaseOrders.revisionNumber,
-      lastRevisedAt: purchaseOrders.lastRevisedAt,
-      organizationId: purchaseOrders.organizationId,
-    })
-    .from(purchaseOrders)
-    .innerJoin(vendors, eq(vendors.id, purchaseOrders.vendorId))
-    .innerJoin(projects, eq(projects.id, purchaseOrders.projectId))
-    .leftJoin(costCodes, eq(costCodes.id, purchaseOrders.costCodeId))
-    .leftJoin(users, eq(users.id, purchaseOrders.orderedByUserId))
-    .where(eq(purchaseOrders.id, poId))
-    .limit(1);
+  const [row] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: purchaseOrders.id,
+        poNumber: purchaseOrders.poNumber,
+        status: purchaseOrders.status,
+        vendorId: purchaseOrders.vendorId,
+        vendorName: vendors.name,
+        vendorContactName: vendors.contactName,
+        vendorContactEmail: vendors.contactEmail,
+        paymentTerms: vendors.paymentTerms,
+        projectId: purchaseOrders.projectId,
+        projectName: projects.name,
+        costCodeId: purchaseOrders.costCodeId,
+        costCodeCode: costCodes.code,
+        costCodeDescription: costCodes.description,
+        taxRatePercent: purchaseOrders.taxRatePercent,
+        orderedAt: purchaseOrders.orderedAt,
+        orderedByUserId: purchaseOrders.orderedByUserId,
+        orderedByDisplayName: users.displayName,
+        expectedDeliveryAt: purchaseOrders.expectedDeliveryAt,
+        notes: purchaseOrders.notes,
+        revisionNumber: purchaseOrders.revisionNumber,
+        lastRevisedAt: purchaseOrders.lastRevisedAt,
+        organizationId: purchaseOrders.organizationId,
+      })
+      .from(purchaseOrders)
+      .innerJoin(vendors, eq(vendors.id, purchaseOrders.vendorId))
+      .innerJoin(projects, eq(projects.id, purchaseOrders.projectId))
+      .leftJoin(costCodes, eq(costCodes.id, purchaseOrders.costCodeId))
+      .leftJoin(users, eq(users.id, purchaseOrders.orderedByUserId))
+      .where(eq(purchaseOrders.id, poId))
+      .limit(1),
+  );
   if (!row) return null;
 
   // Scope guard: the PO must belong to ctx's org. getEffectiveContext
@@ -610,39 +614,43 @@ export async function loadVendorListForOrg(
   const vendorIds = vendorRows.map((v) => v.id);
 
   // Active PO count per vendor (open states only).
-  const activePoAgg = await db
-    .select({
-      vendorId: purchaseOrders.vendorId,
-      c: sql<number>`count(*)::int`,
-    })
-    .from(purchaseOrders)
-    .where(
-      and(
-        inArray(purchaseOrders.vendorId, vendorIds),
-        inArray(purchaseOrders.status, [...OPEN_STATUSES]),
-      ),
-    )
-    .groupBy(purchaseOrders.vendorId);
+  const activePoAgg = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        vendorId: purchaseOrders.vendorId,
+        c: sql<number>`count(*)::int`,
+      })
+      .from(purchaseOrders)
+      .where(
+        and(
+          inArray(purchaseOrders.vendorId, vendorIds),
+          inArray(purchaseOrders.status, [...OPEN_STATUSES]),
+        ),
+      )
+      .groupBy(purchaseOrders.vendorId),
+  );
   const activeCountMap = new Map(activePoAgg.map((r) => [r.vendorId, r.c]));
 
   // YTD spend per vendor: sum of (subtotal + tax) for POs ordered this year
   // in spent statuses. Compute on read — pull the lines + tax rates and
   // aggregate in memory so we don't double-persist any derived number.
   const yearStart = new Date(new Date().getFullYear(), 0, 1);
-  const spendRows = await db
-    .select({
-      id: purchaseOrders.id,
-      vendorId: purchaseOrders.vendorId,
-      taxRatePercent: purchaseOrders.taxRatePercent,
-    })
-    .from(purchaseOrders)
-    .where(
-      and(
-        inArray(purchaseOrders.vendorId, vendorIds),
-        inArray(purchaseOrders.status, [...SPENT_STATUSES]),
-        gte(purchaseOrders.orderedAt, yearStart),
+  const spendRows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: purchaseOrders.id,
+        vendorId: purchaseOrders.vendorId,
+        taxRatePercent: purchaseOrders.taxRatePercent,
+      })
+      .from(purchaseOrders)
+      .where(
+        and(
+          inArray(purchaseOrders.vendorId, vendorIds),
+          inArray(purchaseOrders.status, [...SPENT_STATUSES]),
+          gte(purchaseOrders.orderedAt, yearStart),
+        ),
       ),
-    );
+  );
   const spendPoIds = spendRows.map((r) => r.id);
   const spendLinesByPo = await loadLinesForPos(spendPoIds);
   const spendByVendor = new Map<string, number>();
@@ -696,14 +704,16 @@ export async function loadCostCodeListForOrg(
 
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
-  const countAgg = await db
-    .select({
-      costCodeId: purchaseOrders.costCodeId,
-      c: sql<number>`count(*)::int`,
-    })
-    .from(purchaseOrders)
-    .where(inArray(purchaseOrders.costCodeId, ids))
-    .groupBy(purchaseOrders.costCodeId);
+  const countAgg = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        costCodeId: purchaseOrders.costCodeId,
+        c: sql<number>`count(*)::int`,
+      })
+      .from(purchaseOrders)
+      .where(inArray(purchaseOrders.costCodeId, ids))
+      .groupBy(purchaseOrders.costCodeId),
+  );
   const countMap = new Map(countAgg.map((r) => [r.costCodeId, r.c]));
 
   return rows.map((r) => ({
@@ -774,18 +784,20 @@ export async function getProcurementReport(
   const context = await getContractorOrgContext(input.session);
   const orgId = context.organization.id;
 
-  const poRows = await db
-    .select({
-      id: purchaseOrders.id,
-      status: purchaseOrders.status,
-      vendorId: purchaseOrders.vendorId,
-      vendorName: vendors.name,
-      orderedAt: purchaseOrders.orderedAt,
-      taxRatePercent: purchaseOrders.taxRatePercent,
-    })
-    .from(purchaseOrders)
-    .innerJoin(vendors, eq(vendors.id, purchaseOrders.vendorId))
-    .where(eq(purchaseOrders.organizationId, orgId));
+  const poRows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: purchaseOrders.id,
+        status: purchaseOrders.status,
+        vendorId: purchaseOrders.vendorId,
+        vendorName: vendors.name,
+        orderedAt: purchaseOrders.orderedAt,
+        taxRatePercent: purchaseOrders.taxRatePercent,
+      })
+      .from(purchaseOrders)
+      .innerJoin(vendors, eq(vendors.id, purchaseOrders.vendorId))
+      .where(eq(purchaseOrders.organizationId, orgId)),
+  );
 
   const poIds = poRows.map((r) => r.id);
   const linesByPo = await loadLinesForPos(poIds);

@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   costCodes,
   purchaseOrderLines,
@@ -55,7 +55,9 @@ export async function PATCH(
     );
   }
 
-  const [po] = await db
+  // Pre-context lookup — caller passes only the PO id, so we read via
+  // admin pool to derive projectId for getEffectiveContext.
+  const [po] = await dbAdmin
     .select()
     .from(purchaseOrders)
     .where(eq(purchaseOrders.id, id))
@@ -126,7 +128,7 @@ export async function PATCH(
       }
     }
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(purchaseOrders)
         .set({

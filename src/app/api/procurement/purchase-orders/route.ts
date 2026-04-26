@@ -108,7 +108,7 @@ export async function POST(req: Request) {
       taxRatePercentStr = org?.defaultTaxRatePercent ?? "0.00";
     }
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(orgId, async (tx) => {
       const poNumber = await allocateNextPoNumber(tx, orgId);
       const [poRow] = await tx
         .insert(purchaseOrders)

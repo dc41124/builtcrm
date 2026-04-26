@@ -6,6 +6,7 @@ import {
   purchaseOrderLines,
   purchaseOrders,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 
 import { getContractorOrgContext } from "./integrations";
 import type { SessionLike } from "../context";
@@ -104,39 +105,43 @@ export async function getJobCostReport(
   // Fetch POs + lines for these projects. Use innerJoin so the line scan is
   // bounded to the contractor's POs.
   const [poRows, poLineRows] = await Promise.all([
-    db
-      .select({
-        id: purchaseOrders.id,
-        projectId: purchaseOrders.projectId,
-        status: purchaseOrders.status,
-      })
-      .from(purchaseOrders)
-      .where(
-        and(
-          eq(purchaseOrders.organizationId, orgId),
-          inArray(purchaseOrders.projectId, projectIds),
-          inArray(purchaseOrders.status, [...ACTIVE_PO_STATUSES]),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          id: purchaseOrders.id,
+          projectId: purchaseOrders.projectId,
+          status: purchaseOrders.status,
+        })
+        .from(purchaseOrders)
+        .where(
+          and(
+            eq(purchaseOrders.organizationId, orgId),
+            inArray(purchaseOrders.projectId, projectIds),
+            inArray(purchaseOrders.status, [...ACTIVE_PO_STATUSES]),
+          ),
         ),
-      ),
-    db
-      .select({
-        purchaseOrderId: purchaseOrderLines.purchaseOrderId,
-        quantity: purchaseOrderLines.quantity,
-        unitCostCents: purchaseOrderLines.unitCostCents,
-        receivedQuantity: purchaseOrderLines.receivedQuantity,
-      })
-      .from(purchaseOrderLines)
-      .innerJoin(
-        purchaseOrders,
-        eq(purchaseOrderLines.purchaseOrderId, purchaseOrders.id),
-      )
-      .where(
-        and(
-          eq(purchaseOrders.organizationId, orgId),
-          inArray(purchaseOrders.projectId, projectIds),
-          inArray(purchaseOrders.status, [...ACTIVE_PO_STATUSES]),
+    ),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          purchaseOrderId: purchaseOrderLines.purchaseOrderId,
+          quantity: purchaseOrderLines.quantity,
+          unitCostCents: purchaseOrderLines.unitCostCents,
+          receivedQuantity: purchaseOrderLines.receivedQuantity,
+        })
+        .from(purchaseOrderLines)
+        .innerJoin(
+          purchaseOrders,
+          eq(purchaseOrderLines.purchaseOrderId, purchaseOrders.id),
+        )
+        .where(
+          and(
+            eq(purchaseOrders.organizationId, orgId),
+            inArray(purchaseOrders.projectId, projectIds),
+            inArray(purchaseOrders.status, [...ACTIVE_PO_STATUSES]),
+          ),
         ),
-      ),
+    ),
   ]);
 
   // Index PO → (projectId, status)

@@ -166,42 +166,48 @@ export async function getCashflowProjection(
           eq(paymentTransactions.relatedEntityType, "draw_request"),
         ),
       ),
-    db
-      .select({
-        id: purchaseOrders.id,
-        status: purchaseOrders.status,
-        expectedDeliveryAt: purchaseOrders.expectedDeliveryAt,
-        orderedAt: purchaseOrders.orderedAt,
-      })
-      .from(purchaseOrders)
-      .where(
-        and(
-          eq(purchaseOrders.organizationId, orgId),
-          inArray(purchaseOrders.projectId, projectIds),
-          inArray(purchaseOrders.status, [...OUTFLOW_PO_STATUSES]),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          id: purchaseOrders.id,
+          status: purchaseOrders.status,
+          expectedDeliveryAt: purchaseOrders.expectedDeliveryAt,
+          orderedAt: purchaseOrders.orderedAt,
+        })
+        .from(purchaseOrders)
+        .where(
+          and(
+            eq(purchaseOrders.organizationId, orgId),
+            inArray(purchaseOrders.projectId, projectIds),
+            inArray(purchaseOrders.status, [...OUTFLOW_PO_STATUSES]),
+          ),
         ),
-      ),
+    ),
     // Filtered via innerJoin so we never fetch lines outside the
-    // contractor's open-PO set. Keeps the line pull tight for large orgs.
-    db
-      .select({
-        purchaseOrderId: purchaseOrderLines.purchaseOrderId,
-        quantity: purchaseOrderLines.quantity,
-        unitCostCents: purchaseOrderLines.unitCostCents,
-        receivedQuantity: purchaseOrderLines.receivedQuantity,
-      })
-      .from(purchaseOrderLines)
-      .innerJoin(
-        purchaseOrders,
-        eq(purchaseOrderLines.purchaseOrderId, purchaseOrders.id),
-      )
-      .where(
-        and(
-          eq(purchaseOrders.organizationId, orgId),
-          inArray(purchaseOrders.projectId, projectIds),
-          inArray(purchaseOrders.status, [...OUTFLOW_PO_STATUSES]),
+    // contractor's open-PO set. Keeps the line pull tight for large
+    // orgs. The join target purchaseOrders is RLS-enabled so the
+    // wrapper sets the GUC.
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          purchaseOrderId: purchaseOrderLines.purchaseOrderId,
+          quantity: purchaseOrderLines.quantity,
+          unitCostCents: purchaseOrderLines.unitCostCents,
+          receivedQuantity: purchaseOrderLines.receivedQuantity,
+        })
+        .from(purchaseOrderLines)
+        .innerJoin(
+          purchaseOrders,
+          eq(purchaseOrderLines.purchaseOrderId, purchaseOrders.id),
+        )
+        .where(
+          and(
+            eq(purchaseOrders.organizationId, orgId),
+            inArray(purchaseOrders.projectId, projectIds),
+            inArray(purchaseOrders.status, [...OUTFLOW_PO_STATUSES]),
+          ),
         ),
-      ),
+    ),
     withTenant(orgId, (tx) =>
       tx
         .select({

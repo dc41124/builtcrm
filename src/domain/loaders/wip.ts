@@ -11,6 +11,7 @@ import {
   purchaseOrderLines,
   purchaseOrders,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { computePercentComplete } from "@/lib/reports/math";
 
 import { getContractorOrgContext } from "./integrations";
@@ -141,38 +142,42 @@ export async function getWIPReport(input: LoaderInput): Promise<WIPReportView> {
             eq(projectOrganizationMemberships.membershipStatus, "active"),
           ),
         ),
-      db
-        .select({
-          id: purchaseOrders.id,
-          projectId: purchaseOrders.projectId,
-        })
-        .from(purchaseOrders)
-        .where(
-          and(
-            eq(purchaseOrders.organizationId, orgId),
-            inArray(purchaseOrders.projectId, projectIds),
-            inArray(purchaseOrders.status, [...COST_PO_STATUSES]),
+      withTenant(orgId, (tx) =>
+        tx
+          .select({
+            id: purchaseOrders.id,
+            projectId: purchaseOrders.projectId,
+          })
+          .from(purchaseOrders)
+          .where(
+            and(
+              eq(purchaseOrders.organizationId, orgId),
+              inArray(purchaseOrders.projectId, projectIds),
+              inArray(purchaseOrders.status, [...COST_PO_STATUSES]),
+            ),
           ),
-        ),
-      db
-        .select({
-          purchaseOrderId: purchaseOrderLines.purchaseOrderId,
-          quantity: purchaseOrderLines.quantity,
-          unitCostCents: purchaseOrderLines.unitCostCents,
-          receivedQuantity: purchaseOrderLines.receivedQuantity,
-        })
-        .from(purchaseOrderLines)
-        .innerJoin(
-          purchaseOrders,
-          eq(purchaseOrderLines.purchaseOrderId, purchaseOrders.id),
-        )
-        .where(
-          and(
-            eq(purchaseOrders.organizationId, orgId),
-            inArray(purchaseOrders.projectId, projectIds),
-            inArray(purchaseOrders.status, [...COST_PO_STATUSES]),
+      ),
+      withTenant(orgId, (tx) =>
+        tx
+          .select({
+            purchaseOrderId: purchaseOrderLines.purchaseOrderId,
+            quantity: purchaseOrderLines.quantity,
+            unitCostCents: purchaseOrderLines.unitCostCents,
+            receivedQuantity: purchaseOrderLines.receivedQuantity,
+          })
+          .from(purchaseOrderLines)
+          .innerJoin(
+            purchaseOrders,
+            eq(purchaseOrderLines.purchaseOrderId, purchaseOrders.id),
+          )
+          .where(
+            and(
+              eq(purchaseOrders.organizationId, orgId),
+              inArray(purchaseOrders.projectId, projectIds),
+              inArray(purchaseOrders.status, [...COST_PO_STATUSES]),
+            ),
           ),
-        ),
+      ),
       db
         .select({
           id: milestones.id,

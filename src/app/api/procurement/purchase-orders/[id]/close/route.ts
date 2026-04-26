@@ -3,8 +3,9 @@ import { NextResponse } from "next/server";
 
 import { requireServerSession } from "@/auth/session";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { purchaseOrders } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -22,7 +23,7 @@ export async function POST(
 ) {
   const { id } = await params;
   const { session } = await requireServerSession();
-  const [po] = await db
+  const [po] = await dbAdmin
     .select()
     .from(purchaseOrders)
     .where(eq(purchaseOrders.id, id))
@@ -52,7 +53,7 @@ export async function POST(
       );
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(purchaseOrders)
         .set({ status: "closed", updatedAt: new Date() })
