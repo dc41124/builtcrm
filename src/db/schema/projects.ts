@@ -198,8 +198,28 @@ export const projectOrganizationMemberships = pgTable(
     // Multi-org policy (3-clause hybrid; see rls_sprint_plan.md §4.2).
     //   A: own row (sub/client sees its own POM)
     //   B: contractor org owns the project (PM sees every POM on their project)
-    //   C: caller's org has another active POM on the project (lets a sub
-    //      see fellow POMs on shared projects — needed for "team" surfaces)
+    // Clause C ("caller has another active POM on the project") was
+    // REMOVED in a follow-on after wave 5: it self-references POM,
+    // which makes Postgres detect 42P17 "infinite recursion in policy"
+    // at rewrite time. The bug was latent the entire wave 1–5 sprint
+    // because the dev runtime role ran with BYPASSRLS=true (drift
+    // documented in `project_neon_role_creation_defect`); fixing the
+    // drift surfaced this immediately on the first real query.
+    //
+    // Other tables' multi-org policies still have a clause-C subquery
+    // against POM (lien_waivers, compliance_records, the project-scoped
+    // hybrid template) — those keep working because their subqueries
+    // filter by `organization_id = GUC`, which POM clause A satisfies
+    // without ever firing the recursive path.
+    //
+    // Semantic loss vs. the pre-fix shape: a sub or client user
+    // querying POMs directly can't enumerate OTHER orgs' POMs on a
+    // shared project. No current product surface needs that —
+    // contractor "members" lists run as the contractor (clause B).
+    // If cross-org POM listing for non-contractor portals becomes a
+    // product need, restore clause C via a SECURITY DEFINER function
+    // so Postgres doesn't recurse into the subquery.
+    //
     // Cross-org system reads (notification recipients, search) bypass
     // via dbAdmin. The 'active' literal here couples to membershipStatusEnum;
     // see security_posture.md for the policy review trigger.
@@ -211,22 +231,12 @@ export const projectOrganizationMemberships = pgTable(
           SELECT id FROM projects
           WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
         )
-        OR ${table.projectId} IN (
-          SELECT project_id FROM project_organization_memberships
-          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
-            AND membership_status = 'active'
-        )
       `,
       withCheck: sql`
         ${table.organizationId} = current_setting('app.current_org_id', true)::uuid
         OR ${table.projectId} IN (
           SELECT id FROM projects
           WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
-        )
-        OR ${table.projectId} IN (
-          SELECT project_id FROM project_organization_memberships
-          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
-            AND membership_status = 'active'
         )
       `,
     }),
