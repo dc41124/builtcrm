@@ -5,6 +5,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   drawLineItems,
   drawRequests,
@@ -160,11 +161,13 @@ export async function POST(req: Request) {
 
     // Trigger milestone, if passed, must belong to the same project.
     if (parsed.data.releaseTriggerMilestoneId) {
-      const [ms] = await db
-        .select({ id: milestones.id, projectId: milestones.projectId })
-        .from(milestones)
-        .where(eq(milestones.id, parsed.data.releaseTriggerMilestoneId))
-        .limit(1);
+      const [ms] = await withTenant(ctx.organization.id, (tx) =>
+        tx
+          .select({ id: milestones.id, projectId: milestones.projectId })
+          .from(milestones)
+          .where(eq(milestones.id, parsed.data.releaseTriggerMilestoneId!))
+          .limit(1),
+      );
       if (!ms || ms.projectId !== ctx.project.id) {
         return NextResponse.json(
           { error: "invalid_trigger_milestone" },

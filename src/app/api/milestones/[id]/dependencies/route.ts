@@ -5,6 +5,7 @@ import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { milestoneDependencies, milestones } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -48,13 +49,16 @@ export async function POST(
     return NextResponse.json({ error: "self_edge" }, { status: 400 });
   }
 
+  // Entry-point dbAdmin: we don't know the project yet. Both rows
+  // share a project (enforced below) — admin pool reads only the
+  // projectId. The follow-up writes use withTenant.
   const [succ, pred] = await Promise.all([
-    db
+    dbAdmin
       .select({ id: milestones.id, projectId: milestones.projectId })
       .from(milestones)
       .where(eq(milestones.id, successorId))
       .limit(1),
-    db
+    dbAdmin
       .select({ id: milestones.id, projectId: milestones.projectId })
       .from(milestones)
       .where(eq(milestones.id, predecessorId))
@@ -167,7 +171,7 @@ export async function DELETE(
     );
   }
 
-  const [succ] = await db
+  const [succ] = await dbAdmin
     .select({ id: milestones.id, projectId: milestones.projectId })
     .from(milestones)
     .where(eq(milestones.id, successorId))

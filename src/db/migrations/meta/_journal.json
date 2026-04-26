@@ -204,6 +204,13 @@
       "when": 1777177845376,
       "tag": "0028_useful_rhino",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1777179280514,
+      "tag": "0029_silky_scarlet_witch",
+      "breakpoints": true
     }
   ]
 }

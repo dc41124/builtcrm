@@ -1,6 +1,7 @@
 import { and, between, desc, eq, gte, inArray, isNotNull, lte, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   changeOrders,
   dailyLogIssues,
@@ -72,14 +73,23 @@ export async function generateWeeklyReport(
   const asOfMs = input.asOfMs ?? Date.now();
 
   // Need the project to know its timezone for window computation.
+  // Also grab the contractor org id — every downstream project-scoped
+  // read uses it as the RLS GUC, including the Trigger.dev cron path
+  // (the job iterates per project, so each project iteration runs with
+  // its own contractor-org GUC rather than bypassing RLS wholesale).
   const [project] = await db
-    .select({ id: projects.id, timezone: projects.timezone })
+    .select({
+      id: projects.id,
+      timezone: projects.timezone,
+      contractorOrganizationId: projects.contractorOrganizationId,
+    })
     .from(projects)
     .where(eq(projects.id, input.projectId))
     .limit(1);
   if (!project) {
     throw new Error(`generateWeeklyReport: project ${input.projectId} not found`);
   }
+  const contractorOrgId = project.contractorOrganizationId;
 
   const window = computeReportWindow(asOfMs, project.timezone);
 
@@ -106,6 +116,7 @@ export async function generateWeeklyReport(
   const sectionPayloads = await loadSectionPayloads({
     projectId: input.projectId,
     window,
+    contractorOrgId,
   });
 
   const totalItems = sectionPayloads.reduce(
@@ -195,8 +206,9 @@ type SectionPayload = {
 async function loadSectionPayloads(args: {
   projectId: string;
   window: WeekWindow;
+  contractorOrgId: string;
 }): Promise<SectionPayload[]> {
-  const { projectId, window } = args;
+  const { projectId, window, contractorOrgId } = args;
 
   const [
     dailyLogsSection,
@@ -208,7 +220,7 @@ async function loadSectionPayloads(args: {
   ] = await Promise.all([
     loadDailyLogsSection(projectId, window),
     loadPhotosSection(projectId, window),
-    loadMilestonesSection(projectId, window),
+    loadMilestonesSection(projectId, window, contractorOrgId),
     loadRfisSection(projectId, window),
     loadChangeOrdersSection(projectId, window),
     loadIssuesSection(projectId, window),
@@ -330,46 +342,51 @@ async function loadPhotosSection(
 async function loadMilestonesSection(
   projectId: string,
   window: WeekWindow,
+  contractorOrgId: string,
 ): Promise<SectionPayload> {
-  const closed = await db
-    .select({
-      id: milestones.id,
-      title: milestones.title,
-      completedDate: milestones.completedDate,
-      scheduledDate: milestones.scheduledDate,
-    })
-    .from(milestones)
-    .where(
-      and(
-        eq(milestones.projectId, projectId),
-        eq(milestones.milestoneStatus, "completed"),
-        isNotNull(milestones.completedDate),
-        between(
-          milestones.completedDate,
-          window.weekStartUtc,
-          window.weekEndUtc,
+  const closed = await withTenant(contractorOrgId, (tx) =>
+    tx
+      .select({
+        id: milestones.id,
+        title: milestones.title,
+        completedDate: milestones.completedDate,
+        scheduledDate: milestones.scheduledDate,
+      })
+      .from(milestones)
+      .where(
+        and(
+          eq(milestones.projectId, projectId),
+          eq(milestones.milestoneStatus, "completed"),
+          isNotNull(milestones.completedDate),
+          between(
+            milestones.completedDate,
+            window.weekStartUtc,
+            window.weekEndUtc,
+          ),
         ),
       ),
-    );
+  );
 
   // "Upcoming next week" = scheduled in the 7 days following weekEnd.
   const nextWeekEnd = new Date(window.weekEndUtc.getTime() + 7 * 86_400_000);
-  const upcoming = await db
-    .select({
-      id: milestones.id,
-      title: milestones.title,
-      scheduledDate: milestones.scheduledDate,
-    })
-    .from(milestones)
-    .where(
-      and(
-        eq(milestones.projectId, projectId),
-        inArray(milestones.milestoneStatus, ["scheduled", "in_progress"]),
-        gte(milestones.scheduledDate, window.weekEndUtc),
-        lte(milestones.scheduledDate, nextWeekEnd),
-      ),
-    )
-    .orderBy(milestones.scheduledDate);
+  const upcoming = await withTenant(contractorOrgId, (tx) =>
+    tx
+      .select({
+        id: milestones.id,
+        title: milestones.title,
+        scheduledDate: milestones.scheduledDate,
+      })
+      .from(milestones)
+      .where(
+        and(
+          eq(milestones.projectId, projectId),
+          inArray(milestones.milestoneStatus, ["scheduled", "in_progress"]),
+          gte(milestones.scheduledDate, window.weekEndUtc),
+          lte(milestones.scheduledDate, nextWeekEnd),
+        ),
+      )
+      .orderBy(milestones.scheduledDate),
+  );
 
   const closedItems = closed.map((m) => ({
     milestoneId: m.id,

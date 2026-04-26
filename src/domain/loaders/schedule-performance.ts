@@ -1,6 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { milestones, projects } from "@/db/schema";
 import { computePercentComplete } from "@/lib/reports/math";
 
@@ -116,17 +117,21 @@ export async function getSchedulePerformanceReport(
     };
   }
 
-  const msRows = await db
-    .select({
-      id: milestones.id,
-      projectId: milestones.projectId,
-      startDate: milestones.startDate,
-      scheduledDate: milestones.scheduledDate,
-      completedDate: milestones.completedDate,
-      milestoneStatus: milestones.milestoneStatus,
-    })
-    .from(milestones)
-    .where(inArray(milestones.projectId, projectIds));
+  // Contractor caller; clause A (project owned by GUC) returns every
+  // milestone on every project the contractor org owns.
+  const msRows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: milestones.id,
+        projectId: milestones.projectId,
+        startDate: milestones.startDate,
+        scheduledDate: milestones.scheduledDate,
+        completedDate: milestones.completedDate,
+        milestoneStatus: milestones.milestoneStatus,
+      })
+      .from(milestones)
+      .where(inArray(milestones.projectId, projectIds)),
+  );
 
   const milestonesByProject = new Map<string, typeof msRows>();
   for (const m of msRows) {

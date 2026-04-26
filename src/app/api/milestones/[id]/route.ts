@@ -4,8 +4,9 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { milestones } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import {
@@ -83,20 +84,32 @@ export async function PATCH(
         );
       }
 
-      const [existing] = await db
-        .select()
+      // Entry-point dbAdmin lookup: we don't know the project (and
+      // thus the tenant) until we see the milestone row. Slice 3
+      // pattern. The follow-up read+write is wrapped in withTenant so
+      // RLS still enforces visibility for the rest of the route.
+      const [head] = await dbAdmin
+        .select({ projectId: milestones.projectId })
         .from(milestones)
         .where(eq(milestones.id, id))
         .limit(1);
-      if (!existing) {
+      if (!head) {
         return NextResponse.json({ error: "not_found" }, { status: 404 });
       }
 
-      const ctx = await getEffectiveContext(
-        session,
-        existing.projectId,
-      );
+      const ctx = await getEffectiveContext(session, head.projectId);
       assertCan(ctx.permissions, "milestone", "write");
+
+      const [existing] = await withTenant(ctx.organization.id, (tx) =>
+        tx
+          .select()
+          .from(milestones)
+          .where(eq(milestones.id, id))
+          .limit(1),
+      );
+      if (!existing) {
+        return NextResponse.json({ error: "not_found" }, { status: 404 });
+      }
 
       const updates = parsed.data;
       const nextStatus = updates.milestoneStatus;
@@ -134,7 +147,8 @@ export async function PATCH(
         sortOrder: existing.sortOrder,
       };
 
-      const [updated] = await db
+      const [updated] = await withTenant(ctx.organization.id, (tx) =>
+        tx
         .update(milestones)
         .set({
           ...(updates.title !== undefined && { title: updates.title }),
@@ -169,7 +183,8 @@ export async function PATCH(
           updatedAt: new Date(),
         })
         .where(eq(milestones.id, id))
-        .returning();
+        .returning(),
+      );
 
       await writeAuditEvent(ctx, {
         action: statusChanged ? "status_changed" : "updated",

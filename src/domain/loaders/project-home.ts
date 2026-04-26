@@ -1237,16 +1237,18 @@ export async function getContractorProjectView(
     complianceRows,
     sovRows,
   ] = await Promise.all([
-    db
-      .select({
-        id: milestones.id,
-        title: milestones.title,
-        milestoneStatus: milestones.milestoneStatus,
-        scheduledDate: milestones.scheduledDate,
-      })
-      .from(milestones)
-      .where(eq(milestones.projectId, projectId))
-      .orderBy(milestones.scheduledDate),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          id: milestones.id,
+          title: milestones.title,
+          milestoneStatus: milestones.milestoneStatus,
+          scheduledDate: milestones.scheduledDate,
+        })
+        .from(milestones)
+        .where(eq(milestones.projectId, projectId))
+        .orderBy(milestones.scheduledDate),
+    ),
     loadRfisWithResponses(projectId),
     db
       .select({
@@ -1846,21 +1848,23 @@ export async function getSubcontractorProjectView(
       .from(changeOrders)
       .where(eq(changeOrders.projectId, projectId))
       .orderBy(desc(changeOrders.createdAt)),
-    db
-      .select({
-        id: milestones.id,
-        title: milestones.title,
-        milestoneStatus: milestones.milestoneStatus,
-        scheduledDate: milestones.scheduledDate,
-      })
-      .from(milestones)
-      .where(
-        and(
-          eq(milestones.projectId, projectId),
-          eq(milestones.assignedToOrganizationId, subOrgId),
-        ),
-      )
-      .orderBy(milestones.scheduledDate),
+    withTenant(subOrgId, (tx) =>
+      tx
+        .select({
+          id: milestones.id,
+          title: milestones.title,
+          milestoneStatus: milestones.milestoneStatus,
+          scheduledDate: milestones.scheduledDate,
+        })
+        .from(milestones)
+        .where(
+          and(
+            eq(milestones.projectId, projectId),
+            eq(milestones.assignedToOrganizationId, subOrgId),
+          ),
+        )
+        .orderBy(milestones.scheduledDate),
+    ),
     db
       .select({
         id: uploadRequests.id,
@@ -2219,23 +2223,25 @@ export async function getClientProjectView(
   const projectId = context.project.id;
 
   const [milestoneRows, coRows, rfiRows, approvalRows, drawRows] = await Promise.all([
-    db
-      .select({
-        id: milestones.id,
-        title: milestones.title,
-        milestoneStatus: milestones.milestoneStatus,
-        scheduledDate: milestones.scheduledDate,
-        phase: milestones.phase,
-        visibilityScope: milestones.visibilityScope,
-      })
-      .from(milestones)
-      .where(
-        and(
-          eq(milestones.projectId, projectId),
-          inArray(milestones.visibilityScope, ["project_wide", "client_visible"]),
-        ),
-      )
-      .orderBy(milestones.scheduledDate),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          id: milestones.id,
+          title: milestones.title,
+          milestoneStatus: milestones.milestoneStatus,
+          scheduledDate: milestones.scheduledDate,
+          phase: milestones.phase,
+          visibilityScope: milestones.visibilityScope,
+        })
+        .from(milestones)
+        .where(
+          and(
+            eq(milestones.projectId, projectId),
+            inArray(milestones.visibilityScope, ["project_wide", "client_visible"]),
+          ),
+        )
+        .orderBy(milestones.scheduledDate),
+    ),
     db
       .select({
         id: changeOrders.id,

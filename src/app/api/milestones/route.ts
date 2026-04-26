@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireServerSession } from "@/auth/session";
-import { db } from "@/db/client";
 import { milestones } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import {
@@ -42,23 +42,25 @@ export async function POST(req: Request) {
       const ctx = await getEffectiveContext(session, parsed.data.projectId);
       assertCan(ctx.permissions, "milestone", "write");
 
-      const [row] = await db
-        .insert(milestones)
-        .values({
-          projectId: ctx.project.id,
-          title: parsed.data.title,
-          description: parsed.data.description ?? null,
-          milestoneType: parsed.data.milestoneType,
-          milestoneStatus: "scheduled",
-          kind: "marker",
-          scheduledDate: new Date(parsed.data.scheduledDate),
-          phase: parsed.data.phase ?? null,
-          visibilityScope: parsed.data.visibilityScope,
-          assignedToUserId: parsed.data.assignedToUserId ?? null,
-          assignedToOrganizationId: parsed.data.assignedToOrganizationId ?? null,
-          sortOrder: parsed.data.sortOrder ?? 0,
-        })
-        .returning();
+      const [row] = await withTenant(ctx.organization.id, (tx) =>
+        tx
+          .insert(milestones)
+          .values({
+            projectId: ctx.project.id,
+            title: parsed.data.title,
+            description: parsed.data.description ?? null,
+            milestoneType: parsed.data.milestoneType,
+            milestoneStatus: "scheduled",
+            kind: "marker",
+            scheduledDate: new Date(parsed.data.scheduledDate),
+            phase: parsed.data.phase ?? null,
+            visibilityScope: parsed.data.visibilityScope,
+            assignedToUserId: parsed.data.assignedToUserId ?? null,
+            assignedToOrganizationId: parsed.data.assignedToOrganizationId ?? null,
+            sortOrder: parsed.data.sortOrder ?? 0,
+          })
+          .returning(),
+      );
 
       await writeAuditEvent(ctx, {
         action: "created",

@@ -314,25 +314,27 @@ export async function getContractorDashboardData(
       };
     });
 
-  const milestoneRows = await db
-    .select({
-      id: milestones.id,
-      title: milestones.title,
-      description: milestones.description,
-      scheduledDate: milestones.scheduledDate,
-      projectName: projects.name,
-    })
-    .from(milestones)
-    .innerJoin(projects, eq(projects.id, milestones.projectId))
-    .where(
-      and(
-        eq(projects.contractorOrganizationId, orgId),
-        gte(milestones.scheduledDate, now),
-        eq(milestones.milestoneStatus, "scheduled"),
-      ),
-    )
-    .orderBy(milestones.scheduledDate)
-    .limit(4);
+  const milestoneRows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: milestones.id,
+        title: milestones.title,
+        description: milestones.description,
+        scheduledDate: milestones.scheduledDate,
+        projectName: projects.name,
+      })
+      .from(milestones)
+      .innerJoin(projects, eq(projects.id, milestones.projectId))
+      .where(
+        and(
+          eq(projects.contractorOrganizationId, orgId),
+          gte(milestones.scheduledDate, now),
+          eq(milestones.milestoneStatus, "scheduled"),
+        ),
+      )
+      .orderBy(milestones.scheduledDate)
+      .limit(4),
+  );
 
   const upcoming: ContractorDashboardUpcoming[] = milestoneRows.map((m) => ({
     id: m.id,

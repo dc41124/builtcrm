@@ -182,17 +182,19 @@ export async function getWIPReport(input: LoaderInput): Promise<WIPReportView> {
             ),
           ),
       ),
-      db
-        .select({
-          id: milestones.id,
-          projectId: milestones.projectId,
-          startDate: milestones.startDate,
-          scheduledDate: milestones.scheduledDate,
-          completedDate: milestones.completedDate,
-          milestoneStatus: milestones.milestoneStatus,
-        })
-        .from(milestones)
-        .where(inArray(milestones.projectId, projectIds)),
+      withTenant(orgId, (tx) =>
+        tx
+          .select({
+            id: milestones.id,
+            projectId: milestones.projectId,
+            startDate: milestones.startDate,
+            scheduledDate: milestones.scheduledDate,
+            completedDate: milestones.completedDate,
+            milestoneStatus: milestones.milestoneStatus,
+          })
+          .from(milestones)
+          .where(inArray(milestones.projectId, projectIds)),
+      ),
     ]);
 
   // ---- Rollups ----

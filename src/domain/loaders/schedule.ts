@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   milestoneDependencies,
   milestones,
@@ -65,37 +66,39 @@ export async function getScheduleView(
     )!;
   }
 
-  const rows = await db
-    .select({
-      id: milestones.id,
-      title: milestones.title,
-      description: milestones.description,
-      milestoneType: milestones.milestoneType,
-      milestoneStatus: milestones.milestoneStatus,
-      kind: milestones.kind,
-      startDate: milestones.startDate,
-      scheduledDate: milestones.scheduledDate,
-      completedDate: milestones.completedDate,
-      phase: milestones.phase,
-      assignedToUserId: milestones.assignedToUserId,
-      assignedToUserName: users.displayName,
-      assignedToOrganizationId: milestones.assignedToOrganizationId,
-      assignedToOrganizationName: organizations.name,
-      sortOrder: milestones.sortOrder,
-      visibilityScope: milestones.visibilityScope,
-    })
-    .from(milestones)
-    .leftJoin(users, eq(users.id, milestones.assignedToUserId))
-    .leftJoin(
-      organizations,
-      eq(organizations.id, milestones.assignedToOrganizationId),
-    )
-    .where(whereClause)
-    .orderBy(
-      asc(milestones.phase),
-      asc(milestones.sortOrder),
-      asc(milestones.scheduledDate),
-    );
+  const rows = await withTenant(context.organization.id, (tx) =>
+    tx
+      .select({
+        id: milestones.id,
+        title: milestones.title,
+        description: milestones.description,
+        milestoneType: milestones.milestoneType,
+        milestoneStatus: milestones.milestoneStatus,
+        kind: milestones.kind,
+        startDate: milestones.startDate,
+        scheduledDate: milestones.scheduledDate,
+        completedDate: milestones.completedDate,
+        phase: milestones.phase,
+        assignedToUserId: milestones.assignedToUserId,
+        assignedToUserName: users.displayName,
+        assignedToOrganizationId: milestones.assignedToOrganizationId,
+        assignedToOrganizationName: organizations.name,
+        sortOrder: milestones.sortOrder,
+        visibilityScope: milestones.visibilityScope,
+      })
+      .from(milestones)
+      .leftJoin(users, eq(users.id, milestones.assignedToUserId))
+      .leftJoin(
+        organizations,
+        eq(organizations.id, milestones.assignedToOrganizationId),
+      )
+      .where(whereClause)
+      .orderBy(
+        asc(milestones.phase),
+        asc(milestones.sortOrder),
+        asc(milestones.scheduledDate),
+      ),
+  );
 
   const milestoneRows: MilestoneRow[] = rows.map((r) => ({
     id: r.id,

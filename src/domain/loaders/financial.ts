@@ -574,15 +574,17 @@ export async function getContractorFinancialView(
         ),
       )
       .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber)),
-    db
-      .select({
-        id: milestones.id,
-        title: milestones.title,
-        scheduledDate: milestones.scheduledDate,
-      })
-      .from(milestones)
-      .where(eq(milestones.projectId, projectId))
-      .orderBy(asc(milestones.scheduledDate)),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          id: milestones.id,
+          title: milestones.title,
+          scheduledDate: milestones.scheduledDate,
+        })
+        .from(milestones)
+        .where(eq(milestones.projectId, projectId))
+        .orderBy(asc(milestones.scheduledDate)),
+    ),
   ]);
 
   const retainageReleasesView: RetainageReleaseRow[] = releaseRows.map((r) => ({

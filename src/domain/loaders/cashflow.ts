@@ -269,15 +269,17 @@ export async function getCashflowProjection(
   );
   const milestoneDateById = new Map<string, Date>();
   if (milestoneIds.length > 0) {
-    const msRows = await db
-      .select({ id: milestones.id, scheduledDate: milestones.scheduledDate })
-      .from(milestones)
-      .where(
-        and(
-          inArray(milestones.id, milestoneIds),
-          isNotNull(milestones.scheduledDate),
+    const msRows = await withTenant(orgId, (tx) =>
+      tx
+        .select({ id: milestones.id, scheduledDate: milestones.scheduledDate })
+        .from(milestones)
+        .where(
+          and(
+            inArray(milestones.id, milestoneIds),
+            isNotNull(milestones.scheduledDate),
+          ),
         ),
-      );
+    );
     for (const m of msRows) {
       if (m.scheduledDate) milestoneDateById.set(m.id, m.scheduledDate);
     }

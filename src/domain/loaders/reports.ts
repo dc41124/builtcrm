@@ -320,17 +320,19 @@ export async function getContractorReportsData(
         ),
     ),
     // Milestones for % complete + schedule variance
-    db
-      .select({
-        id: milestones.id,
-        projectId: milestones.projectId,
-        startDate: milestones.startDate,
-        scheduledDate: milestones.scheduledDate,
-        completedDate: milestones.completedDate,
-        milestoneStatus: milestones.milestoneStatus,
-      })
-      .from(milestones)
-      .where(inArray(milestones.projectId, projectIds)),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          id: milestones.id,
+          projectId: milestones.projectId,
+          startDate: milestones.startDate,
+          scheduledDate: milestones.scheduledDate,
+          completedDate: milestones.completedDate,
+          milestoneStatus: milestones.milestoneStatus,
+        })
+        .from(milestones)
+        .where(inArray(milestones.projectId, projectIds)),
+    ),
     // Punch items for open counts per project
     db
       .select({

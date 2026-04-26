@@ -356,8 +356,41 @@ export const milestones = pgTable(
       sql`(${table.kind} = 'marker' AND ${table.startDate} IS NULL)
         OR (${table.kind} = 'task' AND ${table.startDate} IS NOT NULL)`,
     ),
+    // Phase 4 pilot — project-scoped, no organization_id column. Adapted
+    // from the multi-org template (rls_sprint_plan.md §4.2): clause A is
+    // contractor-via-projects, clause B is sub/client-via-POMs. Whoever's
+    // GUC is set sees the milestones for projects they reach by either
+    // route. Performance measurement on this pilot drives whether the
+    // remaining ~20 project-scoped tables ship in waves on the same
+    // template, switch to join-based policies, or move to a materialized
+    // lookup.
+    tenantIsolation: pgPolicy("milestones_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Milestone dependencies — directed edges for CPM / Gantt (Step 23)
