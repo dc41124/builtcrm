@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { auditEvents, integrationConnections } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import {
   getContractorOrgContext,
   type IntegrationProviderKey,
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     const externalAccountName =
       parsed.data.externalAccountName ?? `${catalog.name} (sandbox)`;
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       const [row] = await tx
         .insert(integrationConnections)
         .values({

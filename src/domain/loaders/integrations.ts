@@ -9,6 +9,7 @@ import {
   syncEvents,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 
 import { AuthorizationError } from "../permissions";
 import type { SessionLike } from "../context";
@@ -220,24 +221,26 @@ export async function getContractorIntegrationsView(input: {
 }): Promise<ContractorIntegrationsView> {
   const context = await getContractorOrgContext(input.session);
 
-  const connectionRows = await db
-    .select({
-      id: integrationConnections.id,
-      provider: integrationConnections.provider,
-      status: integrationConnections.connectionStatus,
-      externalAccountId: integrationConnections.externalAccountId,
-      externalAccountName: integrationConnections.externalAccountName,
-      connectedAt: integrationConnections.connectedAt,
-      lastSyncAt: integrationConnections.lastSyncAt,
-      lastSyncStatus: integrationConnections.lastSyncStatus,
-      lastErrorMessage: integrationConnections.lastErrorMessage,
-      consecutiveErrors: integrationConnections.consecutiveErrors,
-      tokenExpiresAt: integrationConnections.tokenExpiresAt,
-      syncPreferences: integrationConnections.syncPreferences,
-      mappingConfig: integrationConnections.mappingConfig,
-    })
-    .from(integrationConnections)
-    .where(eq(integrationConnections.organizationId, context.organization.id));
+  const connectionRows = await withTenant(context.organization.id, (tx) =>
+    tx
+      .select({
+        id: integrationConnections.id,
+        provider: integrationConnections.provider,
+        status: integrationConnections.connectionStatus,
+        externalAccountId: integrationConnections.externalAccountId,
+        externalAccountName: integrationConnections.externalAccountName,
+        connectedAt: integrationConnections.connectedAt,
+        lastSyncAt: integrationConnections.lastSyncAt,
+        lastSyncStatus: integrationConnections.lastSyncStatus,
+        lastErrorMessage: integrationConnections.lastErrorMessage,
+        consecutiveErrors: integrationConnections.consecutiveErrors,
+        tokenExpiresAt: integrationConnections.tokenExpiresAt,
+        syncPreferences: integrationConnections.syncPreferences,
+        mappingConfig: integrationConnections.mappingConfig,
+      })
+      .from(integrationConnections)
+      .where(eq(integrationConnections.organizationId, context.organization.id)),
+  );
 
   // Aggregate sync-event counts per connection (pushes, pulls, errors).
   const countRows = await db

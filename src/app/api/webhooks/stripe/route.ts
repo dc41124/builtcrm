@@ -571,7 +571,10 @@ function extractPaymentMethodDetails(
 // charge + payout.
 
 async function handleConnectAccountUpdated(account: Stripe.Account) {
-  const [row] = await db
+  // Pre-tenant lookup — webhook arrives with only the Stripe account
+  // id, no session. Use admin pool to derive orgId from the row, then
+  // wrap the follow-up update in withTenant.
+  const [row] = await dbAdmin
     .select()
     .from(integrationConnections)
     .where(
@@ -619,18 +622,20 @@ async function handleConnectAccountUpdated(account: Stripe.Account) {
       account.requirements?.currently_due ?? [],
   };
 
-  await db
-    .update(integrationConnections)
-    .set({
-      connectionStatus: nextStatus,
-      externalAccountName:
-        account.business_profile?.name ?? row.externalAccountName,
-      syncPreferences: nextPrefs,
-      lastSyncAt: new Date(),
-      connectedAt:
-        isFullyActive && !row.connectedAt ? new Date() : row.connectedAt,
-    })
-    .where(eq(integrationConnections.id, row.id));
+  await withTenant(row.organizationId, (tx) =>
+    tx
+      .update(integrationConnections)
+      .set({
+        connectionStatus: nextStatus,
+        externalAccountName:
+          account.business_profile?.name ?? row.externalAccountName,
+        syncPreferences: nextPrefs,
+        lastSyncAt: new Date(),
+        connectedAt:
+          isFullyActive && !row.connectedAt ? new Date() : row.connectedAt,
+      })
+      .where(eq(integrationConnections.id, row.id)),
+  );
 
   if (row.connectionStatus !== nextStatus) {
     await db.insert(auditEvents).values({

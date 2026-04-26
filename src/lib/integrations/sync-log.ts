@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { integrationConnections, syncEvents } from "@/db/schema";
 import type { IntegrationProviderKey } from "@/domain/loaders/integrations";
 
@@ -246,7 +247,12 @@ async function resolveConnectionId(
   // disconnected connection can still receive final sync events tied to it
   // (e.g. a push that was already in flight when the user revoked). If no
   // connection has ever existed, bail — you can't sync without one.
-  const [conn] = await db
+  // Sync-log is shared machinery — runs from background jobs and from
+  // tenant-scoped sync triggers. Use admin pool so the orgId/provider
+  // lookup works regardless of which path called in. Authorisation is
+  // already enforced by the caller (jobs are cross-org by design;
+  // tenant routes resolve ctx before calling).
+  const [conn] = await dbAdmin
     .select({ id: integrationConnections.id })
     .from(integrationConnections)
     .where(

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { and, eq, isNotNull, lt } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { integrationConnections } from "@/db/schema";
 import { writeSystemAuditEvent } from "@/domain/audit";
 import { refreshToken } from "@/lib/integrations/oauth";
@@ -28,7 +28,8 @@ export const integrationTokenRefresh = schedules.task({
   run: async (payload) => {
     const nowPlus5 = new Date(payload.timestamp.getTime() + 5 * 60 * 1000);
 
-    const due = await db
+    // Cross-org sweep — admin pool to see every org's expiring tokens.
+    const due = await dbAdmin
       .select({ id: integrationConnections.id })
       .from(integrationConnections)
       .where(

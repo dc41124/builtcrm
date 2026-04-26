@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { auditEvents, integrationConnections, syncEvents } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
 import { syncToQuickBooks } from "@/lib/integrations/providers/quickbooks-sync";
@@ -28,16 +28,18 @@ export async function POST(
       );
     }
 
-    const [existing] = await db
-      .select()
-      .from(integrationConnections)
-      .where(
-        and(
-          eq(integrationConnections.id, id),
-          eq(integrationConnections.organizationId, ctx.organization.id),
-        ),
-      )
-      .limit(1);
+    const [existing] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select()
+        .from(integrationConnections)
+        .where(
+          and(
+            eq(integrationConnections.id, id),
+            eq(integrationConnections.organizationId, ctx.organization.id),
+          ),
+        )
+        .limit(1),
+    );
     if (!existing) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
@@ -70,15 +72,17 @@ export async function POST(
           : existing.provider === "xero"
             ? await syncToXero(stubArgs)
             : await syncToSage(stubArgs);
-      await db
-        .update(integrationConnections)
-        .set({
-          lastSyncAt: new Date(),
-          lastSyncStatus: "skipped",
-          lastErrorMessage: null,
-          consecutiveErrors: 0,
-        })
-        .where(eq(integrationConnections.id, existing.id));
+      await withTenant(ctx.organization.id, (tx) =>
+        tx
+          .update(integrationConnections)
+          .set({
+            lastSyncAt: new Date(),
+            lastSyncStatus: "skipped",
+            lastErrorMessage: null,
+            consecutiveErrors: 0,
+          })
+          .where(eq(integrationConnections.id, existing.id)),
+      );
       return NextResponse.json({
         id,
         ok: true,
@@ -89,7 +93,7 @@ export async function POST(
 
     const now = new Date();
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx.insert(syncEvents).values({
         integrationConnectionId: existing.id,
         organizationId: ctx.organization.id,

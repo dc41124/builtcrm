@@ -2,6 +2,7 @@ import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { and, desc, eq, inArray, lt } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   auditEvents,
   integrationConnections,
@@ -52,7 +53,8 @@ export const stripePaymentReconciliation = schedules.task({
     // scope. A contractor org technically could have multiple Stripe
     // connections over time (disconnects + reconnects); we filter to
     // actively-connected rows only.
-    const connections = await db
+    // Cross-org sweep — admin pool reads every connected Stripe org.
+    const connections = await dbAdmin
       .select({
         id: integrationConnections.id,
         organizationId: integrationConnections.organizationId,

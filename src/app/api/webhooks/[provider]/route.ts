@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { auditEvents, integrationConnections, webhookEvents } from "@/db/schema";
 import type { IntegrationProviderKey } from "@/domain/loaders/integrations";
 import { getSystemUserId } from "@/domain/system-user";
@@ -108,7 +109,9 @@ export async function POST(
   // (HANDOFF.md) closes this blind spot when it lands.
   let organizationId: string | null = null;
   if (identity.externalAccountId) {
-    const [conn] = await db
+    // Pre-tenant lookup — webhook arrives with only the provider's
+    // externalAccountId, no session. Admin pool to derive orgId.
+    const [conn] = await dbAdmin
       .select({ id: integrationConnections.organizationId })
       .from(integrationConnections)
       .where(

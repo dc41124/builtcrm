@@ -7,6 +7,7 @@ import {
   integer,
   jsonb,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -95,6 +96,13 @@ export const webhookDeliveryStatusEnum = pgEnum("webhook_delivery_status", [
 // Integration connections
 // -----------------------------------------------------------------------------
 
+// RLS Phase 3c — Pattern A. Integration connections are contractor-only
+// (Stripe Connect, QuickBooks, etc.). Multi-tenant pre-tenant entry
+// points exist: OAuth callbacks (lib/integrations/oauth.ts) resolve a
+// state token → org, the Stripe webhook handler looks up rows by
+// externalAccountId before knowing which org, and the generic provider
+// webhook does similar lookups. Those go through dbAdmin; tenant-scoped
+// CRUD + loaders use withTenant.
 export const integrationConnections = pgTable(
   "integration_connections",
   {
@@ -129,8 +137,13 @@ export const integrationConnections = pgTable(
     orgIdx: index("integration_connections_org_idx").on(table.organizationId),
     providerIdx: index("integration_connections_provider_idx").on(table.provider),
     statusIdx: index("integration_connections_status_idx").on(table.connectionStatus),
+    tenantIsolation: pgPolicy("integration_connections_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Sync events

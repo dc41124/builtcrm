@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { auditEvents, integrationConnections } from "@/db/schema";
 
 import {
@@ -245,7 +246,8 @@ export async function handleCallback(
     ? token.scope.split(/\s+/).filter(Boolean)
     : cfg.scopes;
 
-  const result = await db.transaction(async (tx) => {
+  // OAuth callback is pre-tenant (token-resolved → org); use admin pool.
+  const result = await dbAdmin.transaction(async (tx) => {
     const [row] = await tx
       .insert(integrationConnections)
       .values({
@@ -299,7 +301,8 @@ export type RefreshTokenResult =
 export async function refreshToken(
   connectionId: string,
 ): Promise<RefreshTokenResult> {
-  const [conn] = await db
+  // Refresh runs from a scheduled job (no session) — admin pool.
+  const [conn] = await dbAdmin
     .select()
     .from(integrationConnections)
     .where(eq(integrationConnections.id, connectionId))
@@ -342,7 +345,7 @@ export async function refreshToken(
         ? encryptToken(token.refresh_token)
         : conn.refreshTokenEnc; // some providers omit on refresh — keep current
 
-    await db.transaction(async (tx) => {
+    await dbAdmin.transaction(async (tx) => {
       await tx
         .update(integrationConnections)
         .set({
@@ -379,7 +382,7 @@ async function flagNeedsReauth(
   provider: IntegrationProviderKey,
   errorMessage: string,
 ): Promise<void> {
-  await db.transaction(async (tx) => {
+  await dbAdmin.transaction(async (tx) => {
     await tx
       .update(integrationConnections)
       .set({
@@ -418,7 +421,9 @@ export type RevokeConnectionInput = {
 export async function revokeConnection(
   input: RevokeConnectionInput,
 ): Promise<void> {
-  const [conn] = await db
+  // Revocation is OAuth machinery — admin pool to keep oauth.ts pre-tenant
+  // and uniform with the other 6 sites in this file.
+  const [conn] = await dbAdmin
     .select()
     .from(integrationConnections)
     .where(
@@ -467,7 +472,7 @@ export async function revokeConnection(
     }
   }
 
-  await db.transaction(async (tx) => {
+  await dbAdmin.transaction(async (tx) => {
     await tx
       .update(integrationConnections)
       .set({

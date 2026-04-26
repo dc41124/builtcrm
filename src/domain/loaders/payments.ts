@@ -9,6 +9,7 @@ import {
   projects,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 
 import { AuthorizationError } from "../permissions";
 import type { SessionLike } from "../context";
@@ -70,24 +71,26 @@ export async function getContractorPaymentsView(input: {
 }): Promise<ContractorPaymentsView> {
   const context = await getContractorOrgContext(input.session);
 
-  const [stripeRow] = await db
-    .select({
-      id: integrationConnections.id,
-      status: integrationConnections.connectionStatus,
-      externalAccountId: integrationConnections.externalAccountId,
-      externalAccountName: integrationConnections.externalAccountName,
-      connectedAt: integrationConnections.connectedAt,
-      lastSyncAt: integrationConnections.lastSyncAt,
-    })
-    .from(integrationConnections)
-    .where(
-      and(
-        eq(integrationConnections.organizationId, context.organization.id),
-        eq(integrationConnections.provider, "stripe"),
-        ne(integrationConnections.connectionStatus, "disconnected"),
-      ),
-    )
-    .limit(1);
+  const [stripeRow] = await withTenant(context.organization.id, (tx) =>
+    tx
+      .select({
+        id: integrationConnections.id,
+        status: integrationConnections.connectionStatus,
+        externalAccountId: integrationConnections.externalAccountId,
+        externalAccountName: integrationConnections.externalAccountName,
+        connectedAt: integrationConnections.connectedAt,
+        lastSyncAt: integrationConnections.lastSyncAt,
+      })
+      .from(integrationConnections)
+      .where(
+        and(
+          eq(integrationConnections.organizationId, context.organization.id),
+          eq(integrationConnections.provider, "stripe"),
+          ne(integrationConnections.connectionStatus, "disconnected"),
+        ),
+      )
+      .limit(1),
+  );
 
   const stripeConnection: StripeConnectionInfo | null = stripeRow
     ? {

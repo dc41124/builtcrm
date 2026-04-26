@@ -4,8 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { auditEvents, integrationConnections } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -39,21 +39,20 @@ export async function PATCH(
       );
     }
 
-    const [existing] = await db
-      .select()
-      .from(integrationConnections)
-      .where(
-        and(
-          eq(integrationConnections.id, id),
-          eq(integrationConnections.organizationId, ctx.organization.id),
-        ),
-      )
-      .limit(1);
-    if (!existing) {
-      return NextResponse.json({ error: "not_found" }, { status: 404 });
-    }
+    const result = await withTenant(ctx.organization.id, async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(integrationConnections)
+        .where(
+          and(
+            eq(integrationConnections.id, id),
+            eq(integrationConnections.organizationId, ctx.organization.id),
+          ),
+        )
+        .limit(1);
+      if (!existing) return { notFound: true as const };
 
-    await db.transaction(async (tx) => {
+
       await tx
         .update(integrationConnections)
         .set({
@@ -79,8 +78,12 @@ export async function PATCH(
             parsed.data.syncPreferences ?? existing.syncPreferences,
         },
       });
+      return { notFound: false as const };
     });
 
+    if (result.notFound) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
     return NextResponse.json({ id, ok: true });
   } catch (err) {
     if (err instanceof AuthorizationError) {

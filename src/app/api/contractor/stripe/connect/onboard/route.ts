@@ -9,6 +9,7 @@ import {
   integrationConnections,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
 import { getAppUrl, getStripe } from "@/lib/stripe";
@@ -52,16 +53,18 @@ export async function POST() {
     // disconnected we can re-use the Stripe account (creating accounts is
     // expensive / impossible to delete) and flip the row back to
     // 'connecting' via onboarding.
-    const [existing] = await db
-      .select()
-      .from(integrationConnections)
-      .where(
-        and(
-          eq(integrationConnections.organizationId, ctx.organization.id),
-          eq(integrationConnections.provider, "stripe"),
-        ),
-      )
-      .limit(1);
+    const [existing] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select()
+        .from(integrationConnections)
+        .where(
+          and(
+            eq(integrationConnections.organizationId, ctx.organization.id),
+            eq(integrationConnections.provider, "stripe"),
+          ),
+        )
+        .limit(1),
+    );
 
     let accountId = existing?.externalAccountId ?? null;
     let connectionRowId = existing?.id ?? null;
@@ -77,52 +80,56 @@ export async function POST() {
       });
       accountId = created.id;
 
-      if (existing) {
-        // Row exists (disconnected leftover) but no account id — upgrade it.
-        await db
-          .update(integrationConnections)
-          .set({
-            externalAccountId: accountId,
-            externalAccountName: created.business_profile?.name ?? null,
-            connectionStatus: "connecting",
-            connectedByUserId: ctx.user.id,
-            connectedAt: null,
-            disconnectedAt: null,
-          })
-          .where(eq(integrationConnections.id, existing.id));
-        connectionRowId = existing.id;
-      } else {
-        const [row] = await db
-          .insert(integrationConnections)
-          .values({
-            organizationId: ctx.organization.id,
-            provider: "stripe",
-            connectionStatus: "connecting",
-            connectedByUserId: ctx.user.id,
-            externalAccountId: accountId,
-            externalAccountName: null,
-          })
-          .returning({ id: integrationConnections.id });
-        connectionRowId = row.id;
-      }
+      await withTenant(ctx.organization.id, async (tx) => {
+        if (existing) {
+          // Row exists (disconnected leftover) but no account id — upgrade it.
+          await tx
+            .update(integrationConnections)
+            .set({
+              externalAccountId: accountId,
+              externalAccountName: created.business_profile?.name ?? null,
+              connectionStatus: "connecting",
+              connectedByUserId: ctx.user.id,
+              connectedAt: null,
+              disconnectedAt: null,
+            })
+            .where(eq(integrationConnections.id, existing.id));
+          connectionRowId = existing.id;
+        } else {
+          const [row] = await tx
+            .insert(integrationConnections)
+            .values({
+              organizationId: ctx.organization.id,
+              provider: "stripe",
+              connectionStatus: "connecting",
+              connectedByUserId: ctx.user.id,
+              externalAccountId: accountId,
+              externalAccountName: null,
+            })
+            .returning({ id: integrationConnections.id });
+          connectionRowId = row.id;
+        }
 
-      await db.insert(auditEvents).values({
-        actorUserId: ctx.user.id,
-        organizationId: ctx.organization.id,
-        objectType: "stripe_connect_account",
-        objectId: connectionRowId!,
-        actionName: "created",
-        nextState: { accountId, type: "standard" },
+        await tx.insert(auditEvents).values({
+          actorUserId: ctx.user.id,
+          organizationId: ctx.organization.id,
+          objectType: "stripe_connect_account",
+          objectId: connectionRowId!,
+          actionName: "created",
+          nextState: { accountId, type: "standard" },
+        });
       });
     } else if (existing?.connectionStatus === "disconnected") {
       // Account exists but row was flagged disconnected — resume it.
-      await db
-        .update(integrationConnections)
-        .set({
-          connectionStatus: "connecting",
-          disconnectedAt: null,
-        })
-        .where(eq(integrationConnections.id, existing.id));
+      await withTenant(ctx.organization.id, (tx) =>
+        tx
+          .update(integrationConnections)
+          .set({
+            connectionStatus: "connecting",
+            disconnectedAt: null,
+          })
+          .where(eq(integrationConnections.id, existing.id)),
+      );
     }
 
     const link = await stripe.accountLinks.create({

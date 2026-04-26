@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { auditEvents, integrationConnections } from "@/db/schema";
 import type { IntegrationProviderKey } from "@/domain/loaders/integrations";
 
@@ -83,7 +84,9 @@ async function resolveConnectionId(
   orgId: string,
   providerKey: IntegrationProviderKey,
 ): Promise<string> {
-  const [conn] = await db
+  // Same shape as sync-log.ts resolveConnectionId — admin pool for
+  // shared sync-machinery lookups.
+  const [conn] = await dbAdmin
     .select({ id: integrationConnections.id })
     .from(integrationConnections)
     .where(

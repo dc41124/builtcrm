@@ -12,6 +12,7 @@ import {
   selectionItems,
   selectionOptions,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getEffectiveContext } from "@/domain/context";
 import { getOrgPlanContext } from "@/domain/loaders/billing";
 import { AuthorizationError } from "@/domain/permissions";
@@ -127,19 +128,21 @@ export async function POST(
       );
     }
 
-    const [connectRow] = await db
-      .select({
-        externalAccountId: integrationConnections.externalAccountId,
-        connectionStatus: integrationConnections.connectionStatus,
-      })
-      .from(integrationConnections)
-      .where(
-        and(
-          eq(integrationConnections.organizationId, contractorOrgId),
-          eq(integrationConnections.provider, "stripe"),
-        ),
-      )
-      .limit(1);
+    const [connectRow] = await withTenant(contractorOrgId, (tx) =>
+      tx
+        .select({
+          externalAccountId: integrationConnections.externalAccountId,
+          connectionStatus: integrationConnections.connectionStatus,
+        })
+        .from(integrationConnections)
+        .where(
+          and(
+            eq(integrationConnections.organizationId, contractorOrgId),
+            eq(integrationConnections.provider, "stripe"),
+          ),
+        )
+        .limit(1),
+    );
     if (
       !connectRow ||
       !connectRow.externalAccountId ||
