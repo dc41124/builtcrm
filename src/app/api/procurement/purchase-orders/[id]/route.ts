@@ -11,6 +11,7 @@ import {
   purchaseOrders,
   vendors,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -95,14 +96,16 @@ export async function PATCH(
 
     const p = parsed.data;
     if (p.vendorId) {
-      const [vendor] = await db
-        .select({
-          id: vendors.id,
-          organizationId: vendors.organizationId,
-        })
-        .from(vendors)
-        .where(eq(vendors.id, p.vendorId))
-        .limit(1);
+      const [vendor] = await withTenant(ctx.organization.id, (tx) =>
+        tx
+          .select({
+            id: vendors.id,
+            organizationId: vendors.organizationId,
+          })
+          .from(vendors)
+          .where(eq(vendors.id, p.vendorId!))
+          .limit(1),
+      );
       if (!vendor || vendor.organizationId !== ctx.organization.id) {
         return NextResponse.json({ error: "invalid_vendor" }, { status: 400 });
       }

@@ -1,0 +1,2 @@
+ALTER TABLE "vendors" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE POLICY "vendors_tenant_isolation" ON "vendors" AS PERMISSIVE FOR ALL TO public USING ("vendors"."organization_id" = current_setting('app.current_org_id', true)::uuid) WITH CHECK ("vendors"."organization_id" = current_setting('app.current_org_id', true)::uuid);

@@ -14,6 +14,7 @@ import {
   vendors,
   poStatusEnum,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 
 import { computePoTotals } from "@/domain/procurement/totals";
 
@@ -585,22 +586,24 @@ async function loadPoActivity(poId: string): Promise<PoActivityEntry[]> {
 export async function loadVendorListForOrg(
   orgId: string,
 ): Promise<VendorRow[]> {
-  const vendorRows = await db
-    .select({
-      id: vendors.id,
-      name: vendors.name,
-      contactName: vendors.contactName,
-      contactEmail: vendors.contactEmail,
-      contactPhone: vendors.contactPhone,
-      address: vendors.address,
-      paymentTerms: vendors.paymentTerms,
-      rating: vendors.rating,
-      notes: vendors.notes,
-      active: vendors.active,
-    })
-    .from(vendors)
-    .where(eq(vendors.organizationId, orgId))
-    .orderBy(asc(vendors.name));
+  const vendorRows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: vendors.id,
+        name: vendors.name,
+        contactName: vendors.contactName,
+        contactEmail: vendors.contactEmail,
+        contactPhone: vendors.contactPhone,
+        address: vendors.address,
+        paymentTerms: vendors.paymentTerms,
+        rating: vendors.rating,
+        notes: vendors.notes,
+        active: vendors.active,
+      })
+      .from(vendors)
+      .where(eq(vendors.organizationId, orgId))
+      .orderBy(asc(vendors.name)),
+  );
 
   if (vendorRows.length === 0) return [];
 

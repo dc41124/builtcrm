@@ -148,6 +148,13 @@
       "when": 1777167397020,
       "tag": "0020_conscious_felicia_hardy",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1777168162688,
+      "tag": "0021_chubby_ghost_rider",
+      "breakpoints": true
     }
   ]
 }

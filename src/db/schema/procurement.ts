@@ -1,9 +1,11 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
   integer,
   numeric,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   unique,
@@ -84,6 +86,10 @@ export const costCodes = pgTable(
 // hard-delete, since historical POs reference vendor rows.
 // -----------------------------------------------------------------------------
 
+// RLS Phase 3c — Pattern A. All call sites are tenant-scoped contractor
+// procurement: the loadVendorListForOrg loader, the vendor CRUD routes
+// (POST + PATCH), and the inline vendor lookups inside the PO routes.
+// Each is wrapped in `withTenant`. See docs/specs/rls_sprint_plan.md.
 export const vendors = pgTable(
   "vendors",
   {
@@ -111,8 +117,13 @@ export const vendors = pgTable(
       table.organizationId,
       table.active,
     ),
+    tenantIsolation: pgPolicy("vendors_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Purchase orders

@@ -12,6 +12,7 @@ import {
   purchaseOrders,
   vendors,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -65,12 +66,16 @@ export async function POST(req: Request) {
 
     const orgId = ctx.organization.id;
 
-    // Vendor + cost code (if any) must belong to the same org.
-    const [vendor] = await db
-      .select({ id: vendors.id, organizationId: vendors.organizationId })
-      .from(vendors)
-      .where(eq(vendors.id, parsed.data.vendorId))
-      .limit(1);
+    // Vendor + cost code (if any) must belong to the same org. Under
+    // RLS the cross-org case returns no rows, so absence == both
+    // not-found and forbidden — collapsed to one error.
+    const [vendor] = await withTenant(orgId, (tx) =>
+      tx
+        .select({ id: vendors.id, organizationId: vendors.organizationId })
+        .from(vendors)
+        .where(eq(vendors.id, parsed.data.vendorId))
+        .limit(1),
+    );
     if (!vendor || vendor.organizationId !== orgId) {
       return NextResponse.json({ error: "invalid_vendor" }, { status: 400 });
     }

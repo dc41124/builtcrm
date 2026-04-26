@@ -4,8 +4,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { vendors } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -40,41 +40,57 @@ export async function PATCH(
       session,
     );
 
-    // Vendor must belong to caller's org.
-    const [existing] = await db
-      .select({
-        id: vendors.id,
-        organizationId: vendors.organizationId,
-      })
-      .from(vendors)
-      .where(eq(vendors.id, id))
-      .limit(1);
-    if (!existing) {
+    const patch = parsed.data;
+    type PatchOutcome =
+      | { kind: "not_found" }
+      | { kind: "forbidden" }
+      | { kind: "ok"; row: typeof vendors.$inferSelect };
+
+    const outcome = await withTenant(ctx.organization.id, async (tx): Promise<PatchOutcome> => {
+      // Under RLS the cross-org case returns no rows from the SELECT,
+      // so "not_found" subsumes "forbidden". Keeping the explicit
+      // forbidden return for clarity if the policy is ever loosened.
+      const [existing] = await tx
+        .select({
+          id: vendors.id,
+          organizationId: vendors.organizationId,
+        })
+        .from(vendors)
+        .where(eq(vendors.id, id))
+        .limit(1);
+      if (!existing) return { kind: "not_found" };
+      if (existing.organizationId !== ctx.organization.id) {
+        return { kind: "forbidden" };
+      }
+
+      const [row] = await tx
+        .update(vendors)
+        .set({
+          ...(patch.name !== undefined && { name: patch.name }),
+          ...(patch.contactName !== undefined && { contactName: patch.contactName }),
+          ...(patch.contactEmail !== undefined && { contactEmail: patch.contactEmail }),
+          ...(patch.contactPhone !== undefined && { contactPhone: patch.contactPhone }),
+          ...(patch.address !== undefined && { address: patch.address }),
+          ...(patch.paymentTerms !== undefined && { paymentTerms: patch.paymentTerms }),
+          ...(patch.rating !== undefined && { rating: patch.rating }),
+          ...(patch.notes !== undefined && { notes: patch.notes }),
+          ...(patch.active !== undefined && { active: patch.active }),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(eq(vendors.id, id), eq(vendors.organizationId, ctx.organization.id)),
+        )
+        .returning();
+      return { kind: "ok", row };
+    });
+
+    if (outcome.kind === "not_found") {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    if (existing.organizationId !== ctx.organization.id) {
+    if (outcome.kind === "forbidden") {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
-
-    const patch = parsed.data;
-    const [row] = await db
-      .update(vendors)
-      .set({
-        ...(patch.name !== undefined && { name: patch.name }),
-        ...(patch.contactName !== undefined && { contactName: patch.contactName }),
-        ...(patch.contactEmail !== undefined && { contactEmail: patch.contactEmail }),
-        ...(patch.contactPhone !== undefined && { contactPhone: patch.contactPhone }),
-        ...(patch.address !== undefined && { address: patch.address }),
-        ...(patch.paymentTerms !== undefined && { paymentTerms: patch.paymentTerms }),
-        ...(patch.rating !== undefined && { rating: patch.rating }),
-        ...(patch.notes !== undefined && { notes: patch.notes }),
-        ...(patch.active !== undefined && { active: patch.active }),
-        updatedAt: new Date(),
-      })
-      .where(
-        and(eq(vendors.id, id), eq(vendors.organizationId, ctx.organization.id)),
-      )
-      .returning();
+    const row = outcome.row;
 
     return NextResponse.json({ vendor: row });
   } catch (err) {

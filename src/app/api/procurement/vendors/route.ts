@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { vendors } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -37,20 +37,22 @@ export async function POST(req: Request) {
     const orgId = ctx.organization.id;
     const body = parsed.data;
 
-    const [row] = await db
-      .insert(vendors)
-      .values({
-        organizationId: orgId,
-        name: body.name,
-        contactName: body.contactName ?? null,
-        contactEmail: body.contactEmail ?? null,
-        contactPhone: body.contactPhone ?? null,
-        address: body.address ?? null,
-        paymentTerms: body.paymentTerms ?? null,
-        rating: body.rating ?? "standard",
-        notes: body.notes ?? null,
-      })
-      .returning();
+    const [row] = await withTenant(orgId, (tx) =>
+      tx
+        .insert(vendors)
+        .values({
+          organizationId: orgId,
+          name: body.name,
+          contactName: body.contactName ?? null,
+          contactEmail: body.contactEmail ?? null,
+          contactPhone: body.contactPhone ?? null,
+          address: body.address ?? null,
+          paymentTerms: body.paymentTerms ?? null,
+          rating: body.rating ?? "standard",
+          notes: body.notes ?? null,
+        })
+        .returning(),
+    );
 
     // Vendor creation is org-scoped; audit events log project=null via the
     // single shared writer. Skipped here — no project in scope.
