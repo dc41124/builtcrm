@@ -28,15 +28,15 @@ import { db, type DB } from "./client";
 type DrizzleTx = Parameters<Parameters<DB["transaction"]>[0]>[0];
 type TxCallback<T> = (tx: DrizzleTx) => Promise<T>;
 
-const ORG_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function assertValidOrgId(orgId: string): void {
-  if (!ORG_ID_PATTERN.test(orgId)) {
-    // GUCs accept arbitrary strings; a malformed orgId would silently
+function assertValidUuid(label: string, value: string): void {
+  if (!UUID_PATTERN.test(value)) {
+    // GUCs accept arbitrary strings; a malformed id would silently
     // be set as the tenant context and fail later in a subtle way.
     // Validate at the entry point so the failure is loud and local.
     throw new Error(
-      `withTenant: orgId is not a UUID (got: ${JSON.stringify(orgId)})`,
+      `${label}: not a UUID (got: ${JSON.stringify(value)})`,
     );
   }
 }
@@ -45,7 +45,7 @@ export async function withTenant<T>(
   orgId: string,
   fn: TxCallback<T>,
 ): Promise<T> {
-  assertValidOrgId(orgId);
+  assertValidUuid("withTenant: orgId", orgId);
   return db.transaction(async (tx) => {
     // set_config with is_local=true is the parameterized equivalent of
     // SET LOCAL — value is scoped to the current transaction and clears
@@ -54,6 +54,38 @@ export async function withTenant<T>(
     // value goes through the SQL parameter slot, not interpolation.
     await tx.execute(
       sql`SELECT set_config('app.current_org_id', ${orgId}, true)`,
+    );
+    return fn(tx);
+  });
+}
+
+// withTenantUser — extension of withTenant that ALSO sets
+// `app.current_user_id`. Used for user-scoped tables whose policy
+// gates on the recipient/owner user (notifications today; future
+// candidates: user_notification_preferences, anything explicitly
+// per-user rather than per-org).
+//
+// Policies on user-scoped tables read the GUC via
+// `nullif(current_setting('app.current_user_id', true), '')::uuid`
+// — the nullif handles the "no GUC set" case (returns NULL → policy
+// comparison falsy → row denied). Failure mode is closed.
+//
+// Writes that target other users (system emissions like notification
+// fan-out) must route through `dbAdmin` — the WITH CHECK clause would
+// otherwise deny inserts where recipient_user_id != current GUC.
+export async function withTenantUser<T>(
+  orgId: string,
+  userId: string,
+  fn: TxCallback<T>,
+): Promise<T> {
+  assertValidUuid("withTenantUser: orgId", orgId);
+  assertValidUuid("withTenantUser: userId", userId);
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT set_config('app.current_org_id', ${orgId}, true)`,
+    );
+    await tx.execute(
+      sql`SELECT set_config('app.current_user_id', ${userId}, true)`,
     );
     return fn(tx);
   });

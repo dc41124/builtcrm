@@ -1,5 +1,7 @@
+import { sql } from "drizzle-orm";
 import {
   index,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -76,5 +78,21 @@ export const notifications = pgTable(
     ),
     // For per-project filtering (sidebar badges, persistent page filter).
     projectIdx: index("notifications_project_idx").on(table.projectId),
+    // Phase 4 notifications slice — USER-SCOPED policy (NEW SHAPE).
+    // Notifications are a private inbox: only the recipient reads them,
+    // only the system writes them. Caller's user identity comes from
+    // `app.current_user_id` (set by `withTenantUser`); the nullif handles
+    // the "no GUC set" case by collapsing '' -> NULL so the comparison
+    // fails closed without throwing.
+    //
+    // System emissions (emit.ts fan-out) are cross-user by definition
+    // (actor A writes rows for recipients B/C/D); they MUST route through
+    // `dbAdmin`. The WITH CHECK clause would otherwise deny those writes.
+    // Same for the daily purge cron.
+    tenantIsolation: pgPolicy("notifications_tenant_isolation", {
+      for: "all",
+      using: sql`${table.recipientUserId} = nullif(current_setting('app.current_user_id', true), '')::uuid`,
+      withCheck: sql`${table.recipientUserId} = nullif(current_setting('app.current_user_id', true), '')::uuid`,
+    }),
   }),
-);
+).enableRLS();

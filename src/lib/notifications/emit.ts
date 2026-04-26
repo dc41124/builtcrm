@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
-import { db, type DB } from "@/db/client";
+import { type DB } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { notifications, userNotificationPreferences } from "@/db/schema";
 import { validEventIdsFor } from "@/lib/notification-catalog";
 import {
@@ -33,9 +34,18 @@ export type EmitNotificationsInput = RecipientResolveOptions & {
 // failure is logged and swallowed so the primary state transition stays
 // durable even if the notification side-effect fails. The emit helper
 // wraps its own work in a single-insert batch for efficiency.
+//
+// SYSTEM WRITER: Notifications are user-scoped and RLS-enforced via
+// `app.current_user_id`. Fan-out from a state transition writes rows
+// for OTHER users (recipients), so the WITH CHECK clause would deny
+// every insert if we routed through the user's tenant context. The
+// default pool here is `dbAdmin` (BYPASSRLS) — emit is a system effect.
+// Callers can still pass their own `tx` (e.g. when emit must be atomic
+// with the parent state change); in that case the caller is responsible
+// for ensuring the tx runs in a context that can write the rows.
 export async function emitNotifications(
   input: EmitNotificationsInput,
-  dbOrTx: DbOrTx = db,
+  dbOrTx: DbOrTx = dbAdmin,
 ): Promise<{ inserted: number; skipped: number }> {
   try {
     const recipients =

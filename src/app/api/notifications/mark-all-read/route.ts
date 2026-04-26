@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 import { requireServerSession } from "@/auth/session";
 
-import { db } from "@/db/client";
+import { withTenantUser } from "@/db/with-tenant";
 import { notifications } from "@/db/schema";
 
 // POST /api/notifications/mark-all-read
@@ -15,9 +15,9 @@ import { notifications } from "@/db/schema";
 
 export async function POST(req: Request) {
   const { session } = await requireServerSession();
-  const appUserId = (session)
-    .appUserId;
-  if (!appUserId) {
+  const appUserId = session.appUserId;
+  const orgId = session.organizationId;
+  if (!appUserId || !orgId) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
 
@@ -36,11 +36,13 @@ export async function POST(req: Request) {
   ];
   if (portalType) clauses.push(eq(notifications.portalType, portalType));
 
-  const result = await db
-    .update(notifications)
-    .set({ readAt: new Date() })
-    .where(and(...clauses))
-    .returning({ id: notifications.id });
+  const result = await withTenantUser(orgId, appUserId, (tx) =>
+    tx
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(and(...clauses))
+      .returning({ id: notifications.id }),
+  );
 
   return NextResponse.json({ ok: true, updated: result.length });
 }

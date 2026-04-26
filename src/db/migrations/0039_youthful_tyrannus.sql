@@ -1,0 +1,2 @@
+ALTER TABLE "notifications" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE POLICY "notifications_tenant_isolation" ON "notifications" AS PERMISSIVE FOR ALL TO public USING ("notifications"."recipient_user_id" = nullif(current_setting('app.current_user_id', true), '')::uuid) WITH CHECK ("notifications"."recipient_user_id" = nullif(current_setting('app.current_user_id', true), '')::uuid);

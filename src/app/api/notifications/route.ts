@@ -42,10 +42,9 @@ export async function GET(req: Request) {
   return withErrorHandler(
     async () => {
   const { session } = await requireServerSession();
-      const appUserId = (
-        session
-      ).appUserId;
-      if (!appUserId) {
+      const appUserId = session.appUserId;
+      const orgId = session.organizationId;
+      if (!appUserId || !orgId) {
         return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
       }
 
@@ -70,8 +69,8 @@ export async function GET(req: Request) {
       };
 
       const [rows, unreadCount] = await Promise.all([
-        listNotifications(appUserId, input),
-        getUnreadNotificationCount(appUserId, parsed.data.portalType),
+        listNotifications(orgId, appUserId, input),
+        getUnreadNotificationCount(orgId, appUserId, parsed.data.portalType),
       ]);
 
       return NextResponse.json({

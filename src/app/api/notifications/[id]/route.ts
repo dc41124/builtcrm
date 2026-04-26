@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 import { requireServerSession } from "@/auth/session";
 
-import { db } from "@/db/client";
+import { withTenantUser } from "@/db/with-tenant";
 import { notifications } from "@/db/schema";
 
 // PATCH /api/notifications/[id] — mark read.
@@ -18,22 +18,24 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const { session } = await requireServerSession();
-  const appUserId = (session)
-    .appUserId;
-  if (!appUserId) {
+  const appUserId = session.appUserId;
+  const orgId = session.organizationId;
+  if (!appUserId || !orgId) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
 
-  const result = await db
-    .update(notifications)
-    .set({ readAt: new Date() })
-    .where(
-      and(
-        eq(notifications.id, id),
-        eq(notifications.recipientUserId, appUserId),
-      ),
-    )
-    .returning({ id: notifications.id });
+  const result = await withTenantUser(orgId, appUserId, (tx) =>
+    tx
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(
+        and(
+          eq(notifications.id, id),
+          eq(notifications.recipientUserId, appUserId),
+        ),
+      )
+      .returning({ id: notifications.id }),
+  );
 
   if (result.length === 0) {
     // Either the row doesn't exist or belongs to someone else. Return
