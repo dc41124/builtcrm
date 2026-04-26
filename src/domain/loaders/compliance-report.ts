@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   complianceRecords,
   organizations,
@@ -140,7 +141,16 @@ export async function getComplianceReport(
 
   // Pull every compliance record for those sub orgs, latest-first.
   // Dedupe in-memory to keep the latest per (orgId, complianceType).
-  const recordRows = await db
+  //
+  // Cross-org by design: this report includes the sub's ORG-LEVEL
+  // compliance (W-9, COI, etc with projectId=NULL) which the multi-org
+  // policy can't authorise — clauses B and C key on project_id which
+  // is null here, and clause A fails because the contractor's GUC
+  // doesn't match the sub's organizationId. Authorisation is enforced
+  // up-stream: the org list comes from `subMembershipRows`, restricted
+  // to subs with active POMs on the contractor's projects. Use
+  // dbAdmin for the read.
+  const recordRows = await dbAdmin
     .select({
       id: complianceRecords.id,
       organizationId: complianceRecords.organizationId,

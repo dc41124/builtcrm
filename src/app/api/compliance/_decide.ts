@@ -4,8 +4,9 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { complianceRecords } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -36,7 +37,9 @@ export async function handleDecision(
   }
 
   try {
-    const [record] = await db
+    // Pre-context lookup — caller passes only the record id, so we
+    // read via admin pool to derive projectId for getEffectiveContext.
+    const [record] = await dbAdmin
       .select()
       .from(complianceRecords)
       .where(eq(complianceRecords.id, id))
@@ -75,7 +78,10 @@ export async function handleDecision(
     const previousState = record.complianceStatus;
     const { next, action, label } = DECISION_MAP[decision];
 
-    await db.transaction(async (tx) => {
+    // Contractor decides on a sub's compliance record. ctx.organization.id
+    // is the contractor's GUC -> multi-org policy clause B (project
+    // ownership) authorises the UPDATE on the sub-owned row.
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(complianceRecords)
         .set({ complianceStatus: next })

@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { complianceRecords } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -39,7 +39,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await db.transaction(async (tx) => {
+    // Contractor creates a compliance requirement on their project for
+    // a sub. Contractor's GUC -> multi-org policy clause B (project
+    // ownership) authorises the INSERT (the row's organizationId may
+    // be the sub's org, not the contractor's).
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       const [row] = await tx
         .insert(complianceRecords)
         .values({

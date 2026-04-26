@@ -12,6 +12,7 @@ import {
   rfis,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 
 export type ContractorDashboardKpis = {
   activeProjects: number;
@@ -193,28 +194,32 @@ export async function getContractorDashboardData(
     .from(drawRequests)
     .where(inArray(drawRequests.projectId, projectIds));
 
-  const complianceRows = await db
-    .select({
-      id: complianceRecords.id,
-      status: complianceRecords.complianceStatus,
-      expiresAt: complianceRecords.expiresAt,
-      recordType: complianceRecords.complianceType,
-    })
-    .from(complianceRecords)
-    .where(
-      and(
-        inArray(complianceRecords.projectId, projectIds),
-        or(
-          inArray(complianceRecords.complianceStatus, [
-            ...COMPLIANCE_ALERT_STATUSES,
-          ]),
-          and(
-            isNotNull(complianceRecords.expiresAt),
-            lt(complianceRecords.expiresAt, soon),
+  // Project-scoped read on contractor's projects — multi-org policy
+  // clause B (project ownership) returns sub records too.
+  const complianceRows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: complianceRecords.id,
+        status: complianceRecords.complianceStatus,
+        expiresAt: complianceRecords.expiresAt,
+        recordType: complianceRecords.complianceType,
+      })
+      .from(complianceRecords)
+      .where(
+        and(
+          inArray(complianceRecords.projectId, projectIds),
+          or(
+            inArray(complianceRecords.complianceStatus, [
+              ...COMPLIANCE_ALERT_STATUSES,
+            ]),
+            and(
+              isNotNull(complianceRecords.expiresAt),
+              lt(complianceRecords.expiresAt, soon),
+            ),
           ),
         ),
       ),
-    );
+  );
 
   const complianceAlertLabel = (() => {
     const expiring = complianceRows.find(

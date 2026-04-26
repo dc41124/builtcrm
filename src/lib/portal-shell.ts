@@ -10,6 +10,7 @@ import {
 } from "@/domain/loaders/portals";
 import { db } from "@/db/client";
 import { projects, complianceRecords, rfis, approvals } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 
 import type { PortalType, ShellProject } from "@/components/shell/AppShell";
 import { getPortalNavCounts, type NavCounts } from "./portal-nav-counts";
@@ -67,7 +68,7 @@ export async function loadPortalShell(
           .from(projects)
           .where(inArray(projects.id, projectIds))
       : Promise.resolve([] as Array<{ id: string; currentPhase: string }>),
-    computeProjectHealth(projectIds),
+    computeProjectHealth(option.organizationId, projectIds),
     getPortalNavCounts({
       portalType,
       userId: appUserId,
@@ -126,6 +127,7 @@ function phaseLabel(phase: string | undefined): string | undefined {
 //   green = otherwise
 // One-query-per-signal, cheap enough to run on every portal load.
 async function computeProjectHealth(
+  orgId: string,
   projectIds: string[],
 ): Promise<Map<string, "green" | "amber" | "red" | "gray">> {
   const result = new Map<string, "green" | "amber" | "red" | "gray">();
@@ -135,16 +137,20 @@ async function computeProjectHealth(
   const now = new Date();
   const in14Days = new Date(now.getTime() + 14 * 86400000);
 
-  // Red signals
-  const expiredCompliance = await db
-    .select({ projectId: complianceRecords.projectId })
-    .from(complianceRecords)
-    .where(
-      and(
-        inArray(complianceRecords.projectId, projectIds),
-        eq(complianceRecords.complianceStatus, "expired"),
-      )!,
-    );
+  // Red signals — multi-org policy on compliance_records: each user's
+  // own GUC selects clause B (contractor on their project) or C
+  // (sub/client on a project they have a POM membership on).
+  const expiredCompliance = await withTenant(orgId, (tx) =>
+    tx
+      .select({ projectId: complianceRecords.projectId })
+      .from(complianceRecords)
+      .where(
+        and(
+          inArray(complianceRecords.projectId, projectIds),
+          eq(complianceRecords.complianceStatus, "expired"),
+        )!,
+      ),
+  );
   for (const r of expiredCompliance) {
     if (r.projectId) result.set(r.projectId, "red");
   }
@@ -163,17 +169,19 @@ async function computeProjectHealth(
     result.set(r.projectId, "red");
   }
 
-  // Amber signals (don't downgrade red)
-  const soonExpiring = await db
-    .select({ projectId: complianceRecords.projectId })
-    .from(complianceRecords)
-    .where(
-      and(
-        inArray(complianceRecords.projectId, projectIds),
-        eq(complianceRecords.complianceStatus, "active"),
-        lte(complianceRecords.expiresAt, in14Days),
-      )!,
-    );
+  // Amber signals (don't downgrade red) — same multi-org policy paths.
+  const soonExpiring = await withTenant(orgId, (tx) =>
+    tx
+      .select({ projectId: complianceRecords.projectId })
+      .from(complianceRecords)
+      .where(
+        and(
+          inArray(complianceRecords.projectId, projectIds),
+          eq(complianceRecords.complianceStatus, "active"),
+          lte(complianceRecords.expiresAt, in14Days),
+        )!,
+      ),
+  );
   for (const r of soonExpiring) {
     if (r.projectId && result.get(r.projectId) !== "red") {
       result.set(r.projectId, "amber");

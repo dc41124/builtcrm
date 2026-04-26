@@ -1332,23 +1332,27 @@ export async function getContractorProjectView(
       .from(approvals)
       .where(eq(approvals.projectId, projectId))
       .orderBy(desc(approvals.createdAt)),
-    db
-      .select({
-        id: complianceRecords.id,
-        organizationId: complianceRecords.organizationId,
-        organizationName: organizations.name,
-        complianceType: complianceRecords.complianceType,
-        complianceStatus: complianceRecords.complianceStatus,
-        expiresAt: complianceRecords.expiresAt,
-        documentId: complianceRecords.documentId,
-        documentTitle: documents.title,
-        documentType: documents.documentType,
-      })
-      .from(complianceRecords)
-      .leftJoin(organizations, eq(organizations.id, complianceRecords.organizationId))
-      .leftJoin(documents, eq(documents.id, complianceRecords.documentId))
-      .where(eq(complianceRecords.projectId, projectId))
-      .orderBy(desc(complianceRecords.createdAt)),
+    // Contractor reading their project's compliance — multi-org policy
+    // clause B (project ownership) returns sub records too.
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          id: complianceRecords.id,
+          organizationId: complianceRecords.organizationId,
+          organizationName: organizations.name,
+          complianceType: complianceRecords.complianceType,
+          complianceStatus: complianceRecords.complianceStatus,
+          expiresAt: complianceRecords.expiresAt,
+          documentId: complianceRecords.documentId,
+          documentTitle: documents.title,
+          documentType: documents.documentType,
+        })
+        .from(complianceRecords)
+        .leftJoin(organizations, eq(organizations.id, complianceRecords.organizationId))
+        .leftJoin(documents, eq(documents.id, complianceRecords.documentId))
+        .where(eq(complianceRecords.projectId, projectId))
+        .orderBy(desc(complianceRecords.createdAt)),
+    ),
     db
       .select({
         id: scheduleOfValues.id,
@@ -1897,25 +1901,29 @@ export async function getSubcontractorProjectView(
         ),
       )
       .orderBy(desc(uploadRequests.createdAt)),
-    db
-      .select({
-        id: complianceRecords.id,
-        complianceType: complianceRecords.complianceType,
-        complianceStatus: complianceRecords.complianceStatus,
-        expiresAt: complianceRecords.expiresAt,
-        documentId: complianceRecords.documentId,
-        documentTitle: documents.title,
-        documentType: documents.documentType,
-      })
-      .from(complianceRecords)
-      .leftJoin(documents, eq(documents.id, complianceRecords.documentId))
-      .where(
-        and(
-          eq(complianceRecords.projectId, projectId),
-          eq(complianceRecords.organizationId, subOrgId),
-        ),
-      )
-      .orderBy(desc(complianceRecords.createdAt)),
+    // Sub viewing own project compliance — multi-org policy clause A
+    // (organization_id = GUC) satisfies.
+    withTenant(subOrgId, (tx) =>
+      tx
+        .select({
+          id: complianceRecords.id,
+          complianceType: complianceRecords.complianceType,
+          complianceStatus: complianceRecords.complianceStatus,
+          expiresAt: complianceRecords.expiresAt,
+          documentId: complianceRecords.documentId,
+          documentTitle: documents.title,
+          documentType: documents.documentType,
+        })
+        .from(complianceRecords)
+        .leftJoin(documents, eq(documents.id, complianceRecords.documentId))
+        .where(
+          and(
+            eq(complianceRecords.projectId, projectId),
+            eq(complianceRecords.organizationId, subOrgId),
+          ),
+        )
+        .orderBy(desc(complianceRecords.createdAt)),
+    ),
   ]);
 
   const subUrEnrich = await loadUploadRequestEnrichment(allUploadRows);

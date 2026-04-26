@@ -176,6 +176,13 @@
       "when": 1777170999649,
       "tag": "0024_wandering_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1777172463147,
+      "tag": "0025_dry_lady_ursula",
+      "breakpoints": true
     }
   ]
 }

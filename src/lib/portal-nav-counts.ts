@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   approvals,
   changeOrders,
@@ -54,7 +55,7 @@ export async function getPortalNavCounts(
   // badges render.
   if (portalType === "contractor") {
     if (activeProjectId || projectIds.length === 0) return {};
-    return contractorGlobalCounts({ userId, projectIds });
+    return contractorGlobalCounts({ userId, orgId, projectIds });
   }
   if (portalType === "subcontractor") {
     if (activeProjectId || projectIds.length === 0) return {};
@@ -75,9 +76,11 @@ export async function getPortalNavCounts(
 
 async function contractorGlobalCounts({
   userId,
+  orgId,
   projectIds,
 }: {
   userId: string;
+  orgId: string;
   projectIds: string[];
 }): Promise<NavCounts> {
   const thirtyDaysOut = new Date();
@@ -128,17 +131,21 @@ async function contractorGlobalCounts({
           ),
         ),
     ),
+    // Contractor compliance count — multi-org policy clause B
+    // (project ownership) returns sub records too.
     countOf(
-      db
-        .select({ c: COUNT })
-        .from(complianceRecords)
-        .where(
-          and(
-            inArray(complianceRecords.projectId, projectIds),
-            eq(complianceRecords.complianceStatus, "active"),
-            lte(complianceRecords.expiresAt, thirtyDaysOut),
+      withTenant(orgId, (tx) =>
+        tx
+          .select({ c: COUNT })
+          .from(complianceRecords)
+          .where(
+            and(
+              inArray(complianceRecords.projectId, projectIds),
+              eq(complianceRecords.complianceStatus, "active"),
+              lte(complianceRecords.expiresAt, thirtyDaysOut),
+            ),
           ),
-        ),
+      ),
     ),
     countOf(
       db
@@ -223,16 +230,20 @@ async function subcontractorGlobalCounts({
             ),
           ),
       ),
+      // Sub compliance count — own org records, multi-org policy
+      // clause A satisfies.
       countOf(
-        db
-          .select({ c: COUNT })
-          .from(complianceRecords)
-          .where(
-            and(
-              eq(complianceRecords.organizationId, orgId),
-              eq(complianceRecords.complianceStatus, "pending"),
+        withTenant(orgId, (tx) =>
+          tx
+            .select({ c: COUNT })
+            .from(complianceRecords)
+            .where(
+              and(
+                eq(complianceRecords.organizationId, orgId),
+                eq(complianceRecords.complianceStatus, "pending"),
+              ),
             ),
-          ),
+        ),
       ),
       countUnreadMessages(userId, projectIds),
     ]);

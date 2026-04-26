@@ -13,6 +13,7 @@ import {
   uploadRequests,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getSubPendingFinancialsCents } from "./financial";
 
 export type SubTodayKpis = {
@@ -225,17 +226,21 @@ export async function getSubcontractorTodayData(input: {
         ),
       )
       .orderBy(desc(uploadRequests.createdAt)),
-    db
-      .select({
-        id: complianceRecords.id,
-        projectId: complianceRecords.projectId,
-        complianceType: complianceRecords.complianceType,
-        complianceStatus: complianceRecords.complianceStatus,
-        expiresAt: complianceRecords.expiresAt,
-      })
-      .from(complianceRecords)
-      .where(eq(complianceRecords.organizationId, subOrgId))
-      .orderBy(desc(complianceRecords.createdAt)),
+    // Sub viewing own compliance — multi-org policy clause A
+    // (organization_id = GUC) satisfies.
+    withTenant(subOrgId, (tx) =>
+      tx
+        .select({
+          id: complianceRecords.id,
+          projectId: complianceRecords.projectId,
+          complianceType: complianceRecords.complianceType,
+          complianceStatus: complianceRecords.complianceStatus,
+          expiresAt: complianceRecords.expiresAt,
+        })
+        .from(complianceRecords)
+        .where(eq(complianceRecords.organizationId, subOrgId))
+        .orderBy(desc(complianceRecords.createdAt)),
+    ),
   ]);
 
   // KPIs

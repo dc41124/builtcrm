@@ -8,6 +8,7 @@ import {
   roleAssignments,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 
 import { AuthorizationError } from "../permissions";
 import type { SessionLike } from "../context";
@@ -146,22 +147,25 @@ export async function listSubOrgComplianceRecords(
   // Pull the latest record per compliance_type. We sort by createdAt desc and
   // dedupe in-memory — over a small org-scoped set this is cheaper than a
   // DISTINCT ON + window function.
-  const rows = await db
-    .select({
-      id: complianceRecords.id,
-      complianceType: complianceRecords.complianceType,
-      complianceStatus: complianceRecords.complianceStatus,
-      expiresAt: complianceRecords.expiresAt,
-      createdAt: complianceRecords.createdAt,
-      documentId: complianceRecords.documentId,
-      projectId: complianceRecords.projectId,
-      documentFilename: documents.title,
-      metadataJson: complianceRecords.metadataJson,
-    })
-    .from(complianceRecords)
-    .leftJoin(documents, eq(documents.id, complianceRecords.documentId))
-    .where(eq(complianceRecords.organizationId, organizationId))
-    .orderBy(desc(complianceRecords.createdAt));
+  // Sub viewing own records — multi-org policy clause A satisfies.
+  const rows = await withTenant(organizationId, (tx) =>
+    tx
+      .select({
+        id: complianceRecords.id,
+        complianceType: complianceRecords.complianceType,
+        complianceStatus: complianceRecords.complianceStatus,
+        expiresAt: complianceRecords.expiresAt,
+        createdAt: complianceRecords.createdAt,
+        documentId: complianceRecords.documentId,
+        projectId: complianceRecords.projectId,
+        documentFilename: documents.title,
+        metadataJson: complianceRecords.metadataJson,
+      })
+      .from(complianceRecords)
+      .leftJoin(documents, eq(documents.id, complianceRecords.documentId))
+      .where(eq(complianceRecords.organizationId, organizationId))
+      .orderBy(desc(complianceRecords.createdAt)),
+  );
 
   const seen = new Set<string>();
   const result: SubComplianceRow[] = [];

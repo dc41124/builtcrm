@@ -11,6 +11,7 @@ import {
   punchItems,
   rfis,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 
 import { getContractorOrgContext, type ContractorOrgContext } from "./integrations";
 import type { SessionLike } from "../context";
@@ -291,30 +292,33 @@ export async function getContractorReportsData(
       })
       .from(drawRequests)
       .where(inArray(drawRequests.projectId, projectIds)),
-    // Compliance — alerts plus expiring-soon records
-    db
-      .select({
-        id: complianceRecords.id,
-        projectId: complianceRecords.projectId,
-        complianceStatus: complianceRecords.complianceStatus,
-        expiresAt: complianceRecords.expiresAt,
-      })
-      .from(complianceRecords)
-      .where(
-        and(
-          isNotNull(complianceRecords.projectId),
-          inArray(complianceRecords.projectId, projectIds),
-          or(
-            inArray(complianceRecords.complianceStatus, [
-              ...COMPLIANCE_ALERT_STATUSES,
-            ]),
-            and(
-              isNotNull(complianceRecords.expiresAt),
-              lt(complianceRecords.expiresAt, soon),
+    // Compliance — alerts plus expiring-soon records. Project-scoped
+    // on contractor's projects -> multi-org policy clause B authorises.
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          id: complianceRecords.id,
+          projectId: complianceRecords.projectId,
+          complianceStatus: complianceRecords.complianceStatus,
+          expiresAt: complianceRecords.expiresAt,
+        })
+        .from(complianceRecords)
+        .where(
+          and(
+            isNotNull(complianceRecords.projectId),
+            inArray(complianceRecords.projectId, projectIds),
+            or(
+              inArray(complianceRecords.complianceStatus, [
+                ...COMPLIANCE_ALERT_STATUSES,
+              ]),
+              and(
+                isNotNull(complianceRecords.expiresAt),
+                lt(complianceRecords.expiresAt, soon),
+              ),
             ),
           ),
         ),
-      ),
+    ),
     // Milestones for % complete + schedule variance
     db
       .select({

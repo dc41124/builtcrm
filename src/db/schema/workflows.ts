@@ -7,6 +7,7 @@ import {
   integer,
   jsonb,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -135,6 +136,17 @@ export const uploadRequests = pgTable(
 // Compliance
 // -----------------------------------------------------------------------------
 
+// RLS Phase 3c — multi-org policy. Compliance records are inherently
+// cross-org: a sub uploads insurance/W-9/etc per project that the
+// contractor reviews, and the contractor's org also has its own
+// compliance records (state license expirations etc) on
+// projectId=NULL. Pattern A alone deny-fails for contractor reading
+// sub records on their projects. Same 3-clause hybrid template as
+// lien_waivers — see docs/specs/rls_sprint_plan.md §4.2.
+//
+// projectId is nullable here (org-level records have no project), so
+// clause B and clause C only fire when projectId IS NOT NULL; the
+// org-level records fall through to clause A (organization_id = GUC).
 export const complianceRecords = pgTable(
   "compliance_records",
   {
@@ -158,8 +170,35 @@ export const complianceRecords = pgTable(
     orgIdx: index("compliance_records_org_idx").on(table.organizationId),
     projectIdx: index("compliance_records_project_idx").on(table.projectId),
     statusIdx: index("compliance_records_status_idx").on(table.complianceStatus),
+    tenantIsolation: pgPolicy("compliance_records_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.organizationId} = current_setting('app.current_org_id', true)::uuid
+        OR ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.organizationId} = current_setting('app.current_org_id', true)::uuid
+        OR ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // RFIs
