@@ -1,6 +1,5 @@
 import { and, desc, eq, or, sql } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import {
   authSession,
   authUser,
@@ -121,9 +120,11 @@ export async function countAdminsInOrganization(
     conditions.push(eq(roleAssignments.portalType, "client"));
     conditions.push(eq(roleAssignments.clientSubtype, portal));
   }
-  const rows = await db
-    .select({ roleKey: roleAssignments.roleKey })
-    .from(roleAssignments)
-    .where(and(...conditions));
+  const rows = await withTenant(organizationId, (tx) =>
+    tx
+      .select({ roleKey: roleAssignments.roleKey })
+      .from(roleAssignments)
+      .where(and(...conditions)),
+  );
   return rows.length;
 }

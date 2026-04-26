@@ -49,8 +49,10 @@ export async function POST(req: Request) {
   }
 
   // Block anyone who already has a role — avoids accidentally creating a
-  // second contractor org on replay / duplicate submit.
-  const [existingRole] = await db
+  // second contractor org on replay / duplicate submit. Pre-tenant
+  // (no org exists yet for this caller); RLS-enabled `role_assignments`
+  // reads route through the admin pool.
+  const [existingRole] = await dbAdmin
     .select({ id: roleAssignments.id })
     .from(roleAssignments)
     .where(eq(roleAssignments.userId, appUserId))

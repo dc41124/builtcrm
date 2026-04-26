@@ -178,7 +178,9 @@ export function ssoPlugin(): BetterAuthPlugin {
               { status: 500 },
             );
           }
-          const [roleAssignment] = await db
+          // Pre-session SAML ACS — no GUC yet. RLS-enabled
+          // `role_assignments` reads route through the admin pool.
+          const [roleAssignment] = await dbAdmin
             .select({ id: roleAssignments.id })
             .from(roleAssignments)
             .where(

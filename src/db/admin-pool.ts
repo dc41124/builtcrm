@@ -29,9 +29,15 @@ import * as schema from "./schema";
 // so a silent fallback would let RLS fire on lookups that need to span
 // tenants — breaking SSO sign-in, webhook handling, and job sweeps.
 //
-// Pool sized small (max: 5) because admin queries are infrequent
-// compared to runtime traffic; reserving more here would starve the
-// main `db` pool.
+// Pool sized for the auth-chokepoint hot path: every authenticated
+// request resolves the tenant via `getEffectiveContext` /
+// `getOrgContext` / portal-specific resolvers, all of which now run
+// through this pool because the tables they query
+// (`role_assignments`, `project_user_memberships`,
+// `project_organization_memberships`, `users`, `organizations`,
+// `projects`) are read pre-tenant. `max: 20` is the same order of
+// magnitude as the runtime pool — bumped from the original `max: 5`
+// when the auth chokepoint shifted onto this pool.
 //
 // See docs/specs/rls_sprint_plan.md §3.3 / §3.4.
 
@@ -43,7 +49,7 @@ if (!adminUrl) {
   );
 }
 
-const adminClient = postgres(adminUrl, { max: 5, prepare: false });
+const adminClient = postgres(adminUrl, { max: 20, prepare: false });
 
 export const dbAdmin = drizzle(adminClient, { schema });
 export type DbAdmin = typeof dbAdmin;

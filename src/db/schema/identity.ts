@@ -419,8 +419,17 @@ export const roleAssignments = pgTable(
     ),
     userOrgIdx: index("role_assignments_user_org_idx").on(table.userId, table.organizationId),
     portalIdx: index("role_assignments_portal_idx").on(table.portalType),
+    // Pattern A. Pre-tenant resolvers (getEffectiveContext et al.) and
+    // cross-org reads (portals.ts, sole-owner, user-data-export,
+    // notification recipients, transmittal/meetings notify) route
+    // through `dbAdmin`. Every other read sits inside withTenant.
+    tenantIsolation: pgPolicy("role_assignments_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Invitations

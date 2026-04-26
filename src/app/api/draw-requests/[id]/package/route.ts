@@ -105,22 +105,25 @@ export async function GET(
     // Client org — appears as "To (owner)" on the G702. A project normally has
     // exactly one active client membership; if none is set up yet (seed data
     // or a partially-configured project), clientName stays null and the PDF
-    // renders an em-dash for that field.
-    const [clientMembership] = await db
-      .select({ name: organizations.name })
-      .from(projectOrganizationMemberships)
-      .innerJoin(
-        organizations,
-        eq(organizations.id, projectOrganizationMemberships.organizationId),
-      )
-      .where(
-        and(
-          eq(projectOrganizationMemberships.projectId, draw.projectId),
-          eq(projectOrganizationMemberships.membershipType, "client"),
-          eq(projectOrganizationMemberships.membershipStatus, "active"),
-        ),
-      )
-      .limit(1);
+    // renders an em-dash for that field. Caller is contractor; multi-org POM
+    // policy clause B (project ownership) lets them see the client POM row.
+    const [clientMembership] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({ name: organizations.name })
+        .from(projectOrganizationMemberships)
+        .innerJoin(
+          organizations,
+          eq(organizations.id, projectOrganizationMemberships.organizationId),
+        )
+        .where(
+          and(
+            eq(projectOrganizationMemberships.projectId, draw.projectId),
+            eq(projectOrganizationMemberships.membershipType, "client"),
+            eq(projectOrganizationMemberships.membershipStatus, "active"),
+          ),
+        )
+        .limit(1),
+    );
 
     const supportingFiles = await db
       .select({

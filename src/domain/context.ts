@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   organizations,
   projects,
@@ -14,6 +14,16 @@ import {
   buildPermissions,
   type Permissions,
 } from "./permissions";
+
+// Auth chokepoint: every authenticated request resolves the tenant
+// via `getEffectiveContext` / `getOrgContext` BEFORE any GUC is set.
+// Since `role_assignments` and `project_user_memberships` are
+// RLS-enabled, those reads must use the BYPASSRLS admin pool —
+// otherwise the resolution itself would return empty under RLS and
+// every authenticated request would fail closed. The auth chokepoint
+// is the legitimate place to bypass RLS; the rest of the request
+// runs inside `withTenant(orgId, ...)` with the tenant the
+// chokepoint resolved.
 
 // The five effective roles the rest of the app reasons about. Raw role_key
 // values in role_assignments can be richer than this (e.g. "contractor_owner",
@@ -57,7 +67,7 @@ export async function getEffectiveContext(
   }
   const appUserId = session.appUserId;
 
-  const [user] = await db
+  const [user] = await dbAdmin
     .select({
       id: users.id,
       email: users.email,
@@ -71,7 +81,7 @@ export async function getEffectiveContext(
     throw new AuthorizationError("User not found or inactive", "unauthenticated");
   }
 
-  const [project] = await db
+  const [project] = await dbAdmin
     .select({
       id: projects.id,
       name: projects.name,
@@ -87,7 +97,7 @@ export async function getEffectiveContext(
 
   // Preferred path: explicit project membership. This also carries any
   // project-level scope overrides the policy layer needs.
-  const [membership] = await db
+  const [membership] = await dbAdmin
     .select({
       id: projectUserMemberships.id,
       organizationId: projectUserMemberships.organizationId,
@@ -145,7 +155,7 @@ export async function getEffectiveContext(
     // by their organization, even without an explicit project_user_memberships
     // row. Subs and clients do NOT get this fallback — they must be invited
     // onto the specific project.
-    const [staff] = await db
+    const [staff] = await dbAdmin
       .select({
         organizationId: roleAssignments.organizationId,
         portalType: roleAssignments.portalType,
@@ -177,7 +187,7 @@ export async function getEffectiveContext(
     workScope = null;
   }
 
-  const [org] = await db
+  const [org] = await dbAdmin
     .select({
       id: organizations.id,
       name: organizations.name,
@@ -247,7 +257,7 @@ export async function getOrgContext(
   }
   const appUserId = session.appUserId;
 
-  const [user] = await db
+  const [user] = await dbAdmin
     .select({
       id: users.id,
       email: users.email,
@@ -264,7 +274,7 @@ export async function getOrgContext(
     );
   }
 
-  const [assignment] = await db
+  const [assignment] = await dbAdmin
     .select({
       organizationId: roleAssignments.organizationId,
       portalType: roleAssignments.portalType,
@@ -281,7 +291,7 @@ export async function getOrgContext(
     );
   }
 
-  const [org] = await db
+  const [org] = await dbAdmin
     .select({
       id: organizations.id,
       name: organizations.name,

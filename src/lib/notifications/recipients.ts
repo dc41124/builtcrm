@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   conversationParticipants,
   projects,
@@ -17,6 +17,13 @@ import type { SettingsPortalType } from "@/lib/notification-catalog";
 // Keeping the rules in one file means recipient logic stays consistent
 // across every route that emits — "who sees a CO submission" shouldn't
 // drift between /api/change-orders/route.ts and /api/change-orders/[id]/submit.
+//
+// Cross-org by design: a single project's recipient set spans the
+// contractor org, every sub org with a POM, and every client org with
+// a POM. Reads against the RLS-enabled `role_assignments` /
+// `project_user_memberships` tables route through `dbAdmin`. The
+// authorization gate is the action that triggers the emit; this
+// resolver is the system-level "who's on this project" lookup.
 
 export type Recipient = {
   userId: string;
@@ -33,7 +40,7 @@ async function projectMembershipsByPortal(
 ): Promise<Recipient[]> {
   if (portals.length === 0) return [];
 
-  const rows = await db
+  const rows = await dbAdmin
     .select({
       userId: projectUserMemberships.userId,
       portalType: roleAssignments.portalType,
@@ -76,14 +83,14 @@ async function projectMembershipsByPortal(
 async function projectContractorStaff(
   projectId: string,
 ): Promise<Recipient[]> {
-  const [project] = await db
+  const [project] = await dbAdmin
     .select({ contractorOrganizationId: projects.contractorOrganizationId })
     .from(projects)
     .where(eq(projects.id, projectId))
     .limit(1);
   if (!project) return [];
 
-  const staff = await db
+  const staff = await dbAdmin
     .select({
       userId: roleAssignments.userId,
       isActive: users.isActive,
@@ -135,7 +142,7 @@ export async function orgMembersByPortal(
   organizationId: string,
   portalType: SettingsPortalType,
 ): Promise<Recipient[]> {
-  const rows = await db
+  const rows = await dbAdmin
     .select({
       userId: roleAssignments.userId,
       portalType: roleAssignments.portalType,
@@ -181,7 +188,7 @@ async function projectSubs(
   projectId: string,
   organizationId?: string,
 ): Promise<Recipient[]> {
-  const rows = await db
+  const rows = await dbAdmin
     .select({
       userId: projectUserMemberships.userId,
       organizationId: projectUserMemberships.organizationId,
@@ -215,7 +222,7 @@ async function conversationParticipantsFor(
   // The conversation's portal context varies per participant; pull each
   // participant's roleAssignments and resolve portal per user. Assume
   // one assignment per user per org for portfolio scope; pick the first.
-  const participants = await db
+  const participants = await dbAdmin
     .select({ userId: conversationParticipants.userId })
     .from(conversationParticipants)
     .where(eq(conversationParticipants.conversationId, conversationId));
@@ -223,7 +230,7 @@ async function conversationParticipantsFor(
   if (participants.length === 0) return [];
 
   const userIds = participants.map((p) => p.userId);
-  const assignments = await db
+  const assignments = await dbAdmin
     .select({
       userId: roleAssignments.userId,
       portalType: roleAssignments.portalType,

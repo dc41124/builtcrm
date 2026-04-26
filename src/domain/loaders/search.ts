@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   changeOrders,
   conversationParticipants,
@@ -470,8 +471,9 @@ async function searchPeople(
       : ["contractor"];
 
   // The user's own org — added unconditionally so the caller sees their
-  // teammates regardless of portal.
-  const [ownAssignment] = await db
+  // teammates regardless of portal. Cross-org search resolution against
+  // RLS-enabled `role_assignments` — admin pool.
+  const [ownAssignment] = await dbAdmin
     .select({
       organizationId: roleAssignments.organizationId,
       portalType: roleAssignments.portalType,
@@ -516,7 +518,11 @@ async function searchPeople(
   // CASE and just sort alphabetically. Natural name ordering is fine
   // for people lookups; suffix-match ranking matters less than it does
   // for project/RFI names.
-  const rows = await db
+  //
+  // Cross-org by design — we query role_assignments across the
+  // caller's own org plus every contractor org whose projects the
+  // caller can reach. Admin pool.
+  const rows = await dbAdmin
     .selectDistinct({
       id: users.id,
       displayName: users.displayName,

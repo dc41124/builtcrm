@@ -63,7 +63,10 @@ export async function buildUserExportManifest(
     .from(userNotificationPreferences)
     .where(eq(userNotificationPreferences.userId, userId));
 
-  const roles = await db
+  // Cross-org by design — same rationale as `organizationUsers` below.
+  // The user's role rows can span every org they've ever been a member
+  // of; RLS would silently restrict the bundle.
+  const roles = await dbAdmin
     .select()
     .from(roleAssignments)
     .where(eq(roleAssignments.userId, userId));

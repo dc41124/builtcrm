@@ -427,27 +427,30 @@ export async function getContractorFinancialView(
       ? Math.round((billedToDateCents / revisedContractCents) * 100)
       : 0;
 
-  // Sub payment rollup via lien waivers.
-  const subOrgs = await db
-    .select({
-      organizationId: projectOrganizationMemberships.organizationId,
-      organizationName: organizations.name,
-      // Free-text scope label the GC set on invite. May be null; rendered
-      // as "Trade" on commercial projects, "Scope" on residential.
-      workScope: projectOrganizationMemberships.workScope,
-    })
-    .from(projectOrganizationMemberships)
-    .innerJoin(
-      organizations,
-      eq(organizations.id, projectOrganizationMemberships.organizationId),
-    )
-    .where(
-      and(
-        eq(projectOrganizationMemberships.projectId, projectId),
-        eq(projectOrganizationMemberships.membershipType, "subcontractor"),
-        eq(projectOrganizationMemberships.membershipStatus, "active"),
+  // Sub payment rollup via lien waivers. Contractor caller; multi-org
+  // POM policy clause B (project ownership) returns every sub POM.
+  const subOrgs = await withTenant(context.organization.id, (tx) =>
+    tx
+      .select({
+        organizationId: projectOrganizationMemberships.organizationId,
+        organizationName: organizations.name,
+        // Free-text scope label the GC set on invite. May be null; rendered
+        // as "Trade" on commercial projects, "Scope" on residential.
+        workScope: projectOrganizationMemberships.workScope,
+      })
+      .from(projectOrganizationMemberships)
+      .innerJoin(
+        organizations,
+        eq(organizations.id, projectOrganizationMemberships.organizationId),
+      )
+      .where(
+        and(
+          eq(projectOrganizationMemberships.projectId, projectId),
+          eq(projectOrganizationMemberships.membershipType, "subcontractor"),
+          eq(projectOrganizationMemberships.membershipStatus, "active"),
+        ),
       ),
-    );
+  );
 
   const subPayments: SubPaymentRollupRow[] = [];
   if (subOrgs.length > 0) {
@@ -682,19 +685,22 @@ export async function getSubcontractorFinancialView(
   const defaultRetainagePercent = sov?.defaultRetainagePercent ?? 10;
 
   // Work scope for this sub on this project — surfaces as
-  // "{orgName} — {scope} scope" on the contract summary card.
-  const [membership] = await db
-    .select({
-      workScope: projectOrganizationMemberships.workScope,
-    })
-    .from(projectOrganizationMemberships)
-    .where(
-      and(
-        eq(projectOrganizationMemberships.projectId, projectId),
-        eq(projectOrganizationMemberships.organizationId, orgId),
-      ),
-    )
-    .limit(1);
+  // "{orgName} — {scope} scope" on the contract summary card. Sub
+  // viewing its own POM — multi-org policy clause A (own row) satisfies.
+  const [membership] = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        workScope: projectOrganizationMemberships.workScope,
+      })
+      .from(projectOrganizationMemberships)
+      .where(
+        and(
+          eq(projectOrganizationMemberships.projectId, projectId),
+          eq(projectOrganizationMemberships.organizationId, orgId),
+        ),
+      )
+      .limit(1),
+  );
   const scopeLabel = membership?.workScope?.trim() || null;
 
   // Lien waivers for this sub on this project, with their parent draw

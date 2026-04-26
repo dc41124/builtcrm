@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { type DB } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   meetingAttendees,
   meetings,
@@ -17,11 +18,15 @@ type DbOrTx = DB | Parameters<Parameters<DB["transaction"]>[0]>[0];
 // project-wide role fan-outs in recipients.ts (an invite goes to
 // specific people, not to "all subs"), so we bypass the recipient
 // resolver via the emit helper's `recipientsOverride`.
+//
+// Cross-org by design: an invitee may belong to a different org than
+// the caller (contractor invites a sub user; sub's role_assignment
+// row lives in the sub's own org). Reads against RLS-enabled
+// `role_assignments` route through `dbAdmin`.
 async function portalForUserId(
-  dbc: DbOrTx,
   userId: string,
 ): Promise<SettingsPortalType | null> {
-  const [row] = await dbc
+  const [row] = await dbAdmin
     .select({
       portalType: roleAssignments.portalType,
       clientSubtype: roleAssignments.clientSubtype,
@@ -37,7 +42,6 @@ async function portalForUserId(
 }
 
 async function recipientsFromUserIds(
-  dbc: DbOrTx,
   userIds: string[],
 ): Promise<Recipient[]> {
   const out: Recipient[] = [];
@@ -45,7 +49,7 @@ async function recipientsFromUserIds(
   for (const uid of userIds) {
     if (seen.has(uid)) continue;
     seen.add(uid);
-    const portal = await portalForUserId(dbc, uid);
+    const portal = await portalForUserId(uid);
     if (portal) out.push({ userId: uid, portalType: portal });
   }
   return out;
@@ -65,7 +69,7 @@ export async function emitMeetingInvite(
   },
 ): Promise<void> {
   const recipients = (
-    await recipientsFromUserIds(dbc, input.inviteeUserIds)
+    await recipientsFromUserIds(input.inviteeUserIds)
   ).filter((r) => r.userId !== input.actorUserId);
   if (recipients.length === 0) return;
   await emitNotifications(
@@ -104,7 +108,7 @@ export async function emitMeetingRsvpChange(
   },
 ): Promise<void> {
   if (input.chairUserId === input.actorUserId) return;
-  const recipients = await recipientsFromUserIds(dbc, [input.chairUserId]);
+  const recipients = await recipientsFromUserIds([input.chairUserId]);
   if (recipients.length === 0) return;
   await emitNotifications(
     {
@@ -140,7 +144,7 @@ export async function emitMeetingActionAssigned(
   },
 ): Promise<void> {
   if (input.assignedUserId === input.actorUserId) return;
-  const recipients = await recipientsFromUserIds(dbc, [input.assignedUserId]);
+  const recipients = await recipientsFromUserIds([input.assignedUserId]);
   if (recipients.length === 0) return;
   await emitNotifications(
     {
@@ -182,7 +186,7 @@ export async function emitMeetingActionStatusChange(
     .where(eq(meetings.id, input.meetingId))
     .limit(1);
   if (!mtg || mtg.chairUserId === input.actorUserId) return;
-  const recipients = await recipientsFromUserIds(dbc, [mtg.chairUserId]);
+  const recipients = await recipientsFromUserIds([mtg.chairUserId]);
   if (recipients.length === 0) return;
   await emitNotifications(
     {
@@ -229,7 +233,7 @@ export async function emitMeetingMinutesPublished(
     .map((r) => r.userId)
     .filter((v): v is string => !!v);
   if (userIds.length === 0) return;
-  const recipients = (await recipientsFromUserIds(dbc, userIds)).filter(
+  const recipients = (await recipientsFromUserIds(userIds)).filter(
     (r) => r.userId !== input.actorUserId,
   );
   if (recipients.length === 0) return;

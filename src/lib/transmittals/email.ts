@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import { type DB } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { roleAssignments, users } from "@/db/schema";
 import { emitNotifications } from "@/lib/notifications/emit";
 import type { Recipient } from "@/lib/notifications/recipients";
@@ -152,7 +153,10 @@ async function resolveInternalUsers(
   if (activeUsers.length === 0) return new Map();
 
   const userIds = activeUsers.map((u) => u.userId);
-  const assignments = await dbc
+  // Cross-org by design: transmittal recipients are arbitrary users
+  // (different orgs from the sender). RLS-enabled `role_assignments`
+  // reads route through `dbAdmin`.
+  const assignments = await dbAdmin
     .select({
       userId: roleAssignments.userId,
       portalType: roleAssignments.portalType,

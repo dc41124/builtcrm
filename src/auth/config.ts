@@ -8,6 +8,7 @@ import { ssoPlugin } from "./sso-plugin";
 import { betterAuthSecondaryStorage } from "./secondary-storage";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   authAccount,
   authSession,
@@ -163,7 +164,10 @@ export const auth = betterAuth({
             );
           }
 
-          const [primary] = await db
+          // Pre-tenant: session is mid-mint, no GUC yet. Reads against
+          // RLS-enabled `role_assignments` route through the admin pool;
+          // see src/db/admin-pool.ts for the rationale.
+          const [primary] = await dbAdmin
             .select()
             .from(roleAssignments)
             .where(
@@ -174,7 +178,7 @@ export const auth = betterAuth({
           const fallback = primary
             ? null
             : (
-                await db
+                await dbAdmin
                   .select()
                   .from(roleAssignments)
                   .where(eq(roleAssignments.userId, u.appUserId))

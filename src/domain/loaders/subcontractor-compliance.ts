@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   complianceRecords,
   documents,
@@ -15,6 +15,9 @@ import type { SessionLike } from "../context";
 
 // Sub org auth context. Mirrors getContractorOrgContext but scoped to
 // portalType=subcontractor and with a simpler role split (owner vs member).
+//
+// Pre-tenant resolver — RLS-enabled `role_assignments` reads route
+// through `dbAdmin`. See src/domain/context.ts for the rationale.
 export type SubcontractorOrgContext = {
   user: { id: string; email: string; displayName: string | null };
   organization: { id: string; name: string };
@@ -29,7 +32,7 @@ export async function getSubcontractorOrgContext(
   }
   const appUserId = session.appUserId;
 
-  const [user] = await db
+  const [user] = await dbAdmin
     .select({
       id: users.id,
       email: users.email,
@@ -43,7 +46,7 @@ export async function getSubcontractorOrgContext(
     throw new AuthorizationError("User not found or inactive", "unauthenticated");
   }
 
-  const [assignment] = await db
+  const [assignment] = await dbAdmin
     .select({
       organizationId: roleAssignments.organizationId,
       roleKey: roleAssignments.roleKey,

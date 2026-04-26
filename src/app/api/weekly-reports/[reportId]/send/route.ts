@@ -67,7 +67,10 @@ export async function POST(
       );
     }
 
-    const recipients = await loadWeeklyReportRecipients(existing.projectId);
+    const recipients = await loadWeeklyReportRecipients(
+      existing.projectId,
+      ctx.organization.id,
+    );
     if (recipients.length === 0) {
       return NextResponse.json(
         {

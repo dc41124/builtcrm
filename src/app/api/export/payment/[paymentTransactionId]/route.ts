@@ -5,6 +5,7 @@ import { requireServerSession } from "@/auth/session";
 import { renderToBuffer } from "@react-pdf/renderer";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   changeOrders,
   drawRequests,
@@ -171,21 +172,23 @@ export async function GET(
       .where(eq(organizations.id, txn.organizationId))
       .limit(1);
 
-    const [clientMembership] = await db
-      .select({ name: organizations.name })
-      .from(projectOrganizationMemberships)
-      .innerJoin(
-        organizations,
-        eq(organizations.id, projectOrganizationMemberships.organizationId),
-      )
-      .where(
-        and(
-          eq(projectOrganizationMemberships.projectId, txn.projectId),
-          eq(projectOrganizationMemberships.membershipType, "client"),
-          eq(projectOrganizationMemberships.membershipStatus, "active"),
-        ),
-      )
-      .limit(1);
+    const [clientMembership] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({ name: organizations.name })
+        .from(projectOrganizationMemberships)
+        .innerJoin(
+          organizations,
+          eq(organizations.id, projectOrganizationMemberships.organizationId),
+        )
+        .where(
+          and(
+            eq(projectOrganizationMemberships.projectId, txn.projectId),
+            eq(projectOrganizationMemberships.membershipType, "client"),
+            eq(projectOrganizationMemberships.membershipStatus, "active"),
+          ),
+        )
+        .limit(1),
+    );
 
     const [initiatedByUser] = txn.initiatedByUserId
       ? await db

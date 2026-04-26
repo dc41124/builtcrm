@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { organizations, roleAssignments, users } from "@/db/schema";
 
 import { AuthorizationError } from "../permissions";
@@ -10,6 +10,9 @@ import type { SessionLike } from "../context";
 // with clientSubtype discriminating between commercial and residential. A user
 // can be assigned to at most one client org per subtype (enforced by app
 // policy, not schema), so we pick the first match.
+//
+// Pre-tenant resolver — RLS-enabled `role_assignments` reads route
+// through `dbAdmin`. See src/domain/context.ts for the rationale.
 
 export type ClientOrgContext = {
   user: { id: string; email: string; displayName: string | null };
@@ -27,7 +30,7 @@ async function loadClientContext(
   }
   const appUserId = session.appUserId;
 
-  const [user] = await db
+  const [user] = await dbAdmin
     .select({
       id: users.id,
       email: users.email,
@@ -41,7 +44,7 @@ async function loadClientContext(
     throw new AuthorizationError("User not found or inactive", "unauthenticated");
   }
 
-  const [assignment] = await db
+  const [assignment] = await dbAdmin
     .select({
       organizationId: roleAssignments.organizationId,
       roleKey: roleAssignments.roleKey,

@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   projectUserMemberships,
   roleAssignments,
@@ -140,7 +141,7 @@ export async function getContractorWeeklyReportDetail(
       reportId: input.reportId,
       sentOnly: false,
     }),
-    loadWeeklyReportRecipients(context.project.id),
+    loadWeeklyReportRecipients(context.project.id, context.organization.id),
   ]);
   if (!report) {
     throw new AuthorizationError(
@@ -226,33 +227,38 @@ export async function getWeeklyReportsAggregate(input: {
 }
 
 // Public — also used by the send route to validate "is there anyone to
-// send to" and emit notifications to a known target list.
+// send to" and emit notifications to a known target list. Caller supplies
+// their own org context; multi-org PUM policy clause B (contractor owns
+// project) lets the contractor see every client PUM on the project.
 export async function loadWeeklyReportRecipients(
   projectId: string,
+  callerOrgId: string,
 ): Promise<WeeklyReportRecipient[]> {
-  const rows = await db
-    .select({
-      userId: users.id,
-      name: users.displayName,
-      email: users.email,
-      roleKey: roleAssignments.roleKey,
-      clientSubtype: roleAssignments.clientSubtype,
-    })
-    .from(projectUserMemberships)
-    .innerJoin(
-      roleAssignments,
-      eq(roleAssignments.id, projectUserMemberships.roleAssignmentId),
-    )
-    .innerJoin(users, eq(users.id, projectUserMemberships.userId))
-    .where(
-      and(
-        eq(projectUserMemberships.projectId, projectId),
-        eq(projectUserMemberships.membershipStatus, "active"),
-        eq(projectUserMemberships.accessState, "active"),
-        eq(roleAssignments.portalType, "client"),
-        eq(users.isActive, true),
+  const rows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        userId: users.id,
+        name: users.displayName,
+        email: users.email,
+        roleKey: roleAssignments.roleKey,
+        clientSubtype: roleAssignments.clientSubtype,
+      })
+      .from(projectUserMemberships)
+      .innerJoin(
+        roleAssignments,
+        eq(roleAssignments.id, projectUserMemberships.roleAssignmentId),
+      )
+      .innerJoin(users, eq(users.id, projectUserMemberships.userId))
+      .where(
+        and(
+          eq(projectUserMemberships.projectId, projectId),
+          eq(projectUserMemberships.membershipStatus, "active"),
+          eq(projectUserMemberships.accessState, "active"),
+          eq(roleAssignments.portalType, "client"),
+          eq(users.isActive, true),
+        ),
       ),
-    );
+  );
 
   return rows
     .filter((r) => r.clientSubtype === "commercial" || r.clientSubtype === "residential")

@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   drawRequests,
   organizations,
@@ -130,24 +131,28 @@ export async function getARReport(input: LoaderInput): Promise<ARReportView> {
           eq(paymentTransactions.relatedEntityType, "draw_request"),
         ),
       ),
-    db
-      .select({
-        projectId: projectOrganizationMemberships.projectId,
-        clientOrganizationId: organizations.id,
-        clientName: organizations.name,
-      })
-      .from(projectOrganizationMemberships)
-      .innerJoin(
-        organizations,
-        eq(projectOrganizationMemberships.organizationId, organizations.id),
-      )
-      .where(
-        and(
-          inArray(projectOrganizationMemberships.projectId, projectIds),
-          eq(projectOrganizationMemberships.membershipType, "client"),
-          eq(projectOrganizationMemberships.membershipStatus, "active"),
+    // Contractor caller; multi-org POM policy clause B (project
+    // ownership) returns every client POM on their projects.
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          projectId: projectOrganizationMemberships.projectId,
+          clientOrganizationId: organizations.id,
+          clientName: organizations.name,
+        })
+        .from(projectOrganizationMemberships)
+        .innerJoin(
+          organizations,
+          eq(projectOrganizationMemberships.organizationId, organizations.id),
+        )
+        .where(
+          and(
+            inArray(projectOrganizationMemberships.projectId, projectIds),
+            eq(projectOrganizationMemberships.membershipType, "client"),
+            eq(projectOrganizationMemberships.membershipStatus, "active"),
+          ),
         ),
-      ),
+    ),
   ]);
 
   // paid-sum per draw (only succeeded payments)

@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   integrationConnections,
   organizations,
@@ -15,6 +16,10 @@ import { AuthorizationError } from "../permissions";
 import type { SessionLike } from "../context";
 
 // ---- Org-scoped contractor context (settings pages don't have a project) ----
+//
+// Pre-tenant resolver — runs before any GUC is set, so reads against
+// the RLS-enabled `role_assignments` table use the BYPASSRLS admin
+// pool. See src/domain/context.ts for the full rationale.
 
 export type ContractorOrgContext = {
   user: { id: string; email: string; displayName: string | null };
@@ -30,7 +35,7 @@ export async function getContractorOrgContext(
   }
   const appUserId = session.appUserId;
 
-  const [user] = await db
+  const [user] = await dbAdmin
     .select({
       id: users.id,
       email: users.email,
@@ -44,7 +49,7 @@ export async function getContractorOrgContext(
     throw new AuthorizationError("User not found or inactive", "unauthenticated");
   }
 
-  const [assignment] = await db
+  const [assignment] = await dbAdmin
     .select({
       organizationId: roleAssignments.organizationId,
       roleKey: roleAssignments.roleKey,

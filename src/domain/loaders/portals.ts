@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   organizations,
   projects,
@@ -8,6 +8,12 @@ import {
   roleAssignments,
 } from "@/db/schema";
 import type { PortalType } from "@/lib/portal-colors";
+
+// Cross-org by design: portals.ts answers "which orgs/projects can
+// this user enter?" before the request has picked a tenant. Reads
+// against the RLS-enabled `role_assignments` /
+// `project_user_memberships` tables route through the admin pool;
+// see src/db/admin-pool.ts.
 
 export type PortalOption = {
   roleAssignmentId: string;
@@ -46,7 +52,7 @@ export type UserPortalContext = {
 export async function loadUserPortalContext(
   appUserId: string,
 ): Promise<UserPortalContext> {
-  const assignments = await db
+  const assignments = await dbAdmin
     .select({
       id: roleAssignments.id,
       portalType: roleAssignments.portalType,
@@ -73,13 +79,13 @@ export async function loadUserPortalContext(
 
     let projectCount = 0;
     if (a.portalType === "contractor") {
-      const [{ count }] = await db
+      const [{ count }] = await dbAdmin
         .select({ count: sql<number>`count(*)::int` })
         .from(projects)
         .where(eq(projects.contractorOrganizationId, a.organizationId));
       projectCount = Number(count);
 
-      const orgProjects = await db
+      const orgProjects = await dbAdmin
         .select({ id: projects.id, name: projects.name })
         .from(projects)
         .where(eq(projects.contractorOrganizationId, a.organizationId))
@@ -93,7 +99,7 @@ export async function loadUserPortalContext(
         });
       }
     } else {
-      const memberships = await db
+      const memberships = await dbAdmin
         .select({
           projectId: projectUserMemberships.projectId,
           projectName: projects.name,
@@ -161,7 +167,7 @@ export async function getAccessibleProjects(
   appUserId: string,
   portalType: PortalType,
 ): Promise<AccessibleProject[]> {
-  const assignments = await db
+  const assignments = await dbAdmin
     .select({
       id: roleAssignments.id,
       portalType: roleAssignments.portalType,
@@ -188,7 +194,7 @@ export async function getAccessibleProjects(
 
   for (const a of matching) {
     if (a.portalType === "contractor") {
-      const orgProjects = await db
+      const orgProjects = await dbAdmin
         .select({ id: projects.id, name: projects.name })
         .from(projects)
         .where(eq(projects.contractorOrganizationId, a.organizationId));
@@ -202,7 +208,7 @@ export async function getAccessibleProjects(
         });
       }
     } else {
-      const memberships = await db
+      const memberships = await dbAdmin
         .select({
           projectId: projectUserMemberships.projectId,
           projectName: projects.name,

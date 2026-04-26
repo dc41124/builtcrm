@@ -4,8 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { auditEvents, roleAssignments } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
 import { countAdminsInOrganization } from "@/domain/loaders/organization-members";
 import { AuthorizationError } from "@/domain/permissions";
@@ -47,20 +47,22 @@ export async function PATCH(
           ? eq(roleAssignments.portalType, "subcontractor")
           : eq(roleAssignments.portalType, "client");
 
-    const [existing] = await db
-      .select({
-        id: roleAssignments.id,
-        roleKey: roleAssignments.roleKey,
-      })
-      .from(roleAssignments)
-      .where(
-        and(
-          eq(roleAssignments.userId, targetUserId),
-          eq(roleAssignments.organizationId, ctx.orgId),
-          portalFilter,
-        ),
-      )
-      .limit(1);
+    const [existing] = await withTenant(ctx.orgId, (tx) =>
+      tx
+        .select({
+          id: roleAssignments.id,
+          roleKey: roleAssignments.roleKey,
+        })
+        .from(roleAssignments)
+        .where(
+          and(
+            eq(roleAssignments.userId, targetUserId),
+            eq(roleAssignments.organizationId, ctx.orgId),
+            portalFilter,
+          ),
+        )
+        .limit(1),
+    );
     if (!existing) {
       throw new AuthorizationError(
         "Member not found in this organization",
@@ -92,7 +94,7 @@ export async function PATCH(
       }
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.orgId, async (tx) => {
       await tx
         .update(roleAssignments)
         .set({ roleKey: parsed.data.roleKey })

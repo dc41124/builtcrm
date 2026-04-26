@@ -6,6 +6,7 @@ import {
   integer,
   numeric,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -194,8 +195,43 @@ export const projectOrganizationMemberships = pgTable(
       foreignColumns: [organizations.id],
       name: "project_organization_memberships_organization_id_fk",
     }).onDelete("cascade"),
+    // Multi-org policy (3-clause hybrid; see rls_sprint_plan.md §4.2).
+    //   A: own row (sub/client sees its own POM)
+    //   B: contractor org owns the project (PM sees every POM on their project)
+    //   C: caller's org has another active POM on the project (lets a sub
+    //      see fellow POMs on shared projects — needed for "team" surfaces)
+    // Cross-org system reads (notification recipients, search) bypass
+    // via dbAdmin. The 'active' literal here couples to membershipStatusEnum;
+    // see security_posture.md for the policy review trigger.
+    tenantIsolation: pgPolicy("project_organization_memberships_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.organizationId} = current_setting('app.current_org_id', true)::uuid
+        OR ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.organizationId} = current_setting('app.current_org_id', true)::uuid
+        OR ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 export const projectUserMemberships = pgTable(
   "project_user_memberships",
@@ -238,8 +274,40 @@ export const projectUserMemberships = pgTable(
       foreignColumns: [roleAssignments.id],
       name: "project_user_memberships_role_assignment_id_fk",
     }).onDelete("restrict"),
+    // Multi-org policy (3-clause hybrid; same template + rationale as
+    // project_organization_memberships above). PUMs are read by the
+    // contractor's project-team views (clause B), the user's own
+    // membership lookup (clause A), and the cross-org "people on this
+    // project" surfaces from sub/client portals (clause C).
+    tenantIsolation: pgPolicy("project_user_memberships_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.organizationId} = current_setting('app.current_org_id', true)::uuid
+        OR ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.organizationId} = current_setting('app.current_org_id', true)::uuid
+        OR ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Milestones — markers (zero-duration) and tasks (duration). The `kind`

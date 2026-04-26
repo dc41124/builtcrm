@@ -8,6 +8,7 @@
 import { and, eq, isNull, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   drawingSets,
   drawingSheets,
@@ -54,21 +55,23 @@ export async function resolveSheetAccess(input: {
 
   let scopeDiscipline: string | null = null;
   if (ctx.role === "subcontractor_user") {
-    const [membership] = await db
-      .select({
-        scope: projectOrganizationMemberships.scopeDiscipline,
-      })
-      .from(projectOrganizationMemberships)
-      .where(
-        and(
-          eq(projectOrganizationMemberships.projectId, row.projectId),
-          eq(
-            projectOrganizationMemberships.organizationId,
-            ctx.organization.id,
+    const [membership] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({
+          scope: projectOrganizationMemberships.scopeDiscipline,
+        })
+        .from(projectOrganizationMemberships)
+        .where(
+          and(
+            eq(projectOrganizationMemberships.projectId, row.projectId),
+            eq(
+              projectOrganizationMemberships.organizationId,
+              ctx.organization.id,
+            ),
           ),
-        ),
-      )
-      .limit(1);
+        )
+        .limit(1),
+    );
     scopeDiscipline = membership?.scope ?? null;
     // If the sub has a scope set AND the sheet discipline is out of it
     // (and not the null-wildcard), deny. The loader filters reads the

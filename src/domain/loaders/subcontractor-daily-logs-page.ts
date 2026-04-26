@@ -1,6 +1,7 @@
 import { and, between, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   dailyLogCrewEntries,
   dailyLogPhotos,
@@ -11,6 +12,7 @@ import {
   roleAssignments,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import type { SessionLike } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
 import type {
@@ -90,7 +92,8 @@ export async function getSubDailyLogsPageView(
   // Resolve the sub's organization membership. A user can belong to
   // multiple orgs in principle but the sub portal shows one at a time.
   // Pick the first subcontractor-portal role assignment.
-  const [assignment] = await db
+  // Pre-tenant — RLS-enabled `role_assignments` reads use admin pool.
+  const [assignment] = await dbAdmin
     .select({
       organizationId: roleAssignments.organizationId,
       orgName: organizations.name,
@@ -120,27 +123,31 @@ export async function getSubDailyLogsPageView(
     throw new AuthorizationError("User not found", "unauthenticated");
   }
 
-  // Projects the sub org is an active subcontractor on.
-  const projectRows = await db
-    .select({
-      id: projects.id,
-      name: projects.name,
-      timezone: projects.timezone,
-      contractorOrganizationId: projects.contractorOrganizationId,
-    })
-    .from(projectOrganizationMemberships)
-    .innerJoin(projects, eq(projects.id, projectOrganizationMemberships.projectId))
-    .where(
-      and(
-        eq(
-          projectOrganizationMemberships.organizationId,
-          assignment.organizationId,
+  // Projects the sub org is an active subcontractor on. Single-org
+  // (the sub's own org) — wrap in withTenant so RLS on POMs allows
+  // the read.
+  const projectRows = await withTenant(assignment.organizationId, (tx) =>
+    tx
+      .select({
+        id: projects.id,
+        name: projects.name,
+        timezone: projects.timezone,
+        contractorOrganizationId: projects.contractorOrganizationId,
+      })
+      .from(projectOrganizationMemberships)
+      .innerJoin(projects, eq(projects.id, projectOrganizationMemberships.projectId))
+      .where(
+        and(
+          eq(
+            projectOrganizationMemberships.organizationId,
+            assignment.organizationId,
+          ),
+          eq(projectOrganizationMemberships.membershipType, "subcontractor"),
+          eq(projectOrganizationMemberships.membershipStatus, "active"),
         ),
-        eq(projectOrganizationMemberships.membershipType, "subcontractor"),
-        eq(projectOrganizationMemberships.membershipStatus, "active"),
-      ),
-    )
-    .orderBy(projects.name);
+      )
+      .orderBy(projects.name),
+  );
 
   const projectIds = projectRows.map((p) => p.id);
   if (projectIds.length === 0) {

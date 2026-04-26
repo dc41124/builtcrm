@@ -1,6 +1,6 @@
 import { and, eq, ne } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { organizations, roleAssignments } from "@/db/schema";
 
 // Sole-owner check: returns the names of any orgs where the user is the
@@ -12,6 +12,10 @@ import { organizations, roleAssignments } from "@/db/schema";
 // Sub-admin / client-collaborator-style roles are not considered
 // owners; they can leave without breaking org administration.
 //
+// Cross-org by design — a user about to be deleted can hold roles in
+// many orgs, and we have to inspect every one of them. Reads against
+// RLS-enabled `role_assignments` route through `dbAdmin`.
+//
 // See docs/specs/user_deletion_and_export_plan.md §6 q6.
 
 const OWNER_SUFFIX = /(_admin|_owner)$/;
@@ -19,7 +23,7 @@ const OWNER_SUFFIX = /(_admin|_owner)$/;
 export async function listOrgsUserSolelyOwns(
   userId: string,
 ): Promise<{ id: string; name: string }[]> {
-  const userAdminRoles = await db
+  const userAdminRoles = await dbAdmin
     .select({
       organizationId: roleAssignments.organizationId,
       roleKey: roleAssignments.roleKey,
@@ -35,7 +39,7 @@ export async function listOrgsUserSolelyOwns(
 
   const sole: { id: string; name: string }[] = [];
   for (const orgId of ownedOrgIds) {
-    const otherAdmins = await db
+    const otherAdmins = await dbAdmin
       .select({
         userId: roleAssignments.userId,
         roleKey: roleAssignments.roleKey,
@@ -51,7 +55,7 @@ export async function listOrgsUserSolelyOwns(
       OWNER_SUFFIX.test(r.roleKey),
     );
     if (!hasOtherOwner) {
-      const [org] = await db
+      const [org] = await dbAdmin
         .select({ name: organizations.name })
         .from(organizations)
         .where(eq(organizations.id, orgId))

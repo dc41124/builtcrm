@@ -4,6 +4,7 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   organizations,
   projects,
@@ -11,6 +12,7 @@ import {
   roleAssignments,
   users,
 } from "@/db/schema";
+import { getEffectiveContext } from "@/domain/context";
 import {
   getMeetingActivity,
   getMeetings,
@@ -32,7 +34,10 @@ export default async function ContractorMeetingsPage({
   let rows: MeetingListRow[] = [];
   let activity: MeetingActivityRow[] = [];
   let projectName = "";
+  let callerOrgId = "";
   try {
+    const ctx = await getEffectiveContext(session, projectId);
+    callerOrgId = ctx.organization.id;
     const [view, act, projRow] = await Promise.all([
       getMeetings({
         session: session,
@@ -63,33 +68,37 @@ export default async function ContractorMeetingsPage({
 
   // People who can be invited as attendees: everyone with project access.
   // Includes the contractor org staff plus all members with a PUM row.
-  // The create modal uses this for the attendee picker.
-  const memberRows = await db
-    .select({
-      userId: projectUserMemberships.userId,
-      userName: users.displayName,
-      userEmail: users.email,
-      orgId: projectUserMemberships.organizationId,
-      orgName: organizations.name,
-      portalType: roleAssignments.portalType,
-    })
-    .from(projectUserMemberships)
-    .innerJoin(users, eq(users.id, projectUserMemberships.userId))
-    .innerJoin(
-      organizations,
-      eq(organizations.id, projectUserMemberships.organizationId),
-    )
-    .innerJoin(
-      roleAssignments,
-      eq(roleAssignments.id, projectUserMemberships.roleAssignmentId),
-    )
-    .where(
-      and(
-        eq(projectUserMemberships.projectId, projectId),
-        eq(projectUserMemberships.membershipStatus, "active"),
-        eq(projectUserMemberships.accessState, "active"),
+  // The create modal uses this for the attendee picker. Contractor caller
+  // — multi-org PUM policy clause B (project ownership) returns every
+  // member's PUM regardless of which org owns the row.
+  const memberRows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        userId: projectUserMemberships.userId,
+        userName: users.displayName,
+        userEmail: users.email,
+        orgId: projectUserMemberships.organizationId,
+        orgName: organizations.name,
+        portalType: roleAssignments.portalType,
+      })
+      .from(projectUserMemberships)
+      .innerJoin(users, eq(users.id, projectUserMemberships.userId))
+      .innerJoin(
+        organizations,
+        eq(organizations.id, projectUserMemberships.organizationId),
+      )
+      .innerJoin(
+        roleAssignments,
+        eq(roleAssignments.id, projectUserMemberships.roleAssignmentId),
+      )
+      .where(
+        and(
+          eq(projectUserMemberships.projectId, projectId),
+          eq(projectUserMemberships.membershipStatus, "active"),
+          eq(projectUserMemberships.accessState, "active"),
+        ),
       ),
-    );
+  );
 
   // Contractor staff on the project's contractor org (not always in PUM).
   const [project] = await db
@@ -101,30 +110,32 @@ export default async function ContractorMeetingsPage({
     .limit(1);
 
   const contractorStaffRows = project
-    ? await db
-        .select({
-          userId: users.id,
-          userName: users.displayName,
-          userEmail: users.email,
-          orgId: organizations.id,
-          orgName: organizations.name,
-          portalType: roleAssignments.portalType,
-        })
-        .from(roleAssignments)
-        .innerJoin(users, eq(users.id, roleAssignments.userId))
-        .innerJoin(
-          organizations,
-          eq(organizations.id, roleAssignments.organizationId),
-        )
-        .where(
-          and(
-            eq(
-              roleAssignments.organizationId,
-              project.contractorOrganizationId,
+    ? await withTenant(callerOrgId, (tx) =>
+        tx
+          .select({
+            userId: users.id,
+            userName: users.displayName,
+            userEmail: users.email,
+            orgId: organizations.id,
+            orgName: organizations.name,
+            portalType: roleAssignments.portalType,
+          })
+          .from(roleAssignments)
+          .innerJoin(users, eq(users.id, roleAssignments.userId))
+          .innerJoin(
+            organizations,
+            eq(organizations.id, roleAssignments.organizationId),
+          )
+          .where(
+            and(
+              eq(
+                roleAssignments.organizationId,
+                project.contractorOrganizationId,
+              ),
+              eq(roleAssignments.portalType, "contractor"),
             ),
-            eq(roleAssignments.portalType, "contractor"),
           ),
-        )
+      )
     : [];
 
   const peopleMap = new Map<

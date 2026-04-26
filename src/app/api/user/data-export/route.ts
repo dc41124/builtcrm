@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { and, desc, eq } from "drizzle-orm";
 
 import { requireServerSession } from "@/auth/session";
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { dataExports, roleAssignments } from "@/db/schema";
 import { withTenant } from "@/db/with-tenant";
@@ -56,8 +55,9 @@ export async function POST() {
   // role assignment (or first available) for the org context. The
   // export itself is user-scoped and spans data across every org the
   // user appears in; org context here is just for surfacing the
-  // export in the right org's settings page history.
-  const [primary] = await db
+  // export in the right org's settings page history. Pre-tenant
+  // resolution against RLS-enabled `role_assignments` — admin pool.
+  const [primary] = await dbAdmin
     .select({ organizationId: roleAssignments.organizationId })
     .from(roleAssignments)
     .where(eq(roleAssignments.userId, appUserId))
@@ -127,7 +127,7 @@ export async function POST() {
 
     // Email stub — when real email infra ships, this lands the link
     // in the user's inbox. For now they get it in the response.
-    const [user] = await db
+    const [user] = await dbAdmin
       .select({ email: roleAssignments.userId })
       .from(roleAssignments)
       .where(eq(roleAssignments.userId, appUserId))

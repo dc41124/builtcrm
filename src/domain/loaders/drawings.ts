@@ -13,6 +13,7 @@
 import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   drawingComments,
   drawingMarkups,
@@ -107,16 +108,18 @@ async function resolveScopeDiscipline(
   ctx: EffectiveContext,
 ): Promise<string | null> {
   if (ctx.role !== "subcontractor_user") return null;
-  const [row] = await db
-    .select({ scope: projectOrganizationMemberships.scopeDiscipline })
-    .from(projectOrganizationMemberships)
-    .where(
-      and(
-        eq(projectOrganizationMemberships.projectId, ctx.project.id),
-        eq(projectOrganizationMemberships.organizationId, ctx.organization.id),
-      ),
-    )
-    .limit(1);
+  const [row] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({ scope: projectOrganizationMemberships.scopeDiscipline })
+      .from(projectOrganizationMemberships)
+      .where(
+        and(
+          eq(projectOrganizationMemberships.projectId, ctx.project.id),
+          eq(projectOrganizationMemberships.organizationId, ctx.organization.id),
+        ),
+      )
+      .limit(1),
+  );
   return row?.scope ?? null;
 }
 
@@ -780,26 +783,33 @@ export async function getAsBuiltDrawingSetsForCloseout(
 // Org-level subcontractor roster for a project. Used by the drawings module
 // in future to show "this sub's scope" badges on sets/sheets — pulled
 // separately so pages can decide whether to display.
-export async function getProjectSubScopes(projectId: string): Promise<
-  Array<{ orgId: string; orgName: string; discipline: string | null }>
-> {
-  const rows = await db
-    .select({
-      orgId: organizations.id,
-      orgName: organizations.name,
-      discipline: projectOrganizationMemberships.scopeDiscipline,
-    })
-    .from(projectOrganizationMemberships)
-    .innerJoin(
-      organizations,
-      eq(organizations.id, projectOrganizationMemberships.organizationId),
-    )
-    .where(
-      and(
-        eq(projectOrganizationMemberships.projectId, projectId),
-        eq(projectOrganizationMemberships.membershipType, "subcontractor"),
-        eq(projectOrganizationMemberships.membershipStatus, "active"),
+//
+// Caller must supply the requesting org context — multi-org POM policy
+// requires a GUC. Contractor PMs see every sub POM on their project
+// (clause B); subs see only their own (clause A).
+export async function getProjectSubScopes(
+  projectId: string,
+  requestingOrgId: string,
+): Promise<Array<{ orgId: string; orgName: string; discipline: string | null }>> {
+  const rows = await withTenant(requestingOrgId, (tx) =>
+    tx
+      .select({
+        orgId: organizations.id,
+        orgName: organizations.name,
+        discipline: projectOrganizationMemberships.scopeDiscipline,
+      })
+      .from(projectOrganizationMemberships)
+      .innerJoin(
+        organizations,
+        eq(organizations.id, projectOrganizationMemberships.organizationId),
+      )
+      .where(
+        and(
+          eq(projectOrganizationMemberships.projectId, projectId),
+          eq(projectOrganizationMemberships.membershipType, "subcontractor"),
+          eq(projectOrganizationMemberships.membershipStatus, "active"),
+        ),
       ),
-    );
+  );
   return rows;
 }

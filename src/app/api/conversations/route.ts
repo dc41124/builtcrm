@@ -4,12 +4,12 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import {
   conversationParticipants,
   conversations,
   projectUserMemberships,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -75,17 +75,19 @@ export async function POST(req: Request) {
       const participantIds = Array.from(
         new Set(parsed.data.participantUserIds),
       );
-      const memberRows = await db
-        .select({ userId: projectUserMemberships.userId })
-        .from(projectUserMemberships)
-        .where(
-          and(
-            eq(projectUserMemberships.projectId, ctx.project.id),
-            inArray(projectUserMemberships.userId, participantIds),
-            eq(projectUserMemberships.membershipStatus, "active"),
-            eq(projectUserMemberships.accessState, "active"),
+      const memberRows = await withTenant(ctx.organization.id, (tx) =>
+        tx
+          .select({ userId: projectUserMemberships.userId })
+          .from(projectUserMemberships)
+          .where(
+            and(
+              eq(projectUserMemberships.projectId, ctx.project.id),
+              inArray(projectUserMemberships.userId, participantIds),
+              eq(projectUserMemberships.membershipStatus, "active"),
+              eq(projectUserMemberships.accessState, "active"),
+            ),
           ),
-        );
+      );
       const memberSet = new Set(memberRows.map((r) => r.userId));
       const missing = participantIds.filter((id) => !memberSet.has(id));
       if (missing.length > 0) {
@@ -104,7 +106,7 @@ export async function POST(req: Request) {
         new Set([ctx.user.id, ...participantIds]),
       );
 
-      const result = await db.transaction(async (tx) => {
+      const result = await withTenant(ctx.organization.id, async (tx) => {
         const [row] = await tx
           .insert(conversations)
           .values({

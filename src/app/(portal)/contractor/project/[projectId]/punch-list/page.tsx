@@ -4,7 +4,9 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { organizations, projectOrganizationMemberships, projects } from "@/db/schema";
+import { getEffectiveContext } from "@/domain/context";
 import {
   getPunchItems,
   type PunchItemListRow,
@@ -22,7 +24,10 @@ export default async function ContractorPunchListPage({
   const { session } = await requireServerSession();
   let items: PunchItemListRow[] = [];
   let projectName = "";
+  let callerOrgId = "";
   try {
+    const ctx = await getEffectiveContext(session, projectId);
+    callerOrgId = ctx.organization.id;
     items = await getPunchItems({
       session: session,
       projectId,
@@ -47,24 +52,26 @@ export default async function ContractorPunchListPage({
   // to membershipType='subcontractor' + status='active' — the GC's own
   // org + any other non-sub orgs (clients, consultants) don't belong
   // in a punch-item assignee picker.
-  const subOrgs = await db
-    .select({
-      id: organizations.id,
-      name: organizations.name,
-    })
-    .from(projectOrganizationMemberships)
-    .innerJoin(
-      organizations,
-      eq(organizations.id, projectOrganizationMemberships.organizationId),
-    )
-    .where(
-      and(
-        eq(projectOrganizationMemberships.projectId, projectId),
-        eq(projectOrganizationMemberships.membershipType, "subcontractor"),
-        eq(projectOrganizationMemberships.membershipStatus, "active"),
-      ),
-    )
-    .orderBy(organizations.name);
+  const subOrgs = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+      })
+      .from(projectOrganizationMemberships)
+      .innerJoin(
+        organizations,
+        eq(organizations.id, projectOrganizationMemberships.organizationId),
+      )
+      .where(
+        and(
+          eq(projectOrganizationMemberships.projectId, projectId),
+          eq(projectOrganizationMemberships.membershipType, "subcontractor"),
+          eq(projectOrganizationMemberships.membershipStatus, "active"),
+        ),
+      )
+      .orderBy(organizations.name),
+  );
 
   return (
     <PunchListWorkspace

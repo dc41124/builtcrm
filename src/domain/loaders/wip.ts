@@ -125,23 +125,27 @@ export async function getWIPReport(input: LoaderInput): Promise<WIPReportView> {
         })
         .from(drawRequests)
         .where(inArray(drawRequests.projectId, projectIds)),
-      db
-        .select({
-          projectId: projectOrganizationMemberships.projectId,
-          clientName: organizations.name,
-        })
-        .from(projectOrganizationMemberships)
-        .innerJoin(
-          organizations,
-          eq(projectOrganizationMemberships.organizationId, organizations.id),
-        )
-        .where(
-          and(
-            inArray(projectOrganizationMemberships.projectId, projectIds),
-            eq(projectOrganizationMemberships.membershipType, "client"),
-            eq(projectOrganizationMemberships.membershipStatus, "active"),
+      // Contractor caller; multi-org POM policy clause B (project
+      // ownership) returns every client POM on their projects.
+      withTenant(orgId, (tx) =>
+        tx
+          .select({
+            projectId: projectOrganizationMemberships.projectId,
+            clientName: organizations.name,
+          })
+          .from(projectOrganizationMemberships)
+          .innerJoin(
+            organizations,
+            eq(projectOrganizationMemberships.organizationId, organizations.id),
+          )
+          .where(
+            and(
+              inArray(projectOrganizationMemberships.projectId, projectIds),
+              eq(projectOrganizationMemberships.membershipType, "client"),
+              eq(projectOrganizationMemberships.membershipStatus, "active"),
+            ),
           ),
-        ),
+      ),
       withTenant(orgId, (tx) =>
         tx
           .select({

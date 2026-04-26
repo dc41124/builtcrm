@@ -4,11 +4,13 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   organizations,
   projectOrganizationMemberships,
   projects,
 } from "@/db/schema";
+import { getEffectiveContext } from "@/domain/context";
 import {
   getInspections,
   getInspectionTemplates,
@@ -30,7 +32,10 @@ export default async function ContractorInspectionsPage({
   let rows: InspectionListRow[] = [];
   let templates: InspectionTemplateRow[] = [];
   let projectName = "";
+  let callerOrgId = "";
   try {
+    const ctx = await getEffectiveContext(session, projectId);
+    callerOrgId = ctx.organization.id;
     const [insList, tpls, projRow] = await Promise.all([
       getInspections({
         session: session,
@@ -59,24 +64,26 @@ export default async function ContractorInspectionsPage({
   }
 
   // Sub orgs on this project for the create-modal assignee picker.
-  const subOrgs = await db
-    .select({
-      id: organizations.id,
-      name: organizations.name,
-    })
-    .from(projectOrganizationMemberships)
-    .innerJoin(
-      organizations,
-      eq(organizations.id, projectOrganizationMemberships.organizationId),
-    )
-    .where(
-      and(
-        eq(projectOrganizationMemberships.projectId, projectId),
-        eq(projectOrganizationMemberships.membershipType, "subcontractor"),
-        eq(projectOrganizationMemberships.membershipStatus, "active"),
-      ),
-    )
-    .orderBy(organizations.name);
+  const subOrgs = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+      })
+      .from(projectOrganizationMemberships)
+      .innerJoin(
+        organizations,
+        eq(organizations.id, projectOrganizationMemberships.organizationId),
+      )
+      .where(
+        and(
+          eq(projectOrganizationMemberships.projectId, projectId),
+          eq(projectOrganizationMemberships.membershipType, "subcontractor"),
+          eq(projectOrganizationMemberships.membershipStatus, "active"),
+        ),
+      )
+      .orderBy(organizations.name),
+  );
 
   return (
     <InspectionsWorkspace

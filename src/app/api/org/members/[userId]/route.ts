@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { auditEvents, organizationUsers, roleAssignments } from "@/db/schema";
 import { withTenant } from "@/db/with-tenant";
 import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
@@ -72,17 +71,19 @@ export async function DELETE(
           : eq(roleAssignments.portalType, "client");
 
     // If target is an owner/admin, make sure we won't leave the org admin-less.
-    const [targetRole] = await db
-      .select({ roleKey: roleAssignments.roleKey })
-      .from(roleAssignments)
-      .where(
-        and(
-          eq(roleAssignments.userId, targetUserId),
-          eq(roleAssignments.organizationId, ctx.orgId),
-          portalFilter,
-        ),
-      )
-      .limit(1);
+    const [targetRole] = await withTenant(ctx.orgId, (tx) =>
+      tx
+        .select({ roleKey: roleAssignments.roleKey })
+        .from(roleAssignments)
+        .where(
+          and(
+            eq(roleAssignments.userId, targetUserId),
+            eq(roleAssignments.organizationId, ctx.orgId),
+            portalFilter,
+          ),
+        )
+        .limit(1),
+    );
     if (targetRole && isAdminRole(targetRole.roleKey)) {
       const adminCount = await countAdminsInOrganization(ctx.orgId, ctx.portal);
       if (adminCount <= 1) {

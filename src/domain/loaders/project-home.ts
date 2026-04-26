@@ -1262,34 +1262,39 @@ export async function getContractorProjectView(
       .from(drawRequests)
       .where(eq(drawRequests.projectId, projectId))
       .orderBy(desc(drawRequests.drawNumber)),
-    db
-      .select({
-        id: projectUserMemberships.id,
-        userId: users.id,
-        displayName: users.displayName,
-        email: users.email,
-        roleKey: roleAssignments.roleKey,
-        portalType: roleAssignments.portalType,
-        organizationId: organizations.id,
-        organizationName: organizations.name,
-        organizationType: organizations.organizationType,
-      })
-      .from(projectUserMemberships)
-      .innerJoin(users, eq(users.id, projectUserMemberships.userId))
-      .innerJoin(
-        roleAssignments,
-        eq(roleAssignments.id, projectUserMemberships.roleAssignmentId),
-      )
-      .innerJoin(
-        organizations,
-        eq(organizations.id, projectUserMemberships.organizationId),
-      )
-      .where(
-        and(
-          eq(projectUserMemberships.projectId, projectId),
-          eq(projectUserMemberships.membershipStatus, "active"),
+    // Contractor view: caller's org is the project's contractor org.
+    // Multi-org PUM policy clause B (project ownership) lets them see
+    // every member's PUM regardless of which org owns the row.
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          id: projectUserMemberships.id,
+          userId: users.id,
+          displayName: users.displayName,
+          email: users.email,
+          roleKey: roleAssignments.roleKey,
+          portalType: roleAssignments.portalType,
+          organizationId: organizations.id,
+          organizationName: organizations.name,
+          organizationType: organizations.organizationType,
+        })
+        .from(projectUserMemberships)
+        .innerJoin(users, eq(users.id, projectUserMemberships.userId))
+        .innerJoin(
+          roleAssignments,
+          eq(roleAssignments.id, projectUserMemberships.roleAssignmentId),
+        )
+        .innerJoin(
+          organizations,
+          eq(organizations.id, projectUserMemberships.organizationId),
+        )
+        .where(
+          and(
+            eq(projectUserMemberships.projectId, projectId),
+            eq(projectUserMemberships.membershipStatus, "active"),
+          ),
         ),
-      ),
+    ),
     db
       .select({
         id: uploadRequests.id,
@@ -1585,23 +1590,25 @@ export async function getContractorProjectView(
     .where(eq(projects.id, projectId))
     .limit(1);
 
-  const [clientOrgRow] = await db
-    .select({
-      organizationId: organizations.id,
-      organizationName: organizations.name,
-    })
-    .from(projectOrganizationMemberships)
-    .innerJoin(
-      organizations,
-      eq(organizations.id, projectOrganizationMemberships.organizationId),
-    )
-    .where(
-      and(
-        eq(projectOrganizationMemberships.projectId, projectId),
-        eq(projectOrganizationMemberships.membershipType, "client"),
-      ),
-    )
-    .limit(1);
+  const [clientOrgRow] = await withTenant(context.organization.id, (tx) =>
+    tx
+      .select({
+        organizationId: organizations.id,
+        organizationName: organizations.name,
+      })
+      .from(projectOrganizationMemberships)
+      .innerJoin(
+        organizations,
+        eq(organizations.id, projectOrganizationMemberships.organizationId),
+      )
+      .where(
+        and(
+          eq(projectOrganizationMemberships.projectId, projectId),
+          eq(projectOrganizationMemberships.membershipType, "client"),
+        ),
+      )
+      .limit(1),
+  );
 
   const sovRow = sovRows[0] ?? null;
   const sovLineItemRows = sovRow
@@ -1970,34 +1977,36 @@ export async function getSubcontractorProjectView(
       .orderBy(desc(activityFeedItems.createdAt))
       .limit(12),
     context.project.contractorOrganizationId
-      ? db
-          .select({
-            id: users.id,
-            displayName: users.displayName,
-            roleKey: roleAssignments.roleKey,
-          })
-          .from(projectUserMemberships)
-          .innerJoin(users, eq(users.id, projectUserMemberships.userId))
-          .innerJoin(
-            roleAssignments,
-            and(
-              eq(roleAssignments.userId, projectUserMemberships.userId),
-              eq(
-                roleAssignments.organizationId,
-                projectUserMemberships.organizationId,
+      ? withTenant(context.organization.id, (tx) =>
+          tx
+            .select({
+              id: users.id,
+              displayName: users.displayName,
+              roleKey: roleAssignments.roleKey,
+            })
+            .from(projectUserMemberships)
+            .innerJoin(users, eq(users.id, projectUserMemberships.userId))
+            .innerJoin(
+              roleAssignments,
+              and(
+                eq(roleAssignments.userId, projectUserMemberships.userId),
+                eq(
+                  roleAssignments.organizationId,
+                  projectUserMemberships.organizationId,
+                ),
+              ),
+            )
+            .where(
+              and(
+                eq(projectUserMemberships.projectId, projectId),
+                eq(
+                  projectUserMemberships.organizationId,
+                  context.project.contractorOrganizationId,
+                ),
+                eq(projectUserMemberships.membershipStatus, "active"),
               ),
             ),
-          )
-          .where(
-            and(
-              eq(projectUserMemberships.projectId, projectId),
-              eq(
-                projectUserMemberships.organizationId,
-                context.project.contractorOrganizationId,
-              ),
-              eq(projectUserMemberships.membershipStatus, "active"),
-            ),
-          )
+        )
       : Promise.resolve(
           [] as Array<{
             id: string;
@@ -2569,28 +2578,33 @@ export async function getClientProjectView(
     : [];
   const contractorOrganizationName = contractorOrgRow?.name ?? null;
 
-  // Build team contacts — includes contractor, subs, AND client members
-  const clientGcContactRows = await db
-    .select({
-      id: users.id,
-      displayName: users.displayName,
-      roleKey: roleAssignments.roleKey,
-    })
-    .from(projectUserMemberships)
-    .innerJoin(users, eq(users.id, projectUserMemberships.userId))
-    .innerJoin(
-      roleAssignments,
-      and(
-        eq(roleAssignments.userId, projectUserMemberships.userId),
-        eq(roleAssignments.organizationId, projectUserMemberships.organizationId),
+  // Build team contacts — includes contractor, subs, AND client members.
+  // Client caller; multi-org PUM policy clause C (the caller's org has
+  // an active POM on the project) lets them see every PUM on the
+  // project alongside their own.
+  const clientGcContactRows = await withTenant(context.organization.id, (tx) =>
+    tx
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        roleKey: roleAssignments.roleKey,
+      })
+      .from(projectUserMemberships)
+      .innerJoin(users, eq(users.id, projectUserMemberships.userId))
+      .innerJoin(
+        roleAssignments,
+        and(
+          eq(roleAssignments.userId, projectUserMemberships.userId),
+          eq(roleAssignments.organizationId, projectUserMemberships.organizationId),
+        ),
+      )
+      .where(
+        and(
+          eq(projectUserMemberships.projectId, projectId),
+          eq(projectUserMemberships.membershipStatus, "active"),
+        ),
       ),
-    )
-    .where(
-      and(
-        eq(projectUserMemberships.projectId, projectId),
-        eq(projectUserMemberships.membershipStatus, "active"),
-      ),
-    );
+  );
 
   const roleLabelMap: Record<string, string> = {
     project_manager: "Project Manager",

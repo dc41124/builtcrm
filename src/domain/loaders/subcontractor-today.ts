@@ -135,21 +135,23 @@ export async function getSubcontractorTodayData(input: {
   const userId = input.userId ?? null;
   const now = new Date();
 
-  const memberProjects = await db
-    .select({
-      id: projects.id,
-      name: projects.name,
-      status: projects.projectStatus,
-      phase: projects.currentPhase,
-    })
-    .from(projectOrganizationMemberships)
-    .innerJoin(projects, eq(projects.id, projectOrganizationMemberships.projectId))
-    .where(
-      and(
-        eq(projectOrganizationMemberships.organizationId, subOrgId),
-        eq(projectOrganizationMemberships.membershipStatus, "active"),
+  const memberProjects = await withTenant(subOrgId, (tx) =>
+    tx
+      .select({
+        id: projects.id,
+        name: projects.name,
+        status: projects.projectStatus,
+        phase: projects.currentPhase,
+      })
+      .from(projectOrganizationMemberships)
+      .innerJoin(projects, eq(projects.id, projectOrganizationMemberships.projectId))
+      .where(
+        and(
+          eq(projectOrganizationMemberships.organizationId, subOrgId),
+          eq(projectOrganizationMemberships.membershipStatus, "active"),
+        ),
       ),
-    );
+  );
 
   const activeProjects = memberProjects.filter((p) => p.status === "active");
   const projectIds = activeProjects.map((p) => p.id);

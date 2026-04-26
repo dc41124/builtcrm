@@ -3,13 +3,14 @@ import { notFound, redirect } from "next/navigation";
 import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   organizations,
   projectUserMemberships,
   roleAssignments,
   users,
 } from "@/db/schema";
+import { getEffectiveContext } from "@/domain/context";
 import {
   getMeeting,
   getMeetingActivity,
@@ -30,7 +31,10 @@ export default async function ContractorMeetingDetailPage({
   const { session } = await requireServerSession();
   let detail: MeetingDetail | null = null;
   let activity: MeetingActivityRow[] = [];
+  let callerOrgId = "";
   try {
+    const ctx = await getEffectiveContext(session, projectId);
+    callerOrgId = ctx.organization.id;
     detail = await getMeeting({
       session: session,
       meetingId,
@@ -50,33 +54,37 @@ export default async function ContractorMeetingDetailPage({
   }
   if (!detail) notFound();
 
-  // Attendee picker data for the "+ add attendee" action.
-  const memberRows = await db
-    .select({
-      userId: projectUserMemberships.userId,
-      userName: users.displayName,
-      userEmail: users.email,
-      orgId: projectUserMemberships.organizationId,
-      orgName: organizations.name,
-      portalType: roleAssignments.portalType,
-    })
-    .from(projectUserMemberships)
-    .innerJoin(users, eq(users.id, projectUserMemberships.userId))
-    .innerJoin(
-      organizations,
-      eq(organizations.id, projectUserMemberships.organizationId),
-    )
-    .innerJoin(
-      roleAssignments,
-      eq(roleAssignments.id, projectUserMemberships.roleAssignmentId),
-    )
-    .where(
-      and(
-        eq(projectUserMemberships.projectId, projectId),
-        eq(projectUserMemberships.membershipStatus, "active"),
-        eq(projectUserMemberships.accessState, "active"),
+  // Attendee picker data for the "+ add attendee" action. Contractor
+  // caller — multi-org PUM policy clause B (project ownership) returns
+  // every member's PUM regardless of which org owns the row.
+  const memberRows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        userId: projectUserMemberships.userId,
+        userName: users.displayName,
+        userEmail: users.email,
+        orgId: projectUserMemberships.organizationId,
+        orgName: organizations.name,
+        portalType: roleAssignments.portalType,
+      })
+      .from(projectUserMemberships)
+      .innerJoin(users, eq(users.id, projectUserMemberships.userId))
+      .innerJoin(
+        organizations,
+        eq(organizations.id, projectUserMemberships.organizationId),
+      )
+      .innerJoin(
+        roleAssignments,
+        eq(roleAssignments.id, projectUserMemberships.roleAssignmentId),
+      )
+      .where(
+        and(
+          eq(projectUserMemberships.projectId, projectId),
+          eq(projectUserMemberships.membershipStatus, "active"),
+          eq(projectUserMemberships.accessState, "active"),
+        ),
       ),
-    );
+  );
 
   const people = memberRows.map((r) => ({
     userId: r.userId,

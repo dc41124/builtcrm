@@ -2,6 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import {
   complianceRecords,
   organizations,
@@ -105,24 +106,28 @@ export async function getComplianceReport(
   if (projectIds.length === 0) return emptyView(now);
 
   // Subs active on any of those projects. Distinct org ids.
-  const subMembershipRows = await db
-    .select({
-      organizationId: projectOrganizationMemberships.organizationId,
-      orgName: organizations.name,
-      primaryTrade: organizations.primaryTrade,
-    })
-    .from(projectOrganizationMemberships)
-    .innerJoin(
-      organizations,
-      eq(projectOrganizationMemberships.organizationId, organizations.id),
-    )
-    .where(
-      and(
-        inArray(projectOrganizationMemberships.projectId, projectIds),
-        eq(projectOrganizationMemberships.membershipType, "subcontractor"),
-        eq(projectOrganizationMemberships.membershipStatus, "active"),
+  // Contractor caller; multi-org POM policy clause B (project ownership)
+  // returns every sub POM on their projects.
+  const subMembershipRows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        organizationId: projectOrganizationMemberships.organizationId,
+        orgName: organizations.name,
+        primaryTrade: organizations.primaryTrade,
+      })
+      .from(projectOrganizationMemberships)
+      .innerJoin(
+        organizations,
+        eq(projectOrganizationMemberships.organizationId, organizations.id),
+      )
+      .where(
+        and(
+          inArray(projectOrganizationMemberships.projectId, projectIds),
+          eq(projectOrganizationMemberships.membershipType, "subcontractor"),
+          eq(projectOrganizationMemberships.membershipStatus, "active"),
+        ),
       ),
-    );
+  );
 
   const subsById = new Map<
     string,
