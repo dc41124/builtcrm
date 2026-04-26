@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq, notInArray } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { meetingAgendaItems, meetings } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -49,7 +50,7 @@ export async function POST(
   const { items } = parsed.data;
 
   try {
-    const [head] = await db
+    const [head] = await dbAdmin
       .select({
         id: meetings.id,
         projectId: meetings.projectId,
@@ -79,7 +80,7 @@ export async function POST(
       );
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       const existingRows = await tx
         .select({ id: meetingAgendaItems.id })
         .from(meetingAgendaItems)

@@ -5,6 +5,8 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { weeklyReportSections, weeklyReports } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -73,7 +75,7 @@ export async function PATCH(
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
-    const [report] = await db
+    const [report] = await dbAdmin
       .select({
         id: weeklyReports.id,
         projectId: weeklyReports.projectId,
@@ -114,7 +116,7 @@ export async function PATCH(
             narrativeOverlay: parsed.data.narrativeOverlay,
           };
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(weeklyReportSections)
         .set({ content: nextContent })

@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { meetingAttendees, meetings } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -50,7 +51,7 @@ export async function POST(
   const body = parsed.data;
 
   try {
-    const [head] = await db
+    const [head] = await dbAdmin
       .select({
         id: meetings.id,
         projectId: meetings.projectId,
@@ -83,7 +84,7 @@ export async function POST(
       );
     }
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       const row = {
         meetingId: id,
         orgId: body.orgId ?? null,

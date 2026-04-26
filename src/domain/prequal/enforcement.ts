@@ -1,6 +1,7 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   organizations,
   prequalProjectExemptions,
@@ -136,23 +137,26 @@ export async function grantProjectExemption(input: {
   }
 
   // Reject if there's already an active exemption (partial unique index
-  // would catch this; surface a clean error first).
-  const [existing] = await db
-    .select({ id: prequalProjectExemptions.id })
-    .from(prequalProjectExemptions)
-    .where(
-      and(
-        eq(prequalProjectExemptions.projectId, input.projectId),
-        eq(prequalProjectExemptions.subOrgId, input.subOrgId),
-        isNull(prequalProjectExemptions.revokedAt),
-      ),
-    )
-    .limit(1);
+  // would catch this; surface a clean error first). Caller is contractor
+  // (verified above against project ownership) — withTenant on their org.
+  const [existing] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({ id: prequalProjectExemptions.id })
+      .from(prequalProjectExemptions)
+      .where(
+        and(
+          eq(prequalProjectExemptions.projectId, input.projectId),
+          eq(prequalProjectExemptions.subOrgId, input.subOrgId),
+          isNull(prequalProjectExemptions.revokedAt),
+        ),
+      )
+      .limit(1),
+  );
   if (existing) {
     return { id: existing.id };
   }
 
-  const result = await db.transaction(async (tx) => {
+  const result = await withTenant(ctx.organization.id, async (tx) => {
     const [row] = await tx
       .insert(prequalProjectExemptions)
       .values({
@@ -198,11 +202,15 @@ export async function revokeProjectExemption(input: {
   assertCan(ctx.permissions, "prequal_enforcement_settings", "write");
   await ensureContractorFeature(ctx.organization.id, ctx.organization.type);
 
-  const [row] = await db
-    .select()
-    .from(prequalProjectExemptions)
-    .where(eq(prequalProjectExemptions.id, input.exemptionId))
-    .limit(1);
+  // Caller is contractor — multi-org policy clause A (project owned by
+  // their org) lets them see exemptions on their own projects.
+  const [row] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select()
+      .from(prequalProjectExemptions)
+      .where(eq(prequalProjectExemptions.id, input.exemptionId))
+      .limit(1),
+  );
   if (!row) {
     throw new AuthorizationError("Exemption not found", "not_found");
   }
@@ -211,7 +219,7 @@ export async function revokeProjectExemption(input: {
   }
   if (row.revokedAt) return;
 
-  await db.transaction(async (tx) => {
+  await withTenant(ctx.organization.id, async (tx) => {
     await tx
       .update(prequalProjectExemptions)
       .set({
@@ -236,19 +244,22 @@ export async function revokeProjectExemption(input: {
 async function hasActiveProjectExemption(
   projectId: string,
   subOrgId: string,
+  contractorOrgId: string,
 ): Promise<boolean> {
-  const [row] = await db
-    .select({ id: prequalProjectExemptions.id })
-    .from(prequalProjectExemptions)
-    .where(
-      and(
-        eq(prequalProjectExemptions.projectId, projectId),
-        eq(prequalProjectExemptions.subOrgId, subOrgId),
-        isNull(prequalProjectExemptions.revokedAt),
-      ),
-    )
-    .orderBy(desc(prequalProjectExemptions.grantedAt))
-    .limit(1);
+  const [row] = await withTenant(contractorOrgId, (tx) =>
+    tx
+      .select({ id: prequalProjectExemptions.id })
+      .from(prequalProjectExemptions)
+      .where(
+        and(
+          eq(prequalProjectExemptions.projectId, projectId),
+          eq(prequalProjectExemptions.subOrgId, subOrgId),
+          isNull(prequalProjectExemptions.revokedAt),
+        ),
+      )
+      .orderBy(desc(prequalProjectExemptions.grantedAt))
+      .limit(1),
+  );
   return !!row;
 }
 
@@ -296,7 +307,11 @@ export async function checkPrequalForAssignment(
   if (active.status === "approved") return { kind: "ok" };
 
   if (mode === "block") {
-    const exempted = await hasActiveProjectExemption(projectId, subOrgId);
+    const exempted = await hasActiveProjectExemption(
+      projectId,
+      subOrgId,
+      contractorOrgId,
+    );
     if (exempted) return { kind: "ok" };
   }
 

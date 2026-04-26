@@ -6,6 +6,7 @@ import type { DocumentProps } from "@react-pdf/renderer";
 import { eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { documents, weeklyReports } from "@/db/schema";
 import { getEffectiveContext } from "@/domain/context";
 import {
@@ -50,7 +51,8 @@ export async function GET(
   const sessionLike = session;
 
   // Look up the project so we can resolve the caller's role + scope.
-  const [report] = await db
+  // Pre-tenant: report id only — admin pool head lookup.
+  const [report] = await dbAdmin
     .select({
       id: weeklyReports.id,
       projectId: weeklyReports.projectId,

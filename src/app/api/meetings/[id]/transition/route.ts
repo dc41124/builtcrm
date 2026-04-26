@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { meetings } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
@@ -38,7 +39,9 @@ export async function POST(
   const { action, reason } = parsed.data;
 
   try {
-    const [head] = await db
+    // Entry-point dbAdmin: tenant unknown until we resolve project
+    // from the meeting row. Slice 3 pattern.
+    const [head] = await dbAdmin
       .select({
         id: meetings.id,
         projectId: meetings.projectId,
@@ -88,7 +91,7 @@ export async function POST(
       );
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       const patch: Record<string, unknown> = { status: target };
       if (target === "completed") patch.completedAt = new Date();
       if (target === "cancelled") patch.cancelledReason = reason ?? null;

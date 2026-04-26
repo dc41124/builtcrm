@@ -4,12 +4,14 @@ import {
   integer,
   jsonb,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 import { timestamps } from "./_shared";
 import { users } from "./identity";
@@ -99,8 +101,34 @@ export const weeklyReports = pgTable(
     projectIdx: index("weekly_reports_project_idx").on(table.projectId),
     statusIdx: index("weekly_reports_status_idx").on(table.status),
     sentAtIdx: index("weekly_reports_sent_at_idx").on(table.sentAt),
+    // Phase 4 wave 1 — same project-scoped multi-org template as milestones.
+    tenantIsolation: pgPolicy("weekly_reports_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // weekly_report_sections — structured per-section snapshots

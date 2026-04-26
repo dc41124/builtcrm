@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { meetingActionItems, meetings } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -36,7 +37,11 @@ const PatchSchema = z.object({
 });
 
 async function loadItem(meetingId: string, itemId: string) {
-  const [row] = await db
+  // Pre-tenant entry-point: head lookup to discover projectId before
+  // we know which tenant to scope to. meetingActionItems isn't yet
+  // RLS-enabled (wave 2), but the meetings join is — admin pool keeps
+  // both reads working uniformly.
+  const [row] = await dbAdmin
     .select({
       id: meetingActionItems.id,
       meetingId: meetingActionItems.meetingId,
@@ -117,7 +122,7 @@ export async function PATCH(
     const previousStatus = item.status;
     const nextStatus = input.status ?? previousStatus;
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       const patch: Record<string, unknown> = {};
       if (input.status !== undefined) patch.status = input.status;
       if (input.description !== undefined)
@@ -200,7 +205,7 @@ export async function DELETE(
       );
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .delete(meetingActionItems)
         .where(eq(meetingActionItems.id, itemId));

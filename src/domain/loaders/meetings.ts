@@ -1,6 +1,8 @@
 import { and, asc, desc, eq, inArray, isNull, isNotNull, or, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import {
   activityFeedItems,
   meetingActionItems,
@@ -217,24 +219,26 @@ export async function getMeetings(input: GetMeetingsInput): Promise<{
     .where(eq(organizations.id, ctx.project.contractorOrganizationId))
     .limit(1);
 
-  const baseRows = await db
-    .select({
-      id: meetings.id,
-      sequentialNumber: meetings.sequentialNumber,
-      title: meetings.title,
-      type: meetings.type,
-      scheduledAt: meetings.scheduledAt,
-      durationMinutes: meetings.durationMinutes,
-      status: meetings.status,
-      chairUserId: meetings.chairUserId,
-      chairName: users.displayName,
-      cancelledReason: meetings.cancelledReason,
-      completedAt: meetings.completedAt,
-    })
-    .from(meetings)
-    .leftJoin(users, eq(users.id, meetings.chairUserId))
-    .where(eq(meetings.projectId, input.projectId))
-    .orderBy(desc(meetings.scheduledAt));
+  const baseRows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: meetings.id,
+        sequentialNumber: meetings.sequentialNumber,
+        title: meetings.title,
+        type: meetings.type,
+        scheduledAt: meetings.scheduledAt,
+        durationMinutes: meetings.durationMinutes,
+        status: meetings.status,
+        chairUserId: meetings.chairUserId,
+        chairName: users.displayName,
+        cancelledReason: meetings.cancelledReason,
+        completedAt: meetings.completedAt,
+      })
+      .from(meetings)
+      .leftJoin(users, eq(users.id, meetings.chairUserId))
+      .where(eq(meetings.projectId, input.projectId))
+      .orderBy(desc(meetings.scheduledAt)),
+  );
 
   const scoped = isSub && visibleIds
     ? baseRows.filter((r) => visibleIds!.has(r.id))
@@ -337,7 +341,8 @@ export type GetMeetingInput = {
 };
 
 export async function getMeeting(input: GetMeetingInput): Promise<MeetingDetail> {
-  const [head] = await db
+  // Pre-tenant: meeting id only — admin pool head lookup, then ctx.
+  const [head] = await dbAdmin
     .select({ id: meetings.id, projectId: meetings.projectId })
     .from(meetings)
     .where(eq(meetings.id, input.meetingId))
@@ -413,10 +418,12 @@ export async function getMeeting(input: GetMeetingInput): Promise<MeetingDetail>
   );
   const carriedLabels = new Map<string, string>();
   if (carriedFromIds.length) {
-    const labelRows = await db
-      .select({ id: meetings.id, n: meetings.sequentialNumber })
-      .from(meetings)
-      .where(inArray(meetings.id, carriedFromIds));
+    const labelRows = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({ id: meetings.id, n: meetings.sequentialNumber })
+        .from(meetings)
+        .where(inArray(meetings.id, carriedFromIds)),
+    );
     for (const l of labelRows)
       carriedLabels.set(l.id, padMeetingNumber(l.n));
   }
@@ -513,10 +520,12 @@ export async function getMeeting(input: GetMeetingInput): Promise<MeetingDetail>
   if (actionCarriedIds.length) {
     const missing = actionCarriedIds.filter((id) => !carriedLabels.has(id));
     if (missing.length) {
-      const more = await db
-        .select({ id: meetings.id, n: meetings.sequentialNumber })
-        .from(meetings)
-        .where(inArray(meetings.id, missing));
+      const more = await withTenant(ctx.organization.id, (tx) =>
+        tx
+          .select({ id: meetings.id, n: meetings.sequentialNumber })
+          .from(meetings)
+          .where(inArray(meetings.id, missing)),
+      );
       for (const l of more) carriedLabels.set(l.id, padMeetingNumber(l.n));
     }
   }
@@ -708,21 +717,23 @@ export async function getCarryForwardPreview(input: {
     };
   }
 
-  const [source] = await db
-    .select({
-      id: meetings.id,
-      n: meetings.sequentialNumber,
-    })
-    .from(meetings)
-    .where(
-      and(
-        eq(meetings.projectId, input.projectId),
-        eq(meetings.type, input.type),
-        eq(meetings.status, "completed"),
-      ),
-    )
-    .orderBy(desc(meetings.completedAt))
-    .limit(1);
+  const [source] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: meetings.id,
+        n: meetings.sequentialNumber,
+      })
+      .from(meetings)
+      .where(
+        and(
+          eq(meetings.projectId, input.projectId),
+          eq(meetings.type, input.type),
+          eq(meetings.status, "completed"),
+        ),
+      )
+      .orderBy(desc(meetings.completedAt))
+      .limit(1),
+  );
 
   if (!source) {
     return {

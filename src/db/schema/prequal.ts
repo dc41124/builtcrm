@@ -7,6 +7,7 @@ import {
   integer,
   jsonb,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -349,5 +350,34 @@ export const prequalProjectExemptions = pgTable(
       foreignColumns: [organizations.id],
       name: "prequal_project_exemptions_contractor_org_id_fk",
     }).onDelete("cascade"),
+    // Phase 4 wave 1 — same project-scoped multi-org template as milestones.
+    // Note: contractorOrgId is denormalized for query convenience; the
+    // policy goes through projects (single source of truth) per the
+    // template, so a contractor-org desync wouldn't widen access.
+    tenantIsolation: pgPolicy("prequal_project_exemptions_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();

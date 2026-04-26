@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import {
   type InspectionLineItemDef,
   inspectionResults,
@@ -40,7 +41,7 @@ export async function PUT(req: Request) {
   const input = parsed.data;
 
   try {
-    const [head] = await db
+    const [head] = await dbAdmin
       .select({
         id: inspections.id,
         projectId: inspections.projectId,
@@ -87,7 +88,7 @@ export async function PUT(req: Request) {
       );
     }
 
-    const row = await db.transaction(async (tx) => {
+    const row = await withTenant(ctx.organization.id, async (tx) => {
       const [existing] = await tx
         .select({ id: inspectionResults.id, outcome: inspectionResults.outcome })
         .from(inspectionResults)

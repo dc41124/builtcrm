@@ -93,20 +93,23 @@ export async function generateWeeklyReport(
 
   const window = computeReportWindow(asOfMs, project.timezone);
 
-  // Prior-art lookup — short-circuits on locked statuses.
-  const [existing] = await db
-    .select({
-      id: weeklyReports.id,
-      status: weeklyReports.status,
-    })
-    .from(weeklyReports)
-    .where(
-      and(
-        eq(weeklyReports.projectId, input.projectId),
-        eq(weeklyReports.weekStart, window.weekStartLocalDate),
-      ),
-    )
-    .limit(1);
+  // Prior-art lookup — short-circuits on locked statuses. Cron sweep
+  // runs per-project with each project's contractor org as the GUC.
+  const [existing] = await withTenant(contractorOrgId, (tx) =>
+    tx
+      .select({
+        id: weeklyReports.id,
+        status: weeklyReports.status,
+      })
+      .from(weeklyReports)
+      .where(
+        and(
+          eq(weeklyReports.projectId, input.projectId),
+          eq(weeklyReports.weekStart, window.weekStartLocalDate),
+        ),
+      )
+      .limit(1),
+  );
 
   if (existing && existing.status !== "auto_draft") {
     return { status: "skipped_locked", reportId: existing.id, window };
@@ -130,7 +133,7 @@ export async function generateWeeklyReport(
 
   // Upsert the report row + its sections inside a single transaction so a
   // partial write can't leave a report with inconsistent sections.
-  const result = await db.transaction(async (tx) => {
+  const result = await withTenant(contractorOrgId, async (tx) => {
     let reportId: string;
     let createdNew: boolean;
 

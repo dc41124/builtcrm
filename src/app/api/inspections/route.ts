@@ -5,6 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   type InspectionLineItemDef,
   inspectionTemplates,
@@ -77,7 +78,7 @@ export async function POST(req: Request) {
 
     const snapshot = (tpl.lineItemsJson as InspectionLineItemDef[]) ?? [];
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       const [{ nextNumber }] = await tx
         .select({
           nextNumber: sql<number>`coalesce(max(${inspections.sequentialNumber}), 0) + 1`,

@@ -4,6 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { meetingMinutes, meetings } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
@@ -26,7 +28,7 @@ export async function POST(
   const { id } = await params;
   const { session } = await requireServerSession();
   try {
-    const [head] = await db
+    const [head] = await dbAdmin
       .select({
         id: meetings.id,
         projectId: meetings.projectId,
@@ -77,7 +79,7 @@ export async function POST(
       return NextResponse.json({ ok: true, alreadyFinalized: true });
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(meetingMinutes)
         .set({

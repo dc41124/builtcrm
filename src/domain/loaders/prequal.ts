@@ -2,6 +2,7 @@ import { cache } from "react";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   organizations,
   prequalDocuments,
@@ -588,30 +589,32 @@ export async function getPrequalEnforcementSettingsView(input: {
     .where(eq(organizations.id, ctx.organization.id))
     .limit(1);
 
-  const exemptions = await db
-    .select({
-      id: prequalProjectExemptions.id,
-      projectId: prequalProjectExemptions.projectId,
-      subOrgId: prequalProjectExemptions.subOrgId,
-      subOrgName: organizations.name,
-      grantedAt: prequalProjectExemptions.grantedAt,
-      grantedByName: users.displayName,
-      expiresAt: prequalProjectExemptions.expiresAt,
-      reason: prequalProjectExemptions.reason,
-    })
-    .from(prequalProjectExemptions)
-    .innerJoin(
-      organizations,
-      eq(organizations.id, prequalProjectExemptions.subOrgId),
-    )
-    .leftJoin(users, eq(users.id, prequalProjectExemptions.grantedByUserId))
-    .where(
-      and(
-        eq(prequalProjectExemptions.contractorOrgId, ctx.organization.id),
-        isNull(prequalProjectExemptions.revokedAt),
-      ),
-    )
-    .orderBy(desc(prequalProjectExemptions.grantedAt));
+  const exemptions = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: prequalProjectExemptions.id,
+        projectId: prequalProjectExemptions.projectId,
+        subOrgId: prequalProjectExemptions.subOrgId,
+        subOrgName: organizations.name,
+        grantedAt: prequalProjectExemptions.grantedAt,
+        grantedByName: users.displayName,
+        expiresAt: prequalProjectExemptions.expiresAt,
+        reason: prequalProjectExemptions.reason,
+      })
+      .from(prequalProjectExemptions)
+      .innerJoin(
+        organizations,
+        eq(organizations.id, prequalProjectExemptions.subOrgId),
+      )
+      .leftJoin(users, eq(users.id, prequalProjectExemptions.grantedByUserId))
+      .where(
+        and(
+          eq(prequalProjectExemptions.contractorOrgId, ctx.organization.id),
+          isNull(prequalProjectExemptions.revokedAt),
+        ),
+      )
+      .orderBy(desc(prequalProjectExemptions.grantedAt)),
+  );
 
   return {
     mode: (org?.mode ?? "off") as PrequalEnforcementMode,
@@ -969,15 +972,17 @@ export async function getPrequalQueueView(input: {
   });
 
   const cutoff = Date.now() + EXPIRING_DAYS * 24 * 60 * 60 * 1000;
-  const exemptionRows = await db
-    .select({ id: prequalProjectExemptions.id })
-    .from(prequalProjectExemptions)
-    .where(
-      and(
-        eq(prequalProjectExemptions.contractorOrgId, ctx.organization.id),
-        isNull(prequalProjectExemptions.revokedAt),
+  const exemptionRows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({ id: prequalProjectExemptions.id })
+      .from(prequalProjectExemptions)
+      .where(
+        and(
+          eq(prequalProjectExemptions.contractorOrgId, ctx.organization.id),
+          isNull(prequalProjectExemptions.revokedAt),
+        ),
       ),
-    );
+  );
 
   const counts = {
     review: list.filter((r) => r.status === "submitted").length,

@@ -1,6 +1,8 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import {
   type InspectionLineItemDef,
   inspectionResultPhotos,
@@ -165,36 +167,38 @@ export async function getInspections(
       )
     : eq(inspections.projectId, input.projectId);
 
-  const rows = await db
-    .select({
-      id: inspections.id,
-      sequentialNumber: inspections.sequentialNumber,
-      templateId: inspections.templateId,
-      templateName: inspectionTemplates.name,
-      templateTradeCategory: inspectionTemplates.tradeCategory,
-      templatePhase: inspectionTemplates.phase,
-      templateSnapshotJson: inspections.templateSnapshotJson,
-      zone: inspections.zone,
-      status: inspections.status,
-      assignedOrgId: inspections.assignedOrgId,
-      assignedOrgName: organizations.name,
-      assignedUserId: inspections.assignedUserId,
-      scheduledDate: inspections.scheduledDate,
-      completedAt: inspections.completedAt,
-      notes: inspections.notes,
-      createdAt: inspections.createdAt,
-    })
-    .from(inspections)
-    .innerJoin(
-      inspectionTemplates,
-      eq(inspectionTemplates.id, inspections.templateId),
-    )
-    .leftJoin(
-      organizations,
-      eq(organizations.id, inspections.assignedOrgId),
-    )
-    .where(where)
-    .orderBy(desc(inspections.createdAt));
+  const rows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: inspections.id,
+        sequentialNumber: inspections.sequentialNumber,
+        templateId: inspections.templateId,
+        templateName: inspectionTemplates.name,
+        templateTradeCategory: inspectionTemplates.tradeCategory,
+        templatePhase: inspectionTemplates.phase,
+        templateSnapshotJson: inspections.templateSnapshotJson,
+        zone: inspections.zone,
+        status: inspections.status,
+        assignedOrgId: inspections.assignedOrgId,
+        assignedOrgName: organizations.name,
+        assignedUserId: inspections.assignedUserId,
+        scheduledDate: inspections.scheduledDate,
+        completedAt: inspections.completedAt,
+        notes: inspections.notes,
+        createdAt: inspections.createdAt,
+      })
+      .from(inspections)
+      .innerJoin(
+        inspectionTemplates,
+        eq(inspectionTemplates.id, inspections.templateId),
+      )
+      .leftJoin(
+        organizations,
+        eq(organizations.id, inspections.assignedOrgId),
+      )
+      .where(where)
+      .orderBy(desc(inspections.createdAt)),
+  );
 
   if (rows.length === 0) {
     return { rows: [], viewerRole: isSub ? "subcontractor" : "contractor" };
@@ -316,7 +320,8 @@ export type GetInspectionInput = {
 export async function getInspection(
   input: GetInspectionInput,
 ): Promise<InspectionDetail> {
-  const [head] = await db
+  // Pre-tenant: inspection id only — admin pool head lookup, then ctx.
+  const [head] = await dbAdmin
     .select({
       id: inspections.id,
       projectId: inspections.projectId,
@@ -357,15 +362,17 @@ export async function getInspection(
 
   // Fetch the full inspection row for the snapshot (the list loader doesn't
   // surface it) and the project name.
-  const [full] = await db
-    .select({
-      id: inspections.id,
-      projectId: inspections.projectId,
-      templateSnapshotJson: inspections.templateSnapshotJson,
-    })
-    .from(inspections)
-    .where(eq(inspections.id, input.inspectionId))
-    .limit(1);
+  const [full] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: inspections.id,
+        projectId: inspections.projectId,
+        templateSnapshotJson: inspections.templateSnapshotJson,
+      })
+      .from(inspections)
+      .where(eq(inspections.id, input.inspectionId))
+      .limit(1),
+  );
   const snapshot = (full?.templateSnapshotJson as InspectionLineItemDef[]) ?? [];
 
   // All results for this inspection.
@@ -431,11 +438,13 @@ export async function getInspection(
   }
 
   // Project name for the crumb.
-  const [projRow] = await db
-    .select({ id: inspections.projectId })
-    .from(inspections)
-    .where(eq(inspections.id, input.inspectionId))
-    .limit(1);
+  const [projRow] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({ id: inspections.projectId })
+      .from(inspections)
+      .where(eq(inspections.id, input.inspectionId))
+      .limit(1),
+  );
 
   // Compose line items in snapshot order with their result (if any).
   const lineItems: InspectionLineItemRow[] = [...snapshot]
@@ -569,7 +578,8 @@ export async function getInspectionTemplates(
       .where(eq(users.id, input.session.appUserId))
       .limit(1);
     if (!row) throw new AuthorizationError("User not found", "unauthenticated");
-    const [ra] = await db.execute(
+    // Pre-tenant role lookup — RLS-enabled role_assignments needs admin pool.
+    const [ra] = await dbAdmin.execute(
       sql`select organization_id as "organizationId"
           from role_assignments
           where user_id = ${input.session.appUserId}
@@ -606,15 +616,17 @@ export async function getInspectionTemplates(
 
   // Usage counts.
   const tplIds = tplRows.map((t) => t.id);
-  const usageRows = await db
-    .select({
-      templateId: inspections.templateId,
-      c: sql<number>`count(*)::int`,
-      lastUsed: sql<Date | null>`max(${inspections.createdAt})`,
-    })
-    .from(inspections)
-    .where(inArray(inspections.templateId, tplIds))
-    .groupBy(inspections.templateId);
+  const usageRows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        templateId: inspections.templateId,
+        c: sql<number>`count(*)::int`,
+        lastUsed: sql<Date | null>`max(${inspections.createdAt})`,
+      })
+      .from(inspections)
+      .where(inArray(inspections.templateId, tplIds))
+      .groupBy(inspections.templateId),
+  );
   const usageBy = new Map(
     usageRows.map((u) => [u.templateId, { c: u.c, lastUsed: u.lastUsed }]),
   );
@@ -673,7 +685,8 @@ export async function getInspectionTemplate(input: {
   }
 
   // Verify the viewer is a contractor in the template's org.
-  const [ra] = await db.execute(
+  // Pre-tenant role lookup — admin pool.
+  const [ra] = await dbAdmin.execute(
     sql`select organization_id as "organizationId"
         from role_assignments
         where user_id = ${input.session.appUserId}
@@ -688,14 +701,17 @@ export async function getInspectionTemplate(input: {
     );
   }
 
-  // Usage.
-  const [usage] = await db
-    .select({
-      c: sql<number>`count(*)::int`,
-      lastUsed: sql<Date | null>`max(${inspections.createdAt})`,
-    })
-    .from(inspections)
-    .where(eq(inspections.templateId, t.id));
+  // Usage. Caller is verified-contractor in t.orgId — wrap in withTenant
+  // for RLS on inspections.
+  const [usage] = await withTenant(t.orgId, (tx) =>
+    tx
+      .select({
+        c: sql<number>`count(*)::int`,
+        lastUsed: sql<Date | null>`max(${inspections.createdAt})`,
+      })
+      .from(inspections)
+      .where(eq(inspections.templateId, t.id)),
+  );
 
   const items = (t.lineItemsJson as InspectionLineItemDef[]) ?? [];
   return {

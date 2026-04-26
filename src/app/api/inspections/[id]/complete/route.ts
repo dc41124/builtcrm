@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { and, eq, sql } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import {
   type InspectionLineItemDef,
   inspectionResults,
@@ -32,7 +33,7 @@ export async function POST(
   const { id } = await params;
   const { session } = await requireServerSession();
   try {
-    const [head] = await db
+    const [head] = await dbAdmin
       .select({
         id: inspections.id,
         projectId: inspections.projectId,
@@ -74,7 +75,7 @@ export async function POST(
       (head.templateSnapshotJson as InspectionLineItemDef[]) ?? [];
     const itemLabelByKey = new Map(snapshot.map((li) => [li.key, li.label]));
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       // Flip inspection to completed.
       const [updated] = await tx
         .update(inspections)

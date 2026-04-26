@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { weeklyReports } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -28,7 +29,7 @@ export async function POST(
   const { reportId } = await params;
   const { session } = await requireServerSession();
   try {
-    const [existing] = await db
+    const [existing] = await dbAdmin
       .select({
         id: weeklyReports.id,
         projectId: weeklyReports.projectId,
@@ -85,7 +86,7 @@ export async function POST(
     const sentAt = new Date();
     const weekRange = formatWeekRange(existing.weekStart, existing.weekEnd);
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(weeklyReports)
         .set({

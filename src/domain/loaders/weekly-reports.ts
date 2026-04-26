@@ -113,7 +113,11 @@ export async function getContractorWeeklyReports(
     );
   }
 
-  const reports = await loadReportSummaries(context.project.id, false);
+  const reports = await loadReportSummaries(
+    context.project.id,
+    false,
+    context.organization.id,
+  );
   return {
     context,
     project: context.project,
@@ -140,6 +144,7 @@ export async function getContractorWeeklyReportDetail(
       projectId: context.project.id,
       reportId: input.reportId,
       sentOnly: false,
+      callerOrgId: context.organization.id,
     }),
     loadWeeklyReportRecipients(context.project.id, context.organization.id),
   ]);
@@ -188,25 +193,27 @@ export async function getWeeklyReportsAggregate(input: {
   }
   const projectNameById = new Map(projectRows.map((p) => [p.id, p.name]));
 
-  const rows = await db
-    .select({
-      id: weeklyReports.id,
-      projectId: weeklyReports.projectId,
-      weekStart: weeklyReports.weekStart,
-      weekEnd: weeklyReports.weekEnd,
-      sentAt: weeklyReports.sentAt,
-      sentByName: users.displayName,
-    })
-    .from(weeklyReports)
-    .leftJoin(users, eq(users.id, weeklyReports.sentByUserId))
-    .where(
-      and(
-        inArray(weeklyReports.projectId, projectIds),
-        eq(weeklyReports.status, "sent"),
-      ),
-    )
-    .orderBy(desc(weeklyReports.sentAt))
-    .limit(20);
+  const rows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: weeklyReports.id,
+        projectId: weeklyReports.projectId,
+        weekStart: weeklyReports.weekStart,
+        weekEnd: weeklyReports.weekEnd,
+        sentAt: weeklyReports.sentAt,
+        sentByName: users.displayName,
+      })
+      .from(weeklyReports)
+      .leftJoin(users, eq(users.id, weeklyReports.sentByUserId))
+      .where(
+        and(
+          inArray(weeklyReports.projectId, projectIds),
+          eq(weeklyReports.status, "sent"),
+        ),
+      )
+      .orderBy(desc(weeklyReports.sentAt))
+      .limit(20),
+  );
 
   const recentSent = rows
     .filter((r): r is typeof r & { sentAt: Date } => r.sentAt != null)
@@ -303,7 +310,11 @@ export async function getClientWeeklyReports(
     );
   }
 
-  const reports = await loadReportSummaries(context.project.id, true);
+  const reports = await loadReportSummaries(
+    context.project.id,
+    true,
+    context.organization.id,
+  );
   return { context, project: context.project, reports };
 }
 
@@ -325,6 +336,7 @@ export async function getClientWeeklyReportDetail(
     projectId: context.project.id,
     reportId: input.reportId,
     sentOnly: true, // clients never see drafts
+    callerOrgId: context.organization.id,
   });
   if (!report) {
     throw new AuthorizationError(
@@ -342,6 +354,7 @@ export async function getClientWeeklyReportDetail(
 async function loadReportSummaries(
   projectId: string,
   sentOnly: boolean,
+  callerOrgId: string,
 ): Promise<WeeklyReportSummaryRow[]> {
   const baseWhere = sentOnly
     ? and(
@@ -350,21 +363,23 @@ async function loadReportSummaries(
       )
     : eq(weeklyReports.projectId, projectId);
 
-  const rows = await db
-    .select({
-      id: weeklyReports.id,
-      weekStart: weeklyReports.weekStart,
-      weekEnd: weeklyReports.weekEnd,
-      status: weeklyReports.status,
-      summaryText: weeklyReports.summaryText,
-      generatedAt: weeklyReports.generatedAt,
-      sentAt: weeklyReports.sentAt,
-      sentByName: users.displayName,
-    })
-    .from(weeklyReports)
-    .leftJoin(users, eq(users.id, weeklyReports.sentByUserId))
-    .where(baseWhere)
-    .orderBy(desc(weeklyReports.weekStart));
+  const rows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: weeklyReports.id,
+        weekStart: weeklyReports.weekStart,
+        weekEnd: weeklyReports.weekEnd,
+        status: weeklyReports.status,
+        summaryText: weeklyReports.summaryText,
+        generatedAt: weeklyReports.generatedAt,
+        sentAt: weeklyReports.sentAt,
+        sentByName: users.displayName,
+      })
+      .from(weeklyReports)
+      .leftJoin(users, eq(users.id, weeklyReports.sentByUserId))
+      .where(baseWhere)
+      .orderBy(desc(weeklyReports.weekStart)),
+  );
 
   if (rows.length === 0) return [];
 
@@ -400,6 +415,7 @@ async function loadReportDetail(args: {
   projectId: string;
   reportId: string;
   sentOnly: boolean;
+  callerOrgId: string;
 }): Promise<WeeklyReportDetail | null> {
   const baseWhere = args.sentOnly
     ? and(
@@ -412,22 +428,24 @@ async function loadReportDetail(args: {
         eq(weeklyReports.projectId, args.projectId),
       );
 
-  const [reportRow] = await db
-    .select({
-      id: weeklyReports.id,
-      projectId: weeklyReports.projectId,
-      weekStart: weeklyReports.weekStart,
-      weekEnd: weeklyReports.weekEnd,
-      status: weeklyReports.status,
-      summaryText: weeklyReports.summaryText,
-      generatedAt: weeklyReports.generatedAt,
-      generatedByUserId: weeklyReports.generatedByUserId,
-      sentAt: weeklyReports.sentAt,
-      sentByUserId: weeklyReports.sentByUserId,
-    })
-    .from(weeklyReports)
-    .where(baseWhere)
-    .limit(1);
+  const [reportRow] = await withTenant(args.callerOrgId, (tx) =>
+    tx
+      .select({
+        id: weeklyReports.id,
+        projectId: weeklyReports.projectId,
+        weekStart: weeklyReports.weekStart,
+        weekEnd: weeklyReports.weekEnd,
+        status: weeklyReports.status,
+        summaryText: weeklyReports.summaryText,
+        generatedAt: weeklyReports.generatedAt,
+        generatedByUserId: weeklyReports.generatedByUserId,
+        sentAt: weeklyReports.sentAt,
+        sentByUserId: weeklyReports.sentByUserId,
+      })
+      .from(weeklyReports)
+      .where(baseWhere)
+      .limit(1),
+  );
   if (!reportRow) return null;
 
   const sectionRows = await db

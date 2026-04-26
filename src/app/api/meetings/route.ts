@@ -4,7 +4,7 @@ import { getServerSession } from "@/auth/session";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   meetingActionItems,
   meetingAgendaItems,
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
 
     const scheduledAt = new Date(input.scheduledAt);
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       // Atomic sequence bump on the project row.
       const [bumped] = await tx
         .update(projects)
