@@ -4,6 +4,9 @@ import { vi } from "vitest";
 if (process.env.TEST_DATABASE_URL && !process.env.DATABASE_URL) {
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 }
+if (process.env.TEST_DATABASE_URL && !process.env.DATABASE_ADMIN_URL) {
+  process.env.DATABASE_ADMIN_URL = process.env.TEST_DATABASE_URL;
+}
 
 // --- React `cache()` stub -----------------------------------------------
 // `react.cache` is exposed by Next.js / RSC but absent in the plain Node

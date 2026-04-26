@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   check,
   index,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -24,6 +25,14 @@ import { organizations } from "./identity";
 // certificate_pem stores the IdP signing certificate in PEM form. It's
 // public material; plaintext storage matches how most SAML libraries expect
 // to consume it. Cycling is a rare human event — no KMS overhead needed.
+//
+// RLS Phase 3b — Pattern A. The SSO callback in src/auth/sso-plugin.ts
+// is pre-tenant (no session yet) and uses the admin pool (`dbAdmin`)
+// to look up + update the provider row. The org-admin CRUD route
+// (api/org/sso/providers) and the contractor settings page both
+// already have a tenant context and go through `withTenant`. See
+// docs/specs/rls_sprint_plan.md §3.3 + §3.4 and the
+// organization_licenses precedent in identity.ts.
 // -----------------------------------------------------------------------------
 
 export const ssoProviders = pgTable(
@@ -56,10 +65,10 @@ export const ssoProviders = pgTable(
       "sso_providers_status_check",
       sql`${table.status} in ('active','disabled')`,
     ),
+    tenantIsolation: pgPolicy("sso_providers_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
-// RLS deferred to Phase 3b: src/auth/sso-plugin.ts queries this table
-// during the SAML callback BEFORE the user is authenticated, with no
-// `app.current_org_id` GUC available. RLS would deny the lookup and
-// break SSO sign-in entirely. Either run that lookup as the admin
-// pool or restructure the SAML flow so org context is known earlier.
+).enableRLS();

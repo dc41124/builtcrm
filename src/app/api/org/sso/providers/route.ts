@@ -4,8 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { auditEvents, ssoProviders } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getOrgPlanContext } from "@/domain/loaders/billing";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
@@ -63,13 +63,13 @@ export async function POST(req: Request) {
       status: parsed.data.status ?? "active",
     };
 
-    const [existing] = await db
-      .select({ id: ssoProviders.id })
-      .from(ssoProviders)
-      .where(eq(ssoProviders.organizationId, ctx.organization.id))
-      .limit(1);
+    const result = await withTenant(ctx.organization.id, async (tx) => {
+      const [existing] = await tx
+        .select({ id: ssoProviders.id })
+        .from(ssoProviders)
+        .where(eq(ssoProviders.organizationId, ctx.organization.id))
+        .limit(1);
 
-    const result = await db.transaction(async (tx) => {
       if (existing) {
         const [updated] = await tx
           .update(ssoProviders)
@@ -158,16 +158,14 @@ export async function DELETE() {
     // Enterprise org, and deletion is always allowed (e.g. downgrade
     // cleanup).
 
-    const [existing] = await db
-      .select({ id: ssoProviders.id })
-      .from(ssoProviders)
-      .where(eq(ssoProviders.organizationId, ctx.organization.id))
-      .limit(1);
-    if (!existing) {
-      return NextResponse.json({ ok: true, noop: true });
-    }
+    const noop = await withTenant(ctx.organization.id, async (tx) => {
+      const [existing] = await tx
+        .select({ id: ssoProviders.id })
+        .from(ssoProviders)
+        .where(eq(ssoProviders.organizationId, ctx.organization.id))
+        .limit(1);
+      if (!existing) return true;
 
-    await db.transaction(async (tx) => {
       await tx.delete(ssoProviders).where(eq(ssoProviders.id, existing.id));
       await tx.insert(auditEvents).values({
         actorUserId: ctx.user.id,
@@ -176,7 +174,11 @@ export async function DELETE() {
         objectId: existing.id,
         actionName: "deleted",
       });
+      return false;
     });
+    if (noop) {
+      return NextResponse.json({ ok: true, noop: true });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -11,6 +11,9 @@ if (!process.env.TEST_DATABASE_URL) {
   );
 }
 process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
+// dbAdmin (src/db/admin-pool.ts) requires DATABASE_ADMIN_URL — in CI we
+// route both pools at the same admin-equivalent test branch URL.
+process.env.DATABASE_ADMIN_URL = process.env.TEST_DATABASE_URL;
 // NODE_ENV is read-only under Next's type augmentation; assign via index.
 (process.env as Record<string, string>).NODE_ENV = "test";
 

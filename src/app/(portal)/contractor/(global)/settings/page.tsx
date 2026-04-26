@@ -2,8 +2,8 @@ import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import { requireServerSession } from "@/auth/session";
-import { db } from "@/db/client";
 import { ssoProviders } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getUserSettingsView } from "@/domain/loaders/user-settings";
 import { listOrganizationAuditEvents } from "@/domain/loaders/audit-log";
 import { listOrganizationMembers } from "@/domain/loaders/organization-members";
@@ -64,12 +64,14 @@ export default async function ContractorSettingsPage() {
       getContractorBillingSummary(ctx.organization.id),
       getOrgPlanContext(ctx.organization.id),
       listRecentDataExports(ctx.organization.id, { limit: 20 }),
-      db
-        .select()
-        .from(ssoProviders)
-        .where(eq(ssoProviders.organizationId, ctx.organization.id))
-        .limit(1)
-        .then((rows) => rows[0] ?? null),
+      withTenant(ctx.organization.id, (tx) =>
+        tx
+          .select()
+          .from(ssoProviders)
+          .where(eq(ssoProviders.organizationId, ctx.organization.id))
+          .limit(1)
+          .then((rows) => rows[0] ?? null),
+      ),
     ]);
 
     return (

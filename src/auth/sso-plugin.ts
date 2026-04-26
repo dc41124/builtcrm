@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   organizationUsers,
   roleAssignments,
@@ -15,7 +16,10 @@ import {
 } from "@/lib/saml/client";
 
 async function loadSsoProvider(providerId: string) {
-  const [row] = await db
+  // Pre-tenant — no session yet, so no GUC. Use the admin pool to
+  // bypass RLS on sso_providers; the route handler enforces
+  // `provider.status === 'active'` before trusting the row.
+  const [row] = await dbAdmin
     .select()
     .from(ssoProviders)
     .where(eq(ssoProviders.id, providerId))
@@ -245,7 +249,9 @@ export function ssoPlugin(): BetterAuthPlugin {
 
           // Update the provider's last_login_at. Also update the domain
           // users table's email so subsequent reads reflect the IdP.
-          await db
+          // Still pre-session at this point — admin pool for the
+          // sso_providers write (RLS-enabled).
+          await dbAdmin
             .update(ssoProviders)
             .set({ lastLoginAt: new Date() })
             .where(eq(ssoProviders.id, provider.id));
