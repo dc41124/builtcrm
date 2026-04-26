@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import {
   auditEvents,
@@ -76,7 +75,10 @@ export async function POST(
   // Defence-in-depth: current state must be under_review (the invite
   // flow leaves the submittal there). If the GC manually transitioned
   // elsewhere in the meantime, lock the reviewer out cleanly.
-  const [current] = await db
+  // Reviewer flow is pre-tenant (external token); the dbAdmin transaction
+  // below is the canonical path for these routes. Read the head via
+  // dbAdmin too so RLS on submittals doesn't deny it.
+  const [current] = await dbAdmin
     .select({
       id: submittals.id,
       projectId: submittals.projectId,

@@ -237,35 +237,39 @@ export async function getContractorReportsData(
     punchAgg,
   ] = await Promise.all([
     // RFIs for aging charts + open counts
-    db
-      .select({
-        id: rfis.id,
-        projectId: rfis.projectId,
-        rfiStatus: rfis.rfiStatus,
-        createdAt: rfis.createdAt,
-      })
-      .from(rfis)
-      .where(
-        and(
-          inArray(rfis.projectId, projectIds),
-          inArray(rfis.rfiStatus, [...OPEN_RFI_STATUSES]),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          id: rfis.id,
+          projectId: rfis.projectId,
+          rfiStatus: rfis.rfiStatus,
+          createdAt: rfis.createdAt,
+        })
+        .from(rfis)
+        .where(
+          and(
+            inArray(rfis.projectId, projectIds),
+            inArray(rfis.rfiStatus, [...OPEN_RFI_STATUSES]),
+          ),
         ),
-      ),
+    ),
     // Change orders for aging charts + open counts
-    db
-      .select({
-        id: changeOrders.id,
-        projectId: changeOrders.projectId,
-        changeOrderStatus: changeOrders.changeOrderStatus,
-        createdAt: changeOrders.createdAt,
-      })
-      .from(changeOrders)
-      .where(
-        and(
-          inArray(changeOrders.projectId, projectIds),
-          inArray(changeOrders.changeOrderStatus, [...OPEN_CO_STATUSES]),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          id: changeOrders.id,
+          projectId: changeOrders.projectId,
+          changeOrderStatus: changeOrders.changeOrderStatus,
+          createdAt: changeOrders.createdAt,
+        })
+        .from(changeOrders)
+        .where(
+          and(
+            inArray(changeOrders.projectId, projectIds),
+            inArray(changeOrders.changeOrderStatus, [...OPEN_CO_STATUSES]),
+          ),
         ),
-      ),
+    ),
     // Pending approvals — not a per-project column in the reports
     // KPIs but counted in each project's open-items total.
     db

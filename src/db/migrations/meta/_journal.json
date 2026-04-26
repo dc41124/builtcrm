@@ -232,6 +232,13 @@
       "when": 1777228883064,
       "tag": "0032_famous_hellcat",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1777230011976,
+      "tag": "0033_swift_silver_centurion",
+      "breakpoints": true
     }
   ]
 }

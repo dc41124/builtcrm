@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { submittalDocuments, submittals } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -57,7 +58,9 @@ export async function POST(
   const input = parsed.data;
 
   try {
-    const [current] = await db
+    // Entry-point dbAdmin: tenant unknown until we resolve project
+    // from the submittal row. Slice 3 pattern.
+    const [current] = await dbAdmin
       .select({
         id: submittals.id,
         projectId: submittals.projectId,
@@ -120,7 +123,9 @@ export async function POST(
     // A submittal with no package is meaningless; enforce here so a
     // misconfigured client can't skip the UI guard.
     if (from === "draft" && to === "submitted") {
-      const [{ packageCount }] = await db
+      // submittalDocuments not yet under RLS (child table — future
+      // nested wave). Using dbAdmin keeps this forward-compatible.
+      const [{ packageCount }] = await dbAdmin
         .select({
           packageCount: sql<number>`count(*)::int`,
         })
@@ -146,7 +151,7 @@ export async function POST(
     const now = new Date();
     const actorName = ctx.user.displayName ?? ctx.user.email;
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       const patch: Partial<typeof submittals.$inferInsert> = {
         status: to,
         lastTransitionAt: now,

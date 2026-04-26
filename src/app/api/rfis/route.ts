@@ -4,7 +4,7 @@ import { requireServerSession } from "@/auth/session";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { rfis } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       // Compute next sequential number per project. Unique index on
       // (project_id, sequential_number) will reject collisions from
       // concurrent inserts and surface as a 500 — acceptable for a

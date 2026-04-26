@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { submittals } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -88,7 +89,9 @@ export async function PATCH(
   }
 
   try {
-    const [head] = await db
+    // Entry-point dbAdmin: tenant unknown until we resolve project
+    // from the submittal row. Slice 3 pattern.
+    const [head] = await dbAdmin
       .select({
         id: submittals.id,
         projectId: submittals.projectId,
@@ -156,7 +159,7 @@ export async function PATCH(
       return NextResponse.json({ id });
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx.update(submittals).set(patch).where(eq(submittals.id, id));
       await writeAuditEvent(
         ctx,

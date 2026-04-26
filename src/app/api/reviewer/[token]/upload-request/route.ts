@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { projects } from "@/db/schema";
 import { buildStorageKey, presignUploadUrl } from "@/lib/storage";
 import { validateReviewerToken } from "@/lib/submittals/reviewer-auth";
@@ -43,7 +43,8 @@ export async function POST(
   // Reviewer-uploaded docs always go under the project's own folder,
   // tagged `documentType: 'submittal_reviewer'` so they're identifiable
   // in storage logs.
-  const [project] = await db
+  // Reviewer flow is pre-tenant (external token); use dbAdmin.
+  const [project] = await dbAdmin
     .select({
       contractorOrganizationId: projects.contractorOrganizationId,
     })

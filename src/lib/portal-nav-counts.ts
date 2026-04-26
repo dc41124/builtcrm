@@ -67,6 +67,7 @@ export async function getPortalNavCounts(
   if (!activeProjectId) return {};
   return clientProjectCounts({
     userId,
+    orgId,
     portalType,
     projectId: activeProjectId,
   });
@@ -96,15 +97,17 @@ async function contractorGlobalCounts({
     unreadMessages,
   ] = await Promise.all([
     countOf(
-      db
-        .select({ c: COUNT })
-        .from(rfis)
-        .where(
-          and(
-            inArray(rfis.projectId, projectIds),
-            inArray(rfis.rfiStatus, ["open", "pending_response"]),
+      withTenant(orgId, (tx) =>
+        tx
+          .select({ c: COUNT })
+          .from(rfis)
+          .where(
+            and(
+              inArray(rfis.projectId, projectIds),
+              inArray(rfis.rfiStatus, ["open", "pending_response"]),
+            ),
           ),
-        ),
+      ),
     ),
     countOf(
       db
@@ -118,18 +121,20 @@ async function contractorGlobalCounts({
         ),
     ),
     countOf(
-      db
-        .select({ c: COUNT })
-        .from(changeOrders)
-        .where(
-          and(
-            inArray(changeOrders.projectId, projectIds),
-            inArray(changeOrders.changeOrderStatus, [
-              "pending_review",
-              "pending_client_approval",
-            ]),
+      withTenant(orgId, (tx) =>
+        tx
+          .select({ c: COUNT })
+          .from(changeOrders)
+          .where(
+            and(
+              inArray(changeOrders.projectId, projectIds),
+              inArray(changeOrders.changeOrderStatus, [
+                "pending_review",
+                "pending_client_approval",
+              ]),
+            ),
           ),
-        ),
+      ),
     ),
     // Contractor compliance count — multi-org policy clause B
     // (project ownership) returns sub records too.
@@ -206,15 +211,17 @@ async function subcontractorGlobalCounts({
   const [rfisAwaiting, openUploads, complianceToDo, unreadMessages] =
     await Promise.all([
       countOf(
-        db
-          .select({ c: COUNT })
-          .from(rfis)
-          .where(
-            and(
-              eq(rfis.assignedToOrganizationId, orgId),
-              eq(rfis.rfiStatus, "pending_response"),
+        withTenant(orgId, (tx) =>
+          tx
+            .select({ c: COUNT })
+            .from(rfis)
+            .where(
+              and(
+                eq(rfis.assignedToOrganizationId, orgId),
+                eq(rfis.rfiStatus, "pending_response"),
+              ),
             ),
-          ),
+        ),
       ),
       countOf(
         db
@@ -260,10 +267,12 @@ async function subcontractorGlobalCounts({
 
 async function clientProjectCounts({
   userId,
+  orgId,
   portalType,
   projectId,
 }: {
   userId: string;
+  orgId: string;
   portalType: "commercial" | "residential";
   projectId: string;
 }): Promise<NavCounts> {
@@ -289,15 +298,17 @@ async function clientProjectCounts({
         ),
     ),
     countOf(
-      db
-        .select({ c: COUNT })
-        .from(changeOrders)
-        .where(
-          and(
-            eq(changeOrders.projectId, projectId),
-            eq(changeOrders.changeOrderStatus, "pending_client_approval"),
+      withTenant(orgId, (tx) =>
+        tx
+          .select({ c: COUNT })
+          .from(changeOrders)
+          .where(
+            and(
+              eq(changeOrders.projectId, projectId),
+              eq(changeOrders.changeOrderStatus, "pending_client_approval"),
+            ),
           ),
-        ),
+      ),
     ),
     // Selections only appear in the residential portal; skip the query
     // entirely for commercial to save a roundtrip.

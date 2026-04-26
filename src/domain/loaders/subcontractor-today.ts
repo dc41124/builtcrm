@@ -190,25 +190,27 @@ export async function getSubcontractorTodayData(input: {
   }
 
   const [rfiRows, uploadRows, complianceRows] = await Promise.all([
-    db
-      .select({
-        id: rfis.id,
-        projectId: rfis.projectId,
-        subject: rfis.subject,
-        body: rfis.body,
-        status: rfis.rfiStatus,
-        dueAt: rfis.dueAt,
-        sequentialNumber: rfis.sequentialNumber,
-      })
-      .from(rfis)
-      .where(
-        and(
-          inArray(rfis.projectId, projectIds),
-          eq(rfis.assignedToOrganizationId, subOrgId),
-          inArray(rfis.rfiStatus, [...OPEN_RFI_STATUSES]),
-        ),
-      )
-      .orderBy(desc(rfis.createdAt)),
+    withTenant(subOrgId, (tx) =>
+      tx
+        .select({
+          id: rfis.id,
+          projectId: rfis.projectId,
+          subject: rfis.subject,
+          body: rfis.body,
+          status: rfis.rfiStatus,
+          dueAt: rfis.dueAt,
+          sequentialNumber: rfis.sequentialNumber,
+        })
+        .from(rfis)
+        .where(
+          and(
+            inArray(rfis.projectId, projectIds),
+            eq(rfis.assignedToOrganizationId, subOrgId),
+            inArray(rfis.rfiStatus, [...OPEN_RFI_STATUSES]),
+          ),
+        )
+        .orderBy(desc(rfis.createdAt)),
+    ),
     db
       .select({
         id: uploadRequests.id,

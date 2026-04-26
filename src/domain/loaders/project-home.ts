@@ -51,6 +51,7 @@ type LoaderInput = { session: SessionLike | null | undefined; projectId: string 
 // responses + responder display names folded in. Two queries, grouped in JS.
 async function loadRfisWithResponses(
   projectId: string,
+  callerOrgId: string,
   opts: { assignedToOrganizationId?: string } = {},
 ): Promise<RfiRow[]> {
   const whereClause = opts.assignedToOrganizationId
@@ -60,7 +61,8 @@ async function loadRfisWithResponses(
       )
     : eq(rfis.projectId, projectId);
 
-  const rfiRows = await db
+  const rfiRows = await withTenant(callerOrgId, (tx) =>
+    tx
     .select({
       id: rfis.id,
       sequentialNumber: rfis.sequentialNumber,
@@ -85,7 +87,8 @@ async function loadRfisWithResponses(
       eq(organizations.id, rfis.assignedToOrganizationId),
     )
     .where(whereClause)
-    .orderBy(desc(rfis.createdAt));
+    .orderBy(desc(rfis.createdAt)),
+  );
 
   if (rfiRows.length === 0) return [];
 
@@ -1249,16 +1252,18 @@ export async function getContractorProjectView(
         .where(eq(milestones.projectId, projectId))
         .orderBy(milestones.scheduledDate),
     ),
-    loadRfisWithResponses(projectId),
-    db
-      .select({
-        id: changeOrders.id,
-        title: changeOrders.title,
-        changeOrderStatus: changeOrders.changeOrderStatus,
-      })
-      .from(changeOrders)
-      .where(eq(changeOrders.projectId, projectId))
-      .orderBy(desc(changeOrders.createdAt)),
+    loadRfisWithResponses(projectId, context.organization.id),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          id: changeOrders.id,
+          title: changeOrders.title,
+          changeOrderStatus: changeOrders.changeOrderStatus,
+        })
+        .from(changeOrders)
+        .where(eq(changeOrders.projectId, projectId))
+        .orderBy(desc(changeOrders.createdAt)),
+    ),
     db
       .select()
       .from(drawRequests)
@@ -1838,16 +1843,20 @@ export async function getSubcontractorProjectView(
     allUploadRows,
     complianceRows,
   ] = await Promise.all([
-    loadRfisWithResponses(projectId, { assignedToOrganizationId: subOrgId }),
-    db
-      .select({
-        id: changeOrders.id,
-        title: changeOrders.title,
-        changeOrderStatus: changeOrders.changeOrderStatus,
-      })
-      .from(changeOrders)
-      .where(eq(changeOrders.projectId, projectId))
-      .orderBy(desc(changeOrders.createdAt)),
+    loadRfisWithResponses(projectId, subOrgId, {
+      assignedToOrganizationId: subOrgId,
+    }),
+    withTenant(subOrgId, (tx) =>
+      tx
+        .select({
+          id: changeOrders.id,
+          title: changeOrders.title,
+          changeOrderStatus: changeOrders.changeOrderStatus,
+        })
+        .from(changeOrders)
+        .where(eq(changeOrders.projectId, projectId))
+        .orderBy(desc(changeOrders.createdAt)),
+    ),
     withTenant(subOrgId, (tx) =>
       tx
         .select({
@@ -2242,38 +2251,42 @@ export async function getClientProjectView(
         )
         .orderBy(milestones.scheduledDate),
     ),
-    db
-      .select({
-        id: changeOrders.id,
-        title: changeOrders.title,
-        changeOrderStatus: changeOrders.changeOrderStatus,
-      })
-      .from(changeOrders)
-      .where(
-        and(
-          eq(changeOrders.projectId, projectId),
-          inArray(changeOrders.changeOrderStatus, [
-            "pending_client_approval",
-            "approved",
-            "rejected",
-          ]),
-        ),
-      )
-      .orderBy(desc(changeOrders.createdAt)),
-    db
-      .select({
-        id: rfis.id,
-        subject: rfis.subject,
-        rfiStatus: rfis.rfiStatus,
-      })
-      .from(rfis)
-      .where(
-        and(
-          eq(rfis.projectId, projectId),
-          inArray(rfis.rfiStatus, ["open", "answered"]),
-        ),
-      )
-      .orderBy(desc(rfis.createdAt)),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          id: changeOrders.id,
+          title: changeOrders.title,
+          changeOrderStatus: changeOrders.changeOrderStatus,
+        })
+        .from(changeOrders)
+        .where(
+          and(
+            eq(changeOrders.projectId, projectId),
+            inArray(changeOrders.changeOrderStatus, [
+              "pending_client_approval",
+              "approved",
+              "rejected",
+            ]),
+          ),
+        )
+        .orderBy(desc(changeOrders.createdAt)),
+    ),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          id: rfis.id,
+          subject: rfis.subject,
+          rfiStatus: rfis.rfiStatus,
+        })
+        .from(rfis)
+        .where(
+          and(
+            eq(rfis.projectId, projectId),
+            inArray(rfis.rfiStatus, ["open", "answered"]),
+          ),
+        )
+        .orderBy(desc(rfis.createdAt)),
+    ),
     db
       .select({
         id: approvals.id,

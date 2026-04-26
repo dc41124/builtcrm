@@ -155,16 +155,18 @@ async function computeProjectHealth(
     if (r.projectId) result.set(r.projectId, "red");
   }
 
-  const overdueRfis = await db
-    .select({ projectId: rfis.projectId })
-    .from(rfis)
-    .where(
-      and(
-        inArray(rfis.projectId, projectIds),
-        or(eq(rfis.rfiStatus, "open"), eq(rfis.rfiStatus, "pending_response")),
-        lte(rfis.dueAt, now),
-      )!,
-    );
+  const overdueRfis = await withTenant(orgId, (tx) =>
+    tx
+      .select({ projectId: rfis.projectId })
+      .from(rfis)
+      .where(
+        and(
+          inArray(rfis.projectId, projectIds),
+          or(eq(rfis.rfiStatus, "open"), eq(rfis.rfiStatus, "pending_response")),
+          lte(rfis.dueAt, now),
+        )!,
+      ),
+  );
   for (const r of overdueRfis) {
     result.set(r.projectId, "red");
   }

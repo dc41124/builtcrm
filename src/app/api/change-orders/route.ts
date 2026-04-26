@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { changeOrders, rfis } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
@@ -43,7 +44,10 @@ export async function POST(req: Request) {
     }
 
     if (parsed.data.originatingRfiId) {
-      const [rfi] = await db
+      // Explicit projectId filter is the security check; dbAdmin head
+      // lookup is safe (this runs after getEffectiveContext approves
+      // the project, and the eq narrows to that project's RFIs).
+      const [rfi] = await dbAdmin
         .select({ id: rfis.id })
         .from(rfis)
         .where(
@@ -58,7 +62,8 @@ export async function POST(req: Request) {
       }
     }
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
+
       const [{ nextNumber }] = await tx
         .select({
           nextNumber: sql<number>`coalesce(max(${changeOrders.changeOrderNumber}), 0) + 1`,

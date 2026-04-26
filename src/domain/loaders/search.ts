@@ -12,6 +12,7 @@ import {
 
 import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import {
   changeOrders,
   conversationParticipants,
@@ -106,6 +107,11 @@ export type GlobalSearchInput = {
   appUserId: string;
   portalType: SearchPortal;
   query: string;
+  // Caller's own organization id — used to set the RLS GUC so the
+  // searchRfis / searchChangeOrders queries pass tenant policies.
+  // Cross-org accessible projects are still reachable through the
+  // POM clause on those policies.
+  callerOrgId: string;
 };
 
 const RESULTS_PER_GROUP = 5;
@@ -230,8 +236,11 @@ export async function getGlobalSearchResults(
     peopleRows,
   ] = await Promise.all([
     safe(() => searchProjects(projectIds, like, prefix), "projects"),
-    safe(() => searchRfis(projectIds, like, prefix), "rfis"),
-    safe(() => searchChangeOrders(projectIds, like, prefix), "changeOrders"),
+    safe(() => searchRfis(projectIds, like, prefix, input.callerOrgId), "rfis"),
+    safe(
+      () => searchChangeOrders(projectIds, like, prefix, input.callerOrgId),
+      "changeOrders",
+    ),
     safe(
       () => searchDocuments(projectIds, input.portalType, like, prefix),
       "documents",
@@ -316,57 +325,63 @@ async function searchRfis(
   projectIds: string[],
   like: string,
   prefix: string,
+  callerOrgId: string,
 ) {
   if (projectIds.length === 0) return [];
-  return db
-    .select({
-      id: rfis.id,
-      projectId: rfis.projectId,
-      sequentialNumber: rfis.sequentialNumber,
-      subject: rfis.subject,
-    })
-    .from(rfis)
-    .where(
-      and(
-        inArray(rfis.projectId, projectIds),
-        or(ilike(rfis.subject, like), ilike(rfis.body, like)),
-      ),
-    )
-    .orderBy(
-      sql`CASE WHEN ${rfis.subject} ILIKE ${prefix} THEN 0 ELSE 1 END`,
-      desc(rfis.createdAt),
-    )
-    .limit(RESULTS_PER_GROUP);
+  return withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: rfis.id,
+        projectId: rfis.projectId,
+        sequentialNumber: rfis.sequentialNumber,
+        subject: rfis.subject,
+      })
+      .from(rfis)
+      .where(
+        and(
+          inArray(rfis.projectId, projectIds),
+          or(ilike(rfis.subject, like), ilike(rfis.body, like)),
+        ),
+      )
+      .orderBy(
+        sql`CASE WHEN ${rfis.subject} ILIKE ${prefix} THEN 0 ELSE 1 END`,
+        desc(rfis.createdAt),
+      )
+      .limit(RESULTS_PER_GROUP),
+  );
 }
 
 async function searchChangeOrders(
   projectIds: string[],
   like: string,
   prefix: string,
+  callerOrgId: string,
 ) {
   if (projectIds.length === 0) return [];
-  return db
-    .select({
-      id: changeOrders.id,
-      projectId: changeOrders.projectId,
-      changeOrderNumber: changeOrders.changeOrderNumber,
-      title: changeOrders.title,
-    })
-    .from(changeOrders)
-    .where(
-      and(
-        inArray(changeOrders.projectId, projectIds),
-        or(
-          ilike(changeOrders.title, like),
-          ilike(changeOrders.description, like),
+  return withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: changeOrders.id,
+        projectId: changeOrders.projectId,
+        changeOrderNumber: changeOrders.changeOrderNumber,
+        title: changeOrders.title,
+      })
+      .from(changeOrders)
+      .where(
+        and(
+          inArray(changeOrders.projectId, projectIds),
+          or(
+            ilike(changeOrders.title, like),
+            ilike(changeOrders.description, like),
+          ),
         ),
-      ),
-    )
-    .orderBy(
-      sql`CASE WHEN ${changeOrders.title} ILIKE ${prefix} THEN 0 ELSE 1 END`,
-      desc(changeOrders.createdAt),
-    )
-    .limit(RESULTS_PER_GROUP);
+      )
+      .orderBy(
+        sql`CASE WHEN ${changeOrders.title} ILIKE ${prefix} THEN 0 ELSE 1 END`,
+        desc(changeOrders.createdAt),
+      )
+      .limit(RESULTS_PER_GROUP),
+  );
 }
 
 async function searchDocuments(

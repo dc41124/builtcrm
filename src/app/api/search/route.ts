@@ -26,7 +26,10 @@ export async function GET(req: Request) {
       const appUserId = (
         session
       ).appUserId;
-      if (!appUserId) {
+      const callerOrgId = (
+        session
+      ).organizationId;
+      if (!appUserId || !callerOrgId) {
         return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
       }
 
@@ -45,6 +48,7 @@ export async function GET(req: Request) {
         appUserId,
         portalType: parsed.data.portalType,
         query: parsed.data.q,
+        callerOrgId,
       });
 
       return NextResponse.json({ q: parsed.data.q, results });

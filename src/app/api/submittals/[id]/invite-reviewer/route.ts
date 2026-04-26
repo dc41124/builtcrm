@@ -5,7 +5,7 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   documents,
   invitations,
@@ -93,7 +93,9 @@ export async function POST(
     const input = parsed.data;
     const reviewerEmail = input.reviewerEmail.toLowerCase();
 
-    const [current] = await db
+    // Entry-point dbAdmin: tenant unknown until we resolve project
+    // from the submittal row. Slice 3 pattern.
+    const [current] = await dbAdmin
       .select({
         id: submittals.id,
         projectId: submittals.projectId,
@@ -133,7 +135,9 @@ export async function POST(
 
     // If a cover doc is provided, verify it lives on this project.
     if (input.coverDocumentId) {
-      const [doc] = await db
+      // documents not yet under RLS (wave 5). dbAdmin head lookup is
+      // safe — explicit projectId match below is the security check.
+      const [doc] = await dbAdmin
         .select({ id: documents.id, projectId: documents.projectId })
         .from(documents)
         .where(eq(documents.id, input.coverDocumentId))

@@ -1,9 +1,11 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
   index,
   integer,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -138,8 +140,38 @@ export const submittals = pgTable(
       table.status,
     ),
     revisionOfIdx: index("submittals_revision_of_idx").on(table.revisionOfId),
+    // Phase 4 wave 4 — same project-scoped 2-clause hybrid. submittedByOrgId
+    // and routedToOrgId are workflow routing only; ownership is the
+    // project's contractor org or any active POM. Clause B alone wouldn't
+    // cover a sub viewing/creating their own submitted package, so the
+    // POM clause is required.
+    tenantIsolation: pgPolicy("submittals_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // submittal_documents — join to documents with a role tag. A submittal can

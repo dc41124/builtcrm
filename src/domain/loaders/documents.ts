@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { approvals, changeOrders, rfis } from "@/db/schema";
 
 import {
@@ -81,34 +81,38 @@ export async function getDocumentsView(
   // implicitly, so we skip the extra queries for them.
   let linkableItems: LinkableItem[] = [];
   if (expected === "contractor" && context.permissions.can("document", "write")) {
-    const [rfiRows, coRows, apRows] = await Promise.all([
-      db
-        .select({
-          id: rfis.id,
-          sequentialNumber: rfis.sequentialNumber,
-          subject: rfis.subject,
-        })
-        .from(rfis)
-        .where(eq(rfis.projectId, context.project.id))
-        .orderBy(desc(rfis.createdAt)),
-      db
-        .select({
-          id: changeOrders.id,
-          title: changeOrders.title,
-        })
-        .from(changeOrders)
-        .where(eq(changeOrders.projectId, context.project.id))
-        .orderBy(desc(changeOrders.createdAt)),
-      db
-        .select({
-          id: approvals.id,
-          approvalNumber: approvals.approvalNumber,
-          title: approvals.title,
-        })
-        .from(approvals)
-        .where(eq(approvals.projectId, context.project.id))
-        .orderBy(desc(approvals.createdAt)),
-    ]);
+    const [rfiRows, coRows, apRows] = await withTenant(
+      context.organization.id,
+      (tx) =>
+        Promise.all([
+          tx
+            .select({
+              id: rfis.id,
+              sequentialNumber: rfis.sequentialNumber,
+              subject: rfis.subject,
+            })
+            .from(rfis)
+            .where(eq(rfis.projectId, context.project.id))
+            .orderBy(desc(rfis.createdAt)),
+          tx
+            .select({
+              id: changeOrders.id,
+              title: changeOrders.title,
+            })
+            .from(changeOrders)
+            .where(eq(changeOrders.projectId, context.project.id))
+            .orderBy(desc(changeOrders.createdAt)),
+          tx
+            .select({
+              id: approvals.id,
+              approvalNumber: approvals.approvalNumber,
+              title: approvals.title,
+            })
+            .from(approvals)
+            .where(eq(approvals.projectId, context.project.id))
+            .orderBy(desc(approvals.createdAt)),
+        ]),
+    );
     linkableItems = [
       ...rfiRows.map((r) => ({
         type: "rfi" as const,

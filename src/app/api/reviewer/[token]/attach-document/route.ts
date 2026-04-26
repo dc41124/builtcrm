@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   documentLinks,
   documents,
@@ -57,7 +57,9 @@ export async function POST(
   // to the standard /api/upload/finalize flow, prevents a malicious or
   // buggy client from registering a document that points at someone
   // else's storage path.
-  const [project] = await db
+  // Reviewer flow is pre-tenant (external token); same dbAdmin pattern
+  // as the /decision endpoint.
+  const [project] = await dbAdmin
     .select({ contractorOrganizationId: projects.contractorOrganizationId })
     .from(projects)
     .where(eq(projects.id, auth.projectId))
@@ -83,7 +85,7 @@ export async function POST(
     }
   }
 
-  const result = await db.transaction(async (tx) => {
+  const result = await dbAdmin.transaction(async (tx) => {
     const [doc] = await tx
       .insert(documents)
       .values({

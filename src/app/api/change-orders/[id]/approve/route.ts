@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { changeOrders } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
@@ -18,7 +19,9 @@ export async function POST(
   const { id } = await params;
   const { session } = await requireServerSession();
   try {
-    const [co] = await db
+    // Entry-point dbAdmin: tenant unknown until we resolve project
+    // from the change order row. Slice 3 pattern.
+    const [co] = await dbAdmin
       .select()
       .from(changeOrders)
       .where(eq(changeOrders.id, id))
@@ -50,7 +53,7 @@ export async function POST(
 
     const previousState = co.changeOrderStatus;
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(changeOrders)
         .set({

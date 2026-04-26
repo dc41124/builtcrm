@@ -171,13 +171,15 @@ export async function getContractorDashboardData(
   const now = new Date();
   const soon = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
-  const [rfiAgg] = await db
-    .select({
-      open: sql<number>`count(*) filter (where ${rfis.rfiStatus} in ('open','pending_response'))::int`,
-      overdue: sql<number>`count(*) filter (where ${rfis.rfiStatus} in ('open','pending_response') and ${rfis.dueAt} < now())::int`,
-    })
-    .from(rfis)
-    .where(inArray(rfis.projectId, projectIds));
+  const [rfiAgg] = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        open: sql<number>`count(*) filter (where ${rfis.rfiStatus} in ('open','pending_response'))::int`,
+        overdue: sql<number>`count(*) filter (where ${rfis.rfiStatus} in ('open','pending_response') and ${rfis.dueAt} < now())::int`,
+      })
+      .from(rfis)
+      .where(inArray(rfis.projectId, projectIds)),
+  );
 
   const [approvalAgg] = await db
     .select({
@@ -251,26 +253,28 @@ export async function getContractorDashboardData(
     complianceAlertLabel,
   };
 
-  const priorityRfis = await db
-    .select({
-      id: rfis.id,
-      subject: rfis.subject,
-      sequentialNumber: rfis.sequentialNumber,
-      status: rfis.rfiStatus,
-      dueAt: rfis.dueAt,
-      projectId: rfis.projectId,
-      projectName: projects.name,
-    })
-    .from(rfis)
-    .innerJoin(projects, eq(projects.id, rfis.projectId))
-    .where(
-      and(
-        eq(projects.contractorOrganizationId, orgId),
-        inArray(rfis.rfiStatus, [...OPEN_RFI_STATUSES]),
-      ),
-    )
-    .orderBy(asc(rfis.dueAt))
-    .limit(4);
+  const priorityRfis = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: rfis.id,
+        subject: rfis.subject,
+        sequentialNumber: rfis.sequentialNumber,
+        status: rfis.rfiStatus,
+        dueAt: rfis.dueAt,
+        projectId: rfis.projectId,
+        projectName: projects.name,
+      })
+      .from(rfis)
+      .innerJoin(projects, eq(projects.id, rfis.projectId))
+      .where(
+        and(
+          eq(projects.contractorOrganizationId, orgId),
+          inArray(rfis.rfiStatus, [...OPEN_RFI_STATUSES]),
+        ),
+      )
+      .orderBy(asc(rfis.dueAt))
+      .limit(4),
+  );
 
   const priorities: ContractorDashboardPriority[] = priorityRfis.map((r) => {
     const overdue = r.dueAt && r.dueAt < now;

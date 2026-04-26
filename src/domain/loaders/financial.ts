@@ -226,18 +226,20 @@ export async function getContractorFinancialView(
   const isResidential = project?.clientSubtype === "residential";
 
   // Approved change orders — treat approved as "baked into revised contract".
-  const [coAgg] = await db
-    .select({
-      totalCents: sql<number>`coalesce(sum(${changeOrders.amountCents}), 0)`,
-      count: sql<number>`count(*)::int`,
-    })
-    .from(changeOrders)
-    .where(
-      and(
-        eq(changeOrders.projectId, projectId),
-        eq(changeOrders.changeOrderStatus, "approved"),
+  const [coAgg] = await withTenant(context.organization.id, (tx) =>
+    tx
+      .select({
+        totalCents: sql<number>`coalesce(sum(${changeOrders.amountCents}), 0)`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(changeOrders)
+      .where(
+        and(
+          eq(changeOrders.projectId, projectId),
+          eq(changeOrders.changeOrderStatus, "approved"),
+        ),
       ),
-    );
+  );
   const approvedChangeOrderCents = Number(coAgg?.totalCents ?? 0);
   const approvedChangeOrderCount = Number(coAgg?.count ?? 0);
 
@@ -379,24 +381,26 @@ export async function getContractorFinancialView(
         sql`${resolvedReleaseDate} <= ${thirtyDaysOut.toISOString()}::timestamptz`,
       ),
     );
-  const [coPendingAgg] = await db
-    .select({
-      count: sql<number>`count(*)::int`,
-      total: sql<number>`coalesce(sum(${changeOrders.amountCents}), 0)::int`,
-    })
-    .from(changeOrders)
-    .where(
-      and(
-        eq(changeOrders.projectId, projectId),
-        inArray(changeOrders.changeOrderStatus, [
-          "pending_review",
-          "pending_client_approval",
-        ]),
-        // "Financial impact" filter — zero-dollar COs (pure scope/schedule
-        // changes) don't belong on a money-focused summary card.
-        sql`${changeOrders.amountCents} <> 0`,
+  const [coPendingAgg] = await withTenant(context.organization.id, (tx) =>
+    tx
+      .select({
+        count: sql<number>`count(*)::int`,
+        total: sql<number>`coalesce(sum(${changeOrders.amountCents}), 0)::int`,
+      })
+      .from(changeOrders)
+      .where(
+        and(
+          eq(changeOrders.projectId, projectId),
+          inArray(changeOrders.changeOrderStatus, [
+            "pending_review",
+            "pending_client_approval",
+          ]),
+          // "Financial impact" filter — zero-dollar COs (pure scope/schedule
+          // changes) don't belong on a money-focused summary card.
+          sql`${changeOrders.amountCents} <> 0`,
+        ),
       ),
-    );
+  );
 
   const pendingFinancials: PendingFinancialsSummary = {
     drawsUnderReview: {

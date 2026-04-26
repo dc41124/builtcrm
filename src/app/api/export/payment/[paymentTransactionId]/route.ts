@@ -63,6 +63,7 @@ function resourceForRelatedType(type: string): Resource {
 async function resolveRelatedSummary(
   type: string,
   id: string,
+  callerOrgId: string,
 ): Promise<{ label: string; description: string | null }> {
   if (type === "draw_request") {
     const [row] = await db
@@ -127,14 +128,16 @@ async function resolveRelatedSummary(
     };
   }
   if (type === "change_order") {
-    const [row] = await db
-      .select({
-        changeOrderNumber: changeOrders.changeOrderNumber,
-        title: changeOrders.title,
-      })
-      .from(changeOrders)
-      .where(eq(changeOrders.id, id))
-      .limit(1);
+    const [row] = await withTenant(callerOrgId, (tx) =>
+      tx
+        .select({
+          changeOrderNumber: changeOrders.changeOrderNumber,
+          title: changeOrders.title,
+        })
+        .from(changeOrders)
+        .where(eq(changeOrders.id, id))
+        .limit(1),
+    );
     if (!row) return { label: "Change order", description: null };
     return {
       label: `Change Order #${row.changeOrderNumber}`,
@@ -204,6 +207,7 @@ export async function GET(
     const related = await resolveRelatedSummary(
       txn.relatedEntityType,
       txn.relatedEntityId,
+      ctx.organization.id,
     );
 
     const [project] = await db

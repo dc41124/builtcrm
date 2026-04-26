@@ -1,6 +1,5 @@
 import { eq, sql } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { invitations, submittals, users } from "@/db/schema";
 import { hashInvitationToken } from "@/lib/invitations/token";
@@ -99,7 +98,8 @@ export async function validateReviewerToken(
   // Resolve reviewer user by email. Invariant: the invite-creation
   // route upserts this row, so a pending invitation implies a matching
   // user exists. Defensive fallback returns not_found if somehow not.
-  const [user] = await db
+  // dbAdmin: pre-tenant flow — token IS the session.
+  const [user] = await dbAdmin
     .select({ id: users.id })
     .from(users)
     .where(eq(sql`lower(${users.email})`, invitation.invitedEmail.toLowerCase()))
@@ -109,7 +109,8 @@ export async function validateReviewerToken(
   }
 
   // Double-check the submittal still exists on the claimed project.
-  const [submittal] = await db
+  // submittals is RLS-enabled; reviewer flow is pre-tenant so dbAdmin.
+  const [submittal] = await dbAdmin
     .select({ id: submittals.id, projectId: submittals.projectId })
     .from(submittals)
     .where(eq(submittals.id, invitation.scopeObjectId))

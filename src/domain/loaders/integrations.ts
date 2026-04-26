@@ -547,16 +547,18 @@ export async function buildCsvExport(input: {
 
   if (input.entity === "rfis") {
     const { rfis } = await import("@/db/schema");
-    const rows = await db
-      .select({
-        id: rfis.id,
-        projectId: rfis.projectId,
-        rfiNumber: rfis.sequentialNumber,
-        subject: rfis.subject,
-        status: rfis.rfiStatus,
-        createdAt: rfis.createdAt,
-      })
-      .from(rfis);
+    const rows = await withTenant(orgId, (tx) =>
+      tx
+        .select({
+          id: rfis.id,
+          projectId: rfis.projectId,
+          rfiNumber: rfis.sequentialNumber,
+          subject: rfis.subject,
+          status: rfis.rfiStatus,
+          createdAt: rfis.createdAt,
+        })
+        .from(rfis),
+    );
     const filtered = rows.filter((r) => projectIdSet.has(r.projectId));
     return {
       filename: "rfis.csv",
@@ -576,17 +578,19 @@ export async function buildCsvExport(input: {
 
   // change_orders
   const { changeOrders } = await import("@/db/schema");
-  const rows = await db
-    .select({
-      id: changeOrders.id,
-      projectId: changeOrders.projectId,
-      changeOrderNumber: changeOrders.changeOrderNumber,
-      title: changeOrders.title,
-      status: changeOrders.changeOrderStatus,
-      amountCents: changeOrders.amountCents,
-      createdAt: changeOrders.createdAt,
-    })
-    .from(changeOrders);
+  const rows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: changeOrders.id,
+        projectId: changeOrders.projectId,
+        changeOrderNumber: changeOrders.changeOrderNumber,
+        title: changeOrders.title,
+        status: changeOrders.changeOrderStatus,
+        amountCents: changeOrders.amountCents,
+        createdAt: changeOrders.createdAt,
+      })
+      .from(changeOrders),
+  );
   const filtered = rows.filter((r) => projectIdSet.has(r.projectId));
   return {
     filename: "change_orders.csv",

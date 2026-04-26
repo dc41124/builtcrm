@@ -1,6 +1,8 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import {
   documents,
   organizations,
@@ -115,98 +117,115 @@ export async function getSubmittals(
     whereParts.push(eq(submittals.submittedByOrgId, ctx.organization.id));
   }
 
-  const rows = await db
-    .select({
-      id: submittals.id,
-      sequentialNumber: submittals.sequentialNumber,
-      specSection: submittals.specSection,
-      title: submittals.title,
-      submittalType: submittals.submittalType,
-      submittedByOrgId: submittals.submittedByOrgId,
-      submittedByOrgName: organizations.name,
-      routedToOrgId: submittals.routedToOrgId,
-      reviewerName: submittals.reviewerName,
-      reviewerOrg: submittals.reviewerOrg,
-      reviewerEmail: submittals.reviewerEmail,
-      status: submittals.status,
-      submittedAt: submittals.submittedAt,
-      returnedAt: submittals.returnedAt,
-      revisionOfId: submittals.revisionOfId,
-      dueDate: submittals.dueDate,
-      createdByUserId: submittals.createdByUserId,
-      rejectionReason: submittals.rejectionReason,
-      lastTransitionAt: submittals.lastTransitionAt,
-      createdAt: submittals.createdAt,
-    })
-    .from(submittals)
-    .leftJoin(
-      organizations,
-      eq(organizations.id, submittals.submittedByOrgId),
-    )
-    .where(and(...whereParts))
-    .orderBy(desc(submittals.lastTransitionAt));
+  // submittals is RLS-enabled; route the read through withTenant. The
+  // batch follow-up queries on non-RLS tables stay in the same tx for
+  // consistency.
+  const { rows, routedOrgs, userRows, revisionOfRows, docCounts, transCounts } =
+    await withTenant(ctx.organization.id, async (tx) => {
+      const rows = await tx
+        .select({
+          id: submittals.id,
+          sequentialNumber: submittals.sequentialNumber,
+          specSection: submittals.specSection,
+          title: submittals.title,
+          submittalType: submittals.submittalType,
+          submittedByOrgId: submittals.submittedByOrgId,
+          submittedByOrgName: organizations.name,
+          routedToOrgId: submittals.routedToOrgId,
+          reviewerName: submittals.reviewerName,
+          reviewerOrg: submittals.reviewerOrg,
+          reviewerEmail: submittals.reviewerEmail,
+          status: submittals.status,
+          submittedAt: submittals.submittedAt,
+          returnedAt: submittals.returnedAt,
+          revisionOfId: submittals.revisionOfId,
+          dueDate: submittals.dueDate,
+          createdByUserId: submittals.createdByUserId,
+          rejectionReason: submittals.rejectionReason,
+          lastTransitionAt: submittals.lastTransitionAt,
+          createdAt: submittals.createdAt,
+        })
+        .from(submittals)
+        .leftJoin(
+          organizations,
+          eq(organizations.id, submittals.submittedByOrgId),
+        )
+        .where(and(...whereParts))
+        .orderBy(desc(submittals.lastTransitionAt));
+
+      if (rows.length === 0) {
+        return {
+          rows,
+          routedOrgs: [] as { id: string; name: string }[],
+          userRows: [] as { id: string; displayName: string | null }[],
+          revisionOfRows: [] as { id: string; sequentialNumber: number }[],
+          docCounts: [] as { submittalId: string; c: number }[],
+          transCounts: [] as { submittalId: string; c: number }[],
+        };
+      }
+
+      const routedOrgIds = new Set<string>();
+      const userIds = new Set<string>();
+      const revisionOfIds = new Set<string>();
+      for (const r of rows) {
+        if (r.routedToOrgId) routedOrgIds.add(r.routedToOrgId);
+        userIds.add(r.createdByUserId);
+        if (r.revisionOfId) revisionOfIds.add(r.revisionOfId);
+      }
+
+      const [routedOrgs, userRows, revisionOfRows, docCounts, transCounts] =
+        await Promise.all([
+          routedOrgIds.size > 0
+            ? tx
+                .select({ id: organizations.id, name: organizations.name })
+                .from(organizations)
+                .where(inArray(organizations.id, Array.from(routedOrgIds)))
+            : Promise.resolve([] as { id: string; name: string }[]),
+          tx
+            .select({ id: users.id, displayName: users.displayName })
+            .from(users)
+            .where(inArray(users.id, Array.from(userIds))),
+          revisionOfIds.size > 0
+            ? tx
+                .select({
+                  id: submittals.id,
+                  sequentialNumber: submittals.sequentialNumber,
+                })
+                .from(submittals)
+                .where(inArray(submittals.id, Array.from(revisionOfIds)))
+            : Promise.resolve([] as { id: string; sequentialNumber: number }[]),
+          tx
+            .select({
+              submittalId: submittalDocuments.submittalId,
+              c: sql<number>`count(*)::int`,
+            })
+            .from(submittalDocuments)
+            .where(
+              inArray(
+                submittalDocuments.submittalId,
+                rows.map((r) => r.id),
+              ),
+            )
+            .groupBy(submittalDocuments.submittalId),
+          tx
+            .select({
+              submittalId: submittalTransmittals.submittalId,
+              c: sql<number>`count(*)::int`,
+            })
+            .from(submittalTransmittals)
+            .where(
+              inArray(
+                submittalTransmittals.submittalId,
+                rows.map((r) => r.id),
+              ),
+            )
+            .groupBy(submittalTransmittals.submittalId),
+        ]);
+
+      return { rows, routedOrgs, userRows, revisionOfRows, docCounts, transCounts };
+    });
 
   if (rows.length === 0) return [];
-
-  // Batch lookups: routed-to org names, creator names, revision-of numbers,
-  // doc counts, transmittal counts.
-  const routedOrgIds = new Set<string>();
-  const userIds = new Set<string>();
-  const revisionOfIds = new Set<string>();
-  for (const r of rows) {
-    if (r.routedToOrgId) routedOrgIds.add(r.routedToOrgId);
-    userIds.add(r.createdByUserId);
-    if (r.revisionOfId) revisionOfIds.add(r.revisionOfId);
-  }
-
-  const [routedOrgs, userRows, revisionOfRows, docCounts, transCounts] =
-    await Promise.all([
-      routedOrgIds.size > 0
-        ? db
-            .select({ id: organizations.id, name: organizations.name })
-            .from(organizations)
-            .where(inArray(organizations.id, Array.from(routedOrgIds)))
-        : Promise.resolve([] as { id: string; name: string }[]),
-      db
-        .select({ id: users.id, displayName: users.displayName })
-        .from(users)
-        .where(inArray(users.id, Array.from(userIds))),
-      revisionOfIds.size > 0
-        ? db
-            .select({
-              id: submittals.id,
-              sequentialNumber: submittals.sequentialNumber,
-            })
-            .from(submittals)
-            .where(inArray(submittals.id, Array.from(revisionOfIds)))
-        : Promise.resolve([] as { id: string; sequentialNumber: number }[]),
-      db
-        .select({
-          submittalId: submittalDocuments.submittalId,
-          c: sql<number>`count(*)::int`,
-        })
-        .from(submittalDocuments)
-        .where(
-          inArray(
-            submittalDocuments.submittalId,
-            rows.map((r) => r.id),
-          ),
-        )
-        .groupBy(submittalDocuments.submittalId),
-      db
-        .select({
-          submittalId: submittalTransmittals.submittalId,
-          c: sql<number>`count(*)::int`,
-        })
-        .from(submittalTransmittals)
-        .where(
-          inArray(
-            submittalTransmittals.submittalId,
-            rows.map((r) => r.id),
-          ),
-        )
-        .groupBy(submittalTransmittals.submittalId),
-    ]);
 
   const orgNameById = new Map(routedOrgs.map((o) => [o.id, o.name]));
   const userNameById = new Map(userRows.map((u) => [u.id, u.displayName]));
@@ -267,7 +286,10 @@ export type GetSubmittalInput = {
 export async function getSubmittal(
   input: GetSubmittalInput,
 ): Promise<SubmittalDetail> {
-  const [head] = await db
+  // Entry-point dbAdmin: tenant unknown until we resolve project from
+  // the submittal row. getSubmittals (called below) re-checks via
+  // withTenant; this lookup just routes us to the right project.
+  const [head] = await dbAdmin
     .select({ id: submittals.id, projectId: submittals.projectId })
     .from(submittals)
     .where(eq(submittals.id, input.submittalId))

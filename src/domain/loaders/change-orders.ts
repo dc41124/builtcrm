@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import {
   activityFeedItems,
   changeOrders,
@@ -81,7 +82,11 @@ export type ClientChangeOrderView = {
 
 type LoaderInput = { session: SessionLike | null | undefined; projectId: string };
 
-async function loadRows(projectId: string, clientScoped: boolean) {
+async function loadRows(
+  projectId: string,
+  clientScoped: boolean,
+  callerOrgId: string,
+) {
   const baseWhere = clientScoped
     ? and(
         eq(changeOrders.projectId, projectId),
@@ -93,7 +98,8 @@ async function loadRows(projectId: string, clientScoped: boolean) {
       )
     : eq(changeOrders.projectId, projectId);
 
-  const rows = await db
+  return withTenant(callerOrgId, async (tx) => {
+  const rows = await tx
     .select({
       id: changeOrders.id,
       changeOrderNumber: changeOrders.changeOrderNumber,
@@ -134,7 +140,7 @@ async function loadRows(projectId: string, clientScoped: boolean) {
   );
   const nameMap = new Map<string, string | null>();
   if (userIds.length > 0) {
-    const uRows = await db
+    const uRows = await tx
       .select({ id: users.id, displayName: users.displayName })
       .from(users)
       .where(inArray(users.id, userIds));
@@ -142,7 +148,7 @@ async function loadRows(projectId: string, clientScoped: boolean) {
   }
 
   // Supporting docs: join document_links → documents, filter to this CO set
-  const docRows = await db
+  const docRows = await tx
     .select({
       linkedObjectId: documentLinks.linkedObjectId,
       documentId: documents.id,
@@ -171,7 +177,7 @@ async function loadRows(projectId: string, clientScoped: boolean) {
   }
 
   // Activity trail: filter to events that reference each CO
-  const activityRows = await db
+  const activityRows = await tx
     .select({
       id: activityFeedItems.id,
       relatedObjectId: activityFeedItems.relatedObjectId,
@@ -231,6 +237,7 @@ async function loadRows(projectId: string, clientScoped: boolean) {
     supportingDocuments: docsByCo.get(r.id) ?? [],
     activityTrail: activityByCo.get(r.id) ?? [],
   }));
+  });
 }
 
 function computeTotals(
@@ -256,7 +263,8 @@ function computeTotals(
 }
 
 async function loadContractValueCents(projectId: string): Promise<number> {
-  const [row] = await db
+  // projects is not RLS-enabled (cross-cutting); dbAdmin is fine.
+  const [row] = await dbAdmin
     .select({ contractValueCents: projects.contractValueCents })
     .from(projects)
     .where(eq(projects.id, projectId))
@@ -276,7 +284,7 @@ export async function getContractorChangeOrders(
   }
   const projectId = context.project.id;
   const [rows, originalContractCents] = await Promise.all([
-    loadRows(projectId, false),
+    loadRows(projectId, false, context.organization.id),
     loadContractValueCents(projectId),
   ]);
   return {
@@ -302,7 +310,7 @@ export async function getClientChangeOrders(
   }
   const projectId = context.project.id;
   const [rows, originalContractCents] = await Promise.all([
-    loadRows(projectId, true),
+    loadRows(projectId, true, context.organization.id),
     loadContractValueCents(projectId),
   ]);
   return {

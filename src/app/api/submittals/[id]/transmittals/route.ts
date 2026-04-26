@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { documents, submittalTransmittals, submittals } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -51,7 +52,9 @@ export async function POST(
   const input = parsed.data;
 
   try {
-    const [current] = await db
+    // Entry-point dbAdmin: tenant unknown until we resolve project
+    // from the submittal row. Slice 3 pattern.
+    const [current] = await dbAdmin
       .select({
         id: submittals.id,
         projectId: submittals.projectId,
@@ -80,7 +83,9 @@ export async function POST(
 
     // Document (if any) must live on the same project.
     if (input.documentId) {
-      const [doc] = await db
+      // documents not yet under RLS (wave 5). dbAdmin head lookup is
+      // safe — explicit projectId match below is the security check.
+      const [doc] = await dbAdmin
         .select({ id: documents.id, projectId: documents.projectId })
         .from(documents)
         .where(eq(documents.id, input.documentId))
@@ -93,7 +98,7 @@ export async function POST(
       }
     }
 
-    const row = await db.transaction(async (tx) => {
+    const row = await withTenant(ctx.organization.id, async (tx) => {
       const [inserted] = await tx
         .insert(submittalTransmittals)
         .values({

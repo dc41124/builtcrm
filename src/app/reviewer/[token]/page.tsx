@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   documents,
   submittalDocuments,
@@ -55,7 +55,7 @@ export default async function ReviewerTokenPage({
   // Load the submittal metadata + the most-recent outgoing_to_reviewer
   // transmittal for this submittal (carries GC's cover notes + cover
   // doc link). That's the header + context block in the reviewer view.
-  const [s] = await db
+  const [s] = await dbAdmin
     .select({
       id: submittals.id,
       sequentialNumber: submittals.sequentialNumber,
@@ -78,7 +78,7 @@ export default async function ReviewerTokenPage({
     );
   }
 
-  const [outgoing] = await db
+  const [outgoing] = await dbAdmin
     .select({
       transmittedAt: submittalTransmittals.transmittedAt,
       notes: submittalTransmittals.notes,
@@ -108,7 +108,7 @@ export default async function ReviewerTokenPage({
   // reviewer sees the latest upload even if the sub revised mid-review.
   // Pin flips to true on the reviewer's own decision submission; for
   // an active review pin is always false here.
-  const packageJoinRows = await db
+  const packageJoinRows = await dbAdmin
     .select({
       id: submittalDocuments.id,
       linkedDocumentId: submittalDocuments.documentId,
@@ -134,7 +134,7 @@ export default async function ReviewerTokenPage({
   const effectiveDocs =
     effectiveIds.length === 0
       ? []
-      : await db
+      : await dbAdmin
           .select({
             id: documents.id,
             title: documents.title,
@@ -198,7 +198,7 @@ export default async function ReviewerTokenPage({
 
 async function loadGcContact(userId: string | undefined) {
   if (!userId) return null;
-  const [row] = await db
+  const [row] = await dbAdmin
     .select({ displayName: users.displayName, email: users.email })
     .from(users)
     .where(eq(users.id, userId))

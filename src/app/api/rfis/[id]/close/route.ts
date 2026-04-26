@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { rfis } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
@@ -17,7 +18,9 @@ export async function POST(
   const { id } = await params;
   const { session } = await requireServerSession();
   try {
-    const [rfi] = await db.select().from(rfis).where(eq(rfis.id, id)).limit(1);
+    // Entry-point dbAdmin: tenant unknown until we resolve project
+    // from the RFI row. Slice 3 pattern.
+    const [rfi] = await dbAdmin.select().from(rfis).where(eq(rfis.id, id)).limit(1);
     if (!rfi) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
@@ -39,7 +42,7 @@ export async function POST(
 
     const previousState = rfi.rfiStatus;
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(rfis)
         .set({ rfiStatus: "closed", closedAt: new Date() })

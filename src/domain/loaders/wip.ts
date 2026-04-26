@@ -105,19 +105,21 @@ export async function getWIPReport(input: LoaderInput): Promise<WIPReportView> {
   // ---- Parallel slice queries ----
   const [coRows, drawRows, clientRows, poRows, poLineRows, msRows] =
     await Promise.all([
-      db
-        .select({
-          projectId: changeOrders.projectId,
-          status: changeOrders.changeOrderStatus,
-          amountCents: changeOrders.amountCents,
-        })
-        .from(changeOrders)
-        .where(
-          and(
-            inArray(changeOrders.projectId, projectIds),
-            eq(changeOrders.changeOrderStatus, "approved"),
+      withTenant(orgId, (tx) =>
+        tx
+          .select({
+            projectId: changeOrders.projectId,
+            status: changeOrders.changeOrderStatus,
+            amountCents: changeOrders.amountCents,
+          })
+          .from(changeOrders)
+          .where(
+            and(
+              inArray(changeOrders.projectId, projectIds),
+              eq(changeOrders.changeOrderStatus, "approved"),
+            ),
           ),
-        ),
+      ),
       db
         .select({
           projectId: drawRequests.projectId,

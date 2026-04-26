@@ -224,8 +224,8 @@ async function loadSectionPayloads(args: {
     loadDailyLogsSection(projectId, window, contractorOrgId),
     loadPhotosSection(projectId, window, contractorOrgId),
     loadMilestonesSection(projectId, window, contractorOrgId),
-    loadRfisSection(projectId, window),
-    loadChangeOrdersSection(projectId, window),
+    loadRfisSection(projectId, window, contractorOrgId),
+    loadChangeOrdersSection(projectId, window, contractorOrgId),
     loadIssuesSection(projectId, window, contractorOrgId),
   ]);
 
@@ -418,28 +418,31 @@ async function loadMilestonesSection(
 async function loadRfisSection(
   projectId: string,
   window: WeekWindow,
+  contractorOrgId: string,
 ): Promise<SectionPayload> {
   // RFIs touched this week — opened (createdAt in window) OR closed
   // (closedAt in window). Same row may appear in both lists if it cycled.
-  const rows = await db
-    .select({
-      id: rfis.id,
-      number: rfis.sequentialNumber,
-      subject: rfis.subject,
-      status: rfis.rfiStatus,
-      createdAt: rfis.createdAt,
-      closedAt: rfis.closedAt,
-    })
-    .from(rfis)
-    .where(
-      and(
-        eq(rfis.projectId, projectId),
-        or(
-          between(rfis.createdAt, window.weekStartUtc, window.weekEndUtc),
-          between(rfis.closedAt, window.weekStartUtc, window.weekEndUtc),
+  const rows = await withTenant(contractorOrgId, (tx) =>
+    tx
+      .select({
+        id: rfis.id,
+        number: rfis.sequentialNumber,
+        subject: rfis.subject,
+        status: rfis.rfiStatus,
+        createdAt: rfis.createdAt,
+        closedAt: rfis.closedAt,
+      })
+      .from(rfis)
+      .where(
+        and(
+          eq(rfis.projectId, projectId),
+          or(
+            between(rfis.createdAt, window.weekStartUtc, window.weekEndUtc),
+            between(rfis.closedAt, window.weekStartUtc, window.weekEndUtc),
+          ),
         ),
       ),
-    );
+  );
 
   const opened: Array<Record<string, unknown>> = [];
   const closed: Array<Record<string, unknown>> = [];
@@ -486,35 +489,38 @@ async function loadRfisSection(
 async function loadChangeOrdersSection(
   projectId: string,
   window: WeekWindow,
+  contractorOrgId: string,
 ): Promise<SectionPayload> {
-  const rows = await db
-    .select({
-      id: changeOrders.id,
-      number: changeOrders.changeOrderNumber,
-      title: changeOrders.title,
-      status: changeOrders.changeOrderStatus,
-      amountCents: changeOrders.amountCents,
-      submittedAt: changeOrders.submittedAt,
-      approvedAt: changeOrders.approvedAt,
-    })
-    .from(changeOrders)
-    .where(
-      and(
-        eq(changeOrders.projectId, projectId),
-        or(
-          between(
-            changeOrders.submittedAt,
-            window.weekStartUtc,
-            window.weekEndUtc,
-          ),
-          between(
-            changeOrders.approvedAt,
-            window.weekStartUtc,
-            window.weekEndUtc,
+  const rows = await withTenant(contractorOrgId, (tx) =>
+    tx
+      .select({
+        id: changeOrders.id,
+        number: changeOrders.changeOrderNumber,
+        title: changeOrders.title,
+        status: changeOrders.changeOrderStatus,
+        amountCents: changeOrders.amountCents,
+        submittedAt: changeOrders.submittedAt,
+        approvedAt: changeOrders.approvedAt,
+      })
+      .from(changeOrders)
+      .where(
+        and(
+          eq(changeOrders.projectId, projectId),
+          or(
+            between(
+              changeOrders.submittedAt,
+              window.weekStartUtc,
+              window.weekEndUtc,
+            ),
+            between(
+              changeOrders.approvedAt,
+              window.weekStartUtc,
+              window.weekEndUtc,
+            ),
           ),
         ),
       ),
-    );
+  );
 
   const submitted: Array<Record<string, unknown>> = [];
   const approved: Array<Record<string, unknown>> = [];

@@ -254,8 +254,37 @@ export const rfis = pgTable(
     statusIdx: index("rfis_status_idx").on(table.rfiStatus),
     assignedIdx: index("rfis_assigned_idx").on(table.assignedToUserId),
     dueIdx: index("rfis_due_idx").on(table.dueAt),
+    // Phase 4 wave 4 — same project-scoped 2-clause hybrid as
+    // milestones / daily_logs. assignedToOrganizationId is workflow
+    // routing only; ownership is the project's contractor org or any
+    // active POM. See docs/specs/rls_sprint_plan.md §4.
+    tenantIsolation: pgPolicy("rfis_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 export const rfiResponses = pgTable(
   "rfi_responses",
@@ -327,8 +356,37 @@ export const changeOrders = pgTable(
     ),
     projectIdx: index("change_orders_project_idx").on(table.projectId),
     statusIdx: index("change_orders_status_idx").on(table.changeOrderStatus),
+    // Phase 4 wave 4 — same project-scoped 2-clause hybrid as rfis.
+    // CO has no organization_id; ownership is the project's contractor
+    // org or any active POM (lets the client org see/decision their own
+    // CO requests via the same policy).
+    tenantIsolation: pgPolicy("change_orders_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Approvals (cross-type approval queue)
