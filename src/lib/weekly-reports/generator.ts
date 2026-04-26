@@ -1,6 +1,6 @@
 import { and, between, desc, eq, gte, inArray, isNotNull, lte, or } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
 import {
   changeOrders,
@@ -77,7 +77,9 @@ export async function generateWeeklyReport(
   // read uses it as the RLS GUC, including the Trigger.dev cron path
   // (the job iterates per project, so each project iteration runs with
   // its own contractor-org GUC rather than bypassing RLS wholesale).
-  const [project] = await db
+  // Pre-tenant lookup — admin pool (Slice 3 entry-point pattern). The
+  // contractor-org GUC is exactly what we're trying to discover here.
+  const [project] = await dbAdmin
     .select({
       id: projects.id,
       timezone: projects.timezone,
@@ -319,19 +321,21 @@ async function loadPhotosSection(
     return { sectionType: "photos", content: { items: [] }, itemCount: 0 };
   }
 
-  const photoRows = await db
-    .select({
-      id: dailyLogPhotos.id,
-      documentId: dailyLogPhotos.documentId,
-      caption: dailyLogPhotos.caption,
-      sortOrder: dailyLogPhotos.sortOrder,
-      isHero: dailyLogPhotos.isHero,
-      createdAt: dailyLogPhotos.createdAt,
-    })
-    .from(dailyLogPhotos)
-    .where(inArray(dailyLogPhotos.dailyLogId, logIds))
-    .orderBy(desc(dailyLogPhotos.isHero), dailyLogPhotos.sortOrder)
-    .limit(24); // upper bound to keep section payload bounded
+  const photoRows = await withTenant(contractorOrgId, (tx) =>
+    tx
+      .select({
+        id: dailyLogPhotos.id,
+        documentId: dailyLogPhotos.documentId,
+        caption: dailyLogPhotos.caption,
+        sortOrder: dailyLogPhotos.sortOrder,
+        isHero: dailyLogPhotos.isHero,
+        createdAt: dailyLogPhotos.createdAt,
+      })
+      .from(dailyLogPhotos)
+      .where(inArray(dailyLogPhotos.dailyLogId, logIds))
+      .orderBy(desc(dailyLogPhotos.isHero), dailyLogPhotos.sortOrder)
+      .limit(24), // upper bound to keep section payload bounded
+  );
 
   const items = photoRows.map((p) => ({
     photoId: p.id,
@@ -590,16 +594,18 @@ async function loadIssuesSection(
     return { sectionType: "issues", content: { items: [] }, itemCount: 0 };
   }
 
-  const issueRows = await db
-    .select({
-      id: dailyLogIssues.id,
-      dailyLogId: dailyLogIssues.dailyLogId,
-      issueType: dailyLogIssues.issueType,
-      description: dailyLogIssues.description,
-      createdAt: dailyLogIssues.createdAt,
-    })
-    .from(dailyLogIssues)
-    .where(inArray(dailyLogIssues.dailyLogId, logIds));
+  const issueRows = await withTenant(contractorOrgId, (tx) =>
+    tx
+      .select({
+        id: dailyLogIssues.id,
+        dailyLogId: dailyLogIssues.dailyLogId,
+        issueType: dailyLogIssues.issueType,
+        description: dailyLogIssues.description,
+        createdAt: dailyLogIssues.createdAt,
+      })
+      .from(dailyLogIssues)
+      .where(inArray(dailyLogIssues.dailyLogId, logIds)),
+  );
 
   const items = issueRows.map((i) => ({
     source: "daily_log" as const,

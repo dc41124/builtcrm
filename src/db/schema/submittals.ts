@@ -216,8 +216,14 @@ export const submittalDocuments = pgTable(
       table.documentId,
       table.role,
     ),
+    // Phase 4 wave 4 nested — nested-via-parent on submittals.
+    tenantIsolation: pgPolicy("submittal_documents_tenant_isolation", {
+      for: "all",
+      using: sql`${table.submittalId} IN (SELECT id FROM submittals)`,
+      withCheck: sql`${table.submittalId} IN (SELECT id FROM submittals)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // submittal_transmittals — log of every transmission. Three directions:
@@ -258,5 +264,11 @@ export const submittalTransmittals = pgTable(
       table.submittalId,
       table.transmittedAt,
     ),
+    // Phase 4 wave 4 nested — nested-via-parent on submittals.
+    tenantIsolation: pgPolicy("submittal_transmittals_tenant_isolation", {
+      for: "all",
+      using: sql`${table.submittalId} IN (SELECT id FROM submittals)`,
+      withCheck: sql`${table.submittalId} IN (SELECT id FROM submittals)`,
+    }),
   }),
-);
+).enableRLS();

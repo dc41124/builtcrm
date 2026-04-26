@@ -178,32 +178,37 @@ export async function getSubDailyLogsPageView(
   const last30Start = addDays(today, -29);
 
   // Sub's own crew entries across all projects for last 30 days.
-  const crewRows = await db
-    .select({
-      id: dailyLogCrewEntries.id,
-      projectId: dailyLogCrewEntries.projectId,
-      projectName: projects.name,
-      logDate: dailyLogCrewEntries.logDate,
-      orgId: dailyLogCrewEntries.orgId,
-      trade: dailyLogCrewEntries.trade,
-      headcount: dailyLogCrewEntries.headcount,
-      hours: dailyLogCrewEntries.hours,
-      submittedNote: dailyLogCrewEntries.submittedNote,
-      submittedAt: dailyLogCrewEntries.submittedAt,
-      reconciledHeadcount: dailyLogCrewEntries.reconciledHeadcount,
-      reconciledHours: dailyLogCrewEntries.reconciledHours,
-      reconciledAt: dailyLogCrewEntries.reconciledAt,
-      subAckedReconciliationAt: dailyLogCrewEntries.subAckedReconciliationAt,
-    })
-    .from(dailyLogCrewEntries)
-    .innerJoin(projects, eq(projects.id, dailyLogCrewEntries.projectId))
-    .where(
-      and(
-        eq(dailyLogCrewEntries.orgId, assignment.organizationId),
-        between(dailyLogCrewEntries.logDate, last30Start, today),
-      ),
-    )
-    .orderBy(desc(dailyLogCrewEntries.logDate));
+  // Project-scoped 2-clause hybrid policy on crew_entries returns rows
+  // for any project where the sub org has an active POM, which matches
+  // exactly the cross-project scope this view needs.
+  const crewRows = await withTenant(assignment.organizationId, (tx) =>
+    tx
+      .select({
+        id: dailyLogCrewEntries.id,
+        projectId: dailyLogCrewEntries.projectId,
+        projectName: projects.name,
+        logDate: dailyLogCrewEntries.logDate,
+        orgId: dailyLogCrewEntries.orgId,
+        trade: dailyLogCrewEntries.trade,
+        headcount: dailyLogCrewEntries.headcount,
+        hours: dailyLogCrewEntries.hours,
+        submittedNote: dailyLogCrewEntries.submittedNote,
+        submittedAt: dailyLogCrewEntries.submittedAt,
+        reconciledHeadcount: dailyLogCrewEntries.reconciledHeadcount,
+        reconciledHours: dailyLogCrewEntries.reconciledHours,
+        reconciledAt: dailyLogCrewEntries.reconciledAt,
+        subAckedReconciliationAt: dailyLogCrewEntries.subAckedReconciliationAt,
+      })
+      .from(dailyLogCrewEntries)
+      .innerJoin(projects, eq(projects.id, dailyLogCrewEntries.projectId))
+      .where(
+        and(
+          eq(dailyLogCrewEntries.orgId, assignment.organizationId),
+          between(dailyLogCrewEntries.logDate, last30Start, today),
+        ),
+      )
+      .orderBy(desc(dailyLogCrewEntries.logDate)),
+  );
 
   const crewEntries: SubDailyLogsCrewEntry[] = crewRows.map((r) => ({
     id: r.id,
@@ -266,14 +271,16 @@ export async function getSubDailyLogsPageView(
 
   const gcLogIds = gcRows.map((g) => g.id);
   const photoCountsByLog = gcLogIds.length > 0
-    ? await db
-        .select({
-          logId: dailyLogPhotos.dailyLogId,
-          c: sql<number>`count(*)::int`,
-        })
-        .from(dailyLogPhotos)
-        .where(inArray(dailyLogPhotos.dailyLogId, gcLogIds))
-        .groupBy(dailyLogPhotos.dailyLogId)
+    ? await withTenant(assignment.organizationId, (tx) =>
+        tx
+          .select({
+            logId: dailyLogPhotos.dailyLogId,
+            c: sql<number>`count(*)::int`,
+          })
+          .from(dailyLogPhotos)
+          .where(inArray(dailyLogPhotos.dailyLogId, gcLogIds))
+          .groupBy(dailyLogPhotos.dailyLogId),
+      )
     : [];
   const photoMap = new Map(photoCountsByLog.map((p) => [p.logId, p.c]));
 

@@ -306,8 +306,16 @@ export const rfiResponses = pgTable(
   (table) => ({
     rfiIdx: index("rfi_responses_rfi_idx").on(table.rfiId),
     responderIdx: index("rfi_responses_responder_idx").on(table.respondedByUserId),
+    // Phase 4 wave 4 nested — nested-via-parent on rfis. The parent's
+    // policy already encodes the project-scoped 2-clause hybrid; we
+    // just gate on rfi_id IN (SELECT id FROM rfis).
+    tenantIsolation: pgPolicy("rfi_responses_tenant_isolation", {
+      for: "all",
+      using: sql`${table.rfiId} IN (SELECT id FROM rfis)`,
+      withCheck: sql`${table.rfiId} IN (SELECT id FROM rfis)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Change orders

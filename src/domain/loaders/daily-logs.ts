@@ -13,6 +13,7 @@ import {
   documents,
   organizations,
   projects,
+  roleAssignments,
   users,
 } from "@/db/schema";
 import { getEffectiveContext, type EffectiveContext, type SessionLike } from "@/domain/context";
@@ -270,7 +271,7 @@ export async function getDailyLog(
     throw new AuthorizationError("Daily log not found", "not_found");
   }
 
-  const photos = await queryPhotos(input.logId);
+  const photos = await queryPhotos(input.logId, ctx.organization.id);
 
   if (isClient) {
     return {
@@ -301,9 +302,9 @@ export async function getDailyLog(
 
   const [crew, delays, issues, amendments, teamNote] = await Promise.all([
     queryCrew(input.logId, ctx),
-    queryDelays(input.logId),
-    queryIssues(input.logId),
-    queryAmendments(input.logId),
+    queryDelays(input.logId, ctx.organization.id),
+    queryIssues(input.logId, ctx.organization.id),
+    queryAmendments(input.logId, ctx.organization.id),
     queryResidentialTeamNoteWithAuthor(input.logId, ctx.organization.id),
   ]);
 
@@ -360,33 +361,57 @@ export async function getCrewEntriesForWeek(
   if (!input.session?.appUserId) {
     throw new AuthorizationError("Not signed in", "unauthenticated");
   }
+  const userId = input.session.appUserId;
 
-  const rows = await db
-    .select({
-      id: dailyLogCrewEntries.id,
-      projectId: dailyLogCrewEntries.projectId,
-      projectName: projects.name,
-      logDate: dailyLogCrewEntries.logDate,
-      orgId: dailyLogCrewEntries.orgId,
-      trade: dailyLogCrewEntries.trade,
-      headcount: dailyLogCrewEntries.headcount,
-      hours: dailyLogCrewEntries.hours,
-      submittedNote: dailyLogCrewEntries.submittedNote,
-      submittedAt: dailyLogCrewEntries.submittedAt,
-      reconciledHeadcount: dailyLogCrewEntries.reconciledHeadcount,
-      reconciledHours: dailyLogCrewEntries.reconciledHours,
-      reconciledAt: dailyLogCrewEntries.reconciledAt,
-      subAckedReconciliationAt: dailyLogCrewEntries.subAckedReconciliationAt,
-    })
-    .from(dailyLogCrewEntries)
-    .innerJoin(projects, eq(projects.id, dailyLogCrewEntries.projectId))
+  // Resolve the caller's sub-portal organization to set the GUC. Crew
+  // entries + projects are both RLS-enabled; the project-scoped policy
+  // returns rows for any project where the org has an active POM, which
+  // is exactly the sub's cross-project view scope.
+  const [assignment] = await dbAdmin
+    .select({ organizationId: roleAssignments.organizationId })
+    .from(roleAssignments)
     .where(
       and(
-        eq(dailyLogCrewEntries.submittedByUserId, input.session.appUserId),
-        between(dailyLogCrewEntries.logDate, input.from, input.to),
+        eq(roleAssignments.userId, userId),
+        eq(roleAssignments.portalType, "subcontractor"),
       ),
     )
-    .orderBy(desc(dailyLogCrewEntries.logDate));
+    .limit(1);
+  if (!assignment) {
+    throw new AuthorizationError(
+      "No subcontractor access for this user",
+      "forbidden",
+    );
+  }
+
+  const rows = await withTenant(assignment.organizationId, (tx) =>
+    tx
+      .select({
+        id: dailyLogCrewEntries.id,
+        projectId: dailyLogCrewEntries.projectId,
+        projectName: projects.name,
+        logDate: dailyLogCrewEntries.logDate,
+        orgId: dailyLogCrewEntries.orgId,
+        trade: dailyLogCrewEntries.trade,
+        headcount: dailyLogCrewEntries.headcount,
+        hours: dailyLogCrewEntries.hours,
+        submittedNote: dailyLogCrewEntries.submittedNote,
+        submittedAt: dailyLogCrewEntries.submittedAt,
+        reconciledHeadcount: dailyLogCrewEntries.reconciledHeadcount,
+        reconciledHours: dailyLogCrewEntries.reconciledHours,
+        reconciledAt: dailyLogCrewEntries.reconciledAt,
+        subAckedReconciliationAt: dailyLogCrewEntries.subAckedReconciliationAt,
+      })
+      .from(dailyLogCrewEntries)
+      .innerJoin(projects, eq(projects.id, dailyLogCrewEntries.projectId))
+      .where(
+        and(
+          eq(dailyLogCrewEntries.submittedByUserId, userId),
+          between(dailyLogCrewEntries.logDate, input.from, input.to),
+        ),
+      )
+      .orderBy(desc(dailyLogCrewEntries.logDate)),
+  );
 
   return rows.map((r) => {
     const requiresAck =
@@ -434,7 +459,7 @@ export async function getAmendmentsForLog(
   if (ctx.role === "commercial_client" || ctx.role === "residential_client") {
     return [];
   }
-  return queryAmendments(logId);
+  return queryAmendments(logId, ctx.organization.id);
 }
 
 // -----------------------------------------------------------------------------
@@ -499,52 +524,56 @@ async function queryLogsBase(
 
   const logIds = logs.map((l) => l.id);
 
-  // Count children in three grouped queries.
+  // Count children in five grouped queries. All five tables are RLS'd —
+  // route through withTenant so the project-scoped policy on each child
+  // returns rows.
   const [photoCounts, delayCounts, issueCounts, crewAgg, amendCounts] =
-    await Promise.all([
-      db
-        .select({
-          dailyLogId: dailyLogPhotos.dailyLogId,
-          c: sql<number>`count(*)::int`,
-        })
-        .from(dailyLogPhotos)
-        .where(inArray(dailyLogPhotos.dailyLogId, logIds))
-        .groupBy(dailyLogPhotos.dailyLogId),
-      db
-        .select({
-          dailyLogId: dailyLogDelays.dailyLogId,
-          c: sql<number>`count(*)::int`,
-        })
-        .from(dailyLogDelays)
-        .where(inArray(dailyLogDelays.dailyLogId, logIds))
-        .groupBy(dailyLogDelays.dailyLogId),
-      db
-        .select({
-          dailyLogId: dailyLogIssues.dailyLogId,
-          c: sql<number>`count(*)::int`,
-        })
-        .from(dailyLogIssues)
-        .where(inArray(dailyLogIssues.dailyLogId, logIds))
-        .groupBy(dailyLogIssues.dailyLogId),
-      db
-        .select({
-          dailyLogId: dailyLogCrewEntries.dailyLogId,
-          c: sql<number>`count(*)::int`,
-          headSum: sql<number>`coalesce(sum(${dailyLogCrewEntries.headcount}), 0)::int`,
-          hoursSum: sql<string>`coalesce(sum(${dailyLogCrewEntries.hours}), 0)`,
-        })
-        .from(dailyLogCrewEntries)
-        .where(inArray(dailyLogCrewEntries.dailyLogId, logIds))
-        .groupBy(dailyLogCrewEntries.dailyLogId),
-      db
-        .select({
-          dailyLogId: dailyLogAmendments.dailyLogId,
-          c: sql<number>`count(*)::int`,
-        })
-        .from(dailyLogAmendments)
-        .where(inArray(dailyLogAmendments.dailyLogId, logIds))
-        .groupBy(dailyLogAmendments.dailyLogId),
-    ]);
+    await withTenant(ctx.organization.id, (tx) =>
+      Promise.all([
+        tx
+          .select({
+            dailyLogId: dailyLogPhotos.dailyLogId,
+            c: sql<number>`count(*)::int`,
+          })
+          .from(dailyLogPhotos)
+          .where(inArray(dailyLogPhotos.dailyLogId, logIds))
+          .groupBy(dailyLogPhotos.dailyLogId),
+        tx
+          .select({
+            dailyLogId: dailyLogDelays.dailyLogId,
+            c: sql<number>`count(*)::int`,
+          })
+          .from(dailyLogDelays)
+          .where(inArray(dailyLogDelays.dailyLogId, logIds))
+          .groupBy(dailyLogDelays.dailyLogId),
+        tx
+          .select({
+            dailyLogId: dailyLogIssues.dailyLogId,
+            c: sql<number>`count(*)::int`,
+          })
+          .from(dailyLogIssues)
+          .where(inArray(dailyLogIssues.dailyLogId, logIds))
+          .groupBy(dailyLogIssues.dailyLogId),
+        tx
+          .select({
+            dailyLogId: dailyLogCrewEntries.dailyLogId,
+            c: sql<number>`count(*)::int`,
+            headSum: sql<number>`coalesce(sum(${dailyLogCrewEntries.headcount}), 0)::int`,
+            hoursSum: sql<string>`coalesce(sum(${dailyLogCrewEntries.hours}), 0)`,
+          })
+          .from(dailyLogCrewEntries)
+          .where(inArray(dailyLogCrewEntries.dailyLogId, logIds))
+          .groupBy(dailyLogCrewEntries.dailyLogId),
+        tx
+          .select({
+            dailyLogId: dailyLogAmendments.dailyLogId,
+            c: sql<number>`count(*)::int`,
+          })
+          .from(dailyLogAmendments)
+          .where(inArray(dailyLogAmendments.dailyLogId, logIds))
+          .groupBy(dailyLogAmendments.dailyLogId),
+      ]),
+    );
 
   const photoBy = indexBy(photoCounts, (r) => r.dailyLogId);
   const delayBy = indexBy(delayCounts, (r) => r.dailyLogId);
@@ -597,22 +626,27 @@ async function queryLogsBase(
   }));
 }
 
-async function queryPhotos(logId: string): Promise<DailyLogPhoto[]> {
-  const rows = await db
-    .select({
-      id: dailyLogPhotos.id,
-      dailyLogId: dailyLogPhotos.dailyLogId,
-      documentId: dailyLogPhotos.documentId,
-      caption: dailyLogPhotos.caption,
-      sortOrder: dailyLogPhotos.sortOrder,
-      isHero: dailyLogPhotos.isHero,
-      storageKey: documents.storageKey,
-      title: documents.title,
-    })
-    .from(dailyLogPhotos)
-    .innerJoin(documents, eq(documents.id, dailyLogPhotos.documentId))
-    .where(eq(dailyLogPhotos.dailyLogId, logId))
-    .orderBy(desc(dailyLogPhotos.isHero), asc(dailyLogPhotos.sortOrder));
+async function queryPhotos(
+  logId: string,
+  callerOrgId: string,
+): Promise<DailyLogPhoto[]> {
+  const rows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: dailyLogPhotos.id,
+        dailyLogId: dailyLogPhotos.dailyLogId,
+        documentId: dailyLogPhotos.documentId,
+        caption: dailyLogPhotos.caption,
+        sortOrder: dailyLogPhotos.sortOrder,
+        isHero: dailyLogPhotos.isHero,
+        storageKey: documents.storageKey,
+        title: documents.title,
+      })
+      .from(dailyLogPhotos)
+      .innerJoin(documents, eq(documents.id, dailyLogPhotos.documentId))
+      .where(eq(dailyLogPhotos.dailyLogId, logId))
+      .orderBy(desc(dailyLogPhotos.isHero), asc(dailyLogPhotos.sortOrder)),
+  );
 
   // Presign every photo's download URL in parallel. 10-minute TTL is
   // plenty for a user to view the drawer and click through, and short
@@ -631,27 +665,29 @@ async function queryCrew(
   logId: string,
   ctx: EffectiveContext,
 ): Promise<DailyLogCrewRow[]> {
-  const rows = await db
-    .select({
-      id: dailyLogCrewEntries.id,
-      orgId: dailyLogCrewEntries.orgId,
-      orgName: organizations.name,
-      trade: dailyLogCrewEntries.trade,
-      headcount: dailyLogCrewEntries.headcount,
-      hours: dailyLogCrewEntries.hours,
-      submittedNote: dailyLogCrewEntries.submittedNote,
-      submittedIssues: dailyLogCrewEntries.submittedIssues,
-      submittedAt: dailyLogCrewEntries.submittedAt,
-      submittedByRole: dailyLogCrewEntries.submittedByRole,
-      reconciledHeadcount: dailyLogCrewEntries.reconciledHeadcount,
-      reconciledHours: dailyLogCrewEntries.reconciledHours,
-      reconciledAt: dailyLogCrewEntries.reconciledAt,
-      subAckedReconciliationAt: dailyLogCrewEntries.subAckedReconciliationAt,
-    })
-    .from(dailyLogCrewEntries)
-    .innerJoin(organizations, eq(organizations.id, dailyLogCrewEntries.orgId))
-    .where(eq(dailyLogCrewEntries.dailyLogId, logId))
-    .orderBy(asc(organizations.name));
+  const rows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: dailyLogCrewEntries.id,
+        orgId: dailyLogCrewEntries.orgId,
+        orgName: organizations.name,
+        trade: dailyLogCrewEntries.trade,
+        headcount: dailyLogCrewEntries.headcount,
+        hours: dailyLogCrewEntries.hours,
+        submittedNote: dailyLogCrewEntries.submittedNote,
+        submittedIssues: dailyLogCrewEntries.submittedIssues,
+        submittedAt: dailyLogCrewEntries.submittedAt,
+        submittedByRole: dailyLogCrewEntries.submittedByRole,
+        reconciledHeadcount: dailyLogCrewEntries.reconciledHeadcount,
+        reconciledHours: dailyLogCrewEntries.reconciledHours,
+        reconciledAt: dailyLogCrewEntries.reconciledAt,
+        subAckedReconciliationAt: dailyLogCrewEntries.subAckedReconciliationAt,
+      })
+      .from(dailyLogCrewEntries)
+      .innerJoin(organizations, eq(organizations.id, dailyLogCrewEntries.orgId))
+      .where(eq(dailyLogCrewEntries.dailyLogId, logId))
+      .orderBy(asc(organizations.name)),
+  );
 
   // Subs only see their own crew rows' submitted notes/issues? No —
   // per spec, subs see all crew orgs on the log (headcount + hours table),
@@ -686,18 +722,23 @@ async function queryCrew(
   }));
 }
 
-async function queryDelays(logId: string): Promise<DailyLogDelayRow[]> {
-  const rows = await db
-    .select({
-      id: dailyLogDelays.id,
-      delayType: dailyLogDelays.delayType,
-      description: dailyLogDelays.description,
-      hoursLost: dailyLogDelays.hoursLost,
-      impactedActivity: dailyLogDelays.impactedActivity,
-    })
-    .from(dailyLogDelays)
-    .where(eq(dailyLogDelays.dailyLogId, logId))
-    .orderBy(asc(dailyLogDelays.createdAt));
+async function queryDelays(
+  logId: string,
+  callerOrgId: string,
+): Promise<DailyLogDelayRow[]> {
+  const rows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: dailyLogDelays.id,
+        delayType: dailyLogDelays.delayType,
+        description: dailyLogDelays.description,
+        hoursLost: dailyLogDelays.hoursLost,
+        impactedActivity: dailyLogDelays.impactedActivity,
+      })
+      .from(dailyLogDelays)
+      .where(eq(dailyLogDelays.dailyLogId, logId))
+      .orderBy(asc(dailyLogDelays.createdAt)),
+  );
   return rows.map((r) => ({
     id: r.id,
     delayType: r.delayType,
@@ -707,43 +748,52 @@ async function queryDelays(logId: string): Promise<DailyLogDelayRow[]> {
   }));
 }
 
-async function queryIssues(logId: string): Promise<DailyLogIssueRow[]> {
-  const rows = await db
-    .select({
-      id: dailyLogIssues.id,
-      issueType: dailyLogIssues.issueType,
-      description: dailyLogIssues.description,
-    })
-    .from(dailyLogIssues)
-    .where(eq(dailyLogIssues.dailyLogId, logId))
-    .orderBy(asc(dailyLogIssues.createdAt));
+async function queryIssues(
+  logId: string,
+  callerOrgId: string,
+): Promise<DailyLogIssueRow[]> {
+  const rows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: dailyLogIssues.id,
+        issueType: dailyLogIssues.issueType,
+        description: dailyLogIssues.description,
+      })
+      .from(dailyLogIssues)
+      .where(eq(dailyLogIssues.dailyLogId, logId))
+      .orderBy(asc(dailyLogIssues.createdAt)),
+  );
   return rows;
 }
 
 async function queryAmendments(
   logId: string,
+  callerOrgId: string,
 ): Promise<DailyLogAmendmentRow[]> {
-  const rows = await db
-    .select({
-      id: dailyLogAmendments.id,
-      changeSummary: dailyLogAmendments.changeSummary,
-      changedFields: dailyLogAmendments.changedFields,
-      status: dailyLogAmendments.status,
-      requestedByUserId: dailyLogAmendments.requestedByUserId,
-      requestedByName: users.displayName,
-      requestedAt: dailyLogAmendments.requestedAt,
-      reviewedByUserId: dailyLogAmendments.reviewedByUserId,
-      reviewedAt: dailyLogAmendments.reviewedAt,
-      reviewNote: dailyLogAmendments.reviewNote,
-      appliedAt: dailyLogAmendments.appliedAt,
-    })
-    .from(dailyLogAmendments)
-    .leftJoin(users, eq(users.id, dailyLogAmendments.requestedByUserId))
-    .where(eq(dailyLogAmendments.dailyLogId, logId))
-    .orderBy(desc(dailyLogAmendments.requestedAt));
+  const rows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: dailyLogAmendments.id,
+        changeSummary: dailyLogAmendments.changeSummary,
+        changedFields: dailyLogAmendments.changedFields,
+        status: dailyLogAmendments.status,
+        requestedByUserId: dailyLogAmendments.requestedByUserId,
+        requestedByName: users.displayName,
+        requestedAt: dailyLogAmendments.requestedAt,
+        reviewedByUserId: dailyLogAmendments.reviewedByUserId,
+        reviewedAt: dailyLogAmendments.reviewedAt,
+        reviewNote: dailyLogAmendments.reviewNote,
+        appliedAt: dailyLogAmendments.appliedAt,
+      })
+      .from(dailyLogAmendments)
+      .leftJoin(users, eq(users.id, dailyLogAmendments.requestedByUserId))
+      .where(eq(dailyLogAmendments.dailyLogId, logId))
+      .orderBy(desc(dailyLogAmendments.requestedAt)),
+  );
 
   // Look up reviewer names in a second pass (leftJoin twice on users
-  // would alias-juggle; a tiny IN query is simpler).
+  // would alias-juggle; a tiny IN query is simpler). users isn't RLS'd,
+  // so a bare db read is fine.
   const reviewerIds = rows
     .map((r) => r.reviewedByUserId)
     .filter((id): id is string => !!id);

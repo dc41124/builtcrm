@@ -4,7 +4,6 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
 import { dailyLogAmendments, dailyLogs } from "@/db/schema";
@@ -82,7 +81,9 @@ export async function PATCH(
   const input = parsed.data;
 
   try {
-    const [amendment] = await db
+    // Pre-tenant: amendment row's project unknown until we resolve it
+    // via dailyLogs head below. Slice 3 entry-point pattern.
+    const [amendment] = await dbAdmin
       .select({
         id: dailyLogAmendments.id,
         dailyLogId: dailyLogAmendments.dailyLogId,

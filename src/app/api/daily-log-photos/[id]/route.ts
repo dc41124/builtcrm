@@ -4,7 +4,6 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
 import { dailyLogPhotos, dailyLogs } from "@/db/schema";
@@ -51,7 +50,9 @@ export async function PATCH(
   const input = parsed.data;
 
   try {
-    const [photo] = await db
+    // Pre-tenant: photo's project unknown until we resolve via parent
+    // daily log. Slice 3 entry-point pattern.
+    const [photo] = await dbAdmin
       .select({
         id: dailyLogPhotos.id,
         dailyLogId: dailyLogPhotos.dailyLogId,

@@ -1,6 +1,5 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
 import {
@@ -332,21 +331,23 @@ async function queryDocuments(
   // When pin is true (submittal reached a terminal reviewer state)
   // we lock to the exact linked version — the decision was made
   // against that file and downstream displays must not drift.
-  const joinRows = await db
-    .select({
-      id: submittalDocuments.id,
-      linkedDocumentId: submittalDocuments.documentId,
-      pinVersion: submittalDocuments.pinVersion,
-      role: submittalDocuments.role,
-      sortOrder: submittalDocuments.sortOrder,
-      attachedByUserId: submittalDocuments.attachedByUserId,
-      attachedByName: users.displayName,
-      createdAt: submittalDocuments.createdAt,
-    })
-    .from(submittalDocuments)
-    .leftJoin(users, eq(users.id, submittalDocuments.attachedByUserId))
-    .where(eq(submittalDocuments.submittalId, submittalId))
-    .orderBy(asc(submittalDocuments.sortOrder), asc(submittalDocuments.createdAt));
+  const joinRows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: submittalDocuments.id,
+        linkedDocumentId: submittalDocuments.documentId,
+        pinVersion: submittalDocuments.pinVersion,
+        role: submittalDocuments.role,
+        sortOrder: submittalDocuments.sortOrder,
+        attachedByUserId: submittalDocuments.attachedByUserId,
+        attachedByName: users.displayName,
+        createdAt: submittalDocuments.createdAt,
+      })
+      .from(submittalDocuments)
+      .leftJoin(users, eq(users.id, submittalDocuments.attachedByUserId))
+      .where(eq(submittalDocuments.submittalId, submittalId))
+      .orderBy(asc(submittalDocuments.sortOrder), asc(submittalDocuments.createdAt)),
+  );
 
   if (joinRows.length === 0) return [];
 

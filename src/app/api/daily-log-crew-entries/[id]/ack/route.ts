@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { dailyLogCrewEntries } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -27,7 +28,9 @@ export async function POST(
   const { id } = await params;
   const { session } = await requireServerSession();
   try {
-    const [entry] = await db
+    // Pre-tenant: tenant unknown until we resolve project from the
+    // crew entry. Slice 3 entry-point pattern.
+    const [entry] = await dbAdmin
       .select({
         id: dailyLogCrewEntries.id,
         projectId: dailyLogCrewEntries.projectId,
@@ -70,7 +73,7 @@ export async function POST(
 
     const now = new Date();
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(dailyLogCrewEntries)
         .set({ subAckedReconciliationAt: now })

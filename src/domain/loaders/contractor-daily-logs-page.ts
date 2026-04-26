@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   dailyLogAmendments,
   dailyLogDelays,
@@ -86,15 +86,17 @@ export async function getContractorDailyLogsPageView(
     );
   }
 
-  const [projectRow] = await db
-    .select({
-      id: projects.id,
-      name: projects.name,
-      timezone: projects.timezone,
-    })
-    .from(projects)
-    .where(eq(projects.id, input.projectId))
-    .limit(1);
+  const [projectRow] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: projects.id,
+        name: projects.name,
+        timezone: projects.timezone,
+      })
+      .from(projects)
+      .where(eq(projects.id, input.projectId))
+      .limit(1),
+  );
   if (!projectRow) {
     throw new AuthorizationError("Project not found", "not_found");
   }
@@ -130,6 +132,7 @@ export async function getContractorDailyLogsPageView(
   const weekLogs = submittedLast30.filter((l) => l.logDate >= weekStart);
   const delayHoursLast30 = await sumDelayHoursFor(
     last30Logs.map((l) => l.id),
+    ctx.organization.id,
   );
   const delayCountLast30 = last30Logs.reduce((a, l) => a + l.delayCount, 0);
   const photosThisWeek = weekLogs.reduce((a, l) => a + l.photoCount, 0);
@@ -137,33 +140,39 @@ export async function getContractorDailyLogsPageView(
   const workDaysThisWeek = countWorkDays(weekStart, today);
   const missingLogsLast30 = countMissingWorkDays(submittedLast30, last30Start, today);
 
-  const [pendingAmendmentsRow] = await db
-    .select({ c: sql<number>`count(*)::int` })
-    .from(dailyLogAmendments)
-    .innerJoin(dailyLogs, eq(dailyLogs.id, dailyLogAmendments.dailyLogId))
-    .where(
-      and(
-        eq(dailyLogs.projectId, input.projectId),
-        eq(dailyLogAmendments.status, "pending"),
-      ),
-    );
-
-  const recentAmendments = await db
-    .select({
-      id: dailyLogAmendments.id,
-      dailyLogId: dailyLogAmendments.dailyLogId,
-      logDate: dailyLogs.logDate,
-      changeSummary: dailyLogAmendments.changeSummary,
-      status: dailyLogAmendments.status,
-      requestedByName: users.displayName,
-      requestedAt: dailyLogAmendments.requestedAt,
-    })
-    .from(dailyLogAmendments)
-    .innerJoin(dailyLogs, eq(dailyLogs.id, dailyLogAmendments.dailyLogId))
-    .leftJoin(users, eq(users.id, dailyLogAmendments.requestedByUserId))
-    .where(eq(dailyLogs.projectId, input.projectId))
-    .orderBy(sql`${dailyLogAmendments.requestedAt} desc`)
-    .limit(5);
+  const [pendingAmendmentsRow, recentAmendments] = await withTenant(
+    ctx.organization.id,
+    (tx) =>
+      Promise.all([
+        tx
+          .select({ c: sql<number>`count(*)::int` })
+          .from(dailyLogAmendments)
+          .innerJoin(dailyLogs, eq(dailyLogs.id, dailyLogAmendments.dailyLogId))
+          .where(
+            and(
+              eq(dailyLogs.projectId, input.projectId),
+              eq(dailyLogAmendments.status, "pending"),
+            ),
+          )
+          .then((r) => r[0] ?? null),
+        tx
+          .select({
+            id: dailyLogAmendments.id,
+            dailyLogId: dailyLogAmendments.dailyLogId,
+            logDate: dailyLogs.logDate,
+            changeSummary: dailyLogAmendments.changeSummary,
+            status: dailyLogAmendments.status,
+            requestedByName: users.displayName,
+            requestedAt: dailyLogAmendments.requestedAt,
+          })
+          .from(dailyLogAmendments)
+          .innerJoin(dailyLogs, eq(dailyLogs.id, dailyLogAmendments.dailyLogId))
+          .leftJoin(users, eq(users.id, dailyLogAmendments.requestedByUserId))
+          .where(eq(dailyLogs.projectId, input.projectId))
+          .orderBy(sql`${dailyLogAmendments.requestedAt} desc`)
+          .limit(5),
+      ]),
+  );
 
   const totalCrewHoursThisWeek = weekLogs.reduce(
     (a, l) => a + l.totalCrewHours,
@@ -208,14 +217,19 @@ export async function getContractorDailyLogsPageView(
 }
 
 // Sum delay hours by joining delays across a list of log ids.
-async function sumDelayHoursFor(logIds: string[]): Promise<number> {
+async function sumDelayHoursFor(
+  logIds: string[],
+  callerOrgId: string,
+): Promise<number> {
   if (logIds.length === 0) return 0;
-  const [row] = await db
-    .select({
-      sum: sql<string>`coalesce(sum(${dailyLogDelays.hoursLost}), 0)`,
-    })
-    .from(dailyLogDelays)
-    .where(inArray(dailyLogDelays.dailyLogId, logIds));
+  const [row] = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        sum: sql<string>`coalesce(sum(${dailyLogDelays.hoursLost}), 0)`,
+      })
+      .from(dailyLogDelays)
+      .where(inArray(dailyLogDelays.dailyLogId, logIds)),
+  );
   return parseFloat(row?.sum ?? "0") || 0;
 }
 

@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { dailyLogCrewEntries } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -51,7 +52,9 @@ export async function PATCH(
   const input = parsed.data;
 
   try {
-    const [entry] = await db
+    // Pre-tenant: tenant unknown until we resolve project from the
+    // crew entry. Slice 3 entry-point pattern.
+    const [entry] = await dbAdmin
       .select({
         id: dailyLogCrewEntries.id,
         projectId: dailyLogCrewEntries.projectId,
@@ -83,7 +86,7 @@ export async function PATCH(
 
     const now = new Date();
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       const patch: Partial<typeof dailyLogCrewEntries.$inferInsert> = {
         reconciledByUserId: ctx.user.id,
         reconciledAt: now,

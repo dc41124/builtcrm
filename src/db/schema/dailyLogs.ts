@@ -262,8 +262,41 @@ export const dailyLogCrewEntries = pgTable(
     // Cross-project weekly hours query for the sub portal.
     orgDateIdx: index("daily_log_crew_entries_org_date_idx").on(table.orgId, table.logDate),
     logIdx: index("daily_log_crew_entries_log_idx").on(table.dailyLogId),
+    // Phase 4 wave 4 nested — DEVIATION from nested-via-parent template.
+    // dailyLogId is nullable here: subs submit crew entries BEFORE the GC
+    // creates the log (auto-attached in-txn when the GC's createDailyLog
+    // runs). A `dailyLogId IN (SELECT id FROM daily_logs)` policy would
+    // deny those orphan rows entirely (NULL IN (...) → NULL → false),
+    // breaking the sub's pre-log submission flow AND the GC's auto-attach
+    // UPDATE. Instead, gate on the row's own (notNull) projectId column
+    // using the same project-scoped 2-clause hybrid as the parent.
+    tenantIsolation: pgPolicy("daily_log_crew_entries_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // daily_log_delays — schedule-impacting delays (hours lost, impacted activity).
@@ -287,8 +320,14 @@ export const dailyLogDelays = pgTable(
   },
   (table) => ({
     logIdx: index("daily_log_delays_log_idx").on(table.dailyLogId),
+    // Phase 4 wave 4 nested — nested-via-parent on daily_logs.
+    tenantIsolation: pgPolicy("daily_log_delays_tenant_isolation", {
+      for: "all",
+      using: sql`${table.dailyLogId} IN (SELECT id FROM daily_logs)`,
+      withCheck: sql`${table.dailyLogId} IN (SELECT id FROM daily_logs)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // daily_log_issues — non-schedule-impacting events (safety near-misses,
@@ -308,8 +347,14 @@ export const dailyLogIssues = pgTable(
   },
   (table) => ({
     logIdx: index("daily_log_issues_log_idx").on(table.dailyLogId),
+    // Phase 4 wave 4 nested — nested-via-parent on daily_logs.
+    tenantIsolation: pgPolicy("daily_log_issues_tenant_isolation", {
+      for: "all",
+      using: sql`${table.dailyLogId} IN (SELECT id FROM daily_logs)`,
+      withCheck: sql`${table.dailyLogId} IN (SELECT id FROM daily_logs)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // daily_log_photos — join between a log and documents uploaded for it.
@@ -347,8 +392,14 @@ export const dailyLogPhotos = pgTable(
     oneHeroPerLog: uniqueIndex("daily_log_photos_one_hero_per_log")
       .on(table.dailyLogId)
       .where(sql`${table.isHero} = true`),
+    // Phase 4 wave 4 nested — nested-via-parent on daily_logs.
+    tenantIsolation: pgPolicy("daily_log_photos_tenant_isolation", {
+      for: "all",
+      using: sql`${table.dailyLogId} IN (SELECT id FROM daily_logs)`,
+      withCheck: sql`${table.dailyLogId} IN (SELECT id FROM daily_logs)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // daily_log_amendments — post-24hr edits, audit-preserving.
@@ -399,5 +450,11 @@ export const dailyLogAmendments = pgTable(
   (table) => ({
     logIdx: index("daily_log_amendments_log_idx").on(table.dailyLogId),
     statusIdx: index("daily_log_amendments_status_idx").on(table.status),
+    // Phase 4 wave 4 nested — nested-via-parent on daily_logs.
+    tenantIsolation: pgPolicy("daily_log_amendments_tenant_isolation", {
+      for: "all",
+      using: sql`${table.dailyLogId} IN (SELECT id FROM daily_logs)`,
+      withCheck: sql`${table.dailyLogId} IN (SELECT id FROM daily_logs)`,
+    }),
   }),
-);
+).enableRLS();

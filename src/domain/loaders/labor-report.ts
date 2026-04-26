@@ -1,6 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { dailyLogCrewEntries, projects } from "@/db/schema";
 
 import { getContractorOrgContext } from "./integrations";
@@ -66,26 +66,34 @@ export async function getLaborReport(
   const orgId = context.organization.id;
   const now = new Date();
 
-  const projectRows = await db
-    .select({ id: projects.id, name: projects.name })
-    .from(projects)
-    .where(eq(projects.contractorOrganizationId, orgId));
-  const projectIds = projectRows.map((p) => p.id);
-  if (projectIds.length === 0) return emptyView(now);
-
-  const crewRows = await db
-    .select({
-      projectId: dailyLogCrewEntries.projectId,
-      orgId: dailyLogCrewEntries.orgId,
-      trade: dailyLogCrewEntries.trade,
-      logDate: dailyLogCrewEntries.logDate,
-      headcount: dailyLogCrewEntries.headcount,
-      hours: dailyLogCrewEntries.hours,
-      reconciledHeadcount: dailyLogCrewEntries.reconciledHeadcount,
-      reconciledHours: dailyLogCrewEntries.reconciledHours,
-    })
-    .from(dailyLogCrewEntries)
-    .where(inArray(dailyLogCrewEntries.projectId, projectIds));
+  // projects + dailyLogCrewEntries are both RLS-enabled. Route the
+  // contractor-org reads through withTenant so the org's own projects
+  // and their crew rows are visible.
+  const { projectRows, crewRows } = await withTenant(orgId, async (tx) => {
+    const projectRows = await tx
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(eq(projects.contractorOrganizationId, orgId));
+    const projectIds = projectRows.map((p) => p.id);
+    if (projectIds.length === 0) {
+      return { projectRows, crewRows: [] as Array<typeof dailyLogCrewEntries.$inferSelect> };
+    }
+    const crewRows = await tx
+      .select({
+        projectId: dailyLogCrewEntries.projectId,
+        orgId: dailyLogCrewEntries.orgId,
+        trade: dailyLogCrewEntries.trade,
+        logDate: dailyLogCrewEntries.logDate,
+        headcount: dailyLogCrewEntries.headcount,
+        hours: dailyLogCrewEntries.hours,
+        reconciledHeadcount: dailyLogCrewEntries.reconciledHeadcount,
+        reconciledHours: dailyLogCrewEntries.reconciledHours,
+      })
+      .from(dailyLogCrewEntries)
+      .where(inArray(dailyLogCrewEntries.projectId, projectIds));
+    return { projectRows, crewRows };
+  });
+  if (projectRows.length === 0) return emptyView(now);
 
   // --- Bucket 1: per-project rollup (hours + trade composition) ---
   const perProject = new Map<

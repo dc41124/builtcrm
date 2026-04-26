@@ -94,20 +94,22 @@ async function loadRfisWithResponses(
   if (rfiRows.length === 0) return [];
 
   const ids = rfiRows.map((r) => r.id);
-  const responseRows = await db
-    .select({
-      id: rfiResponses.id,
-      rfiId: rfiResponses.rfiId,
-      body: rfiResponses.body,
-      respondedByUserId: rfiResponses.respondedByUserId,
-      respondedByName: users.displayName,
-      isOfficialResponse: rfiResponses.isOfficialResponse,
-      createdAt: rfiResponses.createdAt,
-    })
-    .from(rfiResponses)
-    .leftJoin(users, eq(users.id, rfiResponses.respondedByUserId))
-    .where(inArray(rfiResponses.rfiId, ids))
-    .orderBy(asc(rfiResponses.createdAt));
+  const responseRows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: rfiResponses.id,
+        rfiId: rfiResponses.rfiId,
+        body: rfiResponses.body,
+        respondedByUserId: rfiResponses.respondedByUserId,
+        respondedByName: users.displayName,
+        isOfficialResponse: rfiResponses.isOfficialResponse,
+        createdAt: rfiResponses.createdAt,
+      })
+      .from(rfiResponses)
+      .leftJoin(users, eq(users.id, rfiResponses.respondedByUserId))
+      .where(inArray(rfiResponses.rfiId, ids))
+      .orderBy(asc(rfiResponses.createdAt)),
+  );
 
   const grouped = new Map<string, RfiResponseRow[]>();
   for (const r of responseRows) {
