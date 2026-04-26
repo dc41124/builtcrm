@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   closeoutPackageComments,
   closeoutPackageItems,
@@ -57,7 +58,10 @@ export async function POST(
   }
 
   try {
-    const [head] = await db
+    // Pre-context lookup via admin pool. The downstream
+    // closeout_package_comments INSERT and section/item validations
+    // touch tables without RLS yet, so they stay on `db`.
+    const [head] = await dbAdmin
       .select({
         id: closeoutPackages.id,
         projectId: closeoutPackages.projectId,

@@ -4,8 +4,9 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { closeoutPackages, projects } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -41,10 +42,11 @@ export async function POST(
   const input = parsed.data;
 
   try {
-    const [head] = await db
+    const [head] = await dbAdmin
       .select({
         id: closeoutPackages.id,
         projectId: closeoutPackages.projectId,
+        organizationId: closeoutPackages.organizationId,
         status: closeoutPackages.status,
         sequenceYear: closeoutPackages.sequenceYear,
         sequenceNumber: closeoutPackages.sequenceNumber,
@@ -81,7 +83,7 @@ export async function POST(
       head.sequenceNumber,
     );
 
-    await db.transaction(async (tx) => {
+    await withTenant(head.organizationId, async (tx) => {
       const now = new Date();
 
       await tx

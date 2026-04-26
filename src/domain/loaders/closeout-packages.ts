@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   activityFeedItems,
   closeoutPackageComments,
@@ -12,6 +13,7 @@ import {
   projects,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getEffectiveContext, type SessionLike } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -173,6 +175,7 @@ export async function getCloseoutPackagesForProject(input: {
 }): Promise<{ rows: CloseoutPackageListRow[] }> {
   const ctx = await requireClientOrContractor(input.session, input.projectId);
   const rows = await selectListRowsForProjects({
+    organizationId: ctx.project.contractorOrganizationId,
     projectIds: [input.projectId],
     contractorOnly: ctx.role === "commercial_client" || ctx.role === "residential_client",
   });
@@ -203,6 +206,7 @@ export async function getCloseoutPackagesForOrg(input: {
   if (projectIds.length === 0) return { rows: [] };
 
   const rows = await selectListRowsForProjects({
+    organizationId: input.organizationId,
     projectIds,
     contractorOnly: false,
   });
@@ -210,6 +214,7 @@ export async function getCloseoutPackagesForOrg(input: {
 }
 
 async function selectListRowsForProjects(input: {
+  organizationId: string;
   projectIds: string[];
   contractorOnly: boolean;
 }): Promise<CloseoutPackageListRow[]> {
@@ -219,33 +224,35 @@ async function selectListRowsForProjects(input: {
     ? sql`${closeoutPackages.status} IN ('delivered', 'accepted')`
     : sql`1 = 1`;
 
-  const base = await db
-    .select({
-      id: closeoutPackages.id,
-      sequenceYear: closeoutPackages.sequenceYear,
-      sequenceNumber: closeoutPackages.sequenceNumber,
-      title: closeoutPackages.title,
-      status: closeoutPackages.status,
-      projectId: closeoutPackages.projectId,
-      projectName: projects.name,
-      preparedByUserId: closeoutPackages.preparedByUserId,
-      preparedByName: users.displayName,
-      deliveredAt: closeoutPackages.deliveredAt,
-      acceptedAt: closeoutPackages.acceptedAt,
-      acceptedSigner: closeoutPackages.acceptedSigner,
-      createdAt: closeoutPackages.createdAt,
-      updatedAt: closeoutPackages.updatedAt,
-      orgName: organizations.name,
-    })
-    .from(closeoutPackages)
-    .innerJoin(projects, eq(projects.id, closeoutPackages.projectId))
-    .leftJoin(users, eq(users.id, closeoutPackages.preparedByUserId))
-    .leftJoin(
-      organizations,
-      eq(organizations.id, closeoutPackages.organizationId),
-    )
-    .where(and(inArray(closeoutPackages.projectId, input.projectIds), statusFilter))
-    .orderBy(desc(closeoutPackages.createdAt));
+  const base = await withTenant(input.organizationId, (tx) =>
+    tx
+      .select({
+        id: closeoutPackages.id,
+        sequenceYear: closeoutPackages.sequenceYear,
+        sequenceNumber: closeoutPackages.sequenceNumber,
+        title: closeoutPackages.title,
+        status: closeoutPackages.status,
+        projectId: closeoutPackages.projectId,
+        projectName: projects.name,
+        preparedByUserId: closeoutPackages.preparedByUserId,
+        preparedByName: users.displayName,
+        deliveredAt: closeoutPackages.deliveredAt,
+        acceptedAt: closeoutPackages.acceptedAt,
+        acceptedSigner: closeoutPackages.acceptedSigner,
+        createdAt: closeoutPackages.createdAt,
+        updatedAt: closeoutPackages.updatedAt,
+        orgName: organizations.name,
+      })
+      .from(closeoutPackages)
+      .innerJoin(projects, eq(projects.id, closeoutPackages.projectId))
+      .leftJoin(users, eq(users.id, closeoutPackages.preparedByUserId))
+      .leftJoin(
+        organizations,
+        eq(organizations.id, closeoutPackages.organizationId),
+      )
+      .where(and(inArray(closeoutPackages.projectId, input.projectIds), statusFilter))
+      .orderBy(desc(closeoutPackages.createdAt)),
+  );
 
   if (base.length === 0) return [];
 
@@ -365,7 +372,11 @@ export async function getCloseoutPackage(input: {
   session: SessionLike | null | undefined;
   packageId: string;
 }): Promise<CloseoutPackageDetail> {
-  const [head] = await db
+  // Pre-context lookup: caller passes only packageId. Read head via
+  // admin pool to derive projectId + orgId for the rest of the
+  // resolution; downstream queries (sections, items, comments) stay
+  // on `db` for now since those tables aren't RLS-enabled.
+  const [head] = await dbAdmin
     .select({
       id: closeoutPackages.id,
       projectId: closeoutPackages.projectId,

@@ -5,6 +5,7 @@ import { eq, max } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   closeoutPackageSections,
   closeoutPackages,
@@ -42,7 +43,10 @@ export async function POST(
   const input = parsed.data;
 
   try {
-    const [head] = await db
+    // Pre-context lookup via admin pool. The transaction below only
+    // touches closeout_package_sections + auditEvents (no RLS yet),
+    // so it stays on `db.transaction`.
+    const [head] = await dbAdmin
       .select({
         id: closeoutPackages.id,
         projectId: closeoutPackages.projectId,

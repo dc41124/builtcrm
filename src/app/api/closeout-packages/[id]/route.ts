@@ -4,8 +4,9 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { closeoutPackages } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -38,10 +39,13 @@ export async function PATCH(
   const input = parsed.data;
 
   try {
-    const [head] = await db
+    // Pre-context lookup: route only has the package id, so we read
+    // the head row via the admin pool to derive projectId + orgId.
+    const [head] = await dbAdmin
       .select({
         id: closeoutPackages.id,
         projectId: closeoutPackages.projectId,
+        organizationId: closeoutPackages.organizationId,
         status: closeoutPackages.status,
         title: closeoutPackages.title,
       })
@@ -70,7 +74,7 @@ export async function PATCH(
       );
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(head.organizationId, async (tx) => {
       const updates: Record<string, unknown> = {};
       if (input.title !== undefined) updates.title = input.title;
       if (input.status === "building" && head.status === "review") {
@@ -126,10 +130,11 @@ export async function DELETE(
   const { id } = await params;
   const { session } = await requireServerSession();
   try {
-    const [head] = await db
+    const [head] = await dbAdmin
       .select({
         id: closeoutPackages.id,
         projectId: closeoutPackages.projectId,
+        organizationId: closeoutPackages.organizationId,
         status: closeoutPackages.status,
         sequenceYear: closeoutPackages.sequenceYear,
         sequenceNumber: closeoutPackages.sequenceNumber,
@@ -162,7 +167,7 @@ export async function DELETE(
       );
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(head.organizationId, async (tx) => {
       await writeAuditEvent(
         ctx,
         {

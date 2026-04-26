@@ -5,12 +5,14 @@ import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   closeoutPackageItems,
   closeoutPackageSections,
   closeoutPackages,
   projects,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -46,10 +48,11 @@ export async function POST(
   const target = parsed.data.to;
 
   try {
-    const [head] = await db
+    const [head] = await dbAdmin
       .select({
         id: closeoutPackages.id,
         projectId: closeoutPackages.projectId,
+        organizationId: closeoutPackages.organizationId,
         status: closeoutPackages.status,
         title: closeoutPackages.title,
         sequenceYear: closeoutPackages.sequenceYear,
@@ -112,7 +115,7 @@ export async function POST(
       .where(eq(projects.id, head.projectId))
       .limit(1);
 
-    await db.transaction(async (tx) => {
+    await withTenant(head.organizationId, async (tx) => {
       if (target === "review") {
         await tx
           .update(closeoutPackages)

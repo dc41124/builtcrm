@@ -121,6 +121,13 @@ export const closeoutCounters = pgTable(
 // action layer.
 // -----------------------------------------------------------------------------
 
+// RLS Phase 3c — Pattern A. Routes follow the entry-point lookup
+// pattern: dbAdmin reads the head row (pre-context, since the route
+// only has the package id) to derive head.organizationId, then
+// withTenant(head.organizationId, ...) wraps the mutation. The
+// loader, the create route (api/closeout-packages POST already
+// converted in the closeoutCounters slice), and the sub-resource
+// routes (sections/items/comments) all share this shape.
 export const closeoutPackages = pgTable(
   "closeout_packages",
   {
@@ -167,8 +174,13 @@ export const closeoutPackages = pgTable(
     deliveredAtIdx: index("closeout_packages_delivered_at_idx").on(
       table.deliveredAt,
     ),
+    tenantIsolation: pgPolicy("closeout_packages_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // closeout_package_sections — buckets inside a package. Fixed section

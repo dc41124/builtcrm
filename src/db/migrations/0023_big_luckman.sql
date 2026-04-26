@@ -1,0 +1,2 @@
+ALTER TABLE "closeout_packages" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE POLICY "closeout_packages_tenant_isolation" ON "closeout_packages" AS PERMISSIVE FOR ALL TO public USING ("closeout_packages"."organization_id" = current_setting('app.current_org_id', true)::uuid) WITH CHECK ("closeout_packages"."organization_id" = current_setting('app.current_org_id', true)::uuid);

@@ -8,6 +8,7 @@ import { requireServerSession } from "@/auth/session";
 import { Readable } from "node:stream";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   closeoutPackageItems,
   closeoutPackageSections,
@@ -56,7 +57,11 @@ export async function GET(
   const { id } = await params;
   const { session } = await requireServerSession();
   try {
-    const [head] = await db
+    // Pre-context lookup via admin pool — caller passed only the
+    // package id; we need projectId/orgId before getEffectiveContext.
+    // The downstream package_sections/items + documents reads aren't
+    // RLS-enabled yet, so they stay on `db`.
+    const [head] = await dbAdmin
       .select({
         id: closeoutPackages.id,
         projectId: closeoutPackages.projectId,
