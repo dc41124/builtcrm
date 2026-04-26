@@ -222,14 +222,18 @@ export type OrganizationCertification = {
   createdAt: Date;
 };
 
+// organization_certifications has RLS enabled (Phase 3 of the RLS
+// sprint). withTenant scopes the read to this org's policy.
 export async function listOrganizationCertifications(
   organizationId: string,
 ): Promise<OrganizationCertification[]> {
-  const rows = await db
-    .select()
-    .from(organizationCertifications)
-    .where(eq(organizationCertifications.organizationId, organizationId))
-    .orderBy(asc(organizationCertifications.createdAt));
+  const rows = await withTenant(organizationId, (tx) =>
+    tx
+      .select()
+      .from(organizationCertifications)
+      .where(eq(organizationCertifications.organizationId, organizationId))
+      .orderBy(asc(organizationCertifications.createdAt)),
+  );
 
   return rows.map((r) => ({
     id: r.id,

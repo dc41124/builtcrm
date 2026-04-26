@@ -3,6 +3,7 @@ import {
   check,
   index,
   jsonb,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -77,5 +78,11 @@ export const savedReports = pgTable(
         and ${table.scheduleTimezone} is not null
       )`,
     ),
+    // RLS Phase 3 — Pattern A. See docs/specs/rls_sprint_plan.md.
+    tenantIsolation: pgPolicy("saved_reports_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();

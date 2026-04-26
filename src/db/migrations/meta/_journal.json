@@ -85,6 +85,20 @@
       "when": 1777160218604,
       "tag": "0011_brown_excalibur",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1777161858007,
+      "tag": "0012_keen_triathlon",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1777162069124,
+      "tag": "0013_rare_lord_hawal",
+      "breakpoints": true
     }
   ]
 }

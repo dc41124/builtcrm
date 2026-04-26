@@ -330,6 +330,8 @@ export const organizationLicenses = pgTable(
 // contractors can adopt it without schema work).
 // `issuedOn` and `expiresOn` are free-form strings because real-world certs
 // have labels like "Various" or "Annual renewal" that don't fit a date column.
+// RLS Phase 3 — Pattern A. See docs/specs/rls_sprint_plan.md and
+// the organization_licenses precedent above.
 export const organizationCertifications = pgTable(
   "organization_certifications",
   {
@@ -345,8 +347,13 @@ export const organizationCertifications = pgTable(
   },
   (table) => ({
     orgIdx: index("organization_certifications_org_idx").on(table.organizationId),
+    tenantIsolation: pgPolicy("organization_certifications_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();
 
 export const organizationUsers = pgTable(
   "organization_users",

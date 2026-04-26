@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { auditEvents, organizationCertifications } from "@/db/schema";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { getSubcontractorOrgContext } from "@/domain/loaders/subcontractor-compliance";
@@ -47,7 +47,9 @@ export async function POST(req: Request) {
   try {
     const { orgId, userId } = await resolveAdminOrg(sessionShim);
 
-    const [row] = await db.transaction(async (tx) => {
+    // organization_certifications has RLS enabled (Phase 3 of the
+    // RLS sprint). Mirrors the organization_licenses pattern.
+    const [row] = await withTenant(orgId, async (tx) => {
       const inserted = await tx
         .insert(organizationCertifications)
         .values({

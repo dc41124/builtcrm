@@ -51,6 +51,11 @@ export const subscriptionPlans = pgTable("subscription_plans", {
 // One row per contractor org that has ever hit the billing flow. Created on
 // the first Stripe Checkout session; persists across subscription
 // cancel/recreate so Stripe invoice history stays linkable.
+//
+// RLS deferred to Phase 3b: src/app/api/webhooks/stripe/route.ts looks
+// rows up by `stripe_customer_id` BEFORE knowing which org the webhook
+// is about. RLS would deny the lookup. Either run webhooks via the
+// admin pool or refactor the flow.
 export const stripeCustomers = pgTable("stripe_customers", {
   organizationId: uuid("organization_id")
     .primaryKey()
@@ -107,6 +112,9 @@ export const organizationSubscriptions = pgTable(
     statusIdx: index("organization_subscriptions_status_idx").on(table.status),
   }),
 );
+// RLS deferred to Phase 3b: src/app/api/webhooks/stripe/route.ts
+// looks rows up by `stripe_subscription_id` BEFORE knowing which org
+// the webhook is about. Same reason as stripe_customers above.
 
 // Mirrors Stripe invoices 1:1 via webhook. Status + paidAt mutate over the
 // invoice lifecycle (open → paid, or open → uncollectible); everything else

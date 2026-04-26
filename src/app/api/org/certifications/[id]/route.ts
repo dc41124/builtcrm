@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { auditEvents, organizationCertifications } from "@/db/schema";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { getSubcontractorOrgContext } from "@/domain/loaders/subcontractor-compliance";
@@ -33,21 +33,21 @@ export async function DELETE(
   try {
     const { orgId, userId } = await resolveAdminOrg(sessionShim);
 
-    const [existing] = await db
-      .select()
-      .from(organizationCertifications)
-      .where(
-        and(
-          eq(organizationCertifications.id, id),
-          eq(organizationCertifications.organizationId, orgId),
-        ),
-      )
-      .limit(1);
-    if (!existing) {
-      throw new AuthorizationError("Certification not found", "not_found");
-    }
+    // organization_certifications has RLS enabled (Phase 3 of the
+    // RLS sprint). Mirrors the organization_licenses pattern.
+    const result = await withTenant(orgId, async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(organizationCertifications)
+        .where(
+          and(
+            eq(organizationCertifications.id, id),
+            eq(organizationCertifications.organizationId, orgId),
+          ),
+        )
+        .limit(1);
+      if (!existing) return null;
 
-    await db.transaction(async (tx) => {
       await tx
         .delete(organizationCertifications)
         .where(eq(organizationCertifications.id, existing.id));
@@ -64,7 +64,11 @@ export async function DELETE(
           expiresOn: existing.expiresOn,
         },
       });
+      return existing;
     });
+    if (!result) {
+      throw new AuthorizationError("Certification not found", "not_found");
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

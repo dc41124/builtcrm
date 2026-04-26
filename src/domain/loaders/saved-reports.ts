@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { savedReports, users } from "@/db/schema";
 
 import { getContractorOrgContext } from "./integrations";
@@ -54,25 +54,29 @@ export async function getSavedReports(
   const orgId = context.organization.id;
   const now = new Date();
 
-  const rows = await db
-    .select({
-      id: savedReports.id,
-      name: savedReports.name,
-      reportType: savedReports.reportType,
-      scopeDescription: savedReports.scopeDescription,
-      scheduleCron: savedReports.scheduleCron,
-      scheduleLabel: savedReports.scheduleLabel,
-      recipients: savedReports.recipients,
-      lastRunAt: savedReports.lastRunAt,
-      ownerUserId: savedReports.ownerUserId,
-      ownerDisplayName: users.displayName,
-      ownerEmail: users.email,
-      createdAt: savedReports.createdAt,
-    })
-    .from(savedReports)
-    .innerJoin(users, eq(savedReports.ownerUserId, users.id))
-    .where(eq(savedReports.organizationId, orgId))
-    .orderBy(desc(savedReports.createdAt));
+  // saved_reports has RLS enabled (Phase 3 of the RLS sprint).
+  // withTenant scopes the read to this org's policy.
+  const rows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: savedReports.id,
+        name: savedReports.name,
+        reportType: savedReports.reportType,
+        scopeDescription: savedReports.scopeDescription,
+        scheduleCron: savedReports.scheduleCron,
+        scheduleLabel: savedReports.scheduleLabel,
+        recipients: savedReports.recipients,
+        lastRunAt: savedReports.lastRunAt,
+        ownerUserId: savedReports.ownerUserId,
+        ownerDisplayName: users.displayName,
+        ownerEmail: users.email,
+        createdAt: savedReports.createdAt,
+      })
+      .from(savedReports)
+      .innerJoin(users, eq(savedReports.ownerUserId, users.id))
+      .where(eq(savedReports.organizationId, orgId))
+      .orderBy(desc(savedReports.createdAt)),
+  );
 
   const normalized: SavedReportRow[] = rows.map((r) => ({
     id: r.id,

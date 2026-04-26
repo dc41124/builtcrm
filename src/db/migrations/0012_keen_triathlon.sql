@@ -1,0 +1,10 @@
+ALTER TABLE "organization_certifications" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "organization_subscriptions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "stripe_customers" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "sso_providers" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "saved_reports" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE POLICY "organization_certifications_tenant_isolation" ON "organization_certifications" AS PERMISSIVE FOR ALL TO public USING ("organization_certifications"."organization_id" = current_setting('app.current_org_id', true)::uuid) WITH CHECK ("organization_certifications"."organization_id" = current_setting('app.current_org_id', true)::uuid);--> statement-breakpoint
+CREATE POLICY "organization_subscriptions_tenant_isolation" ON "organization_subscriptions" AS PERMISSIVE FOR ALL TO public USING ("organization_subscriptions"."organization_id" = current_setting('app.current_org_id', true)::uuid) WITH CHECK ("organization_subscriptions"."organization_id" = current_setting('app.current_org_id', true)::uuid);--> statement-breakpoint
+CREATE POLICY "stripe_customers_tenant_isolation" ON "stripe_customers" AS PERMISSIVE FOR ALL TO public USING ("stripe_customers"."organization_id" = current_setting('app.current_org_id', true)::uuid) WITH CHECK ("stripe_customers"."organization_id" = current_setting('app.current_org_id', true)::uuid);--> statement-breakpoint
+CREATE POLICY "sso_providers_tenant_isolation" ON "sso_providers" AS PERMISSIVE FOR ALL TO public USING ("sso_providers"."organization_id" = current_setting('app.current_org_id', true)::uuid) WITH CHECK ("sso_providers"."organization_id" = current_setting('app.current_org_id', true)::uuid);--> statement-breakpoint
+CREATE POLICY "saved_reports_tenant_isolation" ON "saved_reports" AS PERMISSIVE FOR ALL TO public USING ("saved_reports"."organization_id" = current_setting('app.current_org_id', true)::uuid) WITH CHECK ("saved_reports"."organization_id" = current_setting('app.current_org_id', true)::uuid);

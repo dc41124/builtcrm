@@ -58,3 +58,8 @@ export const ssoProviders = pgTable(
     ),
   }),
 );
+// RLS deferred to Phase 3b: src/auth/sso-plugin.ts queries this table
+// during the SAML callback BEFORE the user is authenticated, with no
+// `app.current_org_id` GUC available. RLS would deny the lookup and
+// break SSO sign-in entirely. Either run that lookup as the admin
+// pool or restructure the SAML flow so org context is known earlier.
