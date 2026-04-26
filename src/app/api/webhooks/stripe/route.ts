@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import type Stripe from "stripe";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   auditEvents,
   drawRequests,
@@ -13,6 +14,7 @@ import {
   subscriptionInvoices,
   subscriptionPlans,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getSystemUserId } from "@/domain/system-user";
 import { getStripe, getWebhookSecret } from "@/lib/stripe";
 
@@ -144,16 +146,33 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   // Upsert on (organization_id unique). Legacy backfilled orgs already have
   // a row — overwrite its plan_id + status + stripe_subscription_id.
-  const [existing] = await db
-    .select({ id: organizationSubscriptions.id })
-    .from(organizationSubscriptions)
-    .where(eq(organizationSubscriptions.organizationId, organizationId))
-    .limit(1);
+  // orgId is known here (came in via session.metadata) so all
+  // organization_subscriptions DML can run inside `withTenant`.
+  await withTenant(organizationId, async (tx) => {
+    const [existing] = await tx
+      .select({ id: organizationSubscriptions.id })
+      .from(organizationSubscriptions)
+      .where(eq(organizationSubscriptions.organizationId, organizationId))
+      .limit(1);
 
-  if (existing) {
-    await db
-      .update(organizationSubscriptions)
-      .set({
+    if (existing) {
+      await tx
+        .update(organizationSubscriptions)
+        .set({
+          planId: plan.id,
+          stripeSubscriptionId: sub.id,
+          status: sub.status,
+          billingCycle,
+          trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
+          currentPeriodStart: periods.start,
+          currentPeriodEnd: periods.end,
+          cancelAtPeriodEnd: sub.cancel_at_period_end,
+          canceledAt: sub.canceled_at ? new Date(sub.canceled_at * 1000) : null,
+        })
+        .where(eq(organizationSubscriptions.id, existing.id));
+    } else {
+      await tx.insert(organizationSubscriptions).values({
+        organizationId,
         planId: plan.id,
         stripeSubscriptionId: sub.id,
         status: sub.status,
@@ -163,22 +182,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         currentPeriodEnd: periods.end,
         cancelAtPeriodEnd: sub.cancel_at_period_end,
         canceledAt: sub.canceled_at ? new Date(sub.canceled_at * 1000) : null,
-      })
-      .where(eq(organizationSubscriptions.id, existing.id));
-  } else {
-    await db.insert(organizationSubscriptions).values({
-      organizationId,
-      planId: plan.id,
-      stripeSubscriptionId: sub.id,
-      status: sub.status,
-      billingCycle,
-      trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
-      currentPeriodStart: periods.start,
-      currentPeriodEnd: periods.end,
-      cancelAtPeriodEnd: sub.cancel_at_period_end,
-      canceledAt: sub.canceled_at ? new Date(sub.canceled_at * 1000) : null,
-    });
-  }
+      });
+    }
+  });
 
   await db
     .update(organizations)
@@ -204,7 +210,10 @@ async function handleSubscriptionChanged(
   sub: Stripe.Subscription,
   eventType: "customer.subscription.updated" | "customer.subscription.deleted",
 ) {
-  const [row] = await db
+  // Pre-tenant lookup — discover which org this Stripe subscription
+  // belongs to. Uses admin pool because the webhook entry has no
+  // session/GUC.
+  const [row] = await dbAdmin
     .select()
     .from(organizationSubscriptions)
     .where(eq(organizationSubscriptions.stripeSubscriptionId, sub.id))
@@ -240,19 +249,22 @@ async function handleSubscriptionChanged(
     }
   }
 
-  await db
-    .update(organizationSubscriptions)
-    .set({
-      planId: newPlanId,
-      billingCycle: newBillingCycle,
-      status: sub.status,
-      trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
-      currentPeriodStart: periods.start,
-      currentPeriodEnd: periods.end,
-      cancelAtPeriodEnd: sub.cancel_at_period_end,
-      canceledAt: sub.canceled_at ? new Date(sub.canceled_at * 1000) : null,
-    })
-    .where(eq(organizationSubscriptions.id, row.id));
+  // orgId now known from row.organizationId — RLS-protect the update.
+  await withTenant(row.organizationId, (tx) =>
+    tx
+      .update(organizationSubscriptions)
+      .set({
+        planId: newPlanId,
+        billingCycle: newBillingCycle,
+        status: sub.status,
+        trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
+        currentPeriodStart: periods.start,
+        currentPeriodEnd: periods.end,
+        cancelAtPeriodEnd: sub.cancel_at_period_end,
+        canceledAt: sub.canceled_at ? new Date(sub.canceled_at * 1000) : null,
+      })
+      .where(eq(organizationSubscriptions.id, row.id)),
+  );
 
   if (newPlanSlug) {
     await db
@@ -290,7 +302,12 @@ async function handleInvoice(
   const parentSubId = extractSubscriptionId(invoice);
   if (!parentSubId) return;
 
-  const [row] = await db
+  // Pre-tenant lookup via admin pool — same shape as
+  // handleSubscriptionChanged. The subscriptionInvoices upsert below
+  // doesn't yet have RLS, so it stays on `db`; once invoices get
+  // RLS the upsert moves into a withTenant(row.organizationId, ...)
+  // wrapper.
+  const [row] = await dbAdmin
     .select({
       id: organizationSubscriptions.id,
       organizationId: organizationSubscriptions.organizationId,

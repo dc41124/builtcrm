@@ -1,0 +1,2 @@
+ALTER TABLE "organization_subscriptions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE POLICY "organization_subscriptions_tenant_isolation" ON "organization_subscriptions" AS PERMISSIVE FOR ALL TO public USING ("organization_subscriptions"."organization_id" = current_setting('app.current_org_id', true)::uuid) WITH CHECK ("organization_subscriptions"."organization_id" = current_setting('app.current_org_id', true)::uuid);

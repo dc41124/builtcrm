@@ -86,6 +86,15 @@ export const stripeCustomers = pgTable(
 // not keep historical subscription rows (Stripe does that via invoices +
 // its own subscription history). `stripe_subscription_id` is nullable for
 // manually provisioned Enterprise orgs and the existing-org backfill.
+//
+// RLS Phase 3b — Pattern A. The Stripe webhook
+// (api/webhooks/stripe/route.ts) does pre-tenant lookups by
+// stripe_subscription_id in handleSubscriptionChanged + handleInvoice;
+// those use the `dbAdmin` admin pool. Once orgId is resolved (either
+// from session.metadata in handleCheckoutCompleted, or from the
+// looked-up row), follow-up writes go through `withTenant`. All
+// non-webhook callers (loaders/billing.ts, change-plan route) already
+// have a tenant context. See docs/specs/rls_sprint_plan.md §3.4.
 export const organizationSubscriptions = pgTable(
   "organization_subscriptions",
   {
@@ -125,11 +134,13 @@ export const organizationSubscriptions = pgTable(
     ),
     planIdx: index("organization_subscriptions_plan_idx").on(table.planId),
     statusIdx: index("organization_subscriptions_status_idx").on(table.status),
+    tenantIsolation: pgPolicy("organization_subscriptions_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
-// RLS deferred to Phase 3b: src/app/api/webhooks/stripe/route.ts
-// looks rows up by `stripe_subscription_id` BEFORE knowing which org
-// the webhook is about. Same reason as stripe_customers above.
+).enableRLS();
 
 // Mirrors Stripe invoices 1:1 via webhook. Status + paidAt mutate over the
 // invoice lifecycle (open → paid, or open → uncollectible); everything else

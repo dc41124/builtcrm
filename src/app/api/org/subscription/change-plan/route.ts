@@ -91,11 +91,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const [existingSub] = await db
-      .select()
-      .from(organizationSubscriptions)
-      .where(eq(organizationSubscriptions.organizationId, ctx.organization.id))
-      .limit(1);
+    const [existingSub] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select()
+        .from(organizationSubscriptions)
+        .where(eq(organizationSubscriptions.organizationId, ctx.organization.id))
+        .limit(1),
+    );
 
     const stripe = getStripe();
 

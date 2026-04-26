@@ -80,18 +80,20 @@ export type ContractorBillingView = {
 export async function getOrgPlanContext(
   organizationId: string,
 ): Promise<PlanContext> {
-  const [row] = await db
-    .select({
-      slug: subscriptionPlans.slug,
-      status: organizationSubscriptions.status,
-    })
-    .from(organizationSubscriptions)
-    .innerJoin(
-      subscriptionPlans,
-      eq(subscriptionPlans.id, organizationSubscriptions.planId),
-    )
-    .where(eq(organizationSubscriptions.organizationId, organizationId))
-    .limit(1);
+  const [row] = await withTenant(organizationId, (tx) =>
+    tx
+      .select({
+        slug: subscriptionPlans.slug,
+        status: organizationSubscriptions.status,
+      })
+      .from(organizationSubscriptions)
+      .innerJoin(
+        subscriptionPlans,
+        eq(subscriptionPlans.id, organizationSubscriptions.planId),
+      )
+      .where(eq(organizationSubscriptions.organizationId, organizationId))
+      .limit(1),
+  );
   if (!row) return { tier: null, status: null };
   return {
     tier: row.slug as PlanTier,
@@ -131,11 +133,13 @@ export async function getContractorBillingSummary(
     .limit(1);
   if (!org) return null;
 
-  const [subRow] = await db
-    .select()
-    .from(organizationSubscriptions)
-    .where(eq(organizationSubscriptions.organizationId, organizationId))
-    .limit(1);
+  const [subRow] = await withTenant(organizationId, (tx) =>
+    tx
+      .select()
+      .from(organizationSubscriptions)
+      .where(eq(organizationSubscriptions.organizationId, organizationId))
+      .limit(1),
+  );
 
   // Every active plan row, ordered for UI display.
   const planRows = await db
