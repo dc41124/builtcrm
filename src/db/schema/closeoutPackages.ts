@@ -4,6 +4,7 @@ import {
   index,
   integer,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -60,6 +61,13 @@ export const closeoutCommentScopeEnum = pgEnum("closeout_comment_scope", [
 // insert into closeout_packages. SELECT MAX loses under concurrent creates.
 // If no row exists yet for (orgId, year) the action inserts one with
 // last_seq = 1 and uses 1.
+//
+// RLS Phase 3 — Pattern A. Single call site (`allocateCloseoutSequence`
+// in src/lib/closeout-packages/counter.ts) runs inside the caller's
+// transaction; the create-package route now wraps that transaction in
+// `withTenant(orgId, ...)` so the GUC is set before the UPDATE/INSERT.
+// See docs/specs/rls_sprint_plan.md and the organization_licenses
+// precedent in identity.ts.
 // -----------------------------------------------------------------------------
 
 export const closeoutCounters = pgTable(
@@ -77,8 +85,13 @@ export const closeoutCounters = pgTable(
       table.organizationId,
       table.sequenceYear,
     ),
+    tenantIsolation: pgPolicy("closeout_counters_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // closeout_packages — structured handover deliverable for a project.

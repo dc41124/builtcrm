@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { closeoutPackages } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     const year = now.getUTCFullYear();
     const orgId = ctx.project.contractorOrganizationId;
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(orgId, async (tx) => {
       const seq = await allocateCloseoutSequence(tx, {
         organizationId: orgId,
         year,
