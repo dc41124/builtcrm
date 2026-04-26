@@ -6,6 +6,7 @@ import {
   index,
   integer,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -284,6 +285,13 @@ export const drawLineItems = pgTable(
 // Lien waivers
 // -----------------------------------------------------------------------------
 
+// RLS Phase 3c — multi-org policy. Lien waivers are inherently
+// cross-org: per draw, the contractor writes one row for themselves
+// and one per active sub on the project. Clients accept/reject all of
+// them. Pattern A alone doesn't work — sub viewing their own row uses
+// Pattern A, but a contractor viewing the sub's row needs project
+// ownership, and a client viewing either needs project membership.
+// Three-clause policy per docs/specs/rls_sprint_plan.md §4.2 (Option A).
 export const lienWaivers = pgTable(
   "lien_waivers",
   {
@@ -321,8 +329,35 @@ export const lienWaivers = pgTable(
     drawIdx: index("lien_waivers_draw_idx").on(table.drawRequestId),
     orgIdx: index("lien_waivers_org_idx").on(table.organizationId),
     statusIdx: index("lien_waivers_status_idx").on(table.lienWaiverStatus),
+    tenantIsolation: pgPolicy("lien_waivers_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.organizationId} = current_setting('app.current_org_id', true)::uuid
+        OR ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.organizationId} = current_setting('app.current_org_id', true)::uuid
+        OR ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Retainage releases

@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   activityFeedItems,
   approvals,
@@ -1399,26 +1400,30 @@ export async function getContractorProjectView(
           .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber))
       : Promise.resolve([] as never[]),
     drawIds.length
-      ? db
-          .select({
-            id: lienWaivers.id,
-            drawRequestId: lienWaivers.drawRequestId,
-            organizationId: lienWaivers.organizationId,
-            organizationName: organizations.name,
-            lienWaiverType: lienWaivers.lienWaiverType,
-            lienWaiverStatus: lienWaivers.lienWaiverStatus,
-            amountCents: lienWaivers.amountCents,
-            throughDate: lienWaivers.throughDate,
-            documentId: lienWaivers.documentId,
-            requestedAt: lienWaivers.requestedAt,
-            submittedAt: lienWaivers.submittedAt,
-            acceptedAt: lienWaivers.acceptedAt,
-            createdAt: lienWaivers.createdAt,
-          })
-          .from(lienWaivers)
-          .leftJoin(organizations, eq(organizations.id, lienWaivers.organizationId))
-          .where(inArray(lienWaivers.drawRequestId, drawIds))
-          .orderBy(asc(lienWaivers.lienWaiverType), desc(lienWaivers.createdAt))
+      ? // Contractor view — multi-org policy clause B (project ownership)
+        // returns all sub waivers on this contractor's project.
+        withTenant(context.organization.id, (tx) =>
+          tx
+            .select({
+              id: lienWaivers.id,
+              drawRequestId: lienWaivers.drawRequestId,
+              organizationId: lienWaivers.organizationId,
+              organizationName: organizations.name,
+              lienWaiverType: lienWaivers.lienWaiverType,
+              lienWaiverStatus: lienWaivers.lienWaiverStatus,
+              amountCents: lienWaivers.amountCents,
+              throughDate: lienWaivers.throughDate,
+              documentId: lienWaivers.documentId,
+              requestedAt: lienWaivers.requestedAt,
+              submittedAt: lienWaivers.submittedAt,
+              acceptedAt: lienWaivers.acceptedAt,
+              createdAt: lienWaivers.createdAt,
+            })
+            .from(lienWaivers)
+            .leftJoin(organizations, eq(organizations.id, lienWaivers.organizationId))
+            .where(inArray(lienWaivers.drawRequestId, drawIds))
+            .orderBy(asc(lienWaivers.lienWaiverType), desc(lienWaivers.createdAt)),
+        )
       : Promise.resolve([] as never[]),
     db
       .select()
@@ -2326,32 +2331,36 @@ export async function getClientProjectView(
             .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber))
         : Promise.resolve([] as never[]),
       clientDrawIds.length
-        ? db
-            .select({
-              id: lienWaivers.id,
-              drawRequestId: lienWaivers.drawRequestId,
-              organizationId: lienWaivers.organizationId,
-              organizationName: organizations.name,
-              lienWaiverType: lienWaivers.lienWaiverType,
-              lienWaiverStatus: lienWaivers.lienWaiverStatus,
-              amountCents: lienWaivers.amountCents,
-              throughDate: lienWaivers.throughDate,
-              documentId: lienWaivers.documentId,
-              requestedAt: lienWaivers.requestedAt,
-              submittedAt: lienWaivers.submittedAt,
-              acceptedAt: lienWaivers.acceptedAt,
-              createdAt: lienWaivers.createdAt,
-            })
-            .from(lienWaivers)
-            .leftJoin(
-              organizations,
-              eq(organizations.id, lienWaivers.organizationId),
-            )
-            .where(inArray(lienWaivers.drawRequestId, clientDrawIds))
-            .orderBy(
-              asc(lienWaivers.lienWaiverType),
-              desc(lienWaivers.createdAt),
-            )
+        ? // Client view — multi-org policy clause C (project membership)
+          // returns waivers on this project including those from sub orgs.
+          withTenant(context.organization.id, (tx) =>
+            tx
+              .select({
+                id: lienWaivers.id,
+                drawRequestId: lienWaivers.drawRequestId,
+                organizationId: lienWaivers.organizationId,
+                organizationName: organizations.name,
+                lienWaiverType: lienWaivers.lienWaiverType,
+                lienWaiverStatus: lienWaivers.lienWaiverStatus,
+                amountCents: lienWaivers.amountCents,
+                throughDate: lienWaivers.throughDate,
+                documentId: lienWaivers.documentId,
+                requestedAt: lienWaivers.requestedAt,
+                submittedAt: lienWaivers.submittedAt,
+                acceptedAt: lienWaivers.acceptedAt,
+                createdAt: lienWaivers.createdAt,
+              })
+              .from(lienWaivers)
+              .leftJoin(
+                organizations,
+                eq(organizations.id, lienWaivers.organizationId),
+              )
+              .where(inArray(lienWaivers.drawRequestId, clientDrawIds))
+              .orderBy(
+                asc(lienWaivers.lienWaiverType),
+                desc(lienWaivers.createdAt),
+              ),
+          )
         : Promise.resolve([] as never[]),
       db
         .select()

@@ -5,7 +5,9 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { documents, lienWaivers } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -104,7 +106,9 @@ export async function handleLienWaiverTransition(
   }
 
   try {
-    const [waiver] = await db
+    // Pre-context lookup — caller passed the waiver id, so we read
+    // via admin pool to derive projectId for getEffectiveContext.
+    const [waiver] = await dbAdmin
       .select()
       .from(lienWaivers)
       .where(eq(lienWaivers.id, id))
@@ -151,7 +155,12 @@ export async function handleLienWaiverTransition(
     const previousState = { status: waiver.lienWaiverStatus };
     const extraFields = rule.buildUpdate ? rule.buildUpdate(body, waiver) : {};
 
-    await db.transaction(async (tx) => {
+    // ctx.organization.id = the user's own org (sub, contractor, or
+    // client). The multi-org policy on lien_waivers admits whichever
+    // clause applies: A for the sub on its own row, B for the
+    // contractor on a project they own, C for the client on a project
+    // they have a membership on.
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(lienWaivers)
         .set({

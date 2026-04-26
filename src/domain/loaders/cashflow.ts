@@ -11,6 +11,7 @@ import {
   purchaseOrders,
   retainageReleases,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 
 import { getContractorOrgContext } from "./integrations";
 import type { SessionLike } from "../context";
@@ -201,17 +202,19 @@ export async function getCashflowProjection(
           inArray(purchaseOrders.status, [...OUTFLOW_PO_STATUSES]),
         ),
       ),
-    db
-      .select({
-        id: lienWaivers.id,
-        status: lienWaivers.lienWaiverStatus,
-        amountCents: lienWaivers.amountCents,
-        requestedAt: lienWaivers.requestedAt,
-        submittedAt: lienWaivers.submittedAt,
-        acceptedAt: lienWaivers.acceptedAt,
-      })
-      .from(lienWaivers)
-      .where(inArray(lienWaivers.projectId, projectIds)),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          id: lienWaivers.id,
+          status: lienWaivers.lienWaiverStatus,
+          amountCents: lienWaivers.amountCents,
+          requestedAt: lienWaivers.requestedAt,
+          submittedAt: lienWaivers.submittedAt,
+          acceptedAt: lienWaivers.acceptedAt,
+        })
+        .from(lienWaivers)
+        .where(inArray(lienWaivers.projectId, projectIds)),
+    ),
     db
       .select({
         id: retainageReleases.id,

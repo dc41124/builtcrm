@@ -12,6 +12,7 @@ import {
   scheduleOfValues,
   sovLineItems,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { listOrganizationAuditEvents } from "@/domain/loaders/audit-log";
 
 import {
@@ -270,29 +271,33 @@ export async function buildFinancialCsvs(organizationId: string): Promise<{
   }
 
   // Lien waivers — joined through drawRequests → projects; issuer org name
-  // resolved via a second join on organizations.
-  const lwRows = await db
-    .select({
-      projectCode: projects.projectCode,
-      projectName: projects.name,
-      drawNumber: drawRequests.drawNumber,
-      waiverType: lienWaivers.lienWaiverType,
-      waiverStatus: lienWaivers.lienWaiverStatus,
-      amountCents: lienWaivers.amountCents,
-      throughDate: lienWaivers.throughDate,
-      issuerOrganization: organizations.name,
-      requestedAt: lienWaivers.requestedAt,
-      submittedAt: lienWaivers.submittedAt,
-      acceptedAt: lienWaivers.acceptedAt,
-    })
-    .from(lienWaivers)
-    .innerJoin(drawRequests, eq(drawRequests.id, lienWaivers.drawRequestId))
-    .innerJoin(projects, eq(projects.id, drawRequests.projectId))
-    .innerJoin(
-      organizations,
-      eq(organizations.id, lienWaivers.organizationId),
-    )
-    .where(eq(projects.contractorOrganizationId, organizationId));
+  // resolved via a second join on organizations. Contractor full-archive
+  // export — multi-org policy clause B (project ownership) returns sub
+  // waivers too.
+  const lwRows = await withTenant(organizationId, (tx) =>
+    tx
+      .select({
+        projectCode: projects.projectCode,
+        projectName: projects.name,
+        drawNumber: drawRequests.drawNumber,
+        waiverType: lienWaivers.lienWaiverType,
+        waiverStatus: lienWaivers.lienWaiverStatus,
+        amountCents: lienWaivers.amountCents,
+        throughDate: lienWaivers.throughDate,
+        issuerOrganization: organizations.name,
+        requestedAt: lienWaivers.requestedAt,
+        submittedAt: lienWaivers.submittedAt,
+        acceptedAt: lienWaivers.acceptedAt,
+      })
+      .from(lienWaivers)
+      .innerJoin(drawRequests, eq(drawRequests.id, lienWaivers.drawRequestId))
+      .innerJoin(projects, eq(projects.id, drawRequests.projectId))
+      .innerJoin(
+        organizations,
+        eq(organizations.id, lienWaivers.organizationId),
+      )
+      .where(eq(projects.contractorOrganizationId, organizationId)),
+  );
 
   const lwLines: string[] = [csvLine(LIEN_WAIVERS_COLUMNS)];
   for (const r of lwRows) {

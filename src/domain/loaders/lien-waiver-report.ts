@@ -7,6 +7,7 @@ import {
   organizations,
   projects,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 
 import type { SessionLike } from "../context";
 import {
@@ -83,24 +84,27 @@ export async function getLienWaiverLogReport(input: {
   const projectIds = projectRows.map((p) => p.id);
   const projectNameById = new Map(projectRows.map((p) => [p.id, p.name]));
 
-  // Single query — every waiver across scoped projects.
-  const rawRows = await db
-    .select({
-      id: lienWaivers.id,
-      projectId: lienWaivers.projectId,
-      drawRequestId: lienWaivers.drawRequestId,
-      organizationId: lienWaivers.organizationId,
-      lienWaiverType: lienWaivers.lienWaiverType,
-      lienWaiverStatus: lienWaivers.lienWaiverStatus,
-      amountCents: lienWaivers.amountCents,
-      throughDate: lienWaivers.throughDate,
-      requestedAt: lienWaivers.requestedAt,
-      submittedAt: lienWaivers.submittedAt,
-      acceptedAt: lienWaivers.acceptedAt,
-    })
-    .from(lienWaivers)
-    .where(inArray(lienWaivers.projectId, projectIds))
-    .orderBy(desc(lienWaivers.requestedAt));
+  // Every waiver across scoped projects. Contractor scope — multi-org
+  // policy clause B (project ownership) returns sub waivers too.
+  const rawRows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: lienWaivers.id,
+        projectId: lienWaivers.projectId,
+        drawRequestId: lienWaivers.drawRequestId,
+        organizationId: lienWaivers.organizationId,
+        lienWaiverType: lienWaivers.lienWaiverType,
+        lienWaiverStatus: lienWaivers.lienWaiverStatus,
+        amountCents: lienWaivers.amountCents,
+        throughDate: lienWaivers.throughDate,
+        requestedAt: lienWaivers.requestedAt,
+        submittedAt: lienWaivers.submittedAt,
+        acceptedAt: lienWaivers.acceptedAt,
+      })
+      .from(lienWaivers)
+      .where(inArray(lienWaivers.projectId, projectIds))
+      .orderBy(desc(lienWaivers.requestedAt)),
+  );
 
   if (rawRows.length === 0) {
     return {

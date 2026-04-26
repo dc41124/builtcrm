@@ -138,15 +138,49 @@ CREATE POLICY tenant_isolation ON milestones
 **Pattern C — cross-cutting (7 tables)**
 `users`, `organizations`, `projects`, `audit_events`, etc. These don't get RLS in this sprint — they're either inherently cross-tenant (audit_events references multiple orgs) or are joined-against tables that need to be readable for the policy in Pattern B to work. Document the deferral.
 
-### 4.2 Multi-tenant-membership (project_user_memberships)
+### 4.2 Multi-tenant-membership
 
-A project can have members from multiple orgs (sub orgs working on a contractor's project). The simple "org owns project" policy in Pattern B doesn't capture this — a sub user reading a milestone on the contractor's project would be denied because their `current_org_id` is the sub org, not the contractor org.
+A project can have members from multiple orgs (sub orgs and client orgs collaborating on a contractor's project). The simple "org owns project" Pattern B policy doesn't capture this — a sub or client user with `current_org_id` set to their own org would be denied access to rows on a project owned by the contractor.
 
-**Two options:**
-- **Option A:** policy reads the `project_user_memberships` table to check if the user's org has a membership on the project. More complete but slower.
-- **Option B:** session sets `current_org_id` to the project's contractor_organization_id when the user is acting in a sub/client capacity on that project. Simpler policies but requires session-resolution changes.
+Two options were considered:
+- **Option A (chosen):** policy uses a 3-clause check that combines Pattern A (own row) + project-ownership (contractor case) + project-membership lookup against `project_organization_memberships` (sub/client case). More clauses, runs subqueries against POMs.
+- **Option B:** session sets `current_org_id` to the project's `contractor_organization_id` when the user is acting in a sub/client capacity. Simpler policies but requires session-resolution changes and dual-GUC plumbing for org-scoped (project-less) actions.
 
-**Recommendation:** Option B is cleaner. The session.create hook already resolves portal context per role assignment. We extend `withTenant()` to take an optional `projectId` and resolves the effective tenant from the membership join. Specifics in phase 1.
+**Decision (Phase 3c):** Option A. Decided after Phase 3b shipped 13 tables on Pattern A using `app.current_org_id` = the user's own org. Option B would have required revisiting the GUC semantics for every policy already in production. Option A is additive — `withTenant(orgId, ...)` semantics stay unchanged (orgId is always the user's own org), and we apply the multi-org policy template only to tables that need it.
+
+**Multi-org policy template (Pattern A+B+C):**
+```sql
+ALTER TABLE lien_waivers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON lien_waivers
+  USING (
+    -- A. The row's owner org reads/writes its own rows.
+    organization_id = current_setting('app.current_org_id', true)::uuid
+    OR
+    -- B. The contractor org owns the project the row lives on (lets
+    -- contractor PM see/manage every sub's rows on their projects).
+    project_id IN (
+      SELECT id FROM projects
+      WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+    )
+    OR
+    -- C. The user's org has an active project_organization_memberships
+    -- row on the project (lets clients + subs see rows they're entitled
+    -- to on someone else's project — e.g. client accepting a lien
+    -- waiver written by the contractor).
+    project_id IN (
+      SELECT project_id FROM project_organization_memberships
+      WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+        AND membership_status = 'active'
+    )
+  )
+  WITH CHECK (...same expression...);
+```
+
+Performance is bounded by the orgIdx on POMs (already exists) — Clause C subquery filters by `organization_id = GUC` first, returning a small project list per org. Measure on the first multi-org table (lien_waivers) and revisit if Clause C dominates plan cost.
+
+**Tables that need the multi-org template** (any table where rows from sub/client orgs coexist with contractor rows on the same project): `lien_waivers`, `compliance_records`, plus most Phase 4 project-scoped tables (`milestones`, `daily_logs`, `documents`, etc. — to be confirmed table-by-table).
+
+**Tables that don't** (single-org): everything Phase 3b shipped, plus `purchase_orders`, `cost_codes`, `vendors`, `closeout_packages`, `integration_connections`. Those use plain Pattern A.
 
 ---
 

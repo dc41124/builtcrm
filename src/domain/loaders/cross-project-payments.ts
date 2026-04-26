@@ -10,6 +10,7 @@ import {
   retainageReleases,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 
 import type { SessionLike } from "../context";
 import {
@@ -197,22 +198,26 @@ export async function getContractorCrossProjectPayments(
       })
       .from(drawRequests)
       .where(inArray(drawRequests.projectId, projectIds)),
-    db
-      .select({
-        id: lienWaivers.id,
-        projectId: lienWaivers.projectId,
-        drawRequestId: lienWaivers.drawRequestId,
-        organizationId: lienWaivers.organizationId,
-        lienWaiverType: lienWaivers.lienWaiverType,
-        lienWaiverStatus: lienWaivers.lienWaiverStatus,
-        amountCents: lienWaivers.amountCents,
-        throughDate: lienWaivers.throughDate,
-        requestedAt: lienWaivers.requestedAt,
-        submittedAt: lienWaivers.submittedAt,
-        acceptedAt: lienWaivers.acceptedAt,
-      })
-      .from(lienWaivers)
-      .where(inArray(lienWaivers.projectId, projectIds)),
+    // Contractor reading every sub's waivers across their projects —
+    // multi-org policy clause B (project ownership) authorises.
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          id: lienWaivers.id,
+          projectId: lienWaivers.projectId,
+          drawRequestId: lienWaivers.drawRequestId,
+          organizationId: lienWaivers.organizationId,
+          lienWaiverType: lienWaivers.lienWaiverType,
+          lienWaiverStatus: lienWaivers.lienWaiverStatus,
+          amountCents: lienWaivers.amountCents,
+          throughDate: lienWaivers.throughDate,
+          requestedAt: lienWaivers.requestedAt,
+          submittedAt: lienWaivers.submittedAt,
+          acceptedAt: lienWaivers.acceptedAt,
+        })
+        .from(lienWaivers)
+        .where(inArray(lienWaivers.projectId, projectIds)),
+    ),
     db
       .select({
         projectId: retainageReleases.projectId,

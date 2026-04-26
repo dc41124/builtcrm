@@ -169,6 +169,13 @@
       "when": 1777169619809,
       "tag": "0023_big_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1777170999649,
+      "tag": "0024_wandering_warlock",
+      "breakpoints": true
     }
   ]
 }

@@ -13,6 +13,7 @@ import {
   scheduleOfValues,
   sovLineItems,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 
 import {
   getEffectiveContext,
@@ -450,24 +451,28 @@ export async function getContractorFinancialView(
 
   const subPayments: SubPaymentRollupRow[] = [];
   if (subOrgs.length > 0) {
-    const waiverRows = await db
-      .select({
-        organizationId: lienWaivers.organizationId,
-        amountCents: lienWaivers.amountCents,
-        drawStatus: drawRequests.drawRequestStatus,
-      })
-      .from(lienWaivers)
-      .innerJoin(drawRequests, eq(drawRequests.id, lienWaivers.drawRequestId))
-      .where(
-        and(
-          eq(lienWaivers.projectId, projectId),
-          inArray(
-            lienWaivers.organizationId,
-            subOrgs.map((s) => s.organizationId),
+    // Contractor reading sub-org rows: multi-org policy clause B
+    // (project ownership) lets it through.
+    const waiverRows = await withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          organizationId: lienWaivers.organizationId,
+          amountCents: lienWaivers.amountCents,
+          drawStatus: drawRequests.drawRequestStatus,
+        })
+        .from(lienWaivers)
+        .innerJoin(drawRequests, eq(drawRequests.id, lienWaivers.drawRequestId))
+        .where(
+          and(
+            eq(lienWaivers.projectId, projectId),
+            inArray(
+              lienWaivers.organizationId,
+              subOrgs.map((s) => s.organizationId),
+            ),
+            inArray(lienWaivers.lienWaiverStatus, ["submitted", "accepted"]),
           ),
-          inArray(lienWaivers.lienWaiverStatus, ["submitted", "accepted"]),
         ),
-      );
+    );
 
     const byOrg = new Map<
       string,
@@ -692,29 +697,33 @@ export async function getSubcontractorFinancialView(
     .limit(1);
   const scopeLabel = membership?.workScope?.trim() || null;
 
-  // Lien waivers for this sub on this project, with their parent draw status.
-  const waivers = await db
-    .select({
-      id: lienWaivers.id,
-      amountCents: lienWaivers.amountCents,
-      lienWaiverType: lienWaivers.lienWaiverType,
-      lienWaiverStatus: lienWaivers.lienWaiverStatus,
-      submittedAt: lienWaivers.submittedAt,
-      drawId: drawRequests.id,
-      drawNumber: drawRequests.drawNumber,
-      drawStatus: drawRequests.drawRequestStatus,
-      drawPaidAt: drawRequests.paidAt,
-      drawPaymentReferenceName: drawRequests.paymentReferenceName,
-    })
-    .from(lienWaivers)
-    .innerJoin(drawRequests, eq(drawRequests.id, lienWaivers.drawRequestId))
-    .where(
-      and(
-        eq(lienWaivers.projectId, projectId),
-        eq(lienWaivers.organizationId, orgId),
-      ),
-    )
-    .orderBy(desc(drawRequests.drawNumber));
+  // Lien waivers for this sub on this project, with their parent draw
+  // status. Sub viewing their own waivers — multi-org policy clause A
+  // (organization_id = GUC) satisfies.
+  const waivers = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: lienWaivers.id,
+        amountCents: lienWaivers.amountCents,
+        lienWaiverType: lienWaivers.lienWaiverType,
+        lienWaiverStatus: lienWaivers.lienWaiverStatus,
+        submittedAt: lienWaivers.submittedAt,
+        drawId: drawRequests.id,
+        drawNumber: drawRequests.drawNumber,
+        drawStatus: drawRequests.drawRequestStatus,
+        drawPaidAt: drawRequests.paidAt,
+        drawPaymentReferenceName: drawRequests.paymentReferenceName,
+      })
+      .from(lienWaivers)
+      .innerJoin(drawRequests, eq(drawRequests.id, lienWaivers.drawRequestId))
+      .where(
+        and(
+          eq(lienWaivers.projectId, projectId),
+          eq(lienWaivers.organizationId, orgId),
+        ),
+      )
+      .orderBy(desc(drawRequests.drawNumber)),
+  );
 
   let earnedCents = 0;
   let paidCents = 0;
@@ -833,13 +842,17 @@ export async function getSubPendingFinancialsCents(opts: {
   if (opts.projectId) {
     filters.push(eq(lienWaivers.projectId, opts.projectId));
   }
-  const [agg] = await db
-    .select({
-      total: sql<number>`coalesce(sum(${lienWaivers.amountCents}), 0)::int`,
-    })
-    .from(lienWaivers)
-    .innerJoin(drawRequests, eq(drawRequests.id, lienWaivers.drawRequestId))
-    .where(and(...filters));
+  // Sum is scoped to a specific subOrgId — multi-org policy clause A
+  // satisfies under withTenant(subOrgId).
+  const [agg] = await withTenant(opts.subOrgId, (tx) =>
+    tx
+      .select({
+        total: sql<number>`coalesce(sum(${lienWaivers.amountCents}), 0)::int`,
+      })
+      .from(lienWaivers)
+      .innerJoin(drawRequests, eq(drawRequests.id, lienWaivers.drawRequestId))
+      .where(and(...filters)),
+  );
   return agg?.total ?? 0;
 }
 

@@ -10,6 +10,7 @@ import {
   lienWaivers,
   projectOrganizationMemberships,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import type { EffectiveContext } from "@/domain/context";
@@ -361,7 +362,14 @@ export async function handleDrawTransition(
     const isClientDecision =
       kind === "approve" || kind === "approve-with-note" || kind === "return";
 
-    await db.transaction(async (tx) => {
+    // Run inside withTenant so the lien_waivers writes inside the
+    // transition (waivers fanned out for submitted/paid transitions)
+    // pass the multi-org policy. Contractor's GUC -> clause B (project
+    // ownership) authorises both their own waiver insert and the
+    // per-sub waiver inserts. Client's GUC -> clause C (project
+    // membership) authorises the conditional-waiver-acceptance read in
+    // ensureWaiversAcceptedForMarkPaid.
+    await withTenant(ctx.organization.id, async (tx) => {
       if (rule.precheck) {
         await rule.precheck({ tx, draw, ctx });
       }

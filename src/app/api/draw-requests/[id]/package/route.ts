@@ -19,6 +19,7 @@ import {
   projects,
   sovLineItems,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError, assertCan } from "@/domain/permissions";
@@ -137,20 +138,25 @@ export async function GET(
         ),
       );
 
-    const waivers = await db
-      .select({
-        id: lienWaivers.id,
-        type: lienWaivers.lienWaiverType,
-        status: lienWaivers.lienWaiverStatus,
-        amountCents: lienWaivers.amountCents,
-        throughDate: lienWaivers.throughDate,
-        requestedAt: lienWaivers.requestedAt,
-        acceptedAt: lienWaivers.acceptedAt,
-        organizationName: organizations.name,
-      })
-      .from(lienWaivers)
-      .leftJoin(organizations, eq(organizations.id, lienWaivers.organizationId))
-      .where(eq(lienWaivers.drawRequestId, drawId));
+    // Caller is contractor (verified earlier in this route via the
+    // role gate). Multi-org policy clause B (project ownership) returns
+    // every sub waiver on the draw too.
+    const waivers = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({
+          id: lienWaivers.id,
+          type: lienWaivers.lienWaiverType,
+          status: lienWaivers.lienWaiverStatus,
+          amountCents: lienWaivers.amountCents,
+          throughDate: lienWaivers.throughDate,
+          requestedAt: lienWaivers.requestedAt,
+          acceptedAt: lienWaivers.acceptedAt,
+          organizationName: organizations.name,
+        })
+        .from(lienWaivers)
+        .leftJoin(organizations, eq(organizations.id, lienWaivers.organizationId))
+        .where(eq(lienWaivers.drawRequestId, drawId)),
+    );
 
     const today = new Date().toISOString().slice(0, 10);
     const projectSlug = slug(project?.name ?? "project");
