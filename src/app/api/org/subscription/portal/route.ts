@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { stripeCustomers } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
 import { getAppUrl, getStripe } from "@/lib/stripe";
@@ -27,11 +27,13 @@ export async function POST() {
       );
     }
 
-    const [customer] = await db
-      .select()
-      .from(stripeCustomers)
-      .where(eq(stripeCustomers.organizationId, ctx.organization.id))
-      .limit(1);
+    const [customer] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select()
+        .from(stripeCustomers)
+        .where(eq(stripeCustomers.organizationId, ctx.organization.id))
+        .limit(1),
+    );
 
     if (!customer) {
       return NextResponse.json(

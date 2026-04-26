@@ -8,6 +8,7 @@ import {
   subscriptionInvoices,
   subscriptionPlans,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import type {
   PlanContext,
   PlanTier,
@@ -153,11 +154,13 @@ export async function getContractorBillingSummary(
   const [planRow] = planRows.filter((p) => p.id === subRow.planId);
   if (!planRow) return null;
 
-  const [customer] = await db
-    .select({ id: stripeCustomers.stripeCustomerId })
-    .from(stripeCustomers)
-    .where(eq(stripeCustomers.organizationId, organizationId))
-    .limit(1);
+  const [customer] = await withTenant(organizationId, (tx) =>
+    tx
+      .select({ id: stripeCustomers.stripeCustomerId })
+      .from(stripeCustomers)
+      .where(eq(stripeCustomers.organizationId, organizationId))
+      .limit(1),
+  );
 
   const invoiceRows = await db
     .select()

@@ -5,6 +5,7 @@ import {
   foreignKey,
   index,
   integer,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -52,20 +53,34 @@ export const subscriptionPlans = pgTable("subscription_plans", {
 // the first Stripe Checkout session; persists across subscription
 // cancel/recreate so Stripe invoice history stays linkable.
 //
-// RLS deferred to Phase 3b: src/app/api/webhooks/stripe/route.ts looks
-// rows up by `stripe_customer_id` BEFORE knowing which org the webhook
-// is about. RLS would deny the lookup. Either run webhooks via the
-// admin pool or refactor the flow.
-export const stripeCustomers = pgTable("stripe_customers", {
-  organizationId: uuid("organization_id")
-    .primaryKey()
-    .references(() => organizations.id, { onDelete: "cascade" }),
-  stripeCustomerId: varchar("stripe_customer_id", { length: 120 })
-    .notNull()
-    .unique(),
-  email: varchar("email", { length: 320 }).notNull(),
-  ...timestamps,
-});
+// RLS Phase 3b — Pattern A. The earlier deferral comment claimed the
+// Stripe webhook looks up rows here pre-tenant; auditing the webhook
+// (api/webhooks/stripe/route.ts) shows it actually never queries
+// stripe_customers — orgId on those events comes from session metadata
+// or via organization_subscriptions. All real call sites
+// (loaders/billing.ts, api/org/subscription/portal, api/org/subscription/
+// change-plan) already have a tenant context and now go through
+// `withTenant`. See docs/specs/rls_sprint_plan.md.
+export const stripeCustomers = pgTable(
+  "stripe_customers",
+  {
+    organizationId: uuid("organization_id")
+      .primaryKey()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    stripeCustomerId: varchar("stripe_customer_id", { length: 120 })
+      .notNull()
+      .unique(),
+    email: varchar("email", { length: 320 }).notNull(),
+    ...timestamps,
+  },
+  (table) => ({
+    tenantIsolation: pgPolicy("stripe_customers_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
+  }),
+).enableRLS();
 
 // Single-row-per-org subscription state. Plan changes mutate this row; we do
 // not keep historical subscription rows (Stripe does that via invoices +

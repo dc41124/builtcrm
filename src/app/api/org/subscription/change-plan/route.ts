@@ -12,6 +12,7 @@ import {
   subscriptionPlans,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
 import { getAppUrl, getStripe } from "@/lib/stripe";
@@ -131,11 +132,13 @@ export async function POST(req: Request) {
     // Path A: no Stripe subscription yet. Create / reuse Stripe customer,
     // then create a Checkout session with a 14-day trial (first-charge-at-
     // day-14 per the signup spec). Webhook finalizes the subscription.
-    const [customer] = await db
-      .select()
-      .from(stripeCustomers)
-      .where(eq(stripeCustomers.organizationId, ctx.organization.id))
-      .limit(1);
+    const [customer] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select()
+        .from(stripeCustomers)
+        .where(eq(stripeCustomers.organizationId, ctx.organization.id))
+        .limit(1),
+    );
 
     let stripeCustomerId: string;
     if (customer) {
@@ -154,11 +157,13 @@ export async function POST(req: Request) {
         metadata: { organizationId: ctx.organization.id },
       });
       stripeCustomerId = created.id;
-      await db.insert(stripeCustomers).values({
-        organizationId: ctx.organization.id,
-        stripeCustomerId: created.id,
-        email: userRow.email,
-      });
+      await withTenant(ctx.organization.id, (tx) =>
+        tx.insert(stripeCustomers).values({
+          organizationId: ctx.organization.id,
+          stripeCustomerId: created.id,
+          email: userRow.email,
+        }),
+      );
     }
 
     const appUrl = getAppUrl();
