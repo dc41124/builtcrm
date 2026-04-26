@@ -3202,12 +3202,12 @@ White-space feature. Contractors require prequalification before awarding work. 
 
 ```bash
 git add .
-git commit -m "Step 49 (5.3 #49): Subcontractor prequalification" ✅ DONE (2026-04-24)
+git commit -m "Step 49 (5.3 #49): Subcontractor prequalification" 
 ```
 
 ---
 
-## Step 49.5 — Schedule Module Split (milestone.kind enum) 
+## Step 49.5 — Schedule Module Split (milestone.kind enum) ✅ DONE (2026-04-24) 
 
 **Mode:** Require-design-input
 **Effort:** M
