@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { invitations, submittals, users } from "@/db/schema";
 import { hashInvitationToken } from "@/lib/invitations/token";
 
@@ -42,7 +43,9 @@ export type ReviewerAuthResult = ReviewerAuthOk | ReviewerAuthFail;
 export async function validateReviewerToken(
   token: string,
 ): Promise<ReviewerAuthResult> {
-  const [invitation] = await db
+  // Pre-tenant — token IS the session for external reviewers. Admin
+  // pool reads the invitations row regardless of GUC.
+  const [invitation] = await dbAdmin
     .select({
       id: invitations.id,
       invitedEmail: invitations.invitedEmail,
@@ -85,7 +88,7 @@ export async function validateReviewerToken(
   ) {
     // Lazily stamp expired status so the next visit short-circuits.
     if (invitation.invitationStatus !== "expired") {
-      await db
+      await dbAdmin
         .update(invitations)
         .set({ invitationStatus: "expired" })
         .where(eq(invitations.id, invitation.id));

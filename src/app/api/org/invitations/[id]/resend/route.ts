@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { auditEvents, invitations } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
 import { AuthorizationError } from "@/domain/permissions";
 import { withErrorHandler } from "@/lib/api/error-handler";
@@ -39,37 +39,34 @@ export async function POST(
       session,
     );
 
-    const [invite] = await db
-      .select({
-        id: invitations.id,
-        status: invitations.invitationStatus,
-        invitedEmail: invitations.invitedEmail,
-      })
-      .from(invitations)
-      .where(
-        and(
-          eq(invitations.id, id),
-          eq(invitations.organizationId, ctx.orgId),
-        ),
-      )
-      .limit(1);
-
-    if (!invite) {
-      throw new AuthorizationError("Invitation not found", "not_found");
-    }
-    if (invite.status !== "pending" && invite.status !== "expired") {
-      return NextResponse.json(
-        {
-          error: "invalid_state",
-          message: `Invitation is ${invite.status}, can't resend.`,
-        },
-        { status: 409 },
-      );
-    }
-
     const newExpires = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
 
-    await db.transaction(async (tx) => {
+    type ResendOutcome =
+      | { kind: "not_found" }
+      | { kind: "invalid_state"; status: string }
+      | { kind: "ok" };
+
+    const outcome = await withTenant(ctx.orgId, async (tx): Promise<ResendOutcome> => {
+      const [invite] = await tx
+        .select({
+          id: invitations.id,
+          status: invitations.invitationStatus,
+          invitedEmail: invitations.invitedEmail,
+        })
+        .from(invitations)
+        .where(
+          and(
+            eq(invitations.id, id),
+            eq(invitations.organizationId, ctx.orgId),
+          ),
+        )
+        .limit(1);
+
+      if (!invite) return { kind: "not_found" };
+      if (invite.status !== "pending" && invite.status !== "expired") {
+        return { kind: "invalid_state", status: invite.status };
+      }
+
       await tx
         .update(invitations)
         .set({
@@ -90,7 +87,21 @@ export async function POST(
           portal: ctx.portal,
         },
       });
+      return { kind: "ok" };
     });
+
+    if (outcome.kind === "not_found") {
+      throw new AuthorizationError("Invitation not found", "not_found");
+    }
+    if (outcome.kind === "invalid_state") {
+      return NextResponse.json(
+        {
+          error: "invalid_state",
+          message: `Invitation is ${outcome.status}, can't resend.`,
+        },
+        { status: 409 },
+      );
+    }
 
     // No inviteUrl in response: the DB only stores the token hash, so we
     // cannot reconstruct the original plaintext URL here. Admin relies on

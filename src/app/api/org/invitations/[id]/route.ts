@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { auditEvents, invitations } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -21,37 +21,26 @@ export async function DELETE(
       session,
     );
 
-    const [invite] = await db
-      .select({
-        id: invitations.id,
-        status: invitations.invitationStatus,
-      })
-      .from(invitations)
-      .where(
-        and(
-          eq(invitations.id, id),
-          eq(invitations.organizationId, ctx.orgId),
-        ),
-      )
-      .limit(1);
+    type RevokeOutcome = "not_found" | "already_accepted" | "noop" | "revoked";
+    const outcome = await withTenant(ctx.orgId, async (tx): Promise<RevokeOutcome> => {
+      const [invite] = await tx
+        .select({
+          id: invitations.id,
+          status: invitations.invitationStatus,
+        })
+        .from(invitations)
+        .where(
+          and(
+            eq(invitations.id, id),
+            eq(invitations.organizationId, ctx.orgId),
+          ),
+        )
+        .limit(1);
 
-    if (!invite) {
-      throw new AuthorizationError("Invitation not found", "not_found");
-    }
-    if (invite.status === "accepted") {
-      return NextResponse.json(
-        {
-          error: "already_accepted",
-          message: "This invitation has already been accepted.",
-        },
-        { status: 409 },
-      );
-    }
-    if (invite.status === "revoked") {
-      return NextResponse.json({ ok: true, unchanged: true });
-    }
+      if (!invite) return "not_found";
+      if (invite.status === "accepted") return "already_accepted";
+      if (invite.status === "revoked") return "noop";
 
-    await db.transaction(async (tx) => {
       await tx
         .update(invitations)
         .set({ invitationStatus: "revoked" })
@@ -67,7 +56,24 @@ export async function DELETE(
         nextState: { invitationStatus: "revoked" },
         metadataJson: { portal: ctx.portal },
       });
+      return "revoked";
     });
+
+    if (outcome === "not_found") {
+      throw new AuthorizationError("Invitation not found", "not_found");
+    }
+    if (outcome === "already_accepted") {
+      return NextResponse.json(
+        {
+          error: "already_accepted",
+          message: "This invitation has already been accepted.",
+        },
+        { status: 409 },
+      );
+    }
+    if (outcome === "noop") {
+      return NextResponse.json({ ok: true, unchanged: true });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

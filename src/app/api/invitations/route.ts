@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { db } from "@/db/client";
 import { auditEvents, invitations, organizations, projects } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { requireOrgAdminContext } from "@/domain/loaders/org-owner-context";
 import { AuthorizationError } from "@/domain/permissions";
 import { withErrorHandler } from "@/lib/api/error-handler";
@@ -163,7 +164,7 @@ export async function POST(req: Request) {
     const token = generateToken();
     const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
 
-    const [row] = await db.transaction(async (tx) => {
+    const [row] = await withTenant(ctx.orgId, async (tx) => {
       const inserted = await tx
         .insert(invitations)
         .values({

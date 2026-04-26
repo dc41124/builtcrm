@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   auditEvents,
   invitations,
@@ -68,7 +69,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "invalid_body" }, { status: 400 });
     }
 
-    const [invitation] = await db
+    // Pre-tenant token lookup — orgId not yet known. Admin pool
+    // bypasses RLS on invitations.
+    const [invitation] = await dbAdmin
       .select()
       .from(invitations)
       .where(eq(invitations.tokenHash, hashInvitationToken(parsed.data.token)))
@@ -84,7 +87,8 @@ export async function POST(req: Request) {
       );
     }
     if (invitation.expiresAt.getTime() < Date.now()) {
-      await db
+      // Lazy expired-mark — same admin-pool reasoning as the read above.
+      await dbAdmin
         .update(invitations)
         .set({ invitationStatus: "expired" })
         .where(eq(invitations.id, invitation.id));

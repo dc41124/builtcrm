@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   auditEvents,
   invitations,
@@ -101,7 +102,14 @@ export async function POST(
 
   const now = new Date();
 
-  await db.transaction(async (tx) => {
+  // Reviewer flow is intrinsically pre-tenant: external reviewer, token
+  // is the credential, the route's audit event explicitly sets
+  // organizationId: null. The whole transaction goes through the admin
+  // pool so the invitations UPDATE (RLS-enforced) succeeds; the other
+  // tables touched here (submittals/submittalDocuments/submittalTransmittals/
+  // auditEvents) don't yet have RLS but if they ever do, this whole
+  // block stays correct because dbAdmin bypasses uniformly.
+  await dbAdmin.transaction(async (tx) => {
     await tx.insert(submittalTransmittals).values({
       submittalId: auth.submittalId,
       direction: "incoming_from_reviewer",

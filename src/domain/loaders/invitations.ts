@@ -1,12 +1,14 @@
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   invitations,
   organizations,
   projects,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { hashInvitationToken } from "@/lib/invitations/token";
 
 import { AuthorizationError } from "../permissions";
@@ -41,7 +43,9 @@ export async function loadInvitationByToken(
     throw new AuthorizationError("Invitation token missing", "not_found");
   }
 
-  const [row] = await db
+  // Pre-tenant — token resolves to org. Use admin pool to bypass RLS
+  // on invitations.
+  const [row] = await dbAdmin
     .select({
       id: invitations.id,
       invitedEmail: invitations.invitedEmail,
@@ -133,22 +137,24 @@ export async function listInvitationsForOrganization(
     projectName: string | null;
   }>
 > {
-  const rows = await db
-    .select({
-      id: invitations.id,
-      invitedEmail: invitations.invitedEmail,
-      invitedName: invitations.invitedName,
-      portalType: invitations.portalType,
-      roleKey: invitations.roleKey,
-      status: invitations.invitationStatus,
-      expiresAt: invitations.expiresAt,
-      createdAt: invitations.createdAt,
-      projectId: invitations.projectId,
-      projectName: projects.name,
-    })
-    .from(invitations)
-    .leftJoin(projects, eq(projects.id, invitations.projectId))
-    .where(eq(invitations.organizationId, organizationId));
+  const rows = await withTenant(organizationId, (tx) =>
+    tx
+      .select({
+        id: invitations.id,
+        invitedEmail: invitations.invitedEmail,
+        invitedName: invitations.invitedName,
+        portalType: invitations.portalType,
+        roleKey: invitations.roleKey,
+        status: invitations.invitationStatus,
+        expiresAt: invitations.expiresAt,
+        createdAt: invitations.createdAt,
+        projectId: invitations.projectId,
+        projectName: projects.name,
+      })
+      .from(invitations)
+      .leftJoin(projects, eq(projects.id, invitations.projectId))
+      .where(eq(invitations.organizationId, organizationId)),
+  );
 
   return rows.map((r) => ({
     id: r.id,
@@ -177,13 +183,16 @@ export async function listProjectsForOrganization(
     .where(eq(projects.contractorOrganizationId, organizationId));
 }
 
-// Mark a stale invitation expired (cleanup helper used by accept route)
+// Mark a stale invitation expired. Currently uncalled (the accept route
+// inlines the same UPDATE through the admin pool); kept as a helper for
+// future callers. Uses dbAdmin because the call site won't have a GUC
+// — a stale-cleanup path is by definition pre-tenant.
 export async function markInvitationExpiredIfNeeded(
   invitationId: string,
   expiresAt: Date,
 ): Promise<void> {
   if (expiresAt.getTime() < Date.now()) {
-    await db
+    await dbAdmin
       .update(invitations)
       .set({ invitationStatus: "expired" })
       .where(

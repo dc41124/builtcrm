@@ -13,6 +13,7 @@ import {
   submittals,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -154,7 +155,7 @@ export async function POST(
         ? `${input.reviewerName} (${input.reviewerOrg})`
         : input.reviewerName;
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.project.contractorOrganizationId, async (tx) => {
       // 1. Upsert reviewer user by email. Audit/FK handle; no login.
       const [existingUser] = await tx
         .select({ id: users.id })

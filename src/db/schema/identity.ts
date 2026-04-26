@@ -426,6 +426,16 @@ export const roleAssignments = pgTable(
 // Invitations
 // -----------------------------------------------------------------------------
 
+// RLS Phase 3b — Pattern A. The token-based flows are pre-tenant by
+// definition (token resolves to org) and use `dbAdmin`:
+// loadInvitationByToken (loaders/invitations.ts), reviewer-auth.ts,
+// the initial token lookup + expired-mark in api/invitations/accept,
+// and the api/reviewer/[token]/decision transaction. Org-admin CRUD
+// (api/invitations POST, api/org/invitations/[id], resend,
+// submittals/[id]/invite-reviewer) and the listInvitationsForOrganization
+// loader use `withTenant`. The accept transaction itself was already
+// wrapped in withTenant in the organization_users slice.
+// See docs/specs/rls_sprint_plan.md.
 export const invitations = pgTable(
   "invitations",
   {
@@ -469,5 +479,10 @@ export const invitations = pgTable(
       table.scopeObjectType,
       table.scopeObjectId,
     ),
+    tenantIsolation: pgPolicy("invitations_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();
