@@ -1,6 +1,8 @@
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import {
   organizations,
   prequalSubmissions,
@@ -72,11 +74,13 @@ export async function inviteSubToPrequalify(input: {
   // Resolve template: explicit pick, else default-by-trade.
   let templateId = input.templateId ?? null;
   if (templateId) {
-    const [t] = await db
-      .select({ orgId: prequalTemplates.orgId, archivedAt: prequalTemplates.archivedAt })
-      .from(prequalTemplates)
-      .where(eq(prequalTemplates.id, templateId))
-      .limit(1);
+    const [t] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({ orgId: prequalTemplates.orgId, archivedAt: prequalTemplates.archivedAt })
+        .from(prequalTemplates)
+        .where(eq(prequalTemplates.id, templateId!))
+        .limit(1),
+    );
     if (!t) throw new AuthorizationError("Template not found", "not_found");
     if (t.orgId !== ctx.organization.id) {
       throw new AuthorizationError("Template not yours", "forbidden");
@@ -103,17 +107,19 @@ export async function inviteSubToPrequalify(input: {
 
   // If there's already an in-flight submission (draft / submitted /
   // under_review) for this pair, return it instead of creating a duplicate.
-  const [existing] = await db
-    .select({ id: prequalSubmissions.id, status: prequalSubmissions.status })
-    .from(prequalSubmissions)
-    .where(
-      and(
-        eq(prequalSubmissions.contractorOrgId, ctx.organization.id),
-        eq(prequalSubmissions.submittedByOrgId, input.subOrgId),
-      ),
-    )
-    .orderBy(desc(prequalSubmissions.createdAt))
-    .limit(1);
+  const [existing] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({ id: prequalSubmissions.id, status: prequalSubmissions.status })
+      .from(prequalSubmissions)
+      .where(
+        and(
+          eq(prequalSubmissions.contractorOrgId, ctx.organization.id),
+          eq(prequalSubmissions.submittedByOrgId, input.subOrgId),
+        ),
+      )
+      .orderBy(desc(prequalSubmissions.createdAt))
+      .limit(1),
+  );
   if (
     existing &&
     (existing.status === "draft" ||
@@ -123,7 +129,7 @@ export async function inviteSubToPrequalify(input: {
     return { submissionId: existing.id, status: "draft" };
   }
 
-  const result = await db.transaction(async (tx) => {
+  const result = await withTenant(ctx.organization.id, async (tx) => {
     const [row] = await tx
       .insert(prequalSubmissions)
       .values({
@@ -180,11 +186,13 @@ export async function savePrequalSubmissionDraft(input: {
   const ctx = await getOrgContext(input.session);
   assertCan(ctx.permissions, "prequal_submission", "write");
 
-  const [row] = await db
-    .select()
-    .from(prequalSubmissions)
-    .where(eq(prequalSubmissions.id, input.submissionId))
-    .limit(1);
+  const [row] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select()
+      .from(prequalSubmissions)
+      .where(eq(prequalSubmissions.id, input.submissionId))
+      .limit(1),
+  );
   if (!row) throw new AuthorizationError("Submission not found", "not_found");
   if (row.submittedByOrgId !== ctx.organization.id) {
     throw new AuthorizationError("Not your submission", "forbidden");
@@ -196,7 +204,7 @@ export async function savePrequalSubmissionDraft(input: {
     );
   }
 
-  await db.transaction(async (tx) => {
+  await withTenant(ctx.organization.id, async (tx) => {
     await tx
       .update(prequalSubmissions)
       .set({ answersJson: input.answers, updatedAt: new Date() })
@@ -226,11 +234,13 @@ export async function submitPrequalSubmission(input: {
   const ctx = await getOrgContext(input.session);
   assertCan(ctx.permissions, "prequal_submission", "write");
 
-  const [row] = await db
-    .select()
-    .from(prequalSubmissions)
-    .where(eq(prequalSubmissions.id, input.submissionId))
-    .limit(1);
+  const [row] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select()
+      .from(prequalSubmissions)
+      .where(eq(prequalSubmissions.id, input.submissionId))
+      .limit(1),
+  );
   if (!row) throw new AuthorizationError("Submission not found", "not_found");
   if (row.submittedByOrgId !== ctx.organization.id) {
     throw new AuthorizationError("Not your submission", "forbidden");
@@ -242,7 +252,14 @@ export async function submitPrequalSubmission(input: {
     );
   }
 
-  const [template] = await db
+  // Sub reading the contractor's template — Pattern A on prequal_templates
+  // gates by org_id = GUC (contractor only), so the sub's GUC denies. The
+  // sub's authorization is established by their own submission row above.
+  // dbAdmin read here is the cleanest narrowest deviation; the alternative
+  // would be to widen the prequal_templates policy with a sub-side clause
+  // that subqueries prequal_submissions, which adds per-row planner cost
+  // to every template read.
+  const [template] = await dbAdmin
     .select()
     .from(prequalTemplates)
     .where(eq(prequalTemplates.id, row.templateId))
@@ -266,7 +283,7 @@ export async function submitPrequalSubmission(input: {
   );
 
   const now = new Date();
-  await db.transaction(async (tx) => {
+  await withTenant(ctx.organization.id, async (tx) => {
     await tx
       .update(prequalSubmissions)
       .set({
@@ -332,11 +349,13 @@ export async function decidePrequalSubmission(input: {
   assertCan(ctx.permissions, "prequal_submission", "approve");
   await ensureContractorFeature(ctx.organization.id, ctx.organization.type);
 
-  const [row] = await db
-    .select()
-    .from(prequalSubmissions)
-    .where(eq(prequalSubmissions.id, input.submissionId))
-    .limit(1);
+  const [row] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select()
+      .from(prequalSubmissions)
+      .where(eq(prequalSubmissions.id, input.submissionId))
+      .limit(1),
+  );
   if (!row) throw new AuthorizationError("Submission not found", "not_found");
   if (row.contractorOrgId !== ctx.organization.id) {
     throw new AuthorizationError("Not your submission to review", "forbidden");
@@ -348,11 +367,13 @@ export async function decidePrequalSubmission(input: {
     );
   }
 
-  const [template] = await db
-    .select({ validityMonths: prequalTemplates.validityMonths })
-    .from(prequalTemplates)
-    .where(eq(prequalTemplates.id, row.templateId))
-    .limit(1);
+  const [template] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({ validityMonths: prequalTemplates.validityMonths })
+      .from(prequalTemplates)
+      .where(eq(prequalTemplates.id, row.templateId))
+      .limit(1),
+  );
 
   const gating = Array.isArray(row.gatingFailures)
     ? (row.gatingFailures as string[])
@@ -375,7 +396,7 @@ export async function decidePrequalSubmission(input: {
     }
   }
 
-  await db.transaction(async (tx) => {
+  await withTenant(ctx.organization.id, async (tx) => {
     await tx
       .update(prequalSubmissions)
       .set({
@@ -453,11 +474,13 @@ export async function moveSubmissionToUnderReview(input: {
   assertCan(ctx.permissions, "prequal_submission", "approve");
   await ensureContractorFeature(ctx.organization.id, ctx.organization.type);
 
-  const [row] = await db
-    .select()
-    .from(prequalSubmissions)
-    .where(eq(prequalSubmissions.id, input.submissionId))
-    .limit(1);
+  const [row] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select()
+      .from(prequalSubmissions)
+      .where(eq(prequalSubmissions.id, input.submissionId))
+      .limit(1),
+  );
   if (!row) throw new AuthorizationError("Submission not found", "not_found");
   if (row.contractorOrgId !== ctx.organization.id) {
     throw new AuthorizationError("Not your submission", "forbidden");
@@ -470,7 +493,7 @@ export async function moveSubmissionToUnderReview(input: {
   }
 
   const now = new Date();
-  await db.transaction(async (tx) => {
+  await withTenant(ctx.organization.id, async (tx) => {
     await tx
       .update(prequalSubmissions)
       .set({

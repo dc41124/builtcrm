@@ -1,6 +1,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { prequalSubmissions, prequalTemplates } from "@/db/schema";
 import { writeOrgAuditEvent } from "@/domain/audit";
 import { getOrgContext, type SessionLike } from "@/domain/context";
@@ -93,7 +93,7 @@ export async function createPrequalTemplate(
     gatingFailValues: {},
   };
 
-  const result = await db.transaction(async (tx) => {
+  const result = await withTenant(ctx.organization.id, async (tx) => {
     const [row] = await tx
       .insert(prequalTemplates)
       .values({
@@ -152,11 +152,13 @@ export async function updatePrequalTemplate(
   assertCan(ctx.permissions, "prequal_template", "write");
   await ensureFeature(ctx.organization.id, ctx.organization.type);
 
-  const [row] = await db
-    .select()
-    .from(prequalTemplates)
-    .where(eq(prequalTemplates.id, input.templateId))
-    .limit(1);
+  const [row] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select()
+      .from(prequalTemplates)
+      .where(eq(prequalTemplates.id, input.templateId))
+      .limit(1),
+  );
   if (!row) throw new AuthorizationError("Template not found", "not_found");
   if (row.orgId !== ctx.organization.id) {
     throw new AuthorizationError("Template not yours", "forbidden");
@@ -180,7 +182,7 @@ export async function updatePrequalTemplate(
   if (input.patch.scoringRules !== undefined)
     updates.scoringRules = input.patch.scoringRules;
 
-  await db.transaction(async (tx) => {
+  await withTenant(ctx.organization.id, async (tx) => {
     await tx
       .update(prequalTemplates)
       .set(updates)
@@ -211,18 +213,20 @@ export async function archivePrequalTemplate(input: {
   assertCan(ctx.permissions, "prequal_template", "write");
   await ensureFeature(ctx.organization.id, ctx.organization.type);
 
-  const [row] = await db
-    .select()
-    .from(prequalTemplates)
-    .where(eq(prequalTemplates.id, input.templateId))
-    .limit(1);
+  const [row] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select()
+      .from(prequalTemplates)
+      .where(eq(prequalTemplates.id, input.templateId))
+      .limit(1),
+  );
   if (!row) throw new AuthorizationError("Template not found", "not_found");
   if (row.orgId !== ctx.organization.id) {
     throw new AuthorizationError("Template not yours", "forbidden");
   }
   if (row.archivedAt) return;
 
-  await db.transaction(async (tx) => {
+  await withTenant(ctx.organization.id, async (tx) => {
     await tx
       .update(prequalTemplates)
       .set({
@@ -254,11 +258,13 @@ export async function setDefaultPrequalTemplate(input: {
   assertCan(ctx.permissions, "prequal_template", "write");
   await ensureFeature(ctx.organization.id, ctx.organization.type);
 
-  const [row] = await db
-    .select()
-    .from(prequalTemplates)
-    .where(eq(prequalTemplates.id, input.templateId))
-    .limit(1);
+  const [row] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select()
+      .from(prequalTemplates)
+      .where(eq(prequalTemplates.id, input.templateId))
+      .limit(1),
+  );
   if (!row) throw new AuthorizationError("Template not found", "not_found");
   if (row.orgId !== ctx.organization.id) {
     throw new AuthorizationError("Template not yours", "forbidden");
@@ -271,7 +277,7 @@ export async function setDefaultPrequalTemplate(input: {
   }
   if (row.isDefault) return; // already the default
 
-  await db.transaction(async (tx) => {
+  await withTenant(ctx.organization.id, async (tx) => {
     // Un-default any sibling for the same (org, trade) tuple.
     await tx
       .update(prequalTemplates)
@@ -312,19 +318,23 @@ export async function resolveDefaultTemplate(input: {
   contractorOrgId: string;
   subTrade: string | null;
 }): Promise<string | null> {
-  const candidates = await db
-    .select({
-      id: prequalTemplates.id,
-      tradeCategory: prequalTemplates.tradeCategory,
-    })
-    .from(prequalTemplates)
-    .where(
-      and(
-        eq(prequalTemplates.orgId, input.contractorOrgId),
-        isNull(prequalTemplates.archivedAt),
-        eq(prequalTemplates.isDefault, true),
+  // Called from inviteSubToPrequalify (contractor flow) — contractor's
+  // GUC = contractorOrgId, so Pattern A on prequal_templates allows.
+  const candidates = await withTenant(input.contractorOrgId, (tx) =>
+    tx
+      .select({
+        id: prequalTemplates.id,
+        tradeCategory: prequalTemplates.tradeCategory,
+      })
+      .from(prequalTemplates)
+      .where(
+        and(
+          eq(prequalTemplates.orgId, input.contractorOrgId),
+          isNull(prequalTemplates.archivedAt),
+          eq(prequalTemplates.isDefault, true),
+        ),
       ),
-    );
+  );
   return (
     candidates.find((c) => input.subTrade && c.tradeCategory === input.subTrade)
       ?.id ??
@@ -340,21 +350,25 @@ export async function getActiveDraftSubmission(input: {
   contractorOrgId: string;
   subOrgId: string;
 }): Promise<{ id: string; templateId: string } | null> {
-  const [row] = await db
-    .select({
-      id: prequalSubmissions.id,
-      templateId: prequalSubmissions.templateId,
-      status: prequalSubmissions.status,
-    })
-    .from(prequalSubmissions)
-    .where(
-      and(
-        eq(prequalSubmissions.contractorOrgId, input.contractorOrgId),
-        eq(prequalSubmissions.submittedByOrgId, input.subOrgId),
-      ),
-    )
-    .orderBy(prequalSubmissions.createdAt)
-    .limit(1);
+  // Routed through the contractor's GUC; the 2-clause own-side multi-org
+  // policy on prequal_submissions matches via contractor_org_id.
+  const [row] = await withTenant(input.contractorOrgId, (tx) =>
+    tx
+      .select({
+        id: prequalSubmissions.id,
+        templateId: prequalSubmissions.templateId,
+        status: prequalSubmissions.status,
+      })
+      .from(prequalSubmissions)
+      .where(
+        and(
+          eq(prequalSubmissions.contractorOrgId, input.contractorOrgId),
+          eq(prequalSubmissions.submittedByOrgId, input.subOrgId),
+        ),
+      )
+      .orderBy(prequalSubmissions.createdAt)
+      .limit(1),
+  );
   if (!row) return null;
   if (row.status === "draft" || row.status === "submitted" || row.status === "under_review") {
     return { id: row.id, templateId: row.templateId };

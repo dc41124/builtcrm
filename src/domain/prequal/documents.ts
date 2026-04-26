@@ -4,7 +4,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { prequalDocuments, prequalSubmissions } from "@/db/schema";
 import { writeOrgAuditEvent } from "@/domain/audit";
 import { getOrgContext, type SessionLike } from "@/domain/context";
@@ -49,11 +49,15 @@ async function loadSubmissionForSubAction(
   submissionId: string,
   subOrgId: string,
 ): Promise<typeof prequalSubmissions.$inferSelect> {
-  const [row] = await db
-    .select()
-    .from(prequalSubmissions)
-    .where(eq(prequalSubmissions.id, submissionId))
-    .limit(1);
+  // Sub's GUC = subOrgId; the own-side clause on prequal_submissions
+  // (submitted_by_org_id = GUC) gates the read.
+  const [row] = await withTenant(subOrgId, (tx) =>
+    tx
+      .select()
+      .from(prequalSubmissions)
+      .where(eq(prequalSubmissions.id, submissionId))
+      .limit(1),
+  );
   if (!row) throw new AuthorizationError("Submission not found", "not_found");
   if (row.submittedByOrgId !== subOrgId) {
     throw new AuthorizationError("Not your submission", "forbidden");
@@ -146,7 +150,7 @@ export async function attachPrequalDocument(input: {
     );
   }
 
-  const result = await db.transaction(async (tx) => {
+  const result = await withTenant(ctx.organization.id, async (tx) => {
     const [row] = await tx
       .insert(prequalDocuments)
       .values({
@@ -190,22 +194,28 @@ export async function removePrequalDocument(input: {
   const ctx = await getOrgContext(input.session);
   assertCan(ctx.permissions, "prequal_submission", "write");
 
-  const [doc] = await db
-    .select({
-      id: prequalDocuments.id,
-      submissionId: prequalDocuments.submissionId,
-      documentType: prequalDocuments.documentType,
-    })
-    .from(prequalDocuments)
-    .where(eq(prequalDocuments.id, input.documentId))
-    .limit(1);
+  const [doc, sub] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: prequalDocuments.id,
+        submissionId: prequalDocuments.submissionId,
+        documentType: prequalDocuments.documentType,
+      })
+      .from(prequalDocuments)
+      .where(eq(prequalDocuments.id, input.documentId))
+      .limit(1)
+      .then(async (docRows) => {
+        const docRow = docRows[0];
+        if (!docRow) return [undefined, undefined] as const;
+        const [subRow] = await tx
+          .select()
+          .from(prequalSubmissions)
+          .where(eq(prequalSubmissions.id, docRow.submissionId))
+          .limit(1);
+        return [docRow, subRow] as const;
+      }),
+  );
   if (!doc) throw new AuthorizationError("Document not found", "not_found");
-
-  const [sub] = await db
-    .select()
-    .from(prequalSubmissions)
-    .where(eq(prequalSubmissions.id, doc.submissionId))
-    .limit(1);
   if (!sub) throw new AuthorizationError("Submission not found", "not_found");
 
   // Only the submitting org can remove a document and only while editable.
@@ -219,7 +229,7 @@ export async function removePrequalDocument(input: {
     );
   }
 
-  await db.transaction(async (tx) => {
+  await withTenant(ctx.organization.id, async (tx) => {
     await tx
       .delete(prequalDocuments)
       .where(eq(prequalDocuments.id, input.documentId));
@@ -252,23 +262,29 @@ export async function getPrequalDocumentDownloadUrl(input: {
   const ctx = await getOrgContext(input.session);
   assertCan(ctx.permissions, "prequal_submission", "read");
 
-  const [doc] = await db
-    .select({
-      id: prequalDocuments.id,
-      submissionId: prequalDocuments.submissionId,
-      storageKey: prequalDocuments.storageKey,
-      title: prequalDocuments.title,
-    })
-    .from(prequalDocuments)
-    .where(eq(prequalDocuments.id, input.documentId))
-    .limit(1);
+  const [doc, sub] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: prequalDocuments.id,
+        submissionId: prequalDocuments.submissionId,
+        storageKey: prequalDocuments.storageKey,
+        title: prequalDocuments.title,
+      })
+      .from(prequalDocuments)
+      .where(eq(prequalDocuments.id, input.documentId))
+      .limit(1)
+      .then(async (docRows) => {
+        const docRow = docRows[0];
+        if (!docRow) return [undefined, undefined] as const;
+        const [subRow] = await tx
+          .select()
+          .from(prequalSubmissions)
+          .where(eq(prequalSubmissions.id, docRow.submissionId))
+          .limit(1);
+        return [docRow, subRow] as const;
+      }),
+  );
   if (!doc) throw new AuthorizationError("Document not found", "not_found");
-
-  const [sub] = await db
-    .select()
-    .from(prequalSubmissions)
-    .where(eq(prequalSubmissions.id, doc.submissionId))
-    .limit(1);
   if (!sub) throw new AuthorizationError("Submission not found", "not_found");
 
   const isContractorReader =

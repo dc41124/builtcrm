@@ -134,8 +134,16 @@ export const prequalTemplates = pgTable(
     defaultUnique: uniqueIndex("prequal_templates_default_unique")
       .on(table.orgId, table.tradeCategory)
       .where(sql`${table.isDefault} = true`),
+    // Phase 4 prequal cluster — Pattern A (single-org strict). Templates
+    // are contractor-owned; subs only see template questions inlined into
+    // their invitation, never query this table directly.
+    tenantIsolation: pgPolicy("prequal_templates_tenant_isolation", {
+      for: "all",
+      using: sql`${table.orgId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.orgId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();
 
 // =============================================================================
 // prequal_submissions
@@ -216,8 +224,27 @@ export const prequalSubmissions = pgTable(
       table.status,
       table.expiresAt,
     ),
+    // Phase 4 prequal cluster — NEW SHAPE: 2-clause own-side multi-org.
+    // A submission is a contract between exactly two orgs (the sub who
+    // submitted, the contractor reviewing). No project_id exists — subs
+    // do prequal ONCE per contractor, before any project assignment, so
+    // the project-scoped 2-clause hybrid doesn't fit. No POM clause
+    // either — POM is project membership and prequal predates it.
+    // Both clauses are equality on the (submittedByOrgId, contractorOrgId)
+    // indexed columns; fast even at scale.
+    tenantIsolation: pgPolicy("prequal_submissions_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.submittedByOrgId} = current_setting('app.current_org_id', true)::uuid
+        OR ${table.contractorOrgId} = current_setting('app.current_org_id', true)::uuid
+      `,
+      withCheck: sql`
+        ${table.submittedByOrgId} = current_setting('app.current_org_id', true)::uuid
+        OR ${table.contractorOrgId} = current_setting('app.current_org_id', true)::uuid
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 // =============================================================================
 // prequal_documents
@@ -271,8 +298,15 @@ export const prequalDocuments = pgTable(
       table.submissionId,
       table.documentType,
     ),
+    // Phase 4 prequal cluster — nested-via-parent on prequal_submissions.
+    // Inherits the 2-clause own-side multi-org policy via the parent SELECT.
+    tenantIsolation: pgPolicy("prequal_documents_tenant_isolation", {
+      for: "all",
+      using: sql`${table.submissionId} IN (SELECT id FROM prequal_submissions)`,
+      withCheck: sql`${table.submissionId} IN (SELECT id FROM prequal_submissions)`,
+    }),
   }),
-);
+).enableRLS();
 
 // =============================================================================
 // prequal_project_exemptions

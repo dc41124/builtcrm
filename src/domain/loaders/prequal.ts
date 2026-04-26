@@ -2,6 +2,7 @@ import { cache } from "react";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
 import {
   organizations,
@@ -204,17 +205,19 @@ export async function getPrequalTemplatesView(input: {
   assertCan(ctx.permissions, "prequal_template", "read");
   await ensureContractorPlanFeature(ctx.organization.id, ctx.organization.type);
 
-  const rows = await db
-    .select()
-    .from(prequalTemplates)
-    .where(eq(prequalTemplates.orgId, ctx.organization.id))
-    .orderBy(
-      // Active templates first, archived at the bottom; within each group,
-      // defaults float to the top.
-      asc(prequalTemplates.archivedAt),
-      desc(prequalTemplates.isDefault),
-      asc(prequalTemplates.name),
-    );
+  const rows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select()
+      .from(prequalTemplates)
+      .where(eq(prequalTemplates.orgId, ctx.organization.id))
+      .orderBy(
+        // Active templates first, archived at the bottom; within each group,
+        // defaults float to the top.
+        asc(prequalTemplates.archivedAt),
+        desc(prequalTemplates.isDefault),
+        asc(prequalTemplates.name),
+      ),
+  );
 
   return { rows: rows.map(rowToTemplateRow) };
 }
@@ -227,11 +230,13 @@ export async function getPrequalTemplateDetailView(input: {
   assertCan(ctx.permissions, "prequal_template", "read");
   await ensureContractorPlanFeature(ctx.organization.id, ctx.organization.type);
 
-  const [row] = await db
-    .select()
-    .from(prequalTemplates)
-    .where(eq(prequalTemplates.id, input.templateId))
-    .limit(1);
+  const [row] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select()
+      .from(prequalTemplates)
+      .where(eq(prequalTemplates.id, input.templateId))
+      .limit(1),
+  );
   if (!row) {
     throw new AuthorizationError("Template not found", "not_found");
   }
@@ -287,35 +292,37 @@ export async function getPrequalReviewQueueView(input: {
     );
   }
 
-  const rows = await db
-    .select({
-      id: prequalSubmissions.id,
-      templateId: prequalSubmissions.templateId,
-      templateName: prequalTemplates.name,
-      tradeCategory: prequalTemplates.tradeCategory,
-      scoringRules: prequalTemplates.scoringRules,
-      submittedByOrgId: prequalSubmissions.submittedByOrgId,
-      submittedByOrgName: organizations.name,
-      contractorOrgId: prequalSubmissions.contractorOrgId,
-      status: prequalSubmissions.status,
-      scoreTotal: prequalSubmissions.scoreTotal,
-      gatingFailures: prequalSubmissions.gatingFailures,
-      submittedAt: prequalSubmissions.submittedAt,
-      reviewedAt: prequalSubmissions.reviewedAt,
-      expiresAt: prequalSubmissions.expiresAt,
-      createdAt: prequalSubmissions.createdAt,
-    })
-    .from(prequalSubmissions)
-    .innerJoin(
-      prequalTemplates,
-      eq(prequalTemplates.id, prequalSubmissions.templateId),
-    )
-    .innerJoin(
-      organizations,
-      eq(organizations.id, prequalSubmissions.submittedByOrgId),
-    )
-    .where(and(...conditions))
-    .orderBy(desc(prequalSubmissions.submittedAt));
+  const rows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: prequalSubmissions.id,
+        templateId: prequalSubmissions.templateId,
+        templateName: prequalTemplates.name,
+        tradeCategory: prequalTemplates.tradeCategory,
+        scoringRules: prequalTemplates.scoringRules,
+        submittedByOrgId: prequalSubmissions.submittedByOrgId,
+        submittedByOrgName: organizations.name,
+        contractorOrgId: prequalSubmissions.contractorOrgId,
+        status: prequalSubmissions.status,
+        scoreTotal: prequalSubmissions.scoreTotal,
+        gatingFailures: prequalSubmissions.gatingFailures,
+        submittedAt: prequalSubmissions.submittedAt,
+        reviewedAt: prequalSubmissions.reviewedAt,
+        expiresAt: prequalSubmissions.expiresAt,
+        createdAt: prequalSubmissions.createdAt,
+      })
+      .from(prequalSubmissions)
+      .innerJoin(
+        prequalTemplates,
+        eq(prequalTemplates.id, prequalSubmissions.templateId),
+      )
+      .innerJoin(
+        organizations,
+        eq(organizations.id, prequalSubmissions.submittedByOrgId),
+      )
+      .where(and(...conditions))
+      .orderBy(desc(prequalSubmissions.submittedAt)),
+  );
 
   // Optional trade-category filter — applied post-query because it's on
   // template, not submission. Cheap (review queues are small).
@@ -363,21 +370,30 @@ export async function getPrequalSubmissionDetailView(input: {
   assertCan(ctx.permissions, "prequal_submission", "read");
   await ensureContractorPlanFeature(ctx.organization.id, ctx.organization.type);
 
-  const [row] = await db
-    .select({
-      sub: prequalSubmissions,
-      template: prequalTemplates,
-    })
-    .from(prequalSubmissions)
-    .innerJoin(
-      prequalTemplates,
-      eq(prequalTemplates.id, prequalSubmissions.templateId),
-    )
-    .where(eq(prequalSubmissions.id, input.submissionId))
-    .limit(1);
-  if (!row) {
+  // Caller may be the contractor OR the sub. Two-step read so the
+  // template join doesn't fight Pattern A on prequal_templates:
+  //   1. Submission via withTenant — both 2-clause own-side clauses fire.
+  //   2. Template via dbAdmin — the submission policy already established
+  //      the caller's right to see this submission's template.
+  const [subRow] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select()
+      .from(prequalSubmissions)
+      .where(eq(prequalSubmissions.id, input.submissionId))
+      .limit(1),
+  );
+  if (!subRow) {
     throw new AuthorizationError("Submission not found", "not_found");
   }
+  const [templateRow] = await dbAdmin
+    .select()
+    .from(prequalTemplates)
+    .where(eq(prequalTemplates.id, subRow.templateId))
+    .limit(1);
+  if (!templateRow) {
+    throw new AuthorizationError("Template not found", "not_found");
+  }
+  const row = { sub: subRow, template: templateRow };
 
   // Per-row org scoping: contractor side or sub side.
   const isContractorReader =
@@ -410,22 +426,24 @@ export async function getPrequalSubmissionDetailView(input: {
       : Promise.resolve([]),
   ]);
 
-  const docRows = await db
-    .select({
-      id: prequalDocuments.id,
-      documentType: prequalDocuments.documentType,
-      title: prequalDocuments.title,
-      fileSizeBytes: prequalDocuments.fileSizeBytes,
-      mimeType: prequalDocuments.mimeType,
-      label: prequalDocuments.label,
-      uploadedByUserId: prequalDocuments.uploadedByUserId,
-      uploadedByName: users.displayName,
-      createdAt: prequalDocuments.createdAt,
-    })
-    .from(prequalDocuments)
-    .leftJoin(users, eq(users.id, prequalDocuments.uploadedByUserId))
-    .where(eq(prequalDocuments.submissionId, row.sub.id))
-    .orderBy(asc(prequalDocuments.createdAt));
+  const docRows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: prequalDocuments.id,
+        documentType: prequalDocuments.documentType,
+        title: prequalDocuments.title,
+        fileSizeBytes: prequalDocuments.fileSizeBytes,
+        mimeType: prequalDocuments.mimeType,
+        label: prequalDocuments.label,
+        uploadedByUserId: prequalDocuments.uploadedByUserId,
+        uploadedByName: users.displayName,
+        createdAt: prequalDocuments.createdAt,
+      })
+      .from(prequalDocuments)
+      .leftJoin(users, eq(users.id, prequalDocuments.uploadedByUserId))
+      .where(eq(prequalDocuments.submissionId, row.sub.id))
+      .orderBy(asc(prequalDocuments.createdAt)),
+  );
 
   const scoring = parseScoringRules(row.template.scoringRules);
   const questions = parseQuestions(row.template.questionsJson);
@@ -495,40 +513,42 @@ export async function getPrequalSubcontractorHistoryView(input: {
   assertCan(ctx.permissions, "prequal_submission", "read");
   await ensureContractorPlanFeature(ctx.organization.id, ctx.organization.type);
 
-  const rows = await db
-    .select({
-      id: prequalSubmissions.id,
-      templateId: prequalSubmissions.templateId,
-      templateName: prequalTemplates.name,
-      tradeCategory: prequalTemplates.tradeCategory,
-      scoringRules: prequalTemplates.scoringRules,
-      submittedByOrgId: prequalSubmissions.submittedByOrgId,
-      submittedByOrgName: organizations.name,
-      contractorOrgId: prequalSubmissions.contractorOrgId,
-      status: prequalSubmissions.status,
-      scoreTotal: prequalSubmissions.scoreTotal,
-      gatingFailures: prequalSubmissions.gatingFailures,
-      submittedAt: prequalSubmissions.submittedAt,
-      reviewedAt: prequalSubmissions.reviewedAt,
-      expiresAt: prequalSubmissions.expiresAt,
-      createdAt: prequalSubmissions.createdAt,
-    })
-    .from(prequalSubmissions)
-    .innerJoin(
-      prequalTemplates,
-      eq(prequalTemplates.id, prequalSubmissions.templateId),
-    )
-    .innerJoin(
-      organizations,
-      eq(organizations.id, prequalSubmissions.submittedByOrgId),
-    )
-    .where(
-      and(
-        eq(prequalSubmissions.contractorOrgId, ctx.organization.id),
-        eq(prequalSubmissions.submittedByOrgId, input.subOrgId),
-      ),
-    )
-    .orderBy(desc(prequalSubmissions.createdAt));
+  const rows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: prequalSubmissions.id,
+        templateId: prequalSubmissions.templateId,
+        templateName: prequalTemplates.name,
+        tradeCategory: prequalTemplates.tradeCategory,
+        scoringRules: prequalTemplates.scoringRules,
+        submittedByOrgId: prequalSubmissions.submittedByOrgId,
+        submittedByOrgName: organizations.name,
+        contractorOrgId: prequalSubmissions.contractorOrgId,
+        status: prequalSubmissions.status,
+        scoreTotal: prequalSubmissions.scoreTotal,
+        gatingFailures: prequalSubmissions.gatingFailures,
+        submittedAt: prequalSubmissions.submittedAt,
+        reviewedAt: prequalSubmissions.reviewedAt,
+        expiresAt: prequalSubmissions.expiresAt,
+        createdAt: prequalSubmissions.createdAt,
+      })
+      .from(prequalSubmissions)
+      .innerJoin(
+        prequalTemplates,
+        eq(prequalTemplates.id, prequalSubmissions.templateId),
+      )
+      .innerJoin(
+        organizations,
+        eq(organizations.id, prequalSubmissions.submittedByOrgId),
+      )
+      .where(
+        and(
+          eq(prequalSubmissions.contractorOrgId, ctx.organization.id),
+          eq(prequalSubmissions.submittedByOrgId, input.subOrgId),
+        ),
+      )
+      .orderBy(desc(prequalSubmissions.createdAt)),
+  );
 
   return {
     rows: rows.map((r) => {
@@ -665,19 +685,21 @@ export async function getSubPrequalListView(input: {
 
   // One row per contractor that has any submission from this sub. Pick the
   // most recent submission per contractor via window-style aggregation.
-  const subs = await db
-    .select({
-      id: prequalSubmissions.id,
-      contractorOrgId: prequalSubmissions.contractorOrgId,
-      status: prequalSubmissions.status,
-      submittedAt: prequalSubmissions.submittedAt,
-      reviewedAt: prequalSubmissions.reviewedAt,
-      expiresAt: prequalSubmissions.expiresAt,
-      createdAt: prequalSubmissions.createdAt,
-    })
-    .from(prequalSubmissions)
-    .where(eq(prequalSubmissions.submittedByOrgId, ctx.organization.id))
-    .orderBy(desc(prequalSubmissions.createdAt));
+  const subs = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: prequalSubmissions.id,
+        contractorOrgId: prequalSubmissions.contractorOrgId,
+        status: prequalSubmissions.status,
+        submittedAt: prequalSubmissions.submittedAt,
+        reviewedAt: prequalSubmissions.reviewedAt,
+        expiresAt: prequalSubmissions.expiresAt,
+        createdAt: prequalSubmissions.createdAt,
+      })
+      .from(prequalSubmissions)
+      .where(eq(prequalSubmissions.submittedByOrgId, ctx.organization.id))
+      .orderBy(desc(prequalSubmissions.createdAt)),
+  );
 
   // Group by contractor; first row per contractor is most recent because
   // the query is sorted desc.
@@ -756,24 +778,30 @@ export async function getSubPrequalFormView(input: {
   // Most-recent submission for this (sub, contractor) pair. The renderer
   // either continues a draft or shows the read-only view of the latest
   // submission depending on its status.
-  const [latestSub] = await db
-    .select()
-    .from(prequalSubmissions)
-    .where(
-      and(
-        eq(prequalSubmissions.submittedByOrgId, ctx.organization.id),
-        eq(prequalSubmissions.contractorOrgId, input.contractorOrgId),
-      ),
-    )
-    .orderBy(desc(prequalSubmissions.createdAt))
-    .limit(1);
+  const [latestSub] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select()
+      .from(prequalSubmissions)
+      .where(
+        and(
+          eq(prequalSubmissions.submittedByOrgId, ctx.organization.id),
+          eq(prequalSubmissions.contractorOrgId, input.contractorOrgId),
+        ),
+      )
+      .orderBy(desc(prequalSubmissions.createdAt))
+      .limit(1),
+  );
 
   // Resolve template: either the one the sub is filling against, or the
   // contractor's current default. The default-resolution rule prefers a
   // sub-trade match, falls back to the global default.
+  // Sub-side template reads use dbAdmin: Pattern A on prequal_templates
+  // gates by org_id = GUC (contractor only). The sub's auth chain here
+  // goes through the contractor invitation that produced their submission
+  // (or, for first-time loading, simply needs the contractor's defaults).
   let templateRow: typeof prequalTemplates.$inferSelect | undefined;
   if (latestSub) {
-    [templateRow] = await db
+    [templateRow] = await dbAdmin
       .select()
       .from(prequalTemplates)
       .where(eq(prequalTemplates.id, latestSub.templateId))
@@ -784,7 +812,7 @@ export async function getSubPrequalFormView(input: {
       .from(organizations)
       .where(eq(organizations.id, ctx.organization.id))
       .limit(1);
-    const candidateTemplates = await db
+    const candidateTemplates = await dbAdmin
       .select()
       .from(prequalTemplates)
       .where(
@@ -815,22 +843,24 @@ export async function getSubPrequalFormView(input: {
 
   let submissionView: SubPrequalFormView["submission"] = null;
   if (latestSub) {
-    const docRows = await db
-      .select({
-        id: prequalDocuments.id,
-        documentType: prequalDocuments.documentType,
-        title: prequalDocuments.title,
-        fileSizeBytes: prequalDocuments.fileSizeBytes,
-        mimeType: prequalDocuments.mimeType,
-        label: prequalDocuments.label,
-        uploadedByUserId: prequalDocuments.uploadedByUserId,
-        uploadedByName: users.displayName,
-        createdAt: prequalDocuments.createdAt,
-      })
-      .from(prequalDocuments)
-      .leftJoin(users, eq(users.id, prequalDocuments.uploadedByUserId))
-      .where(eq(prequalDocuments.submissionId, latestSub.id))
-      .orderBy(asc(prequalDocuments.createdAt));
+    const docRows = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({
+          id: prequalDocuments.id,
+          documentType: prequalDocuments.documentType,
+          title: prequalDocuments.title,
+          fileSizeBytes: prequalDocuments.fileSizeBytes,
+          mimeType: prequalDocuments.mimeType,
+          label: prequalDocuments.label,
+          uploadedByUserId: prequalDocuments.uploadedByUserId,
+          uploadedByName: users.displayName,
+          createdAt: prequalDocuments.createdAt,
+        })
+        .from(prequalDocuments)
+        .leftJoin(users, eq(users.id, prequalDocuments.uploadedByUserId))
+        .where(eq(prequalDocuments.submissionId, latestSub.id))
+        .orderBy(asc(prequalDocuments.createdAt)),
+    );
 
     submissionView = {
       id: latestSub.id,
@@ -916,35 +946,37 @@ export async function getPrequalQueueView(input: {
   assertCan(ctx.permissions, "prequal_submission", "read");
   await ensureContractorPlanFeature(ctx.organization.id, ctx.organization.type);
 
-  const rows = await db
-    .select({
-      id: prequalSubmissions.id,
-      templateId: prequalSubmissions.templateId,
-      templateName: prequalTemplates.name,
-      tradeCategory: prequalTemplates.tradeCategory,
-      scoringRules: prequalTemplates.scoringRules,
-      submittedByOrgId: prequalSubmissions.submittedByOrgId,
-      submittedByOrgName: organizations.name,
-      contractorOrgId: prequalSubmissions.contractorOrgId,
-      status: prequalSubmissions.status,
-      scoreTotal: prequalSubmissions.scoreTotal,
-      gatingFailures: prequalSubmissions.gatingFailures,
-      submittedAt: prequalSubmissions.submittedAt,
-      reviewedAt: prequalSubmissions.reviewedAt,
-      expiresAt: prequalSubmissions.expiresAt,
-      createdAt: prequalSubmissions.createdAt,
-    })
-    .from(prequalSubmissions)
-    .innerJoin(
-      prequalTemplates,
-      eq(prequalTemplates.id, prequalSubmissions.templateId),
-    )
-    .innerJoin(
-      organizations,
-      eq(organizations.id, prequalSubmissions.submittedByOrgId),
-    )
-    .where(eq(prequalSubmissions.contractorOrgId, ctx.organization.id))
-    .orderBy(desc(prequalSubmissions.createdAt));
+  const rows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: prequalSubmissions.id,
+        templateId: prequalSubmissions.templateId,
+        templateName: prequalTemplates.name,
+        tradeCategory: prequalTemplates.tradeCategory,
+        scoringRules: prequalTemplates.scoringRules,
+        submittedByOrgId: prequalSubmissions.submittedByOrgId,
+        submittedByOrgName: organizations.name,
+        contractorOrgId: prequalSubmissions.contractorOrgId,
+        status: prequalSubmissions.status,
+        scoreTotal: prequalSubmissions.scoreTotal,
+        gatingFailures: prequalSubmissions.gatingFailures,
+        submittedAt: prequalSubmissions.submittedAt,
+        reviewedAt: prequalSubmissions.reviewedAt,
+        expiresAt: prequalSubmissions.expiresAt,
+        createdAt: prequalSubmissions.createdAt,
+      })
+      .from(prequalSubmissions)
+      .innerJoin(
+        prequalTemplates,
+        eq(prequalTemplates.id, prequalSubmissions.templateId),
+      )
+      .innerJoin(
+        organizations,
+        eq(organizations.id, prequalSubmissions.submittedByOrgId),
+      )
+      .where(eq(prequalSubmissions.contractorOrgId, ctx.organization.id))
+      .orderBy(desc(prequalSubmissions.createdAt)),
+  );
 
   const list: PrequalSubmissionListRow[] = rows.map((r) => {
     const scoring = parseScoringRules(r.scoringRules);
@@ -1013,11 +1045,13 @@ export async function getSubPrequalNavVisibility(
   try {
     const ctx = await getOrgContext(session);
     if (ctx.role !== "subcontractor_user") return false;
-    const [row] = await db
-      .select({ id: prequalSubmissions.id })
-      .from(prequalSubmissions)
-      .where(eq(prequalSubmissions.submittedByOrgId, ctx.organization.id))
-      .limit(1);
+    const [row] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({ id: prequalSubmissions.id })
+        .from(prequalSubmissions)
+        .where(eq(prequalSubmissions.submittedByOrgId, ctx.organization.id))
+        .limit(1),
+    );
     return !!row;
   } catch {
     return false;
@@ -1033,7 +1067,12 @@ export const getActivePrequalForPair = cache(
     submissionId?: string;
     expiresAt?: Date;
   }> => {
-    const [latest] = await db
+    // Pre-tenant cached helper — no session context available here, so
+    // dbAdmin. Returns only badge-state derivative info (status + expiry);
+    // both parties to the (contractor, sub) pair already have legitimate
+    // access via the prequal_submissions own-side multi-org policy when
+    // they query directly.
+    const [latest] = await dbAdmin
       .select({
         id: prequalSubmissions.id,
         status: prequalSubmissions.status,

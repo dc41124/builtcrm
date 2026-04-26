@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { schedules, logger } from "@trigger.dev/sdk/v3";
 import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { organizations, prequalSubmissions } from "@/db/schema";
 import { writeSystemAuditEvent } from "@/domain/audit";
 import { emitNotifications } from "@/lib/notifications/emit";
@@ -34,7 +34,12 @@ export const prequalExpirySweep = schedules.task({
     const runId = randomUUID();
 
     // ── Pass 1: expire ───────────────────────────────────────────────
-    const expiredRows = await db
+    // Cross-org system sweep: dbAdmin end-to-end. No tenant context to
+    // derive — the sweep runs on behalf of every contractor with expiring
+    // prequals. Per-row writes could route through withTenant(contractorOrgId)
+    // but provide no policy benefit here (the rows already proved auth at
+    // approval time) and add tx overhead per row.
+    const expiredRows = await dbAdmin
       .select({
         id: prequalSubmissions.id,
         contractorOrgId: prequalSubmissions.contractorOrgId,
@@ -51,7 +56,7 @@ export const prequalExpirySweep = schedules.task({
       );
 
     for (const row of expiredRows) {
-      await db
+      await dbAdmin
         .update(prequalSubmissions)
         .set({ status: "expired", updatedAt: now })
         .where(eq(prequalSubmissions.id, row.id));
@@ -70,13 +75,13 @@ export const prequalExpirySweep = schedules.task({
       // Fire to both sides. Each call resolves to one org via
       // targetOrganizationByPortal (Step 49 — recipients.ts).
       const [contractorName, subName] = await Promise.all([
-        db
+        dbAdmin
           .select({ name: organizations.name })
           .from(organizations)
           .where(eq(organizations.id, row.contractorOrgId))
           .limit(1)
           .then((rows) => rows[0]?.name ?? "Your contractor"),
-        db
+        dbAdmin
           .select({ name: organizations.name })
           .from(organizations)
           .where(eq(organizations.id, row.submittedByOrgId))
@@ -120,7 +125,7 @@ export const prequalExpirySweep = schedules.task({
     // Pull every approved row whose expires_at is within the longest
     // threshold; do per-row threshold matching + remindersSentJson
     // dedupe in app code (small set, simple).
-    const upcomingRows = await db
+    const upcomingRows = await dbAdmin
       .select({
         id: prequalSubmissions.id,
         contractorOrgId: prequalSubmissions.contractorOrgId,
@@ -161,19 +166,19 @@ export const prequalExpirySweep = schedules.task({
       if (!due) continue;
 
       const nextReminders = { ...reminders, [String(due)]: now.toISOString() };
-      await db
+      await dbAdmin
         .update(prequalSubmissions)
         .set({ remindersSentJson: nextReminders, updatedAt: now })
         .where(eq(prequalSubmissions.id, row.id));
 
       const [contractorName, subName] = await Promise.all([
-        db
+        dbAdmin
           .select({ name: organizations.name })
           .from(organizations)
           .where(eq(organizations.id, row.contractorOrgId))
           .limit(1)
           .then((rows) => rows[0]?.name ?? "Your contractor"),
-        db
+        dbAdmin
           .select({ name: organizations.name })
           .from(organizations)
           .where(eq(organizations.id, row.submittedByOrgId))
