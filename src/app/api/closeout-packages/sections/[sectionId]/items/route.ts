@@ -4,7 +4,6 @@ import { requireServerSession } from "@/auth/session";
 import { eq, max } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import {
   closeoutPackageItems,
@@ -90,7 +89,7 @@ export async function POST(
       );
     }
 
-    const row = await db.transaction(async (tx) => {
+    const row = await withTenant(ctx.organization.id, async (tx) => {
       const [highest] = await tx
         .select({ max: max(closeoutPackageItems.sortOrder) })
         .from(closeoutPackageItems)

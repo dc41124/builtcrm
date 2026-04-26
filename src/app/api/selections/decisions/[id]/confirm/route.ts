@@ -3,12 +3,13 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   selectionDecisions,
   selectionItems,
   selectionOptions,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
@@ -21,7 +22,8 @@ export async function POST(
   const { id } = await params;
   const { session } = await requireServerSession();
   try {
-    const [decision] = await db
+    // Pre-tenant head lookup: tenant unknown until project resolves.
+    const [decision] = await dbAdmin
       .select()
       .from(selectionDecisions)
       .where(eq(selectionDecisions.id, id))
@@ -53,21 +55,19 @@ export async function POST(
       return NextResponse.json({ error: "not_owner" }, { status: 403 });
     }
 
-    const [item] = await db
-      .select()
-      .from(selectionItems)
-      .where(eq(selectionItems.id, decision.selectionItemId))
-      .limit(1);
-    if (!item) {
-      return NextResponse.json({ error: "item_not_found" }, { status: 404 });
-    }
-
     const now = new Date();
-    const revisionExpires = new Date(
-      now.getTime() + item.revisionWindowHours * 60 * 60 * 1000,
-    );
+    const result = await withTenant(ctx.organization.id, async (tx) => {
+      const [item] = await tx
+        .select()
+        .from(selectionItems)
+        .where(eq(selectionItems.id, decision.selectionItemId))
+        .limit(1);
+      if (!item) return { kind: "item_not_found" as const };
 
-    await db.transaction(async (tx) => {
+      const revisionExpires = new Date(
+        now.getTime() + item.revisionWindowHours * 60 * 60 * 1000,
+      );
+
       await tx
         .update(selectionDecisions)
         .set({
@@ -99,13 +99,20 @@ export async function POST(
         },
         tx,
       );
+
+      const [option] = await tx
+        .select({ name: selectionOptions.name })
+        .from(selectionOptions)
+        .where(eq(selectionOptions.id, decision.selectedOptionId))
+        .limit(1);
+
+      return { kind: "ok" as const, item, option, revisionExpires };
     });
 
-    const [option] = await db
-      .select({ name: selectionOptions.name })
-      .from(selectionOptions)
-      .where(eq(selectionOptions.id, decision.selectedOptionId))
-      .limit(1);
+    if (result.kind === "item_not_found") {
+      return NextResponse.json({ error: "item_not_found" }, { status: 404 });
+    }
+    const { item, option, revisionExpires } = result;
 
     await emitNotifications({
       eventId: "selection_confirmed",

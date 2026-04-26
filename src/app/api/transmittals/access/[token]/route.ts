@@ -4,7 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { Readable } from "node:stream";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   documents,
   transmittalAccessEvents,
@@ -62,7 +62,9 @@ export async function GET(
 
   // Look up by digest. Inner join to the transmittal to get the
   // sender context in one query.
-  const [row] = await db
+  // Pre-tenant end-to-end: anonymous token IS the credential, no Better
+  // Auth session, no org context. Use dbAdmin throughout.
+  const [row] = await dbAdmin
     .select({
       recipientId: transmittalRecipients.id,
       recipientName: transmittalRecipients.name,
@@ -98,7 +100,7 @@ export async function GET(
   }
 
   // Documents in sort order — this is what the ZIP stream will contain.
-  const docRows = await db
+  const docRows = await dbAdmin
     .select({
       documentId: transmittalDocuments.documentId,
       sortOrder: transmittalDocuments.sortOrder,
@@ -123,7 +125,7 @@ export async function GET(
   // Write the access event + bump counters + notify sender in one tx.
   // Streaming the zip happens OUTSIDE the tx — the commit is
   // durable before we start writing bytes to the client.
-  await db.transaction(async (tx) => {
+  await dbAdmin.transaction(async (tx) => {
     await tx.insert(transmittalAccessEvents).values({
       recipientId: row.recipientId,
       ipAddress: ipAddress ? ipAddress.slice(0, 64) : null,

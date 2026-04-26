@@ -9,8 +9,9 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { drawingComments, drawingSets, drawingSheets } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
 import { resolveSheetAccess } from "@/lib/drawings/access";
 
@@ -20,7 +21,8 @@ const PatchSchema = z.object({
 });
 
 async function loadComment(commentId: string) {
-  const [row] = await db
+  // Pre-tenant head lookup: tenant unknown until project resolves.
+  const [row] = await dbAdmin
     .select({
       comment: drawingComments,
       sheetId: drawingSheets.id,
@@ -90,10 +92,12 @@ export async function PATCH(
       patch.resolvedByUserId = body.resolved ? access.ctx.user.id : null;
     }
 
-    await db
-      .update(drawingComments)
-      .set(patch)
-      .where(eq(drawingComments.id, commentId));
+    await withTenant(access.ctx.organization.id, (tx) =>
+      tx
+        .update(drawingComments)
+        .set(patch)
+        .where(eq(drawingComments.id, commentId)),
+    );
 
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -131,7 +135,9 @@ export async function DELETE(
         { status: 403 },
       );
     }
-    await db.delete(drawingComments).where(eq(drawingComments.id, commentId));
+    await withTenant(access.ctx.organization.id, (tx) =>
+      tx.delete(drawingComments).where(eq(drawingComments.id, commentId)),
+    );
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof AuthorizationError) {

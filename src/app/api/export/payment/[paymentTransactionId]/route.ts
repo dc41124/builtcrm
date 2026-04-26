@@ -105,22 +105,24 @@ async function resolveRelatedSummary(
     };
   }
   if (type === "selection_decision") {
-    const [row] = await db
-      .select({
-        itemTitle: selectionItems.title,
-        optionName: selectionOptions.name,
-      })
-      .from(selectionDecisions)
-      .innerJoin(
-        selectionItems,
-        eq(selectionItems.id, selectionDecisions.selectionItemId),
-      )
-      .innerJoin(
-        selectionOptions,
-        eq(selectionOptions.id, selectionDecisions.selectedOptionId),
-      )
-      .where(eq(selectionDecisions.id, id))
-      .limit(1);
+    const [row] = await withTenant(callerOrgId, (tx) =>
+      tx
+        .select({
+          itemTitle: selectionItems.title,
+          optionName: selectionOptions.name,
+        })
+        .from(selectionDecisions)
+        .innerJoin(
+          selectionItems,
+          eq(selectionItems.id, selectionDecisions.selectionItemId),
+        )
+        .innerJoin(
+          selectionOptions,
+          eq(selectionOptions.id, selectionDecisions.selectedOptionId),
+        )
+        .where(eq(selectionDecisions.id, id))
+        .limit(1),
+    );
     if (!row) return { label: "Selection decision", description: null };
     return {
       label: `Selection: ${row.itemTitle}`,

@@ -1,9 +1,11 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
   integer,
   jsonb,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -46,8 +48,33 @@ export const selectionCategories = pgTable(
   },
   (table) => ({
     projectIdx: index("selection_categories_project_idx").on(table.projectId),
+    tenantIsolation: pgPolicy("selection_categories_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 export const selectionItems = pgTable(
   "selection_items",
@@ -86,8 +113,33 @@ export const selectionItems = pgTable(
     categoryIdx: index("selection_items_category_idx").on(table.categoryId),
     projectIdx: index("selection_items_project_idx").on(table.projectId),
     statusIdx: index("selection_items_status_idx").on(table.selectionItemStatus),
+    tenantIsolation: pgPolicy("selection_items_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 export const selectionOptions = pgTable(
   "selection_options",
@@ -120,8 +172,13 @@ export const selectionOptions = pgTable(
   },
   (table) => ({
     selectionItemIdx: index("selection_options_item_idx").on(table.selectionItemId),
+    tenantIsolation: pgPolicy("selection_options_tenant_isolation", {
+      for: "all",
+      using: sql`${table.selectionItemId} IN (SELECT id FROM selection_items)`,
+      withCheck: sql`${table.selectionItemId} IN (SELECT id FROM selection_items)`,
+    }),
   }),
-);
+).enableRLS();
 
 export const selectionDecisions = pgTable(
   "selection_decisions",
@@ -157,5 +214,30 @@ export const selectionDecisions = pgTable(
     selectionItemIdx: index("selection_decisions_item_idx").on(table.selectionItemId),
     projectIdx: index("selection_decisions_project_idx").on(table.projectId),
     optionIdx: index("selection_decisions_option_idx").on(table.selectedOptionId),
+    tenantIsolation: pgPolicy("selection_decisions_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();

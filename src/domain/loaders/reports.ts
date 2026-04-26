@@ -338,19 +338,21 @@ export async function getContractorReportsData(
         .where(inArray(milestones.projectId, projectIds)),
     ),
     // Punch items for open counts per project
-    db
-      .select({
-        projectId: punchItems.projectId,
-        c: sql<number>`count(*)::int`,
-      })
-      .from(punchItems)
-      .where(
-        and(
-          inArray(punchItems.projectId, projectIds),
-          inArray(punchItems.status, [...OPEN_PUNCH_STATUSES]),
-        ),
-      )
-      .groupBy(punchItems.projectId),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          projectId: punchItems.projectId,
+          c: sql<number>`count(*)::int`,
+        })
+        .from(punchItems)
+        .where(
+          and(
+            inArray(punchItems.projectId, projectIds),
+            inArray(punchItems.status, [...OPEN_PUNCH_STATUSES]),
+          ),
+        )
+        .groupBy(punchItems.projectId),
+    ),
   ]);
 
   // ---- Per-project rollups (in-memory) ----

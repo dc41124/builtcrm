@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
+import { dbAdmin } from "@/db/admin-pool";
 import { db } from "@/db/client";
 import {
   activityFeedItems,
@@ -12,6 +13,7 @@ import {
   projects,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getEffectiveContext, type SessionLike } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -122,62 +124,70 @@ export async function getTransmittals(input: {
     );
   }
 
-  const [contractorOrg] = await db
-    .select({ id: organizations.id, name: organizations.name })
-    .from(organizations)
-    .where(eq(organizations.id, ctx.project.contractorOrganizationId))
-    .limit(1);
+  const { contractorOrg, base, recipientAgg, documentAgg } = await withTenant(
+    ctx.organization.id,
+    async (tx) => {
+      const [contractorOrg] = await tx
+        .select({ id: organizations.id, name: organizations.name })
+        .from(organizations)
+        .where(eq(organizations.id, ctx.project.contractorOrganizationId))
+        .limit(1);
 
-  const base = await db
-    .select({
-      id: transmittals.id,
-      sequentialNumber: transmittals.sequentialNumber,
-      subject: transmittals.subject,
-      message: transmittals.message,
-      status: transmittals.status,
-      sentAt: transmittals.sentAt,
-      sentByUserId: transmittals.sentByUserId,
-      sentByName: users.displayName,
-      createdAt: transmittals.createdAt,
-      updatedAt: transmittals.updatedAt,
-    })
-    .from(transmittals)
-    .leftJoin(users, eq(users.id, transmittals.sentByUserId))
-    .where(eq(transmittals.projectId, input.projectId))
-    .orderBy(desc(transmittals.createdAt));
+      const base = await tx
+        .select({
+          id: transmittals.id,
+          sequentialNumber: transmittals.sequentialNumber,
+          subject: transmittals.subject,
+          message: transmittals.message,
+          status: transmittals.status,
+          sentAt: transmittals.sentAt,
+          sentByUserId: transmittals.sentByUserId,
+          sentByName: users.displayName,
+          createdAt: transmittals.createdAt,
+          updatedAt: transmittals.updatedAt,
+        })
+        .from(transmittals)
+        .leftJoin(users, eq(users.id, transmittals.sentByUserId))
+        .where(eq(transmittals.projectId, input.projectId))
+        .orderBy(desc(transmittals.createdAt));
+
+      if (base.length === 0) {
+        return { contractorOrg, base, recipientAgg: [], documentAgg: [] };
+      }
+
+      const ids = base.map((b) => b.id);
+
+      // Per-transmittal aggregates: recipients, downloaded count, total
+      // downloads, docs, bundle size. Two aggregate queries in parallel.
+      const [recipientAgg, documentAgg] = await Promise.all([
+        tx
+          .select({
+            transmittalId: transmittalRecipients.transmittalId,
+            total: sql<number>`count(*)::int`,
+            downloaded: sql<number>`count(*) filter (where ${transmittalRecipients.firstDownloadedAt} is not null and ${transmittalRecipients.revokedAt} is null)::int`,
+            revoked: sql<number>`count(*) filter (where ${transmittalRecipients.revokedAt} is not null)::int`,
+            totalDownloads: sql<number>`coalesce(sum(${transmittalRecipients.totalDownloads}), 0)::int`,
+          })
+          .from(transmittalRecipients)
+          .where(inArray(transmittalRecipients.transmittalId, ids))
+          .groupBy(transmittalRecipients.transmittalId),
+        tx
+          .select({
+            transmittalId: transmittalDocuments.transmittalId,
+            count: sql<number>`count(*)::int`,
+            bytes: sql<number>`coalesce(sum(${documents.fileSizeBytes}), 0)::bigint`,
+          })
+          .from(transmittalDocuments)
+          .innerJoin(documents, eq(documents.id, transmittalDocuments.documentId))
+          .where(inArray(transmittalDocuments.transmittalId, ids))
+          .groupBy(transmittalDocuments.transmittalId),
+      ]);
+
+      return { contractorOrg, base, recipientAgg, documentAgg };
+    },
+  );
 
   if (base.length === 0) return { rows: [] };
-
-  const ids = base.map((b) => b.id);
-
-  // Per-transmittal aggregates: recipients, downloaded count, total
-  // downloads, docs, bundle size. Five aggregate queries in parallel.
-  const [
-    recipientAgg,
-    documentAgg,
-  ] = await Promise.all([
-    db
-      .select({
-        transmittalId: transmittalRecipients.transmittalId,
-        total: sql<number>`count(*)::int`,
-        downloaded: sql<number>`count(*) filter (where ${transmittalRecipients.firstDownloadedAt} is not null and ${transmittalRecipients.revokedAt} is null)::int`,
-        revoked: sql<number>`count(*) filter (where ${transmittalRecipients.revokedAt} is not null)::int`,
-        totalDownloads: sql<number>`coalesce(sum(${transmittalRecipients.totalDownloads}), 0)::int`,
-      })
-      .from(transmittalRecipients)
-      .where(inArray(transmittalRecipients.transmittalId, ids))
-      .groupBy(transmittalRecipients.transmittalId),
-    db
-      .select({
-        transmittalId: transmittalDocuments.transmittalId,
-        count: sql<number>`count(*)::int`,
-        bytes: sql<number>`coalesce(sum(${documents.fileSizeBytes}), 0)::bigint`,
-      })
-      .from(transmittalDocuments)
-      .innerJoin(documents, eq(documents.id, transmittalDocuments.documentId))
-      .where(inArray(transmittalDocuments.transmittalId, ids))
-      .groupBy(transmittalDocuments.transmittalId),
-  ]);
 
   const recByTx = new Map<
     string,
@@ -240,7 +250,8 @@ export async function getTransmittal(input: {
   session: SessionLike | null | undefined;
   transmittalId: string;
 }): Promise<TransmittalDetail> {
-  const [head] = await db
+  // Pre-tenant head lookup: tenant unknown until project resolves.
+  const [head] = await dbAdmin
     .select({
       id: transmittals.id,
       projectId: transmittals.projectId,
@@ -270,73 +281,80 @@ export async function getTransmittal(input: {
     throw new AuthorizationError("Transmittal not visible", "forbidden");
   }
 
-  const [project] = await db
-    .select({ id: projects.id, name: projects.name })
-    .from(projects)
-    .where(eq(projects.id, head.projectId))
-    .limit(1);
+  const { project, recipientRows, documentRows, eventRows } = await withTenant(
+    ctx.organization.id,
+    async (tx) => {
+      const [project] = await tx
+        .select({ id: projects.id, name: projects.name })
+        .from(projects)
+        .where(eq(projects.id, head.projectId))
+        .limit(1);
 
-  const recipientRows = await db
-    .select({
-      id: transmittalRecipients.id,
-      email: transmittalRecipients.email,
-      name: transmittalRecipients.name,
-      orgLabel: transmittalRecipients.orgLabel,
-      firstDownloadedAt: transmittalRecipients.firstDownloadedAt,
-      lastDownloadedAt: transmittalRecipients.lastDownloadedAt,
-      totalDownloads: transmittalRecipients.totalDownloads,
-      revokedAt: transmittalRecipients.revokedAt,
-      expiresAt: transmittalRecipients.expiresAt,
-    })
-    .from(transmittalRecipients)
-    .where(eq(transmittalRecipients.transmittalId, head.id))
-    .orderBy(asc(transmittalRecipients.createdAt));
+      const recipientRows = await tx
+        .select({
+          id: transmittalRecipients.id,
+          email: transmittalRecipients.email,
+          name: transmittalRecipients.name,
+          orgLabel: transmittalRecipients.orgLabel,
+          firstDownloadedAt: transmittalRecipients.firstDownloadedAt,
+          lastDownloadedAt: transmittalRecipients.lastDownloadedAt,
+          totalDownloads: transmittalRecipients.totalDownloads,
+          revokedAt: transmittalRecipients.revokedAt,
+          expiresAt: transmittalRecipients.expiresAt,
+        })
+        .from(transmittalRecipients)
+        .where(eq(transmittalRecipients.transmittalId, head.id))
+        .orderBy(asc(transmittalRecipients.createdAt));
 
-  const documentRows = await db
-    .select({
-      id: transmittalDocuments.id,
-      documentId: transmittalDocuments.documentId,
-      name: documents.title,
-      sizeBytes: documents.fileSizeBytes,
-      category: documents.category,
-      sortOrder: transmittalDocuments.sortOrder,
-    })
-    .from(transmittalDocuments)
-    .innerJoin(documents, eq(documents.id, transmittalDocuments.documentId))
-    .where(eq(transmittalDocuments.transmittalId, head.id))
-    .orderBy(
-      asc(transmittalDocuments.sortOrder),
-      asc(transmittalDocuments.createdAt),
-    );
+      const documentRows = await tx
+        .select({
+          id: transmittalDocuments.id,
+          documentId: transmittalDocuments.documentId,
+          name: documents.title,
+          sizeBytes: documents.fileSizeBytes,
+          category: documents.category,
+          sortOrder: transmittalDocuments.sortOrder,
+        })
+        .from(transmittalDocuments)
+        .innerJoin(documents, eq(documents.id, transmittalDocuments.documentId))
+        .where(eq(transmittalDocuments.transmittalId, head.id))
+        .orderBy(
+          asc(transmittalDocuments.sortOrder),
+          asc(transmittalDocuments.createdAt),
+        );
 
-  // Access events join against recipients for name/email display.
-  const recipientIds = recipientRows.map((r) => r.id);
-  const eventRows =
-    recipientIds.length === 0
-      ? []
-      : await db
-          .select({
-            id: transmittalAccessEvents.id,
-            recipientId: transmittalAccessEvents.recipientId,
-            recipientName: transmittalRecipients.name,
-            recipientEmail: transmittalRecipients.email,
-            orgLabel: transmittalRecipients.orgLabel,
-            downloadedAt: transmittalAccessEvents.downloadedAt,
-            ipAddress: transmittalAccessEvents.ipAddress,
-            userAgent: transmittalAccessEvents.userAgent,
-          })
-          .from(transmittalAccessEvents)
-          .innerJoin(
-            transmittalRecipients,
-            eq(
-              transmittalRecipients.id,
-              transmittalAccessEvents.recipientId,
-            ),
-          )
-          .where(
-            inArray(transmittalAccessEvents.recipientId, recipientIds),
-          )
-          .orderBy(desc(transmittalAccessEvents.downloadedAt));
+      // Access events join against recipients for name/email display.
+      const recipientIds = recipientRows.map((r) => r.id);
+      const eventRows =
+        recipientIds.length === 0
+          ? []
+          : await tx
+              .select({
+                id: transmittalAccessEvents.id,
+                recipientId: transmittalAccessEvents.recipientId,
+                recipientName: transmittalRecipients.name,
+                recipientEmail: transmittalRecipients.email,
+                orgLabel: transmittalRecipients.orgLabel,
+                downloadedAt: transmittalAccessEvents.downloadedAt,
+                ipAddress: transmittalAccessEvents.ipAddress,
+                userAgent: transmittalAccessEvents.userAgent,
+              })
+              .from(transmittalAccessEvents)
+              .innerJoin(
+                transmittalRecipients,
+                eq(
+                  transmittalRecipients.id,
+                  transmittalAccessEvents.recipientId,
+                ),
+              )
+              .where(
+                inArray(transmittalAccessEvents.recipientId, recipientIds),
+              )
+              .orderBy(desc(transmittalAccessEvents.downloadedAt));
+
+      return { project, recipientRows, documentRows, eventRows };
+    },
+  );
 
   const recipients: TransmittalRecipientRow[] = recipientRows.map((r) => ({
     id: r.id,
@@ -478,7 +496,9 @@ export type AnonymousTransmittalView = {
 export async function getAnonymousTransmittalByDigest(
   digest: string,
 ): Promise<AnonymousTransmittalView | null> {
-  const [row] = await db
+  // Pre-tenant: anonymous token digest IS the credential. No org
+  // context exists until we resolve through the recipient row.
+  const [row] = await dbAdmin
     .select({
       recipientId: transmittalRecipients.id,
       recipientName: transmittalRecipients.name,
@@ -511,13 +531,13 @@ export async function getAnonymousTransmittalByDigest(
   // digest (tokens aren't generated until send), but defend anyway.
   if (row.status !== "sent") return null;
 
-  const [org] = await db
+  const [org] = await dbAdmin
     .select({ name: organizations.name })
     .from(organizations)
     .where(eq(organizations.id, row.contractorOrgId))
     .limit(1);
 
-  const docs = await db
+  const docs = await dbAdmin
     .select({
       id: transmittalDocuments.id,
       documentId: transmittalDocuments.documentId,

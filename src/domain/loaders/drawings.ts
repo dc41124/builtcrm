@@ -12,7 +12,6 @@
 
 import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { withTenant } from "@/db/with-tenant";
 import {
   drawingComments,
@@ -167,49 +166,56 @@ export async function getDrawingSetsIndex(input: {
 }): Promise<DrawingsSetsView> {
   const ctx = await getEffectiveContext(input.session, input.projectId);
 
-  const rows = await db
-    .select({
-      id: drawingSets.id,
-      family: drawingSets.family,
-      name: drawingSets.name,
-      version: drawingSets.version,
-      status: drawingSets.status,
-      asBuilt: drawingSets.asBuilt,
-      sheetCount: drawingSets.sheetCount,
-      fileSizeBytes: drawingSets.fileSizeBytes,
-      supersedesId: drawingSets.supersedesId,
-      note: drawingSets.note,
-      processingStatus: drawingSets.processingStatus,
-      uploadedAt: drawingSets.uploadedAt,
-      uploadedByName: users.displayName,
-      uploadedByEmail: users.email,
-    })
-    .from(drawingSets)
-    .leftJoin(users, eq(users.id, drawingSets.uploadedByUserId))
-    .where(eq(drawingSets.projectId, input.projectId))
-    .orderBy(desc(drawingSets.uploadedAt));
+  const { rows, disciplineCountsBySetId } = await withTenant(
+    ctx.organization.id,
+    async (tx) => {
+      const rows = await tx
+        .select({
+          id: drawingSets.id,
+          family: drawingSets.family,
+          name: drawingSets.name,
+          version: drawingSets.version,
+          status: drawingSets.status,
+          asBuilt: drawingSets.asBuilt,
+          sheetCount: drawingSets.sheetCount,
+          fileSizeBytes: drawingSets.fileSizeBytes,
+          supersedesId: drawingSets.supersedesId,
+          note: drawingSets.note,
+          processingStatus: drawingSets.processingStatus,
+          uploadedAt: drawingSets.uploadedAt,
+          uploadedByName: users.displayName,
+          uploadedByEmail: users.email,
+        })
+        .from(drawingSets)
+        .leftJoin(users, eq(users.id, drawingSets.uploadedByUserId))
+        .where(eq(drawingSets.projectId, input.projectId))
+        .orderBy(desc(drawingSets.uploadedAt));
 
-  // Per-set discipline counts. One roundtrip that grabs (set_id,
-  // discipline) for every sheet on this project, bucketed in-app. The
-  // sheet count is small enough (~hundreds max across all sets in one
-  // project) that this is cheaper than issuing one query per set.
-  const allSetIds = rows.map((r) => r.id);
-  const disciplineCountsBySetId = new Map<string, Record<string, number>>();
-  if (allSetIds.length > 0) {
-    const discRows = await db
-      .select({
-        setId: drawingSheets.setId,
-        discipline: drawingSheets.discipline,
-      })
-      .from(drawingSheets)
-      .where(inArray(drawingSheets.setId, allSetIds));
-    for (const r of discRows) {
-      const key = r.discipline ?? "?";
-      const map = disciplineCountsBySetId.get(r.setId) ?? {};
-      map[key] = (map[key] ?? 0) + 1;
-      disciplineCountsBySetId.set(r.setId, map);
-    }
-  }
+      // Per-set discipline counts. One roundtrip that grabs (set_id,
+      // discipline) for every sheet on this project, bucketed in-app. The
+      // sheet count is small enough (~hundreds max across all sets in one
+      // project) that this is cheaper than issuing one query per set.
+      const allSetIds = rows.map((r) => r.id);
+      const disciplineCountsBySetId = new Map<string, Record<string, number>>();
+      if (allSetIds.length > 0) {
+        const discRows = await tx
+          .select({
+            setId: drawingSheets.setId,
+            discipline: drawingSheets.discipline,
+          })
+          .from(drawingSheets)
+          .where(inArray(drawingSheets.setId, allSetIds));
+        for (const r of discRows) {
+          const key = r.discipline ?? "?";
+          const map = disciplineCountsBySetId.get(r.setId) ?? {};
+          map[key] = (map[key] ?? 0) + 1;
+          disciplineCountsBySetId.set(r.setId, map);
+        }
+      }
+
+      return { rows, disciplineCountsBySetId };
+    },
+  );
 
   const sets: DrawingSetSummary[] = rows.map((r) => ({
     id: r.id,
@@ -250,42 +256,47 @@ export async function getDrawingSetsIndex(input: {
   let openCommentsAcrossCurrent = 0;
   let resolvedCommentsAcrossCurrent = 0;
   if (currentSetIds.length > 0) {
-    const changedRows = await db
-      .select({ count: drawingSheets.id })
-      .from(drawingSheets)
-      .where(
-        and(
-          inArray(drawingSheets.setId, currentSetIds),
-          eq(drawingSheets.changedFromPriorVersion, true),
-        ),
-      );
-    changedInCurrent = changedRows.length;
-
-    const sheetIdRows = await db
-      .select({ id: drawingSheets.id })
-      .from(drawingSheets)
-      .where(inArray(drawingSheets.setId, currentSetIds));
-    const sheetIds = sheetIdRows.map((r) => r.id);
-    if (sheetIds.length > 0) {
-      const markupRows = await db
-        .select({ id: drawingMarkups.id })
-        .from(drawingMarkups)
-        .where(inArray(drawingMarkups.sheetId, sheetIds));
-      markupsAcrossCurrent = markupRows.length;
-
-      const commentRows = await db
-        .select({ resolved: drawingComments.resolved })
-        .from(drawingComments)
+    const aggregates = await withTenant(ctx.organization.id, async (tx) => {
+      const changedRows = await tx
+        .select({ count: drawingSheets.id })
+        .from(drawingSheets)
         .where(
           and(
-            inArray(drawingComments.sheetId, sheetIds),
-            isNull(drawingComments.parentCommentId),
+            inArray(drawingSheets.setId, currentSetIds),
+            eq(drawingSheets.changedFromPriorVersion, true),
           ),
         );
-      for (const r of commentRows) {
-        if (r.resolved) resolvedCommentsAcrossCurrent += 1;
-        else openCommentsAcrossCurrent += 1;
+
+      const sheetIdRows = await tx
+        .select({ id: drawingSheets.id })
+        .from(drawingSheets)
+        .where(inArray(drawingSheets.setId, currentSetIds));
+      const sheetIds = sheetIdRows.map((r) => r.id);
+      let markupRows: Array<{ id: string }> = [];
+      let commentRows: Array<{ resolved: boolean }> = [];
+      if (sheetIds.length > 0) {
+        markupRows = await tx
+          .select({ id: drawingMarkups.id })
+          .from(drawingMarkups)
+          .where(inArray(drawingMarkups.sheetId, sheetIds));
+
+        commentRows = await tx
+          .select({ resolved: drawingComments.resolved })
+          .from(drawingComments)
+          .where(
+            and(
+              inArray(drawingComments.sheetId, sheetIds),
+              isNull(drawingComments.parentCommentId),
+            ),
+          );
       }
+      return { changedRows, markupRows, commentRows };
+    });
+    changedInCurrent = aggregates.changedRows.length;
+    markupsAcrossCurrent = aggregates.markupRows.length;
+    for (const r of aggregates.commentRows) {
+      if (r.resolved) resolvedCommentsAcrossCurrent += 1;
+      else openCommentsAcrossCurrent += 1;
     }
   }
 
@@ -351,31 +362,33 @@ export async function getDrawingSetIndex(input: {
     .filter((s) => s.family === set.family)
     .sort((a, b) => b.version - a.version);
 
-  const baseRows = await db
-    .select({
-      id: drawingSheets.id,
-      setId: drawingSheets.setId,
-      pageIndex: drawingSheets.pageIndex,
-      sheetNumber: drawingSheets.sheetNumber,
-      sheetTitle: drawingSheets.sheetTitle,
-      discipline: drawingSheets.discipline,
-      autoDetected: drawingSheets.autoDetected,
-      thumbnailKey: drawingSheets.thumbnailKey,
-      changedFromPriorVersion: drawingSheets.changedFromPriorVersion,
-    })
-    .from(drawingSheets)
-    .where(
-      scope
-        ? and(
-            eq(drawingSheets.setId, input.setId),
-            or(
-              eq(drawingSheets.discipline, scope),
-              isNull(drawingSheets.discipline),
-            )!,
-          )
-        : eq(drawingSheets.setId, input.setId),
-    )
-    .orderBy(asc(drawingSheets.pageIndex));
+  const baseRows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: drawingSheets.id,
+        setId: drawingSheets.setId,
+        pageIndex: drawingSheets.pageIndex,
+        sheetNumber: drawingSheets.sheetNumber,
+        sheetTitle: drawingSheets.sheetTitle,
+        discipline: drawingSheets.discipline,
+        autoDetected: drawingSheets.autoDetected,
+        thumbnailKey: drawingSheets.thumbnailKey,
+        changedFromPriorVersion: drawingSheets.changedFromPriorVersion,
+      })
+      .from(drawingSheets)
+      .where(
+        scope
+          ? and(
+              eq(drawingSheets.setId, input.setId),
+              or(
+                eq(drawingSheets.discipline, scope),
+                isNull(drawingSheets.discipline),
+              )!,
+            )
+          : eq(drawingSheets.setId, input.setId),
+      )
+      .orderBy(asc(drawingSheets.pageIndex)),
+  );
 
   // Presign thumbnail GET URLs in parallel for any sheet that has one.
   // Short TTL since the index view is a relatively brief browser session
@@ -400,23 +413,26 @@ export async function getDrawingSetIndex(input: {
   const markupCounts = new Map<string, number>();
   const commentCounts = new Map<string, number>();
   if (ids.length > 0) {
-    const markupRows = await db
-      .select({ sheetId: drawingMarkups.sheetId, id: drawingMarkups.id })
-      .from(drawingMarkups)
-      .where(inArray(drawingMarkups.sheetId, ids));
-    for (const r of markupRows) {
+    const counts = await withTenant(ctx.organization.id, async (tx) => {
+      const markupRows = await tx
+        .select({ sheetId: drawingMarkups.sheetId, id: drawingMarkups.id })
+        .from(drawingMarkups)
+        .where(inArray(drawingMarkups.sheetId, ids));
+      const commentRows = await tx
+        .select({ sheetId: drawingComments.sheetId, id: drawingComments.id })
+        .from(drawingComments)
+        .where(
+          and(
+            inArray(drawingComments.sheetId, ids),
+            isNull(drawingComments.parentCommentId),
+          ),
+        );
+      return { markupRows, commentRows };
+    });
+    for (const r of counts.markupRows) {
       markupCounts.set(r.sheetId, (markupCounts.get(r.sheetId) ?? 0) + 1);
     }
-    const commentRows = await db
-      .select({ sheetId: drawingComments.sheetId, id: drawingComments.id })
-      .from(drawingComments)
-      .where(
-        and(
-          inArray(drawingComments.sheetId, ids),
-          isNull(drawingComments.parentCommentId),
-        ),
-      );
-    for (const r of commentRows) {
+    for (const r of counts.commentRows) {
       commentCounts.set(r.sheetId, (commentCounts.get(r.sheetId) ?? 0) + 1);
     }
   }
@@ -436,11 +452,13 @@ export async function getDrawingSetIndex(input: {
   let sourcePresignedUrl: string | null = null;
   const needsMint = sheets.some((s) => !s.thumbnailKey);
   if (needsMint) {
-    const [setRow] = await db
-      .select({ sourceFileKey: drawingSets.sourceFileKey })
-      .from(drawingSets)
-      .where(eq(drawingSets.id, input.setId))
-      .limit(1);
+    const [setRow] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({ sourceFileKey: drawingSets.sourceFileKey })
+        .from(drawingSets)
+        .where(eq(drawingSets.id, input.setId))
+        .limit(1),
+    );
     if (setRow?.sourceFileKey) {
       const { presignDownloadUrl: presignGet } = await import("@/lib/storage");
       sourcePresignedUrl = await presignGet({
@@ -524,35 +542,74 @@ export async function getDrawingSheetDetail(input: {
   const sheet = index.sheets.find((s) => s.id === input.sheetId);
   if (!sheet) throw new Error("sheet not found or not in scope");
 
-  // Load full sheet row for calibration info (index summary doesn't carry it).
-  const [sheetFull] = await db
-    .select()
-    .from(drawingSheets)
-    .where(eq(drawingSheets.id, input.sheetId))
-    .limit(1);
+  const { sheetFull, calibratedByName, markupRows, measurementRows, commentRows } =
+    await withTenant(ctx.organization.id, async (tx) => {
+      // Load full sheet row for calibration info (index summary doesn't carry it).
+      const [sheetFull] = await tx
+        .select()
+        .from(drawingSheets)
+        .where(eq(drawingSheets.id, input.sheetId))
+        .limit(1);
+
+      let calibratedByName: string | null = null;
+      if (sheetFull?.calibratedByUserId) {
+        const [u] = await tx
+          .select({ displayName: users.displayName, email: users.email })
+          .from(users)
+          .where(eq(users.id, sheetFull.calibratedByUserId))
+          .limit(1);
+        calibratedByName = u?.displayName ?? u?.email ?? null;
+      }
+
+      const markupRows = await tx
+        .select({
+          id: drawingMarkups.id,
+          userId: drawingMarkups.userId,
+          markupData: drawingMarkups.markupData,
+          displayName: users.displayName,
+          email: users.email,
+        })
+        .from(drawingMarkups)
+        .leftJoin(users, eq(users.id, drawingMarkups.userId))
+        .where(eq(drawingMarkups.sheetId, input.sheetId));
+
+      const measurementRows = await tx
+        .select({
+          id: drawingMeasurements.id,
+          userId: drawingMeasurements.userId,
+          measurementData: drawingMeasurements.measurementData,
+          displayName: users.displayName,
+          email: users.email,
+        })
+        .from(drawingMeasurements)
+        .leftJoin(users, eq(users.id, drawingMeasurements.userId))
+        .where(eq(drawingMeasurements.sheetId, input.sheetId));
+
+      const commentRows = await tx
+        .select({
+          id: drawingComments.id,
+          parentCommentId: drawingComments.parentCommentId,
+          userId: drawingComments.userId,
+          pinNumber: drawingComments.pinNumber,
+          x: drawingComments.x,
+          y: drawingComments.y,
+          text: drawingComments.text,
+          resolved: drawingComments.resolved,
+          resolvedAt: drawingComments.resolvedAt,
+          createdAt: drawingComments.createdAt,
+          displayName: users.displayName,
+          email: users.email,
+        })
+        .from(drawingComments)
+        .leftJoin(users, eq(users.id, drawingComments.userId))
+        .where(eq(drawingComments.sheetId, input.sheetId))
+        .orderBy(asc(drawingComments.pinNumber), asc(drawingComments.createdAt));
+
+      return { sheetFull, calibratedByName, markupRows, measurementRows, commentRows };
+    });
+
   if (!sheetFull) throw new Error("sheet not found");
 
-  let calibratedByName: string | null = null;
-  if (sheetFull.calibratedByUserId) {
-    const [u] = await db
-      .select({ displayName: users.displayName, email: users.email })
-      .from(users)
-      .where(eq(users.id, sheetFull.calibratedByUserId))
-      .limit(1);
-    calibratedByName = u?.displayName ?? u?.email ?? null;
-  }
-
-  const markupRows = await db
-    .select({
-      id: drawingMarkups.id,
-      userId: drawingMarkups.userId,
-      markupData: drawingMarkups.markupData,
-      displayName: users.displayName,
-      email: users.email,
-    })
-    .from(drawingMarkups)
-    .leftJoin(users, eq(users.id, drawingMarkups.userId))
-    .where(eq(drawingMarkups.sheetId, input.sheetId));
   const markups: MarkupDoc[] = markupRows.map((r) => ({
     id: r.id,
     userId: r.userId,
@@ -561,17 +618,6 @@ export async function getDrawingSheetDetail(input: {
     markupData: r.markupData,
   }));
 
-  const measurementRows = await db
-    .select({
-      id: drawingMeasurements.id,
-      userId: drawingMeasurements.userId,
-      measurementData: drawingMeasurements.measurementData,
-      displayName: users.displayName,
-      email: users.email,
-    })
-    .from(drawingMeasurements)
-    .leftJoin(users, eq(users.id, drawingMeasurements.userId))
-    .where(eq(drawingMeasurements.sheetId, input.sheetId));
   const measurements: MeasurementDoc[] = measurementRows.map((r) => ({
     id: r.id,
     userId: r.userId,
@@ -579,26 +625,6 @@ export async function getDrawingSheetDetail(input: {
     userInitials: initialsFrom(r.displayName, r.email ?? undefined),
     measurementData: r.measurementData,
   }));
-
-  const commentRows = await db
-    .select({
-      id: drawingComments.id,
-      parentCommentId: drawingComments.parentCommentId,
-      userId: drawingComments.userId,
-      pinNumber: drawingComments.pinNumber,
-      x: drawingComments.x,
-      y: drawingComments.y,
-      text: drawingComments.text,
-      resolved: drawingComments.resolved,
-      resolvedAt: drawingComments.resolvedAt,
-      createdAt: drawingComments.createdAt,
-      displayName: users.displayName,
-      email: users.email,
-    })
-    .from(drawingComments)
-    .leftJoin(users, eq(users.id, drawingComments.userId))
-    .where(eq(drawingComments.sheetId, input.sheetId))
-    .orderBy(asc(drawingComments.pinNumber), asc(drawingComments.createdAt));
 
   const comments: CommentRow[] = commentRows.map((r) => ({
     id: r.id,
@@ -617,11 +643,13 @@ export async function getDrawingSheetDetail(input: {
 
   // Presigned GET for the source PDF. Short TTL — regenerated on each page
   // load. The react-pdf viewer streams pages as needed from this URL.
-  const [setRow] = await db
-    .select({ sourceFileKey: drawingSets.sourceFileKey })
-    .from(drawingSets)
-    .where(eq(drawingSets.id, input.setId))
-    .limit(1);
+  const [setRow] = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({ sourceFileKey: drawingSets.sourceFileKey })
+      .from(drawingSets)
+      .where(eq(drawingSets.id, input.setId))
+      .limit(1),
+  );
 
   const { presignDownloadUrl } = await import("@/lib/storage");
   const presignedSourceUrl = setRow?.sourceFileKey
@@ -644,40 +672,54 @@ export async function getDrawingSheetDetail(input: {
     priorPresignedSourceUrl: null,
     unmatched: false,
   };
-  const [currentSetFull] = await db
-    .select({
-      supersedesId: drawingSets.supersedesId,
-    })
-    .from(drawingSets)
-    .where(eq(drawingSets.id, input.setId))
-    .limit(1);
-  if (currentSetFull?.supersedesId) {
-    const [priorSetRow] = await db
+  const [currentSetFull] = await withTenant(ctx.organization.id, (tx) =>
+    tx
       .select({
-        id: drawingSets.id,
-        name: drawingSets.name,
-        version: drawingSets.version,
-        sourceFileKey: drawingSets.sourceFileKey,
+        supersedesId: drawingSets.supersedesId,
       })
       .from(drawingSets)
-      .where(eq(drawingSets.id, currentSetFull.supersedesId))
-      .limit(1);
+      .where(eq(drawingSets.id, input.setId))
+      .limit(1),
+  );
+  if (currentSetFull?.supersedesId) {
+    const supersedesId = currentSetFull.supersedesId;
+    const { priorSetRow, priorSheetRow } = await withTenant(
+      ctx.organization.id,
+      async (tx) => {
+        const [priorSetRow] = await tx
+          .select({
+            id: drawingSets.id,
+            name: drawingSets.name,
+            version: drawingSets.version,
+            sourceFileKey: drawingSets.sourceFileKey,
+          })
+          .from(drawingSets)
+          .where(eq(drawingSets.id, supersedesId))
+          .limit(1);
+        let priorSheetRow:
+          | { id: string; pageIndex: number; sheetNumber: string; sheetTitle: string }
+          | undefined;
+        if (priorSetRow) {
+          [priorSheetRow] = await tx
+            .select({
+              id: drawingSheets.id,
+              pageIndex: drawingSheets.pageIndex,
+              sheetNumber: drawingSheets.sheetNumber,
+              sheetTitle: drawingSheets.sheetTitle,
+            })
+            .from(drawingSheets)
+            .where(
+              and(
+                eq(drawingSheets.setId, priorSetRow.id),
+                eq(drawingSheets.sheetNumber, sheet.sheetNumber),
+              ),
+            )
+            .limit(1);
+        }
+        return { priorSetRow, priorSheetRow };
+      },
+    );
     if (priorSetRow) {
-      const [priorSheetRow] = await db
-        .select({
-          id: drawingSheets.id,
-          pageIndex: drawingSheets.pageIndex,
-          sheetNumber: drawingSheets.sheetNumber,
-          sheetTitle: drawingSheets.sheetTitle,
-        })
-        .from(drawingSheets)
-        .where(
-          and(
-            eq(drawingSheets.setId, priorSetRow.id),
-            eq(drawingSheets.sheetNumber, sheet.sheetNumber),
-          ),
-        )
-        .limit(1);
       const priorPresigned = priorSetRow.sourceFileKey
         ? await presignDownloadUrl({
             key: priorSetRow.sourceFileKey,
@@ -751,6 +793,7 @@ export function computeDisciplineCounts(
 // surfaces the most recent as-built by default.
 export async function getAsBuiltDrawingSetsForCloseout(
   projectId: string,
+  callerOrgId: string,
 ): Promise<
   Array<{
     id: string;
@@ -762,21 +805,23 @@ export async function getAsBuiltDrawingSetsForCloseout(
     uploadedAt: string;
   }>
 > {
-  const rows = await db
-    .select({
-      id: drawingSets.id,
-      name: drawingSets.name,
-      version: drawingSets.version,
-      family: drawingSets.family,
-      sheetCount: drawingSets.sheetCount,
-      sourceFileKey: drawingSets.sourceFileKey,
-      uploadedAt: drawingSets.uploadedAt,
-    })
-    .from(drawingSets)
-    .where(
-      and(eq(drawingSets.projectId, projectId), eq(drawingSets.asBuilt, true)),
-    )
-    .orderBy(desc(drawingSets.uploadedAt));
+  const rows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: drawingSets.id,
+        name: drawingSets.name,
+        version: drawingSets.version,
+        family: drawingSets.family,
+        sheetCount: drawingSets.sheetCount,
+        sourceFileKey: drawingSets.sourceFileKey,
+        uploadedAt: drawingSets.uploadedAt,
+      })
+      .from(drawingSets)
+      .where(
+        and(eq(drawingSets.projectId, projectId), eq(drawingSets.asBuilt, true)),
+      )
+      .orderBy(desc(drawingSets.uploadedAt)),
+  );
   return rows.map((r) => ({ ...r, uploadedAt: r.uploadedAt.toISOString() }));
 }
 

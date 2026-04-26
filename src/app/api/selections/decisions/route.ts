@@ -4,12 +4,13 @@ import { requireServerSession } from "@/auth/session";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   selectionDecisions,
   selectionItems,
   selectionOptions,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
@@ -30,7 +31,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const [item] = await db
+    // Pre-tenant head lookup: tenant unknown until project resolves.
+    const [item] = await dbAdmin
       .select()
       .from(selectionItems)
       .where(eq(selectionItems.id, parsed.data.selectionItemId))
@@ -54,38 +56,34 @@ export async function POST(req: Request) {
       );
     }
 
-    const [option] = await db
-      .select()
-      .from(selectionOptions)
-      .where(
-        and(
-          eq(selectionOptions.id, parsed.data.selectedOptionId),
-          eq(selectionOptions.selectionItemId, item.id),
-        ),
-      )
-      .limit(1);
-    if (!option) {
-      return NextResponse.json({ error: "option_not_found" }, { status: 404 });
-    }
-    if (!option.isAvailable) {
-      return NextResponse.json({ error: "option_unavailable" }, { status: 409 });
-    }
+    const result = await withTenant(ctx.organization.id, async (tx) => {
+      const [option] = await tx
+        .select()
+        .from(selectionOptions)
+        .where(
+          and(
+            eq(selectionOptions.id, parsed.data.selectedOptionId),
+            eq(selectionOptions.selectionItemId, item.id),
+          ),
+        )
+        .limit(1);
+      if (!option) return { kind: "option_not_found" as const };
+      if (!option.isAvailable) return { kind: "option_unavailable" as const };
 
-    const [latestDecision] = await db
-      .select()
-      .from(selectionDecisions)
-      .where(eq(selectionDecisions.selectionItemId, item.id))
-      .orderBy(desc(selectionDecisions.createdAt))
-      .limit(1);
+      const [latestDecision] = await tx
+        .select()
+        .from(selectionDecisions)
+        .where(eq(selectionDecisions.selectionItemId, item.id))
+        .orderBy(desc(selectionDecisions.createdAt))
+        .limit(1);
 
-    if (latestDecision?.isLocked) {
-      return NextResponse.json({ error: "already_locked" }, { status: 409 });
-    }
+      if (latestDecision?.isLocked) {
+        return { kind: "already_locked" as const };
+      }
 
-    const priceDelta = option.priceCents - item.allowanceCents;
-    const scheduleDelta = option.additionalScheduleDays ?? 0;
+      const priceDelta = option.priceCents - item.allowanceCents;
+      const scheduleDelta = option.additionalScheduleDays ?? 0;
 
-    const result = await db.transaction(async (tx) => {
       const [row] = await tx
         .insert(selectionDecisions)
         .values({
@@ -125,14 +123,24 @@ export async function POST(req: Request) {
         },
         tx,
       );
-      return row;
+      return { kind: "ok" as const, row };
     });
 
+    if (result.kind === "option_not_found") {
+      return NextResponse.json({ error: "option_not_found" }, { status: 404 });
+    }
+    if (result.kind === "option_unavailable") {
+      return NextResponse.json({ error: "option_unavailable" }, { status: 409 });
+    }
+    if (result.kind === "already_locked") {
+      return NextResponse.json({ error: "already_locked" }, { status: 409 });
+    }
+
     return NextResponse.json({
-      id: result.id,
-      selectedOptionId: result.selectedOptionId,
-      isProvisional: result.isProvisional,
-      priceDeltaCents: result.priceDeltaCents,
+      id: result.row.id,
+      selectedOptionId: result.row.selectedOptionId,
+      isProvisional: result.row.isProvisional,
+      priceDeltaCents: result.row.priceDeltaCents,
     });
   } catch (err) {
     if (err instanceof AuthorizationError) {

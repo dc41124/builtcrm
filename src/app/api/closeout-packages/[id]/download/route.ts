@@ -7,7 +7,6 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { Readable } from "node:stream";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import {
   closeoutPackageItems,
@@ -17,6 +16,7 @@ import {
   organizations,
   projects,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -104,45 +104,68 @@ export async function GET(
     );
 
     // Collect sections + items ordered the same way the UI renders them.
-    const sectionRows = await db
-      .select({
-        id: closeoutPackageSections.id,
-        sectionType: closeoutPackageSections.sectionType,
-        customLabel: closeoutPackageSections.customLabel,
-        orderIndex: closeoutPackageSections.orderIndex,
-      })
-      .from(closeoutPackageSections)
-      .where(eq(closeoutPackageSections.packageId, id))
-      .orderBy(
-        asc(closeoutPackageSections.orderIndex),
-        asc(closeoutPackageSections.createdAt),
-      );
+    const { sectionRows, itemRows, orgRow, projRow } = await withTenant(
+      ctx.organization.id,
+      async (tx) => {
+        const sectionRows = await tx
+          .select({
+            id: closeoutPackageSections.id,
+            sectionType: closeoutPackageSections.sectionType,
+            customLabel: closeoutPackageSections.customLabel,
+            orderIndex: closeoutPackageSections.orderIndex,
+          })
+          .from(closeoutPackageSections)
+          .where(eq(closeoutPackageSections.packageId, id))
+          .orderBy(
+            asc(closeoutPackageSections.orderIndex),
+            asc(closeoutPackageSections.createdAt),
+          );
 
-    const sectionIds = sectionRows.map((s) => s.id);
-    const itemRows =
-      sectionIds.length === 0
-        ? []
-        : await db
-            .select({
-              id: closeoutPackageItems.id,
-              sectionId: closeoutPackageItems.sectionId,
-              documentId: closeoutPackageItems.documentId,
-              name: documents.title,
-              storageKey: documents.storageKey,
-              sizeBytes: documents.fileSizeBytes,
-              notes: closeoutPackageItems.notes,
-              sortOrder: closeoutPackageItems.sortOrder,
-            })
-            .from(closeoutPackageItems)
-            .innerJoin(
-              documents,
-              eq(documents.id, closeoutPackageItems.documentId),
-            )
-            .where(inArray(closeoutPackageItems.sectionId, sectionIds))
-            .orderBy(
-              asc(closeoutPackageItems.sortOrder),
-              asc(closeoutPackageItems.createdAt),
-            );
+        const sectionIds = sectionRows.map((s) => s.id);
+        const itemRows =
+          sectionIds.length === 0
+            ? []
+            : await tx
+                .select({
+                  id: closeoutPackageItems.id,
+                  sectionId: closeoutPackageItems.sectionId,
+                  documentId: closeoutPackageItems.documentId,
+                  name: documents.title,
+                  storageKey: documents.storageKey,
+                  sizeBytes: documents.fileSizeBytes,
+                  notes: closeoutPackageItems.notes,
+                  sortOrder: closeoutPackageItems.sortOrder,
+                })
+                .from(closeoutPackageItems)
+                .innerJoin(
+                  documents,
+                  eq(documents.id, closeoutPackageItems.documentId),
+                )
+                .where(inArray(closeoutPackageItems.sectionId, sectionIds))
+                .orderBy(
+                  asc(closeoutPackageItems.sortOrder),
+                  asc(closeoutPackageItems.createdAt),
+                );
+
+        const [orgRow] = await tx
+          .select({ name: organizations.name })
+          .from(organizations)
+          .where(eq(organizations.id, head.organizationId))
+          .limit(1);
+        const [projRow] = await tx
+          .select({
+            name: projects.name,
+            addressLine1: projects.addressLine1,
+            city: projects.city,
+            stateProvince: projects.stateProvince,
+          })
+          .from(projects)
+          .where(eq(projects.id, head.projectId))
+          .limit(1);
+
+        return { sectionRows, itemRows, orgRow, projRow };
+      },
+    );
 
     if (itemRows.length === 0) {
       return NextResponse.json(
@@ -150,23 +173,6 @@ export async function GET(
         { status: 410 },
       );
     }
-
-    // Cover letter data.
-    const [orgRow] = await db
-      .select({ name: organizations.name })
-      .from(organizations)
-      .where(eq(organizations.id, head.organizationId))
-      .limit(1);
-    const [projRow] = await db
-      .select({
-        name: projects.name,
-        addressLine1: projects.addressLine1,
-        city: projects.city,
-        stateProvince: projects.stateProvince,
-      })
-      .from(projects)
-      .where(eq(projects.id, head.projectId))
-      .limit(1);
 
     const coverSections: CloseoutCoverSection[] = sectionRows.map((s, si) => {
       const items = itemRows.filter((it) => it.sectionId === s.id);
@@ -207,7 +213,7 @@ export async function GET(
     );
 
     // Audit download (contractor preview + client fetch all go through here).
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await writeAuditEvent(
         ctx,
         {

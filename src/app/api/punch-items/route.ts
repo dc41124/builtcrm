@@ -4,8 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { punchItems } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       const [{ nextNumber }] = await tx
         .select({
           nextNumber: sql<number>`coalesce(max(${punchItems.sequentialNumber}), 0) + 1`,

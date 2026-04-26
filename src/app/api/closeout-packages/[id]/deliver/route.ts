@@ -4,7 +4,6 @@ import { requireServerSession } from "@/auth/session";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import {
   closeoutPackageItems,
@@ -88,15 +87,25 @@ export async function POST(
       );
     }
 
-    // Empty-package guard.
-    const [itemCount] = await db
-      .select({ n: sql<number>`count(${closeoutPackageItems.id})::int` })
-      .from(closeoutPackageItems)
-      .innerJoin(
-        closeoutPackageSections,
-        eq(closeoutPackageSections.id, closeoutPackageItems.sectionId),
-      )
-      .where(eq(closeoutPackageSections.packageId, id));
+    const { itemCount, projectRow } = await withTenant(
+      head.organizationId,
+      async (tx) => {
+        const [itemCount] = await tx
+          .select({ n: sql<number>`count(${closeoutPackageItems.id})::int` })
+          .from(closeoutPackageItems)
+          .innerJoin(
+            closeoutPackageSections,
+            eq(closeoutPackageSections.id, closeoutPackageItems.sectionId),
+          )
+          .where(eq(closeoutPackageSections.packageId, id));
+        const [projectRow] = await tx
+          .select({ name: projects.name })
+          .from(projects)
+          .where(eq(projects.id, head.projectId))
+          .limit(1);
+        return { itemCount, projectRow };
+      },
+    );
     if ((itemCount?.n ?? 0) === 0) {
       return NextResponse.json(
         { error: "empty_package", message: "Add at least one document before moving forward." },
@@ -108,12 +117,6 @@ export async function POST(
       head.sequenceYear,
       head.sequenceNumber,
     );
-
-    const [projectRow] = await db
-      .select({ name: projects.name })
-      .from(projects)
-      .where(eq(projects.id, head.projectId))
-      .limit(1);
 
     await withTenant(head.organizationId, async (tx) => {
       if (target === "review") {

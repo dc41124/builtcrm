@@ -13,8 +13,9 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { drawingComments, drawingSets, drawingSheets } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
 import { resolveSheetAccess } from "@/lib/drawings/access";
 
@@ -32,7 +33,8 @@ export async function POST(
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
   const { session } = await requireServerSession();
-  const [parent] = await db
+  // Pre-tenant head lookup: tenant unknown until project resolves.
+  const [parent] = await dbAdmin
     .select({
       comment: drawingComments,
       sheetId: drawingSheets.id,
@@ -61,18 +63,20 @@ export async function POST(
     });
     assertCan(access.ctx.permissions, "drawing_markup", "write");
 
-    const [inserted] = await db
-      .insert(drawingComments)
-      .values({
-        sheetId: parent.sheetId,
-        parentCommentId: commentId,
-        userId: access.ctx.user.id,
-        pinNumber: null,
-        x: parent.comment.x,
-        y: parent.comment.y,
-        text: parsed.data.text,
-      })
-      .returning({ id: drawingComments.id });
+    const [inserted] = await withTenant(access.ctx.organization.id, (tx) =>
+      tx
+        .insert(drawingComments)
+        .values({
+          sheetId: parent.sheetId,
+          parentCommentId: commentId,
+          userId: access.ctx.user.id,
+          pinNumber: null,
+          x: parent.comment.x,
+          y: parent.comment.y,
+          text: parsed.data.text,
+        })
+        .returning({ id: drawingComments.id }),
+    );
 
     return NextResponse.json({ id: inserted.id });
   } catch (err) {

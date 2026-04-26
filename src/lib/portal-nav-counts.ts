@@ -314,15 +314,17 @@ async function clientProjectCounts({
     // entirely for commercial to save a roundtrip.
     isResidential
       ? countOf(
-          db
-            .select({ c: COUNT })
-            .from(selectionItems)
-            .where(
-              and(
-                eq(selectionItems.projectId, projectId),
-                eq(selectionItems.selectionItemStatus, "provisional"),
+          withTenant(orgId, (tx) =>
+            tx
+              .select({ c: COUNT })
+              .from(selectionItems)
+              .where(
+                and(
+                  eq(selectionItems.projectId, projectId),
+                  eq(selectionItems.selectionItemStatus, "provisional"),
+                ),
               ),
-            ),
+          ),
         )
       : Promise.resolve(0),
     countOf(

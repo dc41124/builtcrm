@@ -1,8 +1,10 @@
+import { sql } from "drizzle-orm";
 import {
   foreignKey,
   index,
   integer,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -76,8 +78,35 @@ export const transmittals = pgTable(
       table.status,
     ),
     sentAtIdx: index("transmittals_sent_at_idx").on(table.sentAt),
+    // Phase 4 wave 6 — project-scoped 2-clause hybrid (same template
+    // as milestones / daily_logs / wave-4 trio / documents).
+    tenantIsolation: pgPolicy("transmittals_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // transmittal_recipients — one row per invited email on a transmittal.
@@ -145,8 +174,13 @@ export const transmittalRecipients = pgTable(
     digestIdx: index("transmittal_recipients_digest_idx").on(
       table.accessTokenDigest,
     ),
+    tenantIsolation: pgPolicy("transmittal_recipients_tenant_isolation", {
+      for: "all",
+      using: sql`${table.transmittalId} IN (SELECT id FROM transmittals)`,
+      withCheck: sql`${table.transmittalId} IN (SELECT id FROM transmittals)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // transmittal_documents — join to documents. `sort_order` preserves the
@@ -184,8 +218,13 @@ export const transmittalDocuments = pgTable(
       table.transmittalId,
       table.documentId,
     ),
+    tenantIsolation: pgPolicy("transmittal_documents_tenant_isolation", {
+      for: "all",
+      using: sql`${table.transmittalId} IN (SELECT id FROM transmittals)`,
+      withCheck: sql`${table.transmittalId} IN (SELECT id FROM transmittals)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // transmittal_access_events — per-download log. The detail view's
@@ -223,5 +262,14 @@ export const transmittalAccessEvents = pgTable(
       foreignColumns: [transmittalRecipients.id],
       name: "transmittal_access_events_recipient_fk",
     }).onDelete("cascade"),
+    // Depth-2 nested-via-parent: chain through recipients to
+    // transmittals. Inner subquery inherits transmittal_recipients'
+    // policy (which inherits transmittals'); the outer subquery
+    // narrows by recipient.
+    tenantIsolation: pgPolicy("transmittal_access_events_tenant_isolation", {
+      for: "all",
+      using: sql`${table.recipientId} IN (SELECT id FROM transmittal_recipients)`,
+      withCheck: sql`${table.recipientId} IN (SELECT id FROM transmittal_recipients)`,
+    }),
   }),
-);
+).enableRLS();

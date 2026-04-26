@@ -3,8 +3,9 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { eq, sql } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { selectionItems, selectionOptions } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
@@ -16,7 +17,8 @@ export async function POST(
   const { id } = await params;
   const { session } = await requireServerSession();
   try {
-    const [item] = await db
+    // Pre-tenant head lookup: tenant unknown until project resolves.
+    const [item] = await dbAdmin
       .select()
       .from(selectionItems)
       .where(eq(selectionItems.id, id))
@@ -41,19 +43,15 @@ export async function POST(
       return NextResponse.json({ error: "already_published" }, { status: 409 });
     }
 
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(selectionOptions)
-      .where(eq(selectionOptions.selectionItemId, id));
-    if (Number(count) < 2) {
-      return NextResponse.json(
-        { error: "minimum_two_options_required" },
-        { status: 409 },
-      );
-    }
-
     const now = new Date();
-    await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
+      const [{ count }] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(selectionOptions)
+        .where(eq(selectionOptions.selectionItemId, id));
+      if (Number(count) < 2) {
+        return "minimum_two_options_required" as const;
+      }
       await tx
         .update(selectionItems)
         .set({
@@ -77,7 +75,14 @@ export async function POST(
         },
         tx,
       );
+      return "ok" as const;
     });
+    if (result !== "ok") {
+      return NextResponse.json(
+        { error: "minimum_two_options_required" },
+        { status: 409 },
+      );
+    }
 
     return NextResponse.json({ id, selectionItemStatus: "exploring" });
   } catch (err) {

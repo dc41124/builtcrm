@@ -213,8 +213,13 @@ export const closeoutPackageSections = pgTable(
     fixedTypeUnique: uniqueIndex("closeout_package_sections_fixed_type_unique")
       .on(table.packageId, table.sectionType)
       .where(sql`${table.sectionType} <> 'other'`),
+    tenantIsolation: pgPolicy("closeout_package_sections_tenant_isolation", {
+      for: "all",
+      using: sql`${table.packageId} IN (SELECT id FROM closeout_packages)`,
+      withCheck: sql`${table.packageId} IN (SELECT id FROM closeout_packages)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // closeout_package_items — a document pinned into a section with
@@ -259,8 +264,15 @@ export const closeoutPackageItems = pgTable(
       foreignColumns: [closeoutPackageSections.id],
       name: "closeout_package_items_section_id_fk",
     }).onDelete("cascade"),
+    // Depth-2 nested: chain through closeout_package_sections to
+    // closeout_packages.
+    tenantIsolation: pgPolicy("closeout_package_items_tenant_isolation", {
+      for: "all",
+      using: sql`${table.sectionId} IN (SELECT id FROM closeout_package_sections)`,
+      withCheck: sql`${table.sectionId} IN (SELECT id FROM closeout_package_sections)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // closeout_package_comments — scoped comment threads on a delivered
@@ -324,5 +336,12 @@ export const closeoutPackageComments = pgTable(
       foreignColumns: [closeoutPackageSections.id],
       name: "closeout_package_comments_section_id_fk",
     }).onDelete("cascade"),
+    // Comments hang off package_id (the only NOT NULL parent FK on
+    // every comment, regardless of scope) — chain to closeout_packages.
+    tenantIsolation: pgPolicy("closeout_package_comments_tenant_isolation", {
+      for: "all",
+      using: sql`${table.packageId} IN (SELECT id FROM closeout_packages)`,
+      withCheck: sql`${table.packageId} IN (SELECT id FROM closeout_packages)`,
+    }),
   }),
-);
+).enableRLS();

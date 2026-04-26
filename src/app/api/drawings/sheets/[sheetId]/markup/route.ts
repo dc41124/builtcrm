@@ -11,8 +11,8 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { drawingMarkups } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
 import { resolveSheetAccess } from "@/lib/drawings/access";
 
@@ -80,21 +80,23 @@ export async function PUT(
     // $onUpdate hook only fires on UPDATE branches of an insert, not all
     // of them across pg drivers.
     const now = new Date();
-    await db
-      .insert(drawingMarkups)
-      .values({
-        sheetId,
-        userId: access.ctx.user.id,
-        markupData: parsed.data.markupData,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: [drawingMarkups.sheetId, drawingMarkups.userId],
-        set: {
+    await withTenant(access.ctx.organization.id, (tx) =>
+      tx
+        .insert(drawingMarkups)
+        .values({
+          sheetId,
+          userId: access.ctx.user.id,
           markupData: parsed.data.markupData,
           updatedAt: now,
-        },
-      });
+        })
+        .onConflictDoUpdate({
+          target: [drawingMarkups.sheetId, drawingMarkups.userId],
+          set: {
+            markupData: parsed.data.markupData,
+            updatedAt: now,
+          },
+        }),
+    );
 
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -129,14 +131,16 @@ export async function DELETE(
     });
     assertCan(access.ctx.permissions, "drawing_markup", "write");
 
-    await db
-      .delete(drawingMarkups)
-      .where(
-        and(
-          eq(drawingMarkups.sheetId, sheetId),
-          eq(drawingMarkups.userId, access.ctx.user.id),
+    await withTenant(access.ctx.organization.id, (tx) =>
+      tx
+        .delete(drawingMarkups)
+        .where(
+          and(
+            eq(drawingMarkups.sheetId, sheetId),
+            eq(drawingMarkups.userId, access.ctx.user.id),
+          ),
         ),
-      );
+    );
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof AuthorizationError) {

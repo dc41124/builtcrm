@@ -4,12 +4,13 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   organizations,
   transmittalRecipients,
   transmittals,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -55,7 +56,8 @@ export async function PATCH(
   const { action } = parsed.data;
 
   try {
-    const [row] = await db
+    // Pre-tenant head lookup: tenant unknown until project resolves.
+    const [row] = await dbAdmin
       .select({
         recipientId: transmittalRecipients.id,
         email: transmittalRecipients.email,
@@ -113,13 +115,15 @@ export async function PATCH(
         );
       }
       const token = generateAccessToken();
-      const [contractorOrg] = await db
-        .select({ name: organizations.name })
-        .from(organizations)
-        .where(eq(organizations.id, ctx.project.contractorOrganizationId))
-        .limit(1);
 
-      await db.transaction(async (tx) => {
+      await withTenant(ctx.organization.id, async (tx) => {
+        const [contractorOrg] = await tx
+          .select({ name: organizations.name })
+          .from(organizations)
+          .where(eq(organizations.id, ctx.project.contractorOrganizationId))
+          .limit(1);
+
+
         await tx
           .update(transmittalRecipients)
           .set({ accessTokenDigest: token.digest })
@@ -180,7 +184,7 @@ export async function PATCH(
     if (row.revokedAt) {
       return NextResponse.json({ ok: true, alreadyRevoked: true });
     }
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(transmittalRecipients)
         .set({

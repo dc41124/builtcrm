@@ -16,8 +16,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { drawingSets } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getEffectiveContext } from "@/domain/context";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
 import { buildSourcePdfKey } from "@/lib/drawings/storage";
@@ -59,36 +59,43 @@ export async function POST(req: Request) {
     const { nextVersion, currentSetId } = await nextVersionFor(
       ctx.project.id,
       parsed.data.family,
+      ctx.organization.id,
     );
 
-    const [set] = await db
-      .insert(drawingSets)
-      .values({
-        projectId: ctx.project.id,
-        family: parsed.data.family,
-        name: parsed.data.name,
-        version: nextVersion,
-        status: "current",
-        asBuilt: parsed.data.asBuilt ?? false,
-        supersedesId: currentSetId,
-        uploadedByUserId: ctx.user.id,
-        processingStatus: "pending",
-        fileSizeBytes: parsed.data.fileSize,
-        note: parsed.data.note ?? null,
-      })
-      .returning({ id: drawingSets.id });
+    const set = await withTenant(ctx.organization.id, async (tx) => {
+      const [inserted] = await tx
+        .insert(drawingSets)
+        .values({
+          projectId: ctx.project.id,
+          family: parsed.data.family,
+          name: parsed.data.name,
+          version: nextVersion,
+          status: "current",
+          asBuilt: parsed.data.asBuilt ?? false,
+          supersedesId: currentSetId,
+          uploadedByUserId: ctx.user.id,
+          processingStatus: "pending",
+          fileSizeBytes: parsed.data.fileSize,
+          note: parsed.data.note ?? null,
+        })
+        .returning({ id: drawingSets.id });
 
-    const storageKey = buildSourcePdfKey({
-      orgId: ctx.project.contractorOrganizationId,
-      projectId: ctx.project.id,
-      setId: set.id,
-      filename: parsed.data.filename,
+      const storageKey = buildSourcePdfKey({
+        orgId: ctx.project.contractorOrganizationId,
+        projectId: ctx.project.id,
+        setId: inserted.id,
+        filename: parsed.data.filename,
+      });
+
+      await tx
+        .update(drawingSets)
+        .set({ sourceFileKey: storageKey })
+        .where(eq(drawingSets.id, inserted.id));
+
+      return { id: inserted.id, storageKey };
     });
 
-    await db
-      .update(drawingSets)
-      .set({ sourceFileKey: storageKey })
-      .where(eq(drawingSets.id, set.id));
+    const storageKey = set.storageKey;
 
     const uploadUrl = await presignUploadUrl({
       key: storageKey,

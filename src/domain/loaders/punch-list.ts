@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   documents,
   organizations,
@@ -10,6 +11,7 @@ import {
   punchItems,
   users,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getEffectiveContext, type SessionLike } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
 import type { PunchStatus } from "@/lib/punch-list/config";
@@ -130,78 +132,94 @@ export async function getPunchItems(
   // Alias tables for the multiple-user joins. Drizzle v0.41+ supports
   // alias() but a simpler approach: do the main query with
   // reporter/verifier joins then look up names in a second batch.
-  const rows = await db
-    .select({
-      id: punchItems.id,
-      sequentialNumber: punchItems.sequentialNumber,
-      title: punchItems.title,
-      description: punchItems.description,
-      location: punchItems.location,
-      priority: punchItems.priority,
-      status: punchItems.status,
-      assigneeOrgId: punchItems.assigneeOrgId,
-      assigneeOrgName: organizations.name,
-      assigneeUserId: punchItems.assigneeUserId,
-      dueDate: punchItems.dueDate,
-      createdByUserId: punchItems.createdByUserId,
-      rejectionReason: punchItems.rejectionReason,
-      voidReason: punchItems.voidReason,
-      verifiedByUserId: punchItems.verifiedByUserId,
-      verifiedAt: punchItems.verifiedAt,
-      lastTransitionAt: punchItems.lastTransitionAt,
-      clientFacingNote: punchItems.clientFacingNote,
-      createdAt: punchItems.createdAt,
-    })
-    .from(punchItems)
-    .leftJoin(
-      organizations,
-      eq(organizations.id, punchItems.assigneeOrgId),
-    )
-    .where(and(...whereParts))
-    .orderBy(desc(punchItems.lastTransitionAt));
+  const { rows, userNameById, photoBy, commentBy } = await withTenant(
+    ctx.organization.id,
+    async (tx) => {
+      const rows = await tx
+        .select({
+          id: punchItems.id,
+          sequentialNumber: punchItems.sequentialNumber,
+          title: punchItems.title,
+          description: punchItems.description,
+          location: punchItems.location,
+          priority: punchItems.priority,
+          status: punchItems.status,
+          assigneeOrgId: punchItems.assigneeOrgId,
+          assigneeOrgName: organizations.name,
+          assigneeUserId: punchItems.assigneeUserId,
+          dueDate: punchItems.dueDate,
+          createdByUserId: punchItems.createdByUserId,
+          rejectionReason: punchItems.rejectionReason,
+          voidReason: punchItems.voidReason,
+          verifiedByUserId: punchItems.verifiedByUserId,
+          verifiedAt: punchItems.verifiedAt,
+          lastTransitionAt: punchItems.lastTransitionAt,
+          clientFacingNote: punchItems.clientFacingNote,
+          createdAt: punchItems.createdAt,
+        })
+        .from(punchItems)
+        .leftJoin(
+          organizations,
+          eq(organizations.id, punchItems.assigneeOrgId),
+        )
+        .where(and(...whereParts))
+        .orderBy(desc(punchItems.lastTransitionAt));
+
+      if (rows.length === 0) {
+        return {
+          rows,
+          userNameById: new Map<string, string | null>(),
+          photoBy: new Map<string, number>(),
+          commentBy: new Map<string, number>(),
+        };
+      }
+
+      // Batch user lookups.
+      const userIds = new Set<string>();
+      for (const r of rows) {
+        userIds.add(r.createdByUserId);
+        if (r.assigneeUserId) userIds.add(r.assigneeUserId);
+        if (r.verifiedByUserId) userIds.add(r.verifiedByUserId);
+      }
+      const userRows = await tx
+        .select({ id: users.id, displayName: users.displayName })
+        .from(users)
+        .where(inArray(users.id, Array.from(userIds)));
+      const userNameById = new Map(userRows.map((u) => [u.id, u.displayName]));
+
+      // Counts: photos + non-system comments grouped by item id.
+      const itemIds = rows.map((r) => r.id);
+      const [photoCounts, commentCounts] = await Promise.all([
+        tx
+          .select({
+            itemId: punchItemPhotos.punchItemId,
+            c: sql<number>`count(*)::int`,
+          })
+          .from(punchItemPhotos)
+          .where(inArray(punchItemPhotos.punchItemId, itemIds))
+          .groupBy(punchItemPhotos.punchItemId),
+        tx
+          .select({
+            itemId: punchItemComments.punchItemId,
+            c: sql<number>`count(*)::int`,
+          })
+          .from(punchItemComments)
+          .where(
+            and(
+              inArray(punchItemComments.punchItemId, itemIds),
+              eq(punchItemComments.isSystem, false),
+            ),
+          )
+          .groupBy(punchItemComments.punchItemId),
+      ]);
+      const photoBy = new Map(photoCounts.map((p) => [p.itemId, p.c]));
+      const commentBy = new Map(commentCounts.map((p) => [p.itemId, p.c]));
+
+      return { rows, userNameById, photoBy, commentBy };
+    },
+  );
 
   if (rows.length === 0) return [];
-
-  // Batch user lookups.
-  const userIds = new Set<string>();
-  for (const r of rows) {
-    userIds.add(r.createdByUserId);
-    if (r.assigneeUserId) userIds.add(r.assigneeUserId);
-    if (r.verifiedByUserId) userIds.add(r.verifiedByUserId);
-  }
-  const userRows = await db
-    .select({ id: users.id, displayName: users.displayName })
-    .from(users)
-    .where(inArray(users.id, Array.from(userIds)));
-  const userNameById = new Map(userRows.map((u) => [u.id, u.displayName]));
-
-  // Counts: photos + non-system comments grouped by item id.
-  const itemIds = rows.map((r) => r.id);
-  const [photoCounts, commentCounts] = await Promise.all([
-    db
-      .select({
-        itemId: punchItemPhotos.punchItemId,
-        c: sql<number>`count(*)::int`,
-      })
-      .from(punchItemPhotos)
-      .where(inArray(punchItemPhotos.punchItemId, itemIds))
-      .groupBy(punchItemPhotos.punchItemId),
-    db
-      .select({
-        itemId: punchItemComments.punchItemId,
-        c: sql<number>`count(*)::int`,
-      })
-      .from(punchItemComments)
-      .where(
-        and(
-          inArray(punchItemComments.punchItemId, itemIds),
-          eq(punchItemComments.isSystem, false),
-        ),
-      )
-      .groupBy(punchItemComments.punchItemId),
-  ]);
-  const photoBy = new Map(photoCounts.map((p) => [p.itemId, p.c]));
-  const commentBy = new Map(commentCounts.map((p) => [p.itemId, p.c]));
 
   const now = new Date();
   return rows.map((r) => {
@@ -255,7 +273,8 @@ export type GetPunchItemInput = {
 export async function getPunchItem(
   input: GetPunchItemInput,
 ): Promise<PunchItemDetailFull> {
-  const [itemHead] = await db
+  // Pre-tenant head lookup: tenant unknown until project resolves.
+  const [itemHead] = await dbAdmin
     .select({ id: punchItems.id, projectId: punchItems.projectId })
     .from(punchItems)
     .where(eq(punchItems.id, input.itemId))
@@ -292,10 +311,13 @@ export async function getPunchItem(
     );
   }
 
-  const [photos, comments] = await Promise.all([
-    queryPhotos(input.itemId),
-    queryComments(input.itemId),
-  ]);
+  const { photos, comments } = await withTenant(ctx.organization.id, async (tx) => {
+    const [photos, comments] = await Promise.all([
+      queryPhotos(tx, input.itemId),
+      queryComments(tx, input.itemId),
+    ]);
+    return { photos, comments };
+  });
 
   return { ...head, mode: "full", photos, comments };
 }
@@ -334,23 +356,67 @@ export async function getResidentialWalkthroughItems(
     );
   }
 
-  const [projectRow] = await db
-    .select({
-      id: projects.id,
-      name: projects.name,
-      currentPhase: projects.currentPhase,
-    })
-    .from(projects)
-    .where(eq(projects.id, input.projectId))
-    .limit(1);
+  type WalkRow = {
+    id: string;
+    sequentialNumber: number;
+    title: string;
+    description: string;
+    location: string | null;
+    status: PunchStatus;
+    clientFacingNote: string | null;
+    addedOn: Date;
+    updatedOn: Date;
+  };
+  const { projectRow, rows } = await withTenant(ctx.organization.id, async (tx) => {
+    const [projectRow] = await tx
+      .select({
+        id: projects.id,
+        name: projects.name,
+        currentPhase: projects.currentPhase,
+      })
+      .from(projects)
+      .where(eq(projects.id, input.projectId))
+      .limit(1);
+    if (!projectRow) {
+      return { projectRow: null, rows: [] as WalkRow[] };
+    }
+
+    const inCloseout = projectRow.currentPhase === "closeout";
+    if (!inCloseout) {
+      return { projectRow, rows: [] as WalkRow[] };
+    }
+
+    const rows: WalkRow[] = await tx
+      .select({
+        id: punchItems.id,
+        sequentialNumber: punchItems.sequentialNumber,
+        title: punchItems.title,
+        description: punchItems.description,
+        location: punchItems.location,
+        status: punchItems.status,
+        clientFacingNote: punchItems.clientFacingNote,
+        addedOn: punchItems.createdAt,
+        updatedOn: punchItems.lastTransitionAt,
+      })
+      .from(punchItems)
+      .where(
+        and(
+          eq(punchItems.projectId, input.projectId),
+          // Void items never surface for residential per handoff doc.
+          sql`${punchItems.status} <> 'void'`,
+        ),
+      )
+      .orderBy(desc(punchItems.lastTransitionAt));
+
+    return { projectRow, rows };
+  });
+
   if (!projectRow) {
     throw new AuthorizationError("Project not found", "not_found");
   }
 
   const inCloseout = projectRow.currentPhase === "closeout";
   if (!inCloseout) {
-    // Phase gate — return the empty shell. UI branches on inCloseout
-    // and renders its help card instead of the populated view.
     return {
       project: {
         id: projectRow.id,
@@ -361,28 +427,6 @@ export async function getResidentialWalkthroughItems(
       items: [],
     };
   }
-
-  const rows = await db
-    .select({
-      id: punchItems.id,
-      sequentialNumber: punchItems.sequentialNumber,
-      title: punchItems.title,
-      description: punchItems.description,
-      location: punchItems.location,
-      status: punchItems.status,
-      clientFacingNote: punchItems.clientFacingNote,
-      addedOn: punchItems.createdAt,
-      updatedOn: punchItems.lastTransitionAt,
-    })
-    .from(punchItems)
-    .where(
-      and(
-        eq(punchItems.projectId, input.projectId),
-        // Void items never surface for residential per handoff doc.
-        sql`${punchItems.status} <> 'void'`,
-      ),
-    )
-    .orderBy(desc(punchItems.lastTransitionAt));
 
   if (rows.length === 0) {
     return {
@@ -397,7 +441,9 @@ export async function getResidentialWalkthroughItems(
   }
 
   const itemIds = rows.map((r) => r.id);
-  const photoRows = await queryPhotosForMany(itemIds);
+  const photoRows = await withTenant(ctx.organization.id, (tx) =>
+    queryPhotosForMany(tx, itemIds),
+  );
   const photosByItem = new Map<string, PunchItemPhotoRow[]>();
   for (const p of photoRows) {
     const arr = photosByItem.get(p.itemId) ?? [];
@@ -438,8 +484,13 @@ export async function getResidentialWalkthroughItems(
 // Internal helpers
 // -----------------------------------------------------------------
 
-async function queryPhotos(itemId: string): Promise<PunchItemPhotoRow[]> {
-  const rows = await db
+type TxOrDb = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function queryPhotos(
+  tx: TxOrDb,
+  itemId: string,
+): Promise<PunchItemPhotoRow[]> {
+  const rows = await tx
     .select({
       id: punchItemPhotos.id,
       documentId: punchItemPhotos.documentId,
@@ -470,10 +521,11 @@ async function queryPhotos(itemId: string): Promise<PunchItemPhotoRow[]> {
 }
 
 async function queryPhotosForMany(
+  tx: TxOrDb,
   itemIds: string[],
 ): Promise<Array<PunchItemPhotoRow & { itemId: string }>> {
   if (itemIds.length === 0) return [];
-  const rows = await db
+  const rows = await tx
     .select({
       id: punchItemPhotos.id,
       itemId: punchItemPhotos.punchItemId,
@@ -505,8 +557,11 @@ async function queryPhotosForMany(
   }));
 }
 
-async function queryComments(itemId: string): Promise<PunchItemCommentRow[]> {
-  const rows = await db
+async function queryComments(
+  tx: TxOrDb,
+  itemId: string,
+): Promise<PunchItemCommentRow[]> {
+  const rows = await tx
     .select({
       id: punchItemComments.id,
       authorUserId: punchItemComments.authorUserId,

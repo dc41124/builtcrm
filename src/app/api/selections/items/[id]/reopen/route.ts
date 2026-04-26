@@ -4,8 +4,9 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { selectionItems } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
@@ -29,7 +30,8 @@ export async function POST(
   }
 
   try {
-    const [item] = await db
+    // Pre-tenant head lookup: tenant unknown until project resolves.
+    const [item] = await dbAdmin
       .select()
       .from(selectionItems)
       .where(eq(selectionItems.id, id))
@@ -55,7 +57,7 @@ export async function POST(
     }
 
     const now = new Date();
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(selectionItems)
         .set({

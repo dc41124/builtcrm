@@ -4,8 +4,9 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { punchItems } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { getPunchItem } from "@/domain/loaders/punch-list";
@@ -82,7 +83,8 @@ export async function PATCH(
   }
 
   try {
-    const [head] = await db
+    // Pre-tenant head lookup: tenant unknown until project resolves.
+    const [head] = await dbAdmin
       .select({ id: punchItems.id, projectId: punchItems.projectId })
       .from(punchItems)
       .where(eq(punchItems.id, id))
@@ -120,7 +122,7 @@ export async function PATCH(
       return NextResponse.json({ id });
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx.update(punchItems).set(patch).where(eq(punchItems.id, id));
       await writeAuditEvent(
         ctx,

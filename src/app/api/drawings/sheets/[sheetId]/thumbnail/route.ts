@@ -16,15 +16,17 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { drawingSets, drawingSheets } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getEffectiveContext } from "@/domain/context";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
 import { buildThumbnailKey } from "@/lib/drawings/storage";
 import { objectExists, presignUploadUrl } from "@/lib/storage";
 
 async function loadSheetWithSet(sheetId: string) {
-  const [row] = await db
+  // Pre-tenant head lookup: tenant unknown until project resolves.
+  const [row] = await dbAdmin
     .select({
       sheet: drawingSheets,
       set: drawingSets,
@@ -123,10 +125,12 @@ export async function POST(
       );
     }
 
-    await db
-      .update(drawingSheets)
-      .set({ thumbnailKey: parsed.data.storageKey })
-      .where(eq(drawingSheets.id, sheetId));
+    await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .update(drawingSheets)
+        .set({ thumbnailKey: parsed.data.storageKey })
+        .where(eq(drawingSheets.id, sheetId)),
+    );
 
     return NextResponse.json({ sheetId, thumbnailKey: parsed.data.storageKey });
   } catch (err) {

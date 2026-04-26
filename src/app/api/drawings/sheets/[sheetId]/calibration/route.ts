@@ -12,8 +12,8 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { drawingSheets } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
 import { resolveSheetAccess } from "@/lib/drawings/access";
 
@@ -41,15 +41,17 @@ export async function PATCH(
     // contractor staff so trade scopes can't overwrite each other.
     assertCan(access.ctx.permissions, "drawing", "write");
 
-    await db
-      .update(drawingSheets)
-      .set({
-        calibrationScale: parsed.data.scale,
-        calibrationSource: parsed.data.source,
-        calibratedByUserId: access.ctx.user.id,
-        calibratedAt: new Date(),
-      })
-      .where(eq(drawingSheets.id, sheetId));
+    await withTenant(access.ctx.organization.id, (tx) =>
+      tx
+        .update(drawingSheets)
+        .set({
+          calibrationScale: parsed.data.scale,
+          calibrationSource: parsed.data.source,
+          calibratedByUserId: access.ctx.user.id,
+          calibratedAt: new Date(),
+        })
+        .where(eq(drawingSheets.id, sheetId)),
+    );
 
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -251,14 +251,16 @@ export async function getInspections(
   }
 
   // Punch count per inspection (auto-spawned).
-  const punchRows = await db
-    .select({
-      inspectionId: punchItems.sourceInspectionId,
-      c: sql<number>`count(*)::int`,
-    })
-    .from(punchItems)
-    .where(inArray(punchItems.sourceInspectionId, insIds))
-    .groupBy(punchItems.sourceInspectionId);
+  const punchRows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        inspectionId: punchItems.sourceInspectionId,
+        c: sql<number>`count(*)::int`,
+      })
+      .from(punchItems)
+      .where(inArray(punchItems.sourceInspectionId, insIds))
+      .groupBy(punchItems.sourceInspectionId),
+  );
   const punchBy = new Map<string, number>();
   for (const p of punchRows) {
     if (p.inspectionId) punchBy.set(p.inspectionId, p.c);
@@ -412,25 +414,27 @@ export async function getInspection(
 
   // Punch items spawned from this inspection, keyed by source result id so
   // each line item can show its linked PI-#### pill.
-  const punchRows = await db
-    .select({
-      id: punchItems.id,
-      sequentialNumber: punchItems.sequentialNumber,
-      title: punchItems.title,
-      status: punchItems.status,
-      priority: punchItems.priority,
-      assigneeOrgId: punchItems.assigneeOrgId,
-      assigneeOrgName: organizations.name,
-      dueDate: punchItems.dueDate,
-      sourceResultId: punchItems.sourceInspectionResultId,
-    })
-    .from(punchItems)
-    .leftJoin(
-      organizations,
-      eq(organizations.id, punchItems.assigneeOrgId),
-    )
-    .where(eq(punchItems.sourceInspectionId, input.inspectionId))
-    .orderBy(desc(punchItems.createdAt));
+  const punchRows = await withTenant(ctx.organization.id, (tx) =>
+    tx
+      .select({
+        id: punchItems.id,
+        sequentialNumber: punchItems.sequentialNumber,
+        title: punchItems.title,
+        status: punchItems.status,
+        priority: punchItems.priority,
+        assigneeOrgId: punchItems.assigneeOrgId,
+        assigneeOrgName: organizations.name,
+        dueDate: punchItems.dueDate,
+        sourceResultId: punchItems.sourceInspectionResultId,
+      })
+      .from(punchItems)
+      .leftJoin(
+        organizations,
+        eq(organizations.id, punchItems.assigneeOrgId),
+      )
+      .where(eq(punchItems.sourceInspectionId, input.inspectionId))
+      .orderBy(desc(punchItems.createdAt)),
+  );
   const punchByResultId = new Map<
     string,
     { id: string; sequentialNumber: number }

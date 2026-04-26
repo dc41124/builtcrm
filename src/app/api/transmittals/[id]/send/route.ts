@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { eq, sql } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   organizations,
   projects,
@@ -11,6 +11,7 @@ import {
   transmittalRecipients,
   transmittals,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -44,7 +45,8 @@ export async function POST(
   const { id } = await params;
   const { session } = await requireServerSession();
   try {
-    const [head] = await db
+    // Pre-tenant head lookup: tenant unknown until project resolves.
+    const [head] = await dbAdmin
       .select({
         id: transmittals.id,
         projectId: transmittals.projectId,
@@ -76,52 +78,47 @@ export async function POST(
       );
     }
 
-    // Pre-flight: need at least one recipient and one document.
-    const recipientRows = await db
-      .select({
-        id: transmittalRecipients.id,
-        email: transmittalRecipients.email,
-        name: transmittalRecipients.name,
-      })
-      .from(transmittalRecipients)
-      .where(eq(transmittalRecipients.transmittalId, id));
-    const [docCountRow] = await db
-      .select({ c: sql<number>`count(*)::int` })
-      .from(transmittalDocuments)
-      .where(eq(transmittalDocuments.transmittalId, id));
-    const docCount = docCountRow?.c ?? 0;
-    if (recipientRows.length === 0) {
-      return NextResponse.json(
-        { error: "no_recipients" },
-        { status: 409 },
-      );
-    }
-    if (docCount === 0) {
-      return NextResponse.json(
-        { error: "no_documents" },
-        { status: 409 },
-      );
-    }
-
-    // Generate tokens outside the transaction — crypto doesn't need
-    // to hold a DB lock, and we want these in memory to return in the
-    // response.
-    const tokensByRecipientId = new Map<
-      string,
-      { plaintext: string; digest: string }
-    >();
-    for (const r of recipientRows) {
-      tokensByRecipientId.set(r.id, generateAccessToken());
-    }
-
     const senderDisplayName = ctx.user.displayName ?? ctx.user.email;
-    const [contractorOrg] = await db
-      .select({ name: organizations.name })
-      .from(organizations)
-      .where(eq(organizations.id, ctx.project.contractorOrganizationId))
-      .limit(1);
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
+      // Pre-flight: need at least one recipient and one document.
+      const recipientRows = await tx
+        .select({
+          id: transmittalRecipients.id,
+          email: transmittalRecipients.email,
+          name: transmittalRecipients.name,
+        })
+        .from(transmittalRecipients)
+        .where(eq(transmittalRecipients.transmittalId, id));
+      const [docCountRow] = await tx
+        .select({ c: sql<number>`count(*)::int` })
+        .from(transmittalDocuments)
+        .where(eq(transmittalDocuments.transmittalId, id));
+      const docCount = docCountRow?.c ?? 0;
+      if (recipientRows.length === 0) {
+        throw new SendPreconditionError("no_recipients");
+      }
+      if (docCount === 0) {
+        throw new SendPreconditionError("no_documents");
+      }
+
+      // Generate tokens up front — we need them in the response, and
+      // crypto doesn't depend on DB state.
+      const tokensByRecipientId = new Map<
+        string,
+        { plaintext: string; digest: string }
+      >();
+      for (const r of recipientRows) {
+        tokensByRecipientId.set(r.id, generateAccessToken());
+      }
+
+      const [contractorOrg] = await tx
+        .select({ name: organizations.name })
+        .from(organizations)
+        .where(eq(organizations.id, ctx.project.contractorOrganizationId))
+        .limit(1);
+
+
       const [bumped] = await tx
         .update(projects)
         .set({ transmittalCounter: sql`${projects.transmittalCounter} + 1` })
@@ -221,6 +218,9 @@ export async function POST(
       })),
     });
   } catch (err) {
+    if (err instanceof SendPreconditionError) {
+      return NextResponse.json({ error: err.code }, { status: 409 });
+    }
     if (err instanceof AuthorizationError) {
       const code =
         err.code === "unauthenticated"
@@ -234,5 +234,13 @@ export async function POST(
       );
     }
     throw err;
+  }
+}
+
+// Sentinel for inside-withTenant preconditions — keeps the original
+// 409 response shape without forcing a return-from-transaction dance.
+class SendPreconditionError extends Error {
+  constructor(public readonly code: "no_recipients" | "no_documents") {
+    super(code);
   }
 }

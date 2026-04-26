@@ -1,6 +1,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   approvals,
   selectionDecisions,
@@ -121,6 +121,7 @@ export async function getResidentialWeeklyReportDetail(
 
   const pendingActions = await derivePendingActions({
     projectId: view.project.id,
+    callerOrgId: view.context.organization.id,
   });
 
   const reshaped = reshapeForResidential({
@@ -302,43 +303,50 @@ function composePendingActionsSummary(
 
 async function derivePendingActions(args: {
   projectId: string;
+  callerOrgId: string;
 }): Promise<ResidentialPendingAction[]> {
-  const [pendingApprovals, pendingSelections] = await Promise.all([
-    db
-      .select({
-        id: approvals.id,
-        title: approvals.title,
-      })
-      .from(approvals)
-      .where(
-        and(
-          eq(approvals.projectId, args.projectId),
-          eq(approvals.approvalStatus, "pending_review"),
-        ),
-      )
-      .limit(5),
-    db
-      .select({
-        id: selectionItems.id,
-        title: selectionItems.title,
-      })
-      .from(selectionItems)
-      .leftJoin(
-        selectionDecisions,
-        and(
-          eq(selectionDecisions.selectionItemId, selectionItems.id),
-          eq(selectionDecisions.isConfirmed, true),
-        ),
-      )
-      .where(
-        and(
-          eq(selectionItems.projectId, args.projectId),
-          eq(selectionItems.isPublished, true),
-          isNull(selectionDecisions.id),
-        ),
-      )
-      .limit(5),
-  ]);
+  const { pendingApprovals, pendingSelections } = await withTenant(
+    args.callerOrgId,
+    async (tx) => {
+      const [pendingApprovals, pendingSelections] = await Promise.all([
+        tx
+          .select({
+            id: approvals.id,
+            title: approvals.title,
+          })
+          .from(approvals)
+          .where(
+            and(
+              eq(approvals.projectId, args.projectId),
+              eq(approvals.approvalStatus, "pending_review"),
+            ),
+          )
+          .limit(5),
+        tx
+          .select({
+            id: selectionItems.id,
+            title: selectionItems.title,
+          })
+          .from(selectionItems)
+          .leftJoin(
+            selectionDecisions,
+            and(
+              eq(selectionDecisions.selectionItemId, selectionItems.id),
+              eq(selectionDecisions.isConfirmed, true),
+            ),
+          )
+          .where(
+            and(
+              eq(selectionItems.projectId, args.projectId),
+              eq(selectionItems.isPublished, true),
+              isNull(selectionDecisions.id),
+            ),
+          )
+          .limit(5),
+      ]);
+      return { pendingApprovals, pendingSelections };
+    },
+  );
 
   const actions: ResidentialPendingAction[] = [];
   for (const a of pendingApprovals) {

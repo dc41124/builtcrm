@@ -4,7 +4,6 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import {
   closeoutPackageComments,
@@ -12,6 +11,7 @@ import {
   closeoutPackageSections,
   closeoutPackages,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -101,50 +101,40 @@ export async function POST(
       );
     }
 
-    // If sectionId / itemId present, validate they belong to this package.
-    if (input.sectionId) {
-      const [sec] = await db
-        .select({ id: closeoutPackageSections.id })
-        .from(closeoutPackageSections)
-        .where(
-          and(
-            eq(closeoutPackageSections.id, input.sectionId),
-            eq(closeoutPackageSections.packageId, id),
-          ),
-        )
-        .limit(1);
-      if (!sec) {
-        return NextResponse.json(
-          { error: "section_not_found" },
-          { status: 400 },
-        );
-      }
-    }
-    if (input.itemId) {
-      const [it] = await db
-        .select({ id: closeoutPackageItems.id })
-        .from(closeoutPackageItems)
-        .where(
-          and(
-            eq(closeoutPackageItems.id, input.itemId),
-            eq(closeoutPackageItems.sectionId, input.sectionId!),
-          ),
-        )
-        .limit(1);
-      if (!it) {
-        return NextResponse.json(
-          { error: "item_not_found" },
-          { status: 400 },
-        );
-      }
-    }
-
     const numberLabel = formatCloseoutNumber(
       head.sequenceYear,
       head.sequenceNumber,
     );
 
-    const row = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
+      // If sectionId / itemId present, validate they belong to this package.
+      if (input.sectionId) {
+        const [sec] = await tx
+          .select({ id: closeoutPackageSections.id })
+          .from(closeoutPackageSections)
+          .where(
+            and(
+              eq(closeoutPackageSections.id, input.sectionId),
+              eq(closeoutPackageSections.packageId, id),
+            ),
+          )
+          .limit(1);
+        if (!sec) return { kind: "section_not_found" as const };
+      }
+      if (input.itemId) {
+        const [it] = await tx
+          .select({ id: closeoutPackageItems.id })
+          .from(closeoutPackageItems)
+          .where(
+            and(
+              eq(closeoutPackageItems.id, input.itemId),
+              eq(closeoutPackageItems.sectionId, input.sectionId!),
+            ),
+          )
+          .limit(1);
+        if (!it) return { kind: "item_not_found" as const };
+      }
+
       const [inserted] = await tx
         .insert(closeoutPackageComments)
         .values({
@@ -184,10 +174,17 @@ export async function POST(
         preview: input.body,
       });
 
-      return inserted;
+      return { kind: "ok" as const, row: inserted };
     });
 
-    return NextResponse.json({ id: row.id });
+    if (result.kind === "section_not_found") {
+      return NextResponse.json({ error: "section_not_found" }, { status: 400 });
+    }
+    if (result.kind === "item_not_found") {
+      return NextResponse.json({ error: "item_not_found" }, { status: 400 });
+    }
+
+    return NextResponse.json({ id: result.row.id });
   } catch (err) {
     if (err instanceof AuthorizationError) {
       const code =

@@ -7,7 +7,7 @@
 
 import { and, eq, isNull, or } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
 import {
   drawingSets,
@@ -36,7 +36,8 @@ export async function resolveSheetAccess(input: {
   session: SessionLike | null | undefined;
   sheetId: string;
 }): Promise<SheetAccess> {
-  const [row] = await db
+  // Pre-tenant head lookup: tenant unknown until project resolves.
+  const [row] = await dbAdmin
     .select({
       sheetId: drawingSheets.id,
       setId: drawingSheets.setId,

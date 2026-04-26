@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
 import {
   activityFeedItems,
@@ -583,9 +584,29 @@ export type SelectionCategoryRow = {
 
 export async function loadSelectionsForProject(
   projectId: string,
-  opts: { publishedOnly?: boolean } = {},
+  opts: { publishedOnly?: boolean; callerOrgId?: string } = {},
 ): Promise<SelectionCategoryRow[]> {
-  const categoryRows = await db
+  // Selections tables are RLS-enabled. Run reads either inside withTenant
+  // when a caller orgId is available, or via dbAdmin (pre-tenant fall-back
+  // for callers that haven't been threaded yet).
+  const result = opts.callerOrgId
+    ? await withTenant(opts.callerOrgId, async (tx) =>
+        loadSelectionsImpl(
+          tx as unknown as typeof dbAdmin,
+          projectId,
+          opts.publishedOnly,
+        ),
+      )
+    : await loadSelectionsImpl(dbAdmin, projectId, opts.publishedOnly);
+  return result;
+}
+
+async function loadSelectionsImpl(
+  tx: typeof dbAdmin,
+  projectId: string,
+  publishedOnly: boolean | undefined,
+): Promise<SelectionCategoryRow[]> {
+  const categoryRows = await tx
     .select({
       id: selectionCategories.id,
       name: selectionCategories.name,
@@ -600,14 +621,14 @@ export async function loadSelectionsForProject(
   const activeCategories = categoryRows.filter((c) => c.isActive);
   if (activeCategories.length === 0) return [];
 
-  const itemWhere = opts.publishedOnly
+  const itemWhere = publishedOnly
     ? and(
         eq(selectionItems.projectId, projectId),
         eq(selectionItems.isPublished, true),
       )
     : eq(selectionItems.projectId, projectId);
 
-  const itemRows = await db
+  const itemRows = await tx
     .select()
     .from(selectionItems)
     .where(itemWhere)
@@ -625,12 +646,12 @@ export async function loadSelectionsForProject(
 
   const itemIds = itemRows.map((i) => i.id);
   const [optionRows, decisionRows] = await Promise.all([
-    db
+    tx
       .select()
       .from(selectionOptions)
       .where(inArray(selectionOptions.selectionItemId, itemIds))
       .orderBy(asc(selectionOptions.sortOrder), asc(selectionOptions.createdAt)),
-    db
+    tx
       .select()
       .from(selectionDecisions)
       .where(inArray(selectionDecisions.selectionItemId, itemIds))
@@ -1555,7 +1576,9 @@ export async function getContractorProjectView(
     activityTrail: drawEnrichment.activityById.get(d.id) ?? [],
   }));
 
-  const selections = await loadSelectionsForProject(projectId);
+  const selections = await loadSelectionsForProject(projectId, {
+    callerOrgId: context.organization.id,
+  });
   const conversationList = await loadConversationsForUser(projectId, context.user.id);
   const documentList = await loadDocumentsForProject(
     projectId,
@@ -2481,7 +2504,10 @@ export async function getClientProjectView(
 
   const selections =
     context.role === "residential_client"
-      ? await loadSelectionsForProject(projectId, { publishedOnly: true })
+      ? await loadSelectionsForProject(projectId, {
+          publishedOnly: true,
+          callerOrgId: context.organization.id,
+        })
       : [];
   const clientConversations = await loadConversationsForUser(
     projectId,

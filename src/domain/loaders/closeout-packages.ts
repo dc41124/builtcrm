@@ -198,10 +198,12 @@ export async function getCloseoutPackagesForOrg(input: {
   // Authorization is enforced project-by-project via getEffectiveContext
   // when the per-project loader runs — contractor staff get implicit
   // access to every project in their org (see context.ts).
-  const projectRows = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(eq(projects.contractorOrganizationId, input.organizationId));
+  const projectRows = await withTenant(input.organizationId, (tx) =>
+    tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.contractorOrganizationId, input.organizationId)),
+  );
   const projectIds = projectRows.map((p) => p.id);
   if (projectIds.length === 0) return { rows: [] };
 
@@ -224,85 +226,106 @@ async function selectListRowsForProjects(input: {
     ? sql`${closeoutPackages.status} IN ('delivered', 'accepted')`
     : sql`1 = 1`;
 
-  const base = await withTenant(input.organizationId, (tx) =>
-    tx
-      .select({
-        id: closeoutPackages.id,
-        sequenceYear: closeoutPackages.sequenceYear,
-        sequenceNumber: closeoutPackages.sequenceNumber,
-        title: closeoutPackages.title,
-        status: closeoutPackages.status,
-        projectId: closeoutPackages.projectId,
-        projectName: projects.name,
-        preparedByUserId: closeoutPackages.preparedByUserId,
-        preparedByName: users.displayName,
-        deliveredAt: closeoutPackages.deliveredAt,
-        acceptedAt: closeoutPackages.acceptedAt,
-        acceptedSigner: closeoutPackages.acceptedSigner,
-        createdAt: closeoutPackages.createdAt,
-        updatedAt: closeoutPackages.updatedAt,
-        orgName: organizations.name,
-      })
-      .from(closeoutPackages)
-      .innerJoin(projects, eq(projects.id, closeoutPackages.projectId))
-      .leftJoin(users, eq(users.id, closeoutPackages.preparedByUserId))
-      .leftJoin(
-        organizations,
-        eq(organizations.id, closeoutPackages.organizationId),
-      )
-      .where(and(inArray(closeoutPackages.projectId, input.projectIds), statusFilter))
-      .orderBy(desc(closeoutPackages.createdAt)),
+  const { base, sectionAgg, docAgg, commentAgg, sectionRows } = await withTenant(
+    input.organizationId,
+    async (tx) => {
+      const base = await tx
+        .select({
+          id: closeoutPackages.id,
+          sequenceYear: closeoutPackages.sequenceYear,
+          sequenceNumber: closeoutPackages.sequenceNumber,
+          title: closeoutPackages.title,
+          status: closeoutPackages.status,
+          projectId: closeoutPackages.projectId,
+          projectName: projects.name,
+          preparedByUserId: closeoutPackages.preparedByUserId,
+          preparedByName: users.displayName,
+          deliveredAt: closeoutPackages.deliveredAt,
+          acceptedAt: closeoutPackages.acceptedAt,
+          acceptedSigner: closeoutPackages.acceptedSigner,
+          createdAt: closeoutPackages.createdAt,
+          updatedAt: closeoutPackages.updatedAt,
+          orgName: organizations.name,
+        })
+        .from(closeoutPackages)
+        .innerJoin(projects, eq(projects.id, closeoutPackages.projectId))
+        .leftJoin(users, eq(users.id, closeoutPackages.preparedByUserId))
+        .leftJoin(
+          organizations,
+          eq(organizations.id, closeoutPackages.organizationId),
+        )
+        .where(and(inArray(closeoutPackages.projectId, input.projectIds), statusFilter))
+        .orderBy(desc(closeoutPackages.createdAt));
+
+      if (base.length === 0) {
+        return {
+          base,
+          sectionAgg: [] as Array<{ packageId: string; count: number }>,
+          docAgg: [] as Array<{ packageId: string; count: number; bytes: number }>,
+          commentAgg: [] as Array<{ packageId: string; count: number }>,
+          sectionRows: [] as Array<{
+            packageId: string;
+            sectionId: string;
+            sectionType: string;
+            orderIndex: number;
+            itemCount: number;
+          }>,
+        };
+      }
+
+      const ids = base.map((b) => b.id);
+
+      const [sectionAgg, docAgg, commentAgg, sectionRows] = await Promise.all([
+        tx
+          .select({
+            packageId: closeoutPackageSections.packageId,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(closeoutPackageSections)
+          .where(inArray(closeoutPackageSections.packageId, ids))
+          .groupBy(closeoutPackageSections.packageId),
+        tx
+          .select({
+            packageId: closeoutPackageSections.packageId,
+            count: sql<number>`count(${closeoutPackageItems.id})::int`,
+            bytes: sql<number>`coalesce(sum(${documents.fileSizeBytes}), 0)::bigint`,
+          })
+          .from(closeoutPackageSections)
+          .leftJoin(
+            closeoutPackageItems,
+            eq(closeoutPackageItems.sectionId, closeoutPackageSections.id),
+          )
+          .leftJoin(documents, eq(documents.id, closeoutPackageItems.documentId))
+          .where(inArray(closeoutPackageSections.packageId, ids))
+          .groupBy(closeoutPackageSections.packageId),
+        tx
+          .select({
+            packageId: closeoutPackageComments.packageId,
+            count: sql<number>`count(*) filter (where ${closeoutPackageComments.resolvedAt} is null)::int`,
+          })
+          .from(closeoutPackageComments)
+          .where(inArray(closeoutPackageComments.packageId, ids))
+          .groupBy(closeoutPackageComments.packageId),
+        tx
+          .select({
+            packageId: closeoutPackageSections.packageId,
+            sectionId: closeoutPackageSections.id,
+            sectionType: closeoutPackageSections.sectionType,
+            orderIndex: closeoutPackageSections.orderIndex,
+            itemCount: sql<number>`(
+              select count(*)::int from ${closeoutPackageItems}
+              where ${closeoutPackageItems.sectionId} = ${closeoutPackageSections.id}
+            )`,
+          })
+          .from(closeoutPackageSections)
+          .where(inArray(closeoutPackageSections.packageId, ids)),
+      ]);
+
+      return { base, sectionAgg, docAgg, commentAgg, sectionRows };
+    },
   );
 
   if (base.length === 0) return [];
-
-  const ids = base.map((b) => b.id);
-
-  const [sectionAgg, docAgg, commentAgg, sectionRows] = await Promise.all([
-    db
-      .select({
-        packageId: closeoutPackageSections.packageId,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(closeoutPackageSections)
-      .where(inArray(closeoutPackageSections.packageId, ids))
-      .groupBy(closeoutPackageSections.packageId),
-    db
-      .select({
-        packageId: closeoutPackageSections.packageId,
-        count: sql<number>`count(${closeoutPackageItems.id})::int`,
-        bytes: sql<number>`coalesce(sum(${documents.fileSizeBytes}), 0)::bigint`,
-      })
-      .from(closeoutPackageSections)
-      .leftJoin(
-        closeoutPackageItems,
-        eq(closeoutPackageItems.sectionId, closeoutPackageSections.id),
-      )
-      .leftJoin(documents, eq(documents.id, closeoutPackageItems.documentId))
-      .where(inArray(closeoutPackageSections.packageId, ids))
-      .groupBy(closeoutPackageSections.packageId),
-    db
-      .select({
-        packageId: closeoutPackageComments.packageId,
-        count: sql<number>`count(*) filter (where ${closeoutPackageComments.resolvedAt} is null)::int`,
-      })
-      .from(closeoutPackageComments)
-      .where(inArray(closeoutPackageComments.packageId, ids))
-      .groupBy(closeoutPackageComments.packageId),
-    db
-      .select({
-        packageId: closeoutPackageSections.packageId,
-        sectionId: closeoutPackageSections.id,
-        sectionType: closeoutPackageSections.sectionType,
-        orderIndex: closeoutPackageSections.orderIndex,
-        itemCount: sql<number>`(
-          select count(*)::int from ${closeoutPackageItems}
-          where ${closeoutPackageItems.sectionId} = ${closeoutPackageSections.id}
-        )`,
-      })
-      .from(closeoutPackageSections)
-      .where(inArray(closeoutPackageSections.packageId, ids)),
-  ]);
 
   const secByPkg = new Map<string, number>();
   for (const s of sectionAgg) secByPkg.set(s.packageId, s.count);
@@ -412,87 +435,92 @@ export async function getCloseoutPackage(input: {
     );
   }
 
-  const [project] = await db
-    .select({
-      id: projects.id,
-      name: projects.name,
-      addressLine1: projects.addressLine1,
-      city: projects.city,
-      stateProvince: projects.stateProvince,
-      projectStatus: projects.projectStatus,
-    })
-    .from(projects)
-    .where(eq(projects.id, head.projectId))
-    .limit(1);
+  const { project, preparedBy, orgRow, sectionRows, itemRows, commentRows } =
+    await withTenant(ctx.organization.id, async (tx) => {
+      const [project] = await tx
+        .select({
+          id: projects.id,
+          name: projects.name,
+          addressLine1: projects.addressLine1,
+          city: projects.city,
+          stateProvince: projects.stateProvince,
+          projectStatus: projects.projectStatus,
+        })
+        .from(projects)
+        .where(eq(projects.id, head.projectId))
+        .limit(1);
 
-  const [preparedBy] = await db
-    .select({ displayName: users.displayName })
-    .from(users)
-    .where(eq(users.id, head.preparedByUserId))
-    .limit(1);
+      const [preparedBy] = await tx
+        .select({ displayName: users.displayName })
+        .from(users)
+        .where(eq(users.id, head.preparedByUserId))
+        .limit(1);
 
-  const [orgRow] = await db
-    .select({ name: organizations.name })
-    .from(organizations)
-    .where(eq(organizations.id, head.organizationId))
-    .limit(1);
+      const [orgRow] = await tx
+        .select({ name: organizations.name })
+        .from(organizations)
+        .where(eq(organizations.id, head.organizationId))
+        .limit(1);
 
-  const sectionRows = await db
-    .select({
-      id: closeoutPackageSections.id,
-      sectionType: closeoutPackageSections.sectionType,
-      customLabel: closeoutPackageSections.customLabel,
-      orderIndex: closeoutPackageSections.orderIndex,
-    })
-    .from(closeoutPackageSections)
-    .where(eq(closeoutPackageSections.packageId, head.id))
-    .orderBy(
-      asc(closeoutPackageSections.orderIndex),
-      asc(closeoutPackageSections.createdAt),
-    );
+      const sectionRows = await tx
+        .select({
+          id: closeoutPackageSections.id,
+          sectionType: closeoutPackageSections.sectionType,
+          customLabel: closeoutPackageSections.customLabel,
+          orderIndex: closeoutPackageSections.orderIndex,
+        })
+        .from(closeoutPackageSections)
+        .where(eq(closeoutPackageSections.packageId, head.id))
+        .orderBy(
+          asc(closeoutPackageSections.orderIndex),
+          asc(closeoutPackageSections.createdAt),
+        );
 
-  const sectionIds = sectionRows.map((s) => s.id);
-  const itemRows =
-    sectionIds.length === 0
-      ? []
-      : await db
-          .select({
-            id: closeoutPackageItems.id,
-            sectionId: closeoutPackageItems.sectionId,
-            documentId: closeoutPackageItems.documentId,
-            name: documents.title,
-            sizeBytes: documents.fileSizeBytes,
-            category: documents.category,
-            notes: closeoutPackageItems.notes,
-            sortOrder: closeoutPackageItems.sortOrder,
-          })
-          .from(closeoutPackageItems)
-          .innerJoin(
-            documents,
-            eq(documents.id, closeoutPackageItems.documentId),
-          )
-          .where(inArray(closeoutPackageItems.sectionId, sectionIds))
-          .orderBy(
-            asc(closeoutPackageItems.sortOrder),
-            asc(closeoutPackageItems.createdAt),
-          );
+      const sectionIds = sectionRows.map((s) => s.id);
+      const itemRows =
+        sectionIds.length === 0
+          ? []
+          : await tx
+              .select({
+                id: closeoutPackageItems.id,
+                sectionId: closeoutPackageItems.sectionId,
+                documentId: closeoutPackageItems.documentId,
+                name: documents.title,
+                sizeBytes: documents.fileSizeBytes,
+                category: documents.category,
+                notes: closeoutPackageItems.notes,
+                sortOrder: closeoutPackageItems.sortOrder,
+              })
+              .from(closeoutPackageItems)
+              .innerJoin(
+                documents,
+                eq(documents.id, closeoutPackageItems.documentId),
+              )
+              .where(inArray(closeoutPackageItems.sectionId, sectionIds))
+              .orderBy(
+                asc(closeoutPackageItems.sortOrder),
+                asc(closeoutPackageItems.createdAt),
+              );
 
-  const commentRows = await db
-    .select({
-      id: closeoutPackageComments.id,
-      scope: closeoutPackageComments.scope,
-      sectionId: closeoutPackageComments.sectionId,
-      itemId: closeoutPackageComments.itemId,
-      authorUserId: closeoutPackageComments.authorUserId,
-      authorName: users.displayName,
-      body: closeoutPackageComments.body,
-      resolvedAt: closeoutPackageComments.resolvedAt,
-      createdAt: closeoutPackageComments.createdAt,
-    })
-    .from(closeoutPackageComments)
-    .leftJoin(users, eq(users.id, closeoutPackageComments.authorUserId))
-    .where(eq(closeoutPackageComments.packageId, head.id))
-    .orderBy(asc(closeoutPackageComments.createdAt));
+      const commentRows = await tx
+        .select({
+          id: closeoutPackageComments.id,
+          scope: closeoutPackageComments.scope,
+          sectionId: closeoutPackageComments.sectionId,
+          itemId: closeoutPackageComments.itemId,
+          authorUserId: closeoutPackageComments.authorUserId,
+          authorName: users.displayName,
+          body: closeoutPackageComments.body,
+          resolvedAt: closeoutPackageComments.resolvedAt,
+          createdAt: closeoutPackageComments.createdAt,
+        })
+        .from(closeoutPackageComments)
+        .leftJoin(users, eq(users.id, closeoutPackageComments.authorUserId))
+        .where(eq(closeoutPackageComments.packageId, head.id))
+        .orderBy(asc(closeoutPackageComments.createdAt));
+
+      return { project, preparedBy, orgRow, sectionRows, itemRows, commentRows };
+    });
 
   const sections: CloseoutSectionRow[] = sectionRows.map((s) => ({
     id: s.id,
@@ -613,10 +641,12 @@ export async function getCloseoutActivityForOrg(input: {
     throw new AuthorizationError("Not signed in", "unauthenticated");
   }
 
-  const projectRows = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(eq(projects.contractorOrganizationId, input.organizationId));
+  const projectRows = await withTenant(input.organizationId, (tx) =>
+    tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.contractorOrganizationId, input.organizationId)),
+  );
   const projectIds = projectRows.map((p) => p.id);
   if (projectIds.length === 0) return [];
 

@@ -4,7 +4,7 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq, inArray, notInArray } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   documents,
   transmittalDocuments,
@@ -56,7 +56,8 @@ export async function PUT(
   const input = parsed.data;
 
   try {
-    const [head] = await db
+    // Pre-tenant head lookup: tenant unknown until we resolve project.
+    const [head] = await dbAdmin
       .select({
         id: transmittals.id,
         projectId: transmittals.projectId,
@@ -125,7 +126,7 @@ export async function PUT(
       }
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       const updates: Record<string, unknown> = {};
       if (input.subject !== undefined) updates.subject = input.subject;
       if (input.message !== undefined) updates.message = input.message;
@@ -242,7 +243,8 @@ export async function DELETE(
   const { id } = await params;
   const { session } = await requireServerSession();
   try {
-    const [head] = await db
+    // Pre-tenant head lookup: tenant unknown until we resolve project.
+    const [head] = await dbAdmin
       .select({
         id: transmittals.id,
         projectId: transmittals.projectId,
@@ -276,7 +278,7 @@ export async function DELETE(
       );
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await writeAuditEvent(
         ctx,
         {

@@ -11,8 +11,8 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { drawingMeasurements } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
 import { resolveSheetAccess } from "@/lib/drawings/access";
 
@@ -59,24 +59,26 @@ export async function PUT(
     assertCan(access.ctx.permissions, "drawing_markup", "write");
 
     const now = new Date();
-    await db
-      .insert(drawingMeasurements)
-      .values({
-        sheetId,
-        userId: access.ctx.user.id,
-        measurementData: parsed.data.measurementData,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: [
-          drawingMeasurements.sheetId,
-          drawingMeasurements.userId,
-        ],
-        set: {
+    await withTenant(access.ctx.organization.id, (tx) =>
+      tx
+        .insert(drawingMeasurements)
+        .values({
+          sheetId,
+          userId: access.ctx.user.id,
           measurementData: parsed.data.measurementData,
           updatedAt: now,
-        },
-      });
+        })
+        .onConflictDoUpdate({
+          target: [
+            drawingMeasurements.sheetId,
+            drawingMeasurements.userId,
+          ],
+          set: {
+            measurementData: parsed.data.measurementData,
+            updatedAt: now,
+          },
+        }),
+    );
 
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -109,14 +111,16 @@ export async function DELETE(
     });
     assertCan(access.ctx.permissions, "drawing_markup", "write");
 
-    await db
-      .delete(drawingMeasurements)
-      .where(
-        and(
-          eq(drawingMeasurements.sheetId, sheetId),
-          eq(drawingMeasurements.userId, access.ctx.user.id),
+    await withTenant(access.ctx.organization.id, (tx) =>
+      tx
+        .delete(drawingMeasurements)
+        .where(
+          and(
+            eq(drawingMeasurements.sheetId, sheetId),
+            eq(drawingMeasurements.userId, access.ctx.user.id),
+          ),
         ),
-      );
+    );
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof AuthorizationError) {

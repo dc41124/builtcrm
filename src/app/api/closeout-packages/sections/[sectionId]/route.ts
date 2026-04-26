@@ -4,11 +4,12 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   closeoutPackageSections,
   closeoutPackages,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -19,7 +20,8 @@ const BodySchema = z.object({
 });
 
 async function loadSection(sectionId: string) {
-  const [row] = await db
+  // Pre-tenant head lookup: tenant unknown until project resolves.
+  const [row] = await dbAdmin
     .select({
       id: closeoutPackageSections.id,
       packageId: closeoutPackageSections.packageId,
@@ -80,7 +82,7 @@ export async function PATCH(
       return NextResponse.json({ ok: true });
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(closeoutPackageSections)
         .set({ ...updates, updatedAt: new Date() })
@@ -136,7 +138,7 @@ export async function DELETE(
       return NextResponse.json({ error: "not_editable" }, { status: 409 });
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await writeAuditEvent(
         ctx,
         {

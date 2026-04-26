@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   boolean,
@@ -7,6 +8,7 @@ import {
   jsonb,
   numeric,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   unique,
@@ -91,8 +93,33 @@ export const drawingSets = pgTable(
       table.family,
       table.version,
     ),
+    tenantIsolation: pgPolicy("drawing_sets_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // drawing_sheets — one row per page in the source PDF.
@@ -145,8 +172,13 @@ export const drawingSheets = pgTable(
       table.setId,
       table.sheetNumber,
     ),
+    tenantIsolation: pgPolicy("drawing_sheets_tenant_isolation", {
+      for: "all",
+      using: sql`${table.setId} IN (SELECT id FROM drawing_sets)`,
+      withCheck: sql`${table.setId} IN (SELECT id FROM drawing_sets)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // drawing_markups — one JSON doc per user per sheet.
@@ -177,8 +209,14 @@ export const drawingMarkups = pgTable(
       table.userId,
     ),
     sheetIdx: index("drawing_markups_sheet_idx").on(table.sheetId),
+    // Depth-2 nested: chain through drawing_sheets to drawing_sets.
+    tenantIsolation: pgPolicy("drawing_markups_tenant_isolation", {
+      for: "all",
+      using: sql`${table.sheetId} IN (SELECT id FROM drawing_sheets)`,
+      withCheck: sql`${table.sheetId} IN (SELECT id FROM drawing_sheets)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // drawing_measurements — one JSON doc per user per sheet.
@@ -208,8 +246,13 @@ export const drawingMeasurements = pgTable(
       table.userId,
     ),
     sheetIdx: index("drawing_measurements_sheet_idx").on(table.sheetId),
+    tenantIsolation: pgPolicy("drawing_measurements_tenant_isolation", {
+      for: "all",
+      using: sql`${table.sheetId} IN (SELECT id FROM drawing_sheets)`,
+      withCheck: sql`${table.sheetId} IN (SELECT id FROM drawing_sheets)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // drawing_comments — pinned comments with optional reply threads.
@@ -262,5 +305,10 @@ export const drawingComments = pgTable(
       table.sheetId,
       table.pinNumber,
     ),
+    tenantIsolation: pgPolicy("drawing_comments_tenant_isolation", {
+      for: "all",
+      using: sql`${table.sheetId} IN (SELECT id FROM drawing_sheets)`,
+      withCheck: sql`${table.sheetId} IN (SELECT id FROM drawing_sheets)`,
+    }),
   }),
-);
+).enableRLS();

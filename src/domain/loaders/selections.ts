@@ -67,7 +67,9 @@ export async function getContractorSelections(
       "forbidden",
     );
   }
-  const categories = await loadSelectionsForProject(context.project.id);
+  const categories = await loadSelectionsForProject(context.project.id, {
+    callerOrgId: context.organization.id,
+  });
   const now = Date.now();
 
   let drafts = 0;
@@ -147,6 +149,7 @@ export async function getResidentialSelections(
   }
   const categories = await loadSelectionsForProject(context.project.id, {
     publishedOnly: true,
+    callerOrgId: context.organization.id,
   });
 
   const now = Date.now();

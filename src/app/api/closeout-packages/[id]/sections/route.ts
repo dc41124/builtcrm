@@ -4,12 +4,12 @@ import { requireServerSession } from "@/auth/session";
 import { eq, max } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import {
   closeoutPackageSections,
   closeoutPackages,
 } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -76,7 +76,7 @@ export async function POST(
       );
     }
 
-    const row = await db.transaction(async (tx) => {
+    const row = await withTenant(ctx.organization.id, async (tx) => {
       const [highest] = await tx
         .select({ max: max(closeoutPackageSections.orderIndex) })
         .from(closeoutPackageSections)

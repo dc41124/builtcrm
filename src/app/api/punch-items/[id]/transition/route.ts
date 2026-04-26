@@ -4,8 +4,9 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { punchItemComments, punchItems } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -59,7 +60,8 @@ export async function POST(
   const input = parsed.data;
 
   try {
-    const [current] = await db
+    // Pre-tenant head lookup: tenant unknown until project resolves.
+    const [current] = await dbAdmin
       .select({
         id: punchItems.id,
         projectId: punchItems.projectId,
@@ -131,7 +133,7 @@ export async function POST(
     const now = new Date();
     const actorName = ctx.user.displayName ?? ctx.user.email;
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       const patch: Partial<typeof punchItems.$inferInsert> = {
         status: to,
         lastTransitionAt: now,

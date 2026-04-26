@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
@@ -5,6 +6,7 @@ import {
   index,
   integer,
   pgEnum,
+  pgPolicy,
   pgTable,
   text,
   timestamp,
@@ -141,8 +143,33 @@ export const punchItems = pgTable(
       foreignColumns: [inspectionResults.id],
       name: "punch_items_source_inspection_result_id_fk",
     }).onDelete("set null"),
+    tenantIsolation: pgPolicy("punch_items_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // punch_item_photos — mirrors daily_log_photos minus the `isHero`
@@ -171,8 +198,13 @@ export const punchItemPhotos = pgTable(
   },
   (table) => ({
     itemIdx: index("punch_item_photos_item_idx").on(table.punchItemId),
+    tenantIsolation: pgPolicy("punch_item_photos_tenant_isolation", {
+      for: "all",
+      using: sql`${table.punchItemId} IN (SELECT id FROM punch_items)`,
+      withCheck: sql`${table.punchItemId} IN (SELECT id FROM punch_items)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // punch_item_comments — coordination thread + auto-posted system
@@ -200,5 +232,10 @@ export const punchItemComments = pgTable(
   },
   (table) => ({
     itemIdx: index("punch_item_comments_item_idx").on(table.punchItemId),
+    tenantIsolation: pgPolicy("punch_item_comments_tenant_isolation", {
+      for: "all",
+      using: sql`${table.punchItemId} IN (SELECT id FROM punch_items)`,
+      withCheck: sql`${table.punchItemId} IN (SELECT id FROM punch_items)`,
+    }),
   }),
-);
+).enableRLS();

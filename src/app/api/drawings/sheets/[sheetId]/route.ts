@@ -12,8 +12,9 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { drawingSets, drawingSheets } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getEffectiveContext } from "@/domain/context";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
 
@@ -50,7 +51,8 @@ export async function PATCH(
     return NextResponse.json({ error: "empty_patch" }, { status: 400 });
   }
   const { session } = await requireServerSession();
-  const [row] = await db
+  // Pre-tenant head lookup: tenant unknown until project resolves.
+  const [row] = await dbAdmin
     .select({
       projectId: drawingSets.projectId,
     })
@@ -75,10 +77,12 @@ export async function PATCH(
     if (body.sheetTitle !== undefined) patch.sheetTitle = body.sheetTitle;
     if (body.discipline !== undefined) patch.discipline = body.discipline;
 
-    await db
-      .update(drawingSheets)
-      .set(patch)
-      .where(eq(drawingSheets.id, sheetId));
+    await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .update(drawingSheets)
+        .set(patch)
+        .where(eq(drawingSheets.id, sheetId)),
+    );
 
     return NextResponse.json({ ok: true });
   } catch (err) {

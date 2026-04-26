@@ -4,8 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { selectionCategories, selectionItems } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
@@ -46,21 +46,21 @@ export async function POST(req: Request) {
       );
     }
 
-    const [category] = await db
-      .select({ id: selectionCategories.id })
-      .from(selectionCategories)
-      .where(
-        and(
-          eq(selectionCategories.id, parsed.data.categoryId),
-          eq(selectionCategories.projectId, ctx.project.id),
-        ),
-      )
-      .limit(1);
-    if (!category) {
-      return NextResponse.json({ error: "category_not_found" }, { status: 404 });
-    }
+    const result = await withTenant(ctx.organization.id, async (tx) => {
+      const [category] = await tx
+        .select({ id: selectionCategories.id })
+        .from(selectionCategories)
+        .where(
+          and(
+            eq(selectionCategories.id, parsed.data.categoryId),
+            eq(selectionCategories.projectId, ctx.project.id),
+          ),
+        )
+        .limit(1);
+      if (!category) {
+        throw new CategoryNotFoundError();
+      }
 
-    const result = await db.transaction(async (tx) => {
       const [row] = await tx
         .insert(selectionItems)
         .values({
@@ -103,6 +103,9 @@ export async function POST(req: Request) {
       selectionItemStatus: result.selectionItemStatus,
     });
   } catch (err) {
+    if (err instanceof CategoryNotFoundError) {
+      return NextResponse.json({ error: "category_not_found" }, { status: 404 });
+    }
     if (err instanceof AuthorizationError) {
       const status =
         err.code === "unauthenticated"
@@ -118,3 +121,5 @@ export async function POST(req: Request) {
     throw err;
   }
 }
+
+class CategoryNotFoundError extends Error {}

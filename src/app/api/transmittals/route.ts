@@ -4,7 +4,6 @@ import { requireServerSession } from "@/auth/session";
 import { inArray } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import {
   documents,
   transmittalDocuments,
@@ -100,7 +99,7 @@ export async function POST(req: Request) {
       emailSeen.add(lower);
     }
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       const [row] = await tx
         .insert(transmittals)
         .values({

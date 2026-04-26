@@ -4,6 +4,7 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq, ne } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   integrationConnections,
   paymentTransactions,
@@ -39,7 +40,8 @@ export async function POST(
   const { id: decisionId } = await params;
   const { session } = await requireServerSession();
   try {
-    const [row] = await db
+    // Pre-tenant head lookup: tenant unknown until project resolves.
+    const [row] = await dbAdmin
       .select({
         decisionId: selectionDecisions.id,
         projectId: selectionDecisions.projectId,

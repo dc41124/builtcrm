@@ -12,8 +12,9 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { drawingSets } from "@/db/schema";
+import { withTenant } from "@/db/with-tenant";
 import { getEffectiveContext } from "@/domain/context";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
 import { objectExists, getObjectSize } from "@/lib/storage";
@@ -25,7 +26,8 @@ export async function POST(
 ) {
   const { setId } = await params;
   const { session } = await requireServerSession();
-  const [set] = await db
+  // Pre-tenant head lookup: tenant unknown until project resolves.
+  const [set] = await dbAdmin
     .select()
     .from(drawingSets)
     .where(eq(drawingSets.id, setId))
@@ -63,13 +65,15 @@ export async function POST(
     // create is a hint; the real size is what actually landed in R2.
     const realSize = await getObjectSize(set.sourceFileKey);
     if (realSize !== null && realSize !== set.fileSizeBytes) {
-      await db
-        .update(drawingSets)
-        .set({ fileSizeBytes: realSize })
-        .where(eq(drawingSets.id, set.id));
+      await withTenant(ctx.organization.id, (tx) =>
+        tx
+          .update(drawingSets)
+          .set({ fileSizeBytes: realSize })
+          .where(eq(drawingSets.id, set.id)),
+      );
     }
 
-    const result = await processDrawingSet(set.id);
+    const result = await processDrawingSet(set.id, ctx.organization.id);
 
     return NextResponse.json({
       setId: set.id,
