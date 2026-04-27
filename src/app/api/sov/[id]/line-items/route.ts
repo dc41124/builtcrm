@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { scheduleOfValues, sovLineItems } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -38,7 +39,8 @@ export async function POST(
   }
 
   try {
-    const [sov] = await db
+    // Entry-point dbAdmin: tenant unknown until projectId resolved.
+    const [sov] = await dbAdmin
       .select()
       .from(scheduleOfValues)
       .where(eq(scheduleOfValues.id, sovId))
@@ -65,7 +67,7 @@ export async function POST(
       );
     }
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       const [row] = await tx
         .insert(sovLineItems)
         .values({

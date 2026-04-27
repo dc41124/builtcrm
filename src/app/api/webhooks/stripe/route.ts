@@ -504,7 +504,9 @@ async function handleChargeStatus(
     );
 
     if (pt.relatedEntityType === "draw_request") {
-      await db
+      // Stripe webhook is pre-tenant; drawRequests is RLS'd, so route through
+      // dbAdmin rather than withTenant (no session context here).
+      await dbAdmin
         .update(drawRequests)
         .set({
           drawRequestStatus: "paid",

@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { and, eq, sql } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { scheduleOfValues, sovLineItems } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
@@ -20,7 +21,8 @@ const RULES = {
 export async function handleTransition(_req: Request, id: string, kind: Transition) {
   const { session } = await requireServerSession();
   try {
-    const [sov] = await db
+    // Entry-point dbAdmin: tenant unknown until projectId resolved.
+    const [sov] = await dbAdmin
       .select()
       .from(scheduleOfValues)
       .where(eq(scheduleOfValues.id, id))
@@ -48,24 +50,21 @@ export async function handleTransition(_req: Request, id: string, kind: Transiti
       );
     }
 
-    if (kind === "activate") {
-      const [{ count }] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(sovLineItems)
-        .where(
-          and(eq(sovLineItems.sovId, sov.id), eq(sovLineItems.isActive, true)),
-        );
-      if (!count || count === 0) {
-        return NextResponse.json(
-          { error: "empty_sov", message: "Cannot activate an SOV with no line items" },
-          { status: 409 },
-        );
-      }
-    }
-
     const previousState = { status: sov.sovStatus };
 
-    await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
+      if (kind === "activate") {
+        const [{ count }] = await tx
+          .select({ count: sql<number>`count(*)::int` })
+          .from(sovLineItems)
+          .where(
+            and(eq(sovLineItems.sovId, sov.id), eq(sovLineItems.isActive, true)),
+          );
+        if (!count || count === 0) {
+          throw new EmptySovError();
+        }
+      }
+
       await tx
         .update(scheduleOfValues)
         .set({
@@ -103,8 +102,15 @@ export async function handleTransition(_req: Request, id: string, kind: Transiti
       );
     });
 
+    void result;
     return NextResponse.json({ id: sov.id, status: rule.to });
   } catch (err) {
+    if (err instanceof EmptySovError) {
+      return NextResponse.json(
+        { error: "empty_sov", message: "Cannot activate an SOV with no line items" },
+        { status: 409 },
+      );
+    }
     if (err instanceof AuthorizationError) {
       const status =
         err.code === "unauthenticated"
@@ -120,3 +126,5 @@ export async function handleTransition(_req: Request, id: string, kind: Transiti
     throw err;
   }
 }
+
+class EmptySovError extends Error {}

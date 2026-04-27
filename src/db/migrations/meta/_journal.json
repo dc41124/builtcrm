@@ -295,6 +295,13 @@
       "when": 1777250618513,
       "tag": "0041_glamorous_silk_fever",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1777253109431,
+      "tag": "0042_special_colleen_wing",
+      "breakpoints": true
     }
   ]
 }

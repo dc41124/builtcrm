@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import {
   drawLineItems,
   drawRequests,
@@ -39,7 +40,8 @@ export async function POST(
   }
 
   try {
-    const [draw] = await db
+    // Entry-point dbAdmin: tenant unknown until projectId resolved.
+    const [draw] = await dbAdmin
       .select()
       .from(drawRequests)
       .where(eq(drawRequests.id, drawId))
@@ -68,57 +70,59 @@ export async function POST(
       );
     }
 
-    const [sov] = await db
-      .select()
-      .from(scheduleOfValues)
-      .where(eq(scheduleOfValues.id, draw.sovId))
-      .limit(1);
-    if (!sov) {
-      return NextResponse.json({ error: "sov_missing" }, { status: 404 });
-    }
+    const result = await withTenant(ctx.organization.id, async (tx) => {
+      const [sov] = await tx
+        .select()
+        .from(scheduleOfValues)
+        .where(eq(scheduleOfValues.id, draw.sovId))
+        .limit(1);
+      if (!sov) {
+        throw new SovMissingError();
+      }
 
-    const [sovLine] = await db
-      .select()
-      .from(sovLineItems)
-      .where(
-        and(
-          eq(sovLineItems.id, parsed.data.sovLineItemId),
-          eq(sovLineItems.sovId, sov.id),
-          eq(sovLineItems.isActive, true),
-        ),
-      )
-      .limit(1);
-    if (!sovLine) {
-      return NextResponse.json({ error: "sov_line_not_found" }, { status: 404 });
-    }
+      const [sovLine] = await tx
+        .select()
+        .from(sovLineItems)
+        .where(
+          and(
+            eq(sovLineItems.id, parsed.data.sovLineItemId),
+            eq(sovLineItems.sovId, sov.id),
+            eq(sovLineItems.isActive, true),
+          ),
+        )
+        .limit(1);
+      if (!sovLine) {
+        throw new SovLineNotFoundError();
+      }
 
-    const [existing] = await db
-      .select()
-      .from(drawLineItems)
-      .where(
-        and(
-          eq(drawLineItems.drawRequestId, drawId),
-          eq(drawLineItems.sovLineItemId, sovLine.id),
-        ),
-      )
-      .limit(1);
+      const [existing] = await tx
+        .select()
+        .from(drawLineItems)
+        .where(
+          and(
+            eq(drawLineItems.drawRequestId, drawId),
+            eq(drawLineItems.sovLineItemId, sovLine.id),
+          ),
+        )
+        .limit(1);
 
-    const retainagePct =
-      parsed.data.retainagePercentOverride ??
-      sovLine.retainagePercentOverride ??
-      sov.defaultRetainagePercent;
+      const retainagePct =
+        parsed.data.retainagePercentOverride ??
+        sovLine.retainagePercentOverride ??
+        sov.defaultRetainagePercent;
 
-    const workCompletedPreviousCents = existing?.workCompletedPreviousCents ?? 0;
+      const workCompletedPreviousCents =
+        existing?.workCompletedPreviousCents ?? 0;
 
-    const fields = computeLineFields({
-      workCompletedPreviousCents,
-      workCompletedThisPeriodCents: parsed.data.workCompletedThisPeriodCents,
-      materialsPresentlyStoredCents: parsed.data.materialsPresentlyStoredCents,
-      scheduledValueCents: sovLine.scheduledValueCents,
-      retainagePercentApplied: retainagePct,
-    });
+      const fields = computeLineFields({
+        workCompletedPreviousCents,
+        workCompletedThisPeriodCents: parsed.data.workCompletedThisPeriodCents,
+        materialsPresentlyStoredCents:
+          parsed.data.materialsPresentlyStoredCents,
+        scheduledValueCents: sovLine.scheduledValueCents,
+        retainagePercentApplied: retainagePct,
+      });
 
-    const result = await db.transaction(async (tx) => {
       if (existing) {
         const [row] = await tx
           .update(drawLineItems)
@@ -191,6 +195,12 @@ export async function POST(
       retainageCents: result.retainageCents,
     });
   } catch (err) {
+    if (err instanceof SovMissingError) {
+      return NextResponse.json({ error: "sov_missing" }, { status: 404 });
+    }
+    if (err instanceof SovLineNotFoundError) {
+      return NextResponse.json({ error: "sov_line_not_found" }, { status: 404 });
+    }
     if (err instanceof AuthorizationError) {
       const status =
         err.code === "unauthenticated"
@@ -206,3 +216,6 @@ export async function POST(
     throw err;
   }
 }
+
+class SovMissingError extends Error {}
+class SovLineNotFoundError extends Error {}

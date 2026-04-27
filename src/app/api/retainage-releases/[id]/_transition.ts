@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { retainageReleases } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
@@ -96,7 +97,8 @@ export async function handleRetainageReleaseTransition(
   }
 
   try {
-    const [release] = await db
+    // Entry-point dbAdmin: tenant unknown until projectId resolved.
+    const [release] = await dbAdmin
       .select()
       .from(retainageReleases)
       .where(eq(retainageReleases.id, id))
@@ -124,7 +126,7 @@ export async function handleRetainageReleaseTransition(
     const extraFields = rule.buildUpdate ? rule.buildUpdate(body, release) : {};
     const isClientDecision = kind === "approve" || kind === "reject";
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(retainageReleases)
         .set({

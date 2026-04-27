@@ -120,8 +120,34 @@ export const billingPackages = pgTable(
     ),
     projectIdx: index("billing_packages_project_idx").on(table.projectId),
     statusIdx: index("billing_packages_status_idx").on(table.billingPackageStatus),
+    // RLS Slice A bucket 4b — project-scoped 2-clause hybrid.
+    tenantIsolation: pgPolicy("billing_packages_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Schedule of Values
@@ -148,8 +174,34 @@ export const scheduleOfValues = pgTable(
   },
   (table) => ({
     projectIdx: index("sov_project_idx").on(table.projectId),
+    // RLS Slice A bucket 4b — project-scoped 2-clause hybrid.
+    tenantIsolation: pgPolicy("schedule_of_values_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 export const sovLineItems = pgTable(
   "sov_line_items",
@@ -180,8 +232,14 @@ export const sovLineItems = pgTable(
     costCodeIdx: index("sov_line_items_cost_code_idx").on(table.costCode),
     changeOrderIdx: index("sov_line_items_co_idx").on(table.changeOrderId),
     activeIdx: index("sov_line_items_active_idx").on(table.isActive),
+    // RLS Slice A bucket 4b — nested-via-parent on schedule_of_values.
+    tenantIsolation: pgPolicy("sov_line_items_tenant_isolation", {
+      for: "all",
+      using: sql`${table.sovId} IN (SELECT id FROM schedule_of_values)`,
+      withCheck: sql`${table.sovId} IN (SELECT id FROM schedule_of_values)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Draw requests
@@ -244,8 +302,37 @@ export const drawRequests = pgTable(
       "draw_requests_contract_sum_check",
       sql`contract_sum_to_date_cents = original_contract_sum_cents + net_change_orders_cents`,
     ),
+    // RLS Slice A bucket 4b — project-scoped 2-clause hybrid. Clients
+    // (clause B via active POM) need read access to pay draws; subs see
+    // their lien_waivers attached to the draw via the existing lien_waivers
+    // policy. Stripe webhook flow uses dbAdmin pre-tenant.
+    tenantIsolation: pgPolicy("draw_requests_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 export const drawLineItems = pgTable(
   "draw_line_items",
@@ -278,8 +365,14 @@ export const drawLineItems = pgTable(
       "draw_line_items_total_check",
       sql`total_completed_stored_to_date_cents = work_completed_previous_cents + work_completed_this_period_cents + materials_presently_stored_cents`,
     ),
+    // RLS Slice A bucket 4b — nested-via-parent on draw_requests.
+    tenantIsolation: pgPolicy("draw_line_items_tenant_isolation", {
+      for: "all",
+      using: sql`${table.drawRequestId} IN (SELECT id FROM draw_requests)`,
+      withCheck: sql`${table.drawRequestId} IN (SELECT id FROM draw_requests)`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Lien waivers
@@ -422,5 +515,31 @@ export const retainageReleases = pgTable(
       foreignColumns: [drawRequests.id],
       name: "retainage_releases_consumed_by_draw_request_id_fk",
     }).onDelete("set null"),
+    // RLS Slice A bucket 4b — project-scoped 2-clause hybrid.
+    tenantIsolation: pgPolicy("retainage_releases_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();

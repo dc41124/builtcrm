@@ -3,7 +3,8 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { requireServerSession } from "@/auth/session";
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { scheduleOfValues, sovLineItems } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -21,7 +22,8 @@ const PatchSchema = z.object({
 });
 
 async function loadContext(sovId: string, lineId: string, sessionLike: unknown) {
-  const [joined] = await db
+  // Entry-point dbAdmin: tenant unknown until projectId resolved.
+  const [joined] = await dbAdmin
     .select({
       line: sovLineItems,
       sov: scheduleOfValues,
@@ -80,7 +82,7 @@ export async function PATCH(
       scheduledValueCents: line.scheduledValueCents,
     };
 
-    const updated = await db.transaction(async (tx) => {
+    const updated = await withTenant(ctx.organization.id, async (tx) => {
       const [row] = await tx
         .update(sovLineItems)
         .set({
@@ -176,7 +178,7 @@ export async function DELETE(
       return NextResponse.json({ id: lineId, isActive: false });
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(sovLineItems)
         .set({ isActive: false })

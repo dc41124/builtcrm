@@ -5,6 +5,7 @@ import { and, eq, inArray, not } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   drawRequests,
   lienWaivers,
@@ -333,7 +334,8 @@ export async function handleDrawTransition(
   }
 
   try {
-    const [draw] = await db
+    // Entry-point dbAdmin: tenant unknown until projectId resolved.
+    const [draw] = await dbAdmin
       .select()
       .from(drawRequests)
       .where(eq(drawRequests.id, id))

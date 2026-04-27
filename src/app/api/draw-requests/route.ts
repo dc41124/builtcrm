@@ -4,7 +4,7 @@ import { requireServerSession } from "@/auth/session";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   drawLineItems,
   drawRequests,
@@ -47,22 +47,22 @@ export async function POST(req: Request) {
       );
     }
 
-    const [sov] = await db
-      .select()
-      .from(scheduleOfValues)
-      .where(eq(scheduleOfValues.id, parsed.data.sovId))
-      .limit(1);
-    if (!sov || sov.projectId !== ctx.project.id) {
-      return NextResponse.json({ error: "not_found" }, { status: 404 });
-    }
-    if (sov.sovStatus !== "active" && sov.sovStatus !== "locked") {
-      return NextResponse.json(
-        { error: "invalid_sov_state", state: sov.sovStatus },
-        { status: 409 },
-      );
-    }
+    const result = await withTenant(ctx.organization.id, async (tx) => {
+      // SOV lookup inside the tenant tx — the project-scoped 2-clause hybrid
+      // policy enforces visibility; we still keep the projectId check as
+      // belt-and-suspenders.
+      const [sov] = await tx
+        .select()
+        .from(scheduleOfValues)
+        .where(eq(scheduleOfValues.id, parsed.data.sovId))
+        .limit(1);
+      if (!sov || sov.projectId !== ctx.project.id) {
+        throw new SovNotFoundError();
+      }
+      if (sov.sovStatus !== "active" && sov.sovStatus !== "locked") {
+        throw new SovInvalidStateError(sov.sovStatus);
+      }
 
-    const result = await db.transaction(async (tx) => {
       const [nextRow] = await tx
         .select({
           next: sql<number>`coalesce(max(${drawRequests.drawNumber}), 0) + 1`,
@@ -169,6 +169,15 @@ export async function POST(req: Request) {
       status: result.drawRequestStatus,
     });
   } catch (err) {
+    if (err instanceof SovNotFoundError) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+    if (err instanceof SovInvalidStateError) {
+      return NextResponse.json(
+        { error: "invalid_sov_state", state: err.state },
+        { status: 409 },
+      );
+    }
     if (err instanceof AuthorizationError) {
       const status =
         err.code === "unauthenticated"
@@ -182,5 +191,12 @@ export async function POST(req: Request) {
       );
     }
     throw err;
+  }
+}
+
+class SovNotFoundError extends Error {}
+class SovInvalidStateError extends Error {
+  constructor(public state: string) {
+    super();
   }
 }
