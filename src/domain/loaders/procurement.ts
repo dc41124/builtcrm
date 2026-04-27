@@ -225,28 +225,33 @@ function buildCostCodeLabel(
 }
 
 // Loads lines for a set of PO ids. Returns rows keyed by poId plus the
-// computed line total (compute-on-read — no stored aggregate).
+// computed line total (compute-on-read — no stored aggregate). orgId
+// scopes the call into withTenant — purchase_order_lines is RLS'd
+// nested-via-parent.
 async function loadLinesForPos(
   poIds: string[],
+  orgId: string,
 ): Promise<Map<string, PoLineRow[]>> {
   if (poIds.length === 0) return new Map();
-  const rows = await db
-    .select({
-      id: purchaseOrderLines.id,
-      purchaseOrderId: purchaseOrderLines.purchaseOrderId,
-      sortOrder: purchaseOrderLines.sortOrder,
-      description: purchaseOrderLines.description,
-      quantity: purchaseOrderLines.quantity,
-      unit: purchaseOrderLines.unit,
-      unitCostCents: purchaseOrderLines.unitCostCents,
-      receivedQuantity: purchaseOrderLines.receivedQuantity,
-    })
-    .from(purchaseOrderLines)
-    .where(inArray(purchaseOrderLines.purchaseOrderId, poIds))
-    .orderBy(
-      asc(purchaseOrderLines.purchaseOrderId),
-      asc(purchaseOrderLines.sortOrder),
-    );
+  const rows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: purchaseOrderLines.id,
+        purchaseOrderId: purchaseOrderLines.purchaseOrderId,
+        sortOrder: purchaseOrderLines.sortOrder,
+        description: purchaseOrderLines.description,
+        quantity: purchaseOrderLines.quantity,
+        unit: purchaseOrderLines.unit,
+        unitCostCents: purchaseOrderLines.unitCostCents,
+        receivedQuantity: purchaseOrderLines.receivedQuantity,
+      })
+      .from(purchaseOrderLines)
+      .where(inArray(purchaseOrderLines.purchaseOrderId, poIds))
+      .orderBy(
+        asc(purchaseOrderLines.purchaseOrderId),
+        asc(purchaseOrderLines.sortOrder),
+      ),
+  );
 
   const grouped = new Map<string, PoLineRow[]>();
   for (const r of rows) {
@@ -331,7 +336,7 @@ export async function getProcurementProjectView(
   );
 
   const poIds = poRows.map((p) => p.id);
-  const linesByPo = await loadLinesForPos(poIds);
+  const linesByPo = await loadLinesForPos(poIds, orgId);
 
   const listRows: PoListRow[] = poRows.map((p) => {
     const lines = linesByPo.get(p.id) ?? [];
@@ -481,7 +486,7 @@ export async function loadPoDetail(
     );
   }
 
-  const linesByPo = await loadLinesForPos([poId]);
+  const linesByPo = await loadLinesForPos([poId], ctx.organization.id);
   const lines = linesByPo.get(poId) ?? [];
   const totals = computePoTotals({
     lines: lines.map((l) => ({
@@ -654,7 +659,7 @@ export async function loadVendorListForOrg(
       ),
   );
   const spendPoIds = spendRows.map((r) => r.id);
-  const spendLinesByPo = await loadLinesForPos(spendPoIds);
+  const spendLinesByPo = await loadLinesForPos(spendPoIds, orgId);
   const spendByVendor = new Map<string, number>();
   for (const r of spendRows) {
     const lines = spendLinesByPo.get(r.id) ?? [];
@@ -802,7 +807,7 @@ export async function getProcurementReport(
   );
 
   const poIds = poRows.map((r) => r.id);
-  const linesByPo = await loadLinesForPos(poIds);
+  const linesByPo = await loadLinesForPos(poIds, orgId);
 
   const yearStart = new Date(new Date().getFullYear(), 0, 1);
   const now = new Date();

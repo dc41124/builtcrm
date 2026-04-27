@@ -182,30 +182,33 @@ async function loadRows(
       )
     : eq(approvals.projectId, projectId);
 
-  // approvals is not RLS-enabled (deferred); user/org lookups are also
-  // not RLS-enabled. dbAdmin is fine here for the parent set.
-  const rows = await dbAdmin
-    .select({
-      id: approvals.id,
-      approvalNumber: approvals.approvalNumber,
-      category: approvals.category,
-      title: approvals.title,
-      description: approvals.description,
-      approvalStatus: approvals.approvalStatus,
-      impactCostCents: approvals.impactCostCents,
-      impactScheduleDays: approvals.impactScheduleDays,
-      submittedAt: approvals.submittedAt,
-      decidedAt: approvals.decidedAt,
-      decisionNote: approvals.decisionNote,
-      requestedByUserId: approvals.requestedByUserId,
-      decidedByUserId: approvals.decidedByUserId,
-      assignedToOrganizationId: approvals.assignedToOrganizationId,
-      createdAt: approvals.createdAt,
-      updatedAt: approvals.updatedAt,
-    })
-    .from(approvals)
-    .where(baseWhere)
-    .orderBy(desc(approvals.approvalNumber));
+  // approvals is RLS'd (Slice A bucket 3) — read inside withTenant so
+  // the project-scoped 2-clause hybrid policy enforces visibility.
+  // user/org lookups below stay on dbAdmin (not RLS'd).
+  const rows = await withTenant(callerOrgId, (tx) =>
+    tx
+      .select({
+        id: approvals.id,
+        approvalNumber: approvals.approvalNumber,
+        category: approvals.category,
+        title: approvals.title,
+        description: approvals.description,
+        approvalStatus: approvals.approvalStatus,
+        impactCostCents: approvals.impactCostCents,
+        impactScheduleDays: approvals.impactScheduleDays,
+        submittedAt: approvals.submittedAt,
+        decidedAt: approvals.decidedAt,
+        decisionNote: approvals.decisionNote,
+        requestedByUserId: approvals.requestedByUserId,
+        decidedByUserId: approvals.decidedByUserId,
+        assignedToOrganizationId: approvals.assignedToOrganizationId,
+        createdAt: approvals.createdAt,
+        updatedAt: approvals.updatedAt,
+      })
+      .from(approvals)
+      .where(baseWhere)
+      .orderBy(desc(approvals.approvalNumber)),
+  );
 
   const userIds = Array.from(
     new Set(

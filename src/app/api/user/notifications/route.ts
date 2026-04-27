@@ -4,7 +4,7 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { withTenantUser } from "@/db/with-tenant";
 import { userNotificationPreferences } from "@/db/schema";
 import {
   validEventIdsFor,
@@ -37,9 +37,9 @@ const ResetBody = z.object({
 // PUT replaces (upsert) the user's prefs for the given portal.
 export async function PUT(req: Request) {
   const { session } = await requireServerSession();
-  const appUserId = (session)
-    .appUserId;
-  if (!appUserId) {
+  const appUserId = session.appUserId;
+  const orgId = session.organizationId;
+  if (!appUserId || !orgId) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
 
@@ -49,14 +49,16 @@ export async function PUT(req: Request) {
   const reset = ResetBody.safeParse(raw);
   if (reset.success) {
     const portalType: SettingsPortalType = reset.data.portalType;
-    await db
-      .delete(userNotificationPreferences)
-      .where(
-        and(
-          eq(userNotificationPreferences.userId, appUserId),
-          eq(userNotificationPreferences.portalType, portalType),
+    await withTenantUser(orgId, appUserId, (tx) =>
+      tx
+        .delete(userNotificationPreferences)
+        .where(
+          and(
+            eq(userNotificationPreferences.userId, appUserId),
+            eq(userNotificationPreferences.portalType, portalType),
+          ),
         ),
-      );
+    );
     return NextResponse.json({ ok: true, reset: true });
   }
 
@@ -80,7 +82,7 @@ export async function PUT(req: Request) {
     );
   }
 
-  await db.transaction(async (tx) => {
+  await withTenantUser(orgId, appUserId, async (tx) => {
     const eventIds = accepted.map((p) => p.eventId);
     await tx
       .delete(userNotificationPreferences)

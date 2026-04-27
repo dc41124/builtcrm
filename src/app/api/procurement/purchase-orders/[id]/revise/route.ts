@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { purchaseOrderLines, purchaseOrders } from "@/db/schema";
 import { withTenant } from "@/db/with-tenant";
@@ -93,22 +92,6 @@ export async function POST(
       );
     }
 
-    // Capture the pre-revision snapshot (lines + header) for the audit
-    // event. After the revise the old line rows are gone.
-    const priorLines = await db
-      .select({
-        id: purchaseOrderLines.id,
-        sortOrder: purchaseOrderLines.sortOrder,
-        description: purchaseOrderLines.description,
-        quantity: purchaseOrderLines.quantity,
-        unit: purchaseOrderLines.unit,
-        unitCostCents: purchaseOrderLines.unitCostCents,
-        receivedQuantity: purchaseOrderLines.receivedQuantity,
-      })
-      .from(purchaseOrderLines)
-      .where(eq(purchaseOrderLines.purchaseOrderId, id))
-      .orderBy(purchaseOrderLines.sortOrder);
-
     const priorPdfId = await findCurrentPoPdfDocumentId(id, ctx.organization.id);
 
     const now = new Date();
@@ -116,6 +99,22 @@ export async function POST(
     const nextRevision = po.revisionNumber + 1;
 
     const result = await withTenant(ctx.organization.id, async (tx) => {
+      // Capture the pre-revision snapshot (lines + header) for the audit
+      // event. After the revise the old line rows are gone.
+      const priorLines = await tx
+        .select({
+          id: purchaseOrderLines.id,
+          sortOrder: purchaseOrderLines.sortOrder,
+          description: purchaseOrderLines.description,
+          quantity: purchaseOrderLines.quantity,
+          unit: purchaseOrderLines.unit,
+          unitCostCents: purchaseOrderLines.unitCostCents,
+          receivedQuantity: purchaseOrderLines.receivedQuantity,
+        })
+        .from(purchaseOrderLines)
+        .where(eq(purchaseOrderLines.purchaseOrderId, id))
+        .orderBy(purchaseOrderLines.sortOrder);
+
       // Update header + bump revision number.
       await tx
         .update(purchaseOrders)

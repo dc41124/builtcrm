@@ -249,5 +249,13 @@ export const purchaseOrderLines = pgTable(
   },
   (table) => ({
     poIdx: index("purchase_order_lines_po_idx").on(table.purchaseOrderId),
+    // RLS Slice A bucket 3 — nested-via-parent on purchase_orders. Parent
+    // policy is Pattern A (organizationId = GUC); the IN-subquery applies
+    // it transitively. Lines are never read or written outside a PO context.
+    tenantIsolation: pgPolicy("purchase_order_lines_tenant_isolation", {
+      for: "all",
+      using: sql`${table.purchaseOrderId} IN (SELECT id FROM purchase_orders)`,
+      withCheck: sql`${table.purchaseOrderId} IN (SELECT id FROM purchase_orders)`,
+    }),
   }),
-);
+).enableRLS();

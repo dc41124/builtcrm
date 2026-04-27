@@ -1,6 +1,8 @@
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenantUser } from "@/db/with-tenant";
 import {
   authSession,
   authUser,
@@ -131,20 +133,39 @@ export async function getUserSettingsView(input: {
 
   // Load saved notification prefs for this user + portal, layer over defaults
   // so any new event gets its default state until explicitly toggled.
+  // RLS: user_notification_preferences is user-scoped — withTenantUser sets
+  // both org + user GUCs. orgId from session avoids a fallback dbAdmin path.
   const defaults = defaultNotificationPrefs(input.portalType);
-  const savedRows = await db
-    .select({
-      eventId: userNotificationPreferences.eventId,
-      email: userNotificationPreferences.email,
-      inApp: userNotificationPreferences.inApp,
-    })
-    .from(userNotificationPreferences)
-    .where(
-      and(
-        eq(userNotificationPreferences.userId, appUserId),
-        eq(userNotificationPreferences.portalType, input.portalType),
-      ),
-    );
+  const sessionOrgId = input.session.organizationId;
+  const savedRows = sessionOrgId
+    ? await withTenantUser(sessionOrgId, appUserId, (tx) =>
+        tx
+          .select({
+            eventId: userNotificationPreferences.eventId,
+            email: userNotificationPreferences.email,
+            inApp: userNotificationPreferences.inApp,
+          })
+          .from(userNotificationPreferences)
+          .where(
+            and(
+              eq(userNotificationPreferences.userId, appUserId),
+              eq(userNotificationPreferences.portalType, input.portalType),
+            ),
+          ),
+      )
+    : await dbAdmin
+        .select({
+          eventId: userNotificationPreferences.eventId,
+          email: userNotificationPreferences.email,
+          inApp: userNotificationPreferences.inApp,
+        })
+        .from(userNotificationPreferences)
+        .where(
+          and(
+            eq(userNotificationPreferences.userId, appUserId),
+            eq(userNotificationPreferences.portalType, input.portalType),
+          ),
+        );
 
   const notificationPrefs: NotificationPrefState = { ...defaults };
   for (const row of savedRows) {

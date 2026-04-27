@@ -211,25 +211,27 @@ export async function getSubcontractorTodayData(input: {
         )
         .orderBy(desc(rfis.createdAt)),
     ),
-    db
-      .select({
-        id: uploadRequests.id,
-        projectId: uploadRequests.projectId,
-        title: uploadRequests.title,
-        description: uploadRequests.description,
-        status: uploadRequests.requestStatus,
-        dueAt: uploadRequests.dueAt,
-        revisionNote: uploadRequests.revisionNote,
-      })
-      .from(uploadRequests)
-      .where(
-        and(
-          inArray(uploadRequests.projectId, projectIds),
-          eq(uploadRequests.requestedFromOrganizationId, subOrgId),
-          inArray(uploadRequests.requestStatus, [...OPEN_UPLOAD_STATUSES]),
-        ),
-      )
-      .orderBy(desc(uploadRequests.createdAt)),
+    withTenant(subOrgId, (tx) =>
+      tx
+        .select({
+          id: uploadRequests.id,
+          projectId: uploadRequests.projectId,
+          title: uploadRequests.title,
+          description: uploadRequests.description,
+          status: uploadRequests.requestStatus,
+          dueAt: uploadRequests.dueAt,
+          revisionNote: uploadRequests.revisionNote,
+        })
+        .from(uploadRequests)
+        .where(
+          and(
+            inArray(uploadRequests.projectId, projectIds),
+            eq(uploadRequests.requestedFromOrganizationId, subOrgId),
+            inArray(uploadRequests.requestStatus, [...OPEN_UPLOAD_STATUSES]),
+          ),
+        )
+        .orderBy(desc(uploadRequests.createdAt)),
+    ),
     // Sub viewing own compliance — multi-org policy clause A
     // (organization_id = GUC) satisfies.
     withTenant(subOrgId, (tx) =>

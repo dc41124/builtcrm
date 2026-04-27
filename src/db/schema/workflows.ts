@@ -129,8 +129,37 @@ export const uploadRequests = pgTable(
       foreignColumns: [organizations.id],
       name: "upload_requests_requested_from_organization_id_fk",
     }).onDelete("set null"),
+    // RLS Slice A bucket 3 — project-scoped 2-clause hybrid (same template
+    // as rfis / change_orders / approvals). Contractor owns the project,
+    // OR caller has an active POM. requestedFromOrganizationId routes the
+    // ask but doesn't gate visibility; ownership is purely project-scoped.
+    tenantIsolation: pgPolicy("upload_requests_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Compliance
@@ -447,5 +476,34 @@ export const approvals = pgTable(
     ),
     projectIdx: index("approvals_project_idx").on(table.projectId),
     statusIdx: index("approvals_status_idx").on(table.approvalStatus),
+    // RLS Slice A bucket 3 — project-scoped 2-clause hybrid (same template
+    // as rfis / change_orders / upload_requests). Approvals queue is
+    // visible to the project's contractor + any active-POM org (clients
+    // decision their own approvals via clause B).
+    tenantIsolation: pgPolicy("approvals_tenant_isolation", {
+      for: "all",
+      using: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+      withCheck: sql`
+        ${table.projectId} IN (
+          SELECT id FROM projects
+          WHERE contractor_organization_id = current_setting('app.current_org_id', true)::uuid
+        )
+        OR ${table.projectId} IN (
+          SELECT project_id FROM project_organization_memberships
+          WHERE organization_id = current_setting('app.current_org_id', true)::uuid
+            AND membership_status = 'active'
+        )
+      `,
+    }),
   }),
-);
+).enableRLS();

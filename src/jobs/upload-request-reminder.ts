@@ -4,6 +4,7 @@ import { schedules, logger } from "@trigger.dev/sdk/v3";
 import { and, eq, lt } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { activityFeedItems, uploadRequests } from "@/db/schema";
 import { writeSystemAuditEvent } from "@/domain/audit";
 import { redis } from "@/lib/redis";
@@ -20,7 +21,10 @@ export const uploadRequestReminder = schedules.task({
   run: async (payload) => {
     const now = payload.timestamp;
 
-    const overdue = await db
+    // Cross-org sweep — uploadRequests is RLS'd (Slice A bucket 3). dbAdmin
+    // matches the prequal-expiry-sweep precedent: no session, no GUC, must
+    // see every org's overdue rows.
+    const overdue = await dbAdmin
       .select({
         id: uploadRequests.id,
         projectId: uploadRequests.projectId,

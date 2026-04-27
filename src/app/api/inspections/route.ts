@@ -4,7 +4,6 @@ import { requireServerSession } from "@/auth/session";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { withTenant } from "@/db/with-tenant";
 import {
   type InspectionLineItemDef,
@@ -58,27 +57,25 @@ export async function POST(req: Request) {
       );
     }
 
-    // Template must belong to the viewer's contractor org.
-    const [tpl] = await db
-      .select({
-        id: inspectionTemplates.id,
-        orgId: inspectionTemplates.orgId,
-        lineItemsJson: inspectionTemplates.lineItemsJson,
-        isArchived: inspectionTemplates.isArchived,
-      })
-      .from(inspectionTemplates)
-      .where(eq(inspectionTemplates.id, input.templateId))
-      .limit(1);
-    if (!tpl || tpl.orgId !== ctx.organization.id || tpl.isArchived) {
-      throw new AuthorizationError(
-        "Template not available to this org",
-        "not_found",
-      );
-    }
-
-    const snapshot = (tpl.lineItemsJson as InspectionLineItemDef[]) ?? [];
-
     const result = await withTenant(ctx.organization.id, async (tx) => {
+      // Template lookup runs inside withTenant — the Pattern A policy
+      // enforces tpl.orgId = ctx.organization.id; isArchived is the
+      // remaining business check.
+      const [tpl] = await tx
+        .select({
+          id: inspectionTemplates.id,
+          lineItemsJson: inspectionTemplates.lineItemsJson,
+          isArchived: inspectionTemplates.isArchived,
+        })
+        .from(inspectionTemplates)
+        .where(eq(inspectionTemplates.id, input.templateId))
+        .limit(1);
+      if (!tpl || tpl.isArchived) {
+        throw new TemplateUnavailableError();
+      }
+
+      const snapshot = (tpl.lineItemsJson as InspectionLineItemDef[]) ?? [];
+
       const [{ nextNumber }] = await tx
         .select({
           nextNumber: sql<number>`coalesce(max(${inspections.sequentialNumber}), 0) + 1`,
@@ -144,6 +141,12 @@ export async function POST(req: Request) {
       status: result.status,
     });
   } catch (err) {
+    if (err instanceof TemplateUnavailableError) {
+      return NextResponse.json(
+        { error: "not_found", message: "Template not available to this org" },
+        { status: 404 },
+      );
+    }
     if (err instanceof AuthorizationError) {
       const status =
         err.code === "unauthenticated" ? 401 : err.code === "not_found" ? 404 : 403;
@@ -152,3 +155,5 @@ export async function POST(req: Request) {
     throw err;
   }
 }
+
+class TemplateUnavailableError extends Error {}

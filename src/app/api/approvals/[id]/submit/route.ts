@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { approvals } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
@@ -18,7 +19,8 @@ export async function POST(
   const { id } = await params;
   const { session } = await requireServerSession();
   try {
-    const [apv] = await db
+    // Entry-point dbAdmin: tenant unknown until projectId resolved.
+    const [apv] = await dbAdmin
       .select()
       .from(approvals)
       .where(eq(approvals.id, id))
@@ -50,7 +52,7 @@ export async function POST(
 
     const previousState = apv.approvalStatus;
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(approvals)
         .set({ approvalStatus: "pending_review", submittedAt: new Date() })

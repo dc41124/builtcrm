@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { uploadRequests } from "@/db/schema";
 import { writeActivityFeedItem } from "@/domain/activity";
 import { writeAuditEvent } from "@/domain/audit";
@@ -17,7 +18,8 @@ export async function POST(
   const { id } = await params;
   const { session } = await requireServerSession();
   try {
-    const [request] = await db
+    // Entry-point dbAdmin: tenant unknown until projectId resolved.
+    const [request] = await dbAdmin
       .select()
       .from(uploadRequests)
       .where(eq(uploadRequests.id, id))
@@ -43,7 +45,7 @@ export async function POST(
       );
     }
 
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.organization.id, async (tx) => {
       await tx
         .update(uploadRequests)
         .set({

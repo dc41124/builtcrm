@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { purchaseOrderLines, purchaseOrders } from "@/db/schema";
 import { withTenant } from "@/db/with-tenant";
@@ -87,39 +86,31 @@ export async function POST(
     }
 
     const lineIds = parsed.data.received.map((r) => r.lineId);
-    const lineRows = await db
-      .select({
-        id: purchaseOrderLines.id,
-        purchaseOrderId: purchaseOrderLines.purchaseOrderId,
-        quantity: purchaseOrderLines.quantity,
-      })
-      .from(purchaseOrderLines)
-      .where(inArray(purchaseOrderLines.id, lineIds));
-    // All lines must belong to this PO.
-    for (const row of lineRows) {
-      if (row.purchaseOrderId !== id) {
-        return NextResponse.json(
-          { error: "line_mismatch" },
-          { status: 400 },
-        );
-      }
-    }
-    // Received qty can't exceed line qty (stops over-receive nonsense).
-    for (const patch of parsed.data.received) {
-      const line = lineRows.find((l) => l.id === patch.lineId);
-      if (!line) continue;
-      if (patch.receivedQuantity > parseFloat(line.quantity)) {
-        return NextResponse.json(
-          {
-            error: "over_received",
-            message: `Cannot receive more than line quantity on ${patch.lineId}`,
-          },
-          { status: 400 },
-        );
-      }
-    }
 
     const result = await withTenant(ctx.organization.id, async (tx) => {
+      const lineRows = await tx
+        .select({
+          id: purchaseOrderLines.id,
+          purchaseOrderId: purchaseOrderLines.purchaseOrderId,
+          quantity: purchaseOrderLines.quantity,
+        })
+        .from(purchaseOrderLines)
+        .where(inArray(purchaseOrderLines.id, lineIds));
+      // All lines must belong to this PO.
+      for (const row of lineRows) {
+        if (row.purchaseOrderId !== id) {
+          throw new LineMismatchError();
+        }
+      }
+      // Received qty can't exceed line qty (stops over-receive nonsense).
+      for (const patch of parsed.data.received) {
+        const line = lineRows.find((l) => l.id === patch.lineId);
+        if (!line) continue;
+        if (patch.receivedQuantity > parseFloat(line.quantity)) {
+          throw new OverReceivedError(patch.lineId);
+        }
+      }
+
       for (const patch of parsed.data.received) {
         await tx
           .update(purchaseOrderLines)
@@ -184,6 +175,18 @@ export async function POST(
 
     return NextResponse.json(result);
   } catch (err) {
+    if (err instanceof LineMismatchError) {
+      return NextResponse.json({ error: "line_mismatch" }, { status: 400 });
+    }
+    if (err instanceof OverReceivedError) {
+      return NextResponse.json(
+        {
+          error: "over_received",
+          message: `Cannot receive more than line quantity on ${err.lineId}`,
+        },
+        { status: 400 },
+      );
+    }
     if (err instanceof AuthorizationError) {
       const status =
         err.code === "unauthenticated"
@@ -197,5 +200,12 @@ export async function POST(
       );
     }
     throw err;
+  }
+}
+
+class LineMismatchError extends Error {}
+class OverReceivedError extends Error {
+  constructor(public lineId: string) {
+    super();
   }
 }

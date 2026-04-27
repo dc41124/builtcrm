@@ -4,8 +4,8 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { milestoneDependencies, milestones } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -84,58 +84,71 @@ export async function POST(
     );
     assertCan(ctx.permissions, "milestone", "write");
 
-    // Cycle check: would the new edge create a loop?
-    const existingEdges = await db
-      .select({
-        predecessorId: milestoneDependencies.predecessorId,
-        successorId: milestoneDependencies.successorId,
-      })
-      .from(milestoneDependencies);
-    if (
-      wouldCreateCycle({
-        predecessorId,
-        successorId,
-        edges: existingEdges,
-      })
-    ) {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
+      // Cycle check: would the new edge create a loop? RLS on
+      // milestone_dependencies filters via the milestones policy, which
+      // already scopes to the caller's accessible projects — single-project
+      // edges (enforced above) yield the full edge set for cycle detection.
+      const existingEdges = await tx
+        .select({
+          predecessorId: milestoneDependencies.predecessorId,
+          successorId: milestoneDependencies.successorId,
+        })
+        .from(milestoneDependencies);
+      if (
+        wouldCreateCycle({
+          predecessorId,
+          successorId,
+          edges: existingEdges,
+        })
+      ) {
+        throw new CycleError();
+      }
+
+      const [created] = await tx
+        .insert(milestoneDependencies)
+        .values({ predecessorId, successorId })
+        .onConflictDoNothing({
+          target: [
+            milestoneDependencies.predecessorId,
+            milestoneDependencies.successorId,
+          ],
+        })
+        .returning();
+
+      if (!created) {
+        throw new DuplicateEdgeError();
+      }
+
+      await writeAuditEvent(ctx, {
+        action: "dependency_added",
+        resourceType: "milestone",
+        resourceId: successorId,
+        details: {
+          nextState: {
+            dependencyId: created.id,
+            predecessorId,
+          },
+        },
+      }, tx);
+
+      return created;
+    });
+
+    return NextResponse.json({ id: result.id });
+  } catch (err) {
+    if (err instanceof CycleError) {
       return NextResponse.json(
         { error: "cycle", message: "That would create a circular dependency" },
         { status: 409 },
       );
     }
-
-    const [row] = await db
-      .insert(milestoneDependencies)
-      .values({ predecessorId, successorId })
-      .onConflictDoNothing({
-        target: [
-          milestoneDependencies.predecessorId,
-          milestoneDependencies.successorId,
-        ],
-      })
-      .returning();
-
-    if (!row) {
+    if (err instanceof DuplicateEdgeError) {
       return NextResponse.json(
         { error: "duplicate", message: "This dependency already exists" },
         { status: 409 },
       );
     }
-
-    await writeAuditEvent(ctx, {
-      action: "dependency_added",
-      resourceType: "milestone",
-      resourceId: successorId,
-      details: {
-        nextState: {
-          dependencyId: row.id,
-          predecessorId,
-        },
-      },
-    });
-
-    return NextResponse.json({ id: row.id });
-  } catch (err) {
     if (err instanceof AuthorizationError) {
       const status =
         err.code === "unauthenticated"
@@ -151,6 +164,9 @@ export async function POST(
     throw err;
   }
 }
+
+class CycleError extends Error {}
+class DuplicateEdgeError extends Error {}
 
 // DELETE /api/milestones/[id]/dependencies?predecessorId=<uuid>
 // Removes an edge. Query-string based to avoid a dedicated nested
@@ -187,27 +203,32 @@ export async function DELETE(
     );
     assertCan(ctx.permissions, "milestone", "write");
 
-    const result = await db
-      .delete(milestoneDependencies)
-      .where(
-        and(
-          eq(milestoneDependencies.predecessorId, predecessorId),
-          eq(milestoneDependencies.successorId, successorId),
-        ),
-      )
-      .returning();
-    if (result.length === 0) {
+    const deleted = await withTenant(ctx.organization.id, async (tx) => {
+      const result = await tx
+        .delete(milestoneDependencies)
+        .where(
+          and(
+            eq(milestoneDependencies.predecessorId, predecessorId),
+            eq(milestoneDependencies.successorId, successorId),
+          ),
+        )
+        .returning();
+      if (result.length === 0) return false;
+
+      await writeAuditEvent(ctx, {
+        action: "dependency_removed",
+        resourceType: "milestone",
+        resourceId: successorId,
+        details: {
+          previousState: { predecessorId },
+        },
+      }, tx);
+      return true;
+    });
+
+    if (!deleted) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-
-    await writeAuditEvent(ctx, {
-      action: "dependency_removed",
-      resourceType: "milestone",
-      resourceId: successorId,
-      details: {
-        previousState: { predecessorId },
-      },
-    });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -181,12 +181,14 @@ export async function getContractorDashboardData(
       .where(inArray(rfis.projectId, projectIds)),
   );
 
-  const [approvalAgg] = await db
-    .select({
-      pending: sql<number>`count(*) filter (where ${approvals.approvalStatus} in ('pending_review','needs_revision'))::int`,
-    })
-    .from(approvals)
-    .where(inArray(approvals.projectId, projectIds));
+  const [approvalAgg] = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        pending: sql<number>`count(*) filter (where ${approvals.approvalStatus} in ('pending_review','needs_revision'))::int`,
+      })
+      .from(approvals)
+      .where(inArray(approvals.projectId, projectIds)),
+  );
 
   const [drawAgg] = await db
     .select({
@@ -405,29 +407,31 @@ export async function getContractorDashboardData(
   };
 
   // ---- Approvals waiting + approvals priorities tab ------------------------
-  const approvalRows = await db
-    .select({
-      id: approvals.id,
-      title: approvals.title,
-      description: approvals.description,
-      status: approvals.approvalStatus,
-      projectId: approvals.projectId,
-      projectName: projects.name,
-      submittedAt: approvals.submittedAt,
-    })
-    .from(approvals)
-    .innerJoin(projects, eq(projects.id, approvals.projectId))
-    .where(
-      and(
-        eq(projects.contractorOrganizationId, orgId),
-        inArray(approvals.approvalStatus, [
-          "pending_review",
-          "needs_revision",
-        ]),
-      ),
-    )
-    .orderBy(asc(approvals.submittedAt))
-    .limit(6);
+  const approvalRows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: approvals.id,
+        title: approvals.title,
+        description: approvals.description,
+        status: approvals.approvalStatus,
+        projectId: approvals.projectId,
+        projectName: projects.name,
+        submittedAt: approvals.submittedAt,
+      })
+      .from(approvals)
+      .innerJoin(projects, eq(projects.id, approvals.projectId))
+      .where(
+        and(
+          eq(projects.contractorOrganizationId, orgId),
+          inArray(approvals.approvalStatus, [
+            "pending_review",
+            "needs_revision",
+          ]),
+        ),
+      )
+      .orderBy(asc(approvals.submittedAt))
+      .limit(6),
+  );
 
   const approvalsWaiting: ContractorDashboardApprovalWaiting[] = approvalRows
     .slice(0, 4)

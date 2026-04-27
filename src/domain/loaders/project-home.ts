@@ -1341,48 +1341,52 @@ export async function getContractorProjectView(
           ),
         ),
     ),
-    db
-      .select({
-        id: uploadRequests.id,
-        title: uploadRequests.title,
-        description: uploadRequests.description,
-        requestStatus: uploadRequests.requestStatus,
-        requestedFromOrganizationId: uploadRequests.requestedFromOrganizationId,
-        requestedFromOrganizationName: organizations.name,
-        expectedFileType: uploadRequests.expectedFileType,
-        dueAt: uploadRequests.dueAt,
-        submittedAt: uploadRequests.submittedAt,
-        submittedByUserId: uploadRequests.submittedByUserId,
-        completedAt: uploadRequests.completedAt,
-        revisionNote: uploadRequests.revisionNote,
-        responseNote: uploadRequests.responseNote,
-        createdAt: uploadRequests.createdAt,
-        submittedDocumentId: uploadRequests.submittedDocumentId,
-        submittedDocumentTitle: documents.title,
-        submittedDocumentType: documents.documentType,
-      })
-      .from(uploadRequests)
-      .leftJoin(
-        organizations,
-        eq(organizations.id, uploadRequests.requestedFromOrganizationId),
-      )
-      .leftJoin(documents, eq(documents.id, uploadRequests.submittedDocumentId))
-      .where(eq(uploadRequests.projectId, projectId))
-      .orderBy(desc(uploadRequests.createdAt)),
-    db
-      .select({
-        id: approvals.id,
-        approvalNumber: approvals.approvalNumber,
-        title: approvals.title,
-        category: approvals.category,
-        approvalStatus: approvals.approvalStatus,
-        impactCostCents: approvals.impactCostCents,
-        impactScheduleDays: approvals.impactScheduleDays,
-        decisionNote: approvals.decisionNote,
-      })
-      .from(approvals)
-      .where(eq(approvals.projectId, projectId))
-      .orderBy(desc(approvals.createdAt)),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          id: uploadRequests.id,
+          title: uploadRequests.title,
+          description: uploadRequests.description,
+          requestStatus: uploadRequests.requestStatus,
+          requestedFromOrganizationId: uploadRequests.requestedFromOrganizationId,
+          requestedFromOrganizationName: organizations.name,
+          expectedFileType: uploadRequests.expectedFileType,
+          dueAt: uploadRequests.dueAt,
+          submittedAt: uploadRequests.submittedAt,
+          submittedByUserId: uploadRequests.submittedByUserId,
+          completedAt: uploadRequests.completedAt,
+          revisionNote: uploadRequests.revisionNote,
+          responseNote: uploadRequests.responseNote,
+          createdAt: uploadRequests.createdAt,
+          submittedDocumentId: uploadRequests.submittedDocumentId,
+          submittedDocumentTitle: documents.title,
+          submittedDocumentType: documents.documentType,
+        })
+        .from(uploadRequests)
+        .leftJoin(
+          organizations,
+          eq(organizations.id, uploadRequests.requestedFromOrganizationId),
+        )
+        .leftJoin(documents, eq(documents.id, uploadRequests.submittedDocumentId))
+        .where(eq(uploadRequests.projectId, projectId))
+        .orderBy(desc(uploadRequests.createdAt)),
+    ),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          id: approvals.id,
+          approvalNumber: approvals.approvalNumber,
+          title: approvals.title,
+          category: approvals.category,
+          approvalStatus: approvals.approvalStatus,
+          impactCostCents: approvals.impactCostCents,
+          impactScheduleDays: approvals.impactScheduleDays,
+          decisionNote: approvals.decisionNote,
+        })
+        .from(approvals)
+        .where(eq(approvals.projectId, projectId))
+        .orderBy(desc(approvals.createdAt)),
+    ),
     // Contractor reading their project's compliance — multi-org policy
     // clause B (project ownership) returns sub records too.
     withTenant(context.organization.id, (tx) =>

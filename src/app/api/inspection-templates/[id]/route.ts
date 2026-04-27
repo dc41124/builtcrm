@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { inspectionTemplates } from "@/db/schema";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -32,7 +33,8 @@ const PatchSchema = z.object({
 });
 
 async function assertContractorInOrg(appUserId: string, orgId: string) {
-  const [ra] = await db.execute(
+  // Pre-tenant role check — role_assignments is RLS'd, so use dbAdmin.
+  const [ra] = await dbAdmin.execute(
     sql`select 1
         from role_assignments
         where user_id = ${appUserId}
@@ -68,7 +70,8 @@ export async function PATCH(
   }
 
   try {
-    const [tpl] = await db
+    // Entry-point dbAdmin: tenant unknown until orgId resolved from row.
+    const [tpl] = await dbAdmin
       .select({
         id: inspectionTemplates.id,
         orgId: inspectionTemplates.orgId,
@@ -102,11 +105,14 @@ export async function PATCH(
       return NextResponse.json({ ok: true, unchanged: true });
     }
 
-    const [row] = await db
-      .update(inspectionTemplates)
-      .set(update)
-      .where(eq(inspectionTemplates.id, id))
-      .returning();
+    const row = await withTenant(tpl.orgId, async (tx) => {
+      const [updated] = await tx
+        .update(inspectionTemplates)
+        .set(update)
+        .where(eq(inspectionTemplates.id, id))
+        .returning();
+      return updated;
+    });
 
     return NextResponse.json({ id: row.id });
   } catch (err) {
@@ -136,7 +142,8 @@ export async function DELETE(
   }
 
   try {
-    const [tpl] = await db
+    // Entry-point dbAdmin: tenant unknown until orgId resolved from row.
+    const [tpl] = await dbAdmin
       .select({
         id: inspectionTemplates.id,
         orgId: inspectionTemplates.orgId,
@@ -150,10 +157,12 @@ export async function DELETE(
     }
     await assertContractorInOrg(appUserId, tpl.orgId);
 
-    await db
-      .update(inspectionTemplates)
-      .set({ isArchived: !tpl.isArchived })
-      .where(eq(inspectionTemplates.id, id));
+    await withTenant(tpl.orgId, async (tx) => {
+      await tx
+        .update(inspectionTemplates)
+        .set({ isArchived: !tpl.isArchived })
+        .where(eq(inspectionTemplates.id, id));
+    });
 
     return NextResponse.json({ ok: true, archived: !tpl.isArchived });
   } catch (err) {

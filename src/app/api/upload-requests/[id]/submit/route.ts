@@ -37,7 +37,7 @@ export async function POST(
 
   try {
     // Entry-point dbAdmin: tenant unknown until we resolve project from
-    // the upload_requests row. uploadRequests is not yet RLS-enabled.
+    // the upload_requests row. Slice 3 pattern.
     const [request] = await dbAdmin
       .select()
       .from(uploadRequests)

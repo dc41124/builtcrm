@@ -103,8 +103,15 @@ export const inspectionTemplates = pgTable(
       table.orgId,
       table.tradeCategory,
     ),
+    // RLS Slice A bucket 3 — Pattern A. Templates are contractor-owned
+    // per-org; all reads/writes already pass through tenant context.
+    tenantIsolation: pgPolicy("inspection_templates_tenant_isolation", {
+      for: "all",
+      using: sql`${table.orgId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.orgId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // inspections — one per QA/QC walkthrough on a project.

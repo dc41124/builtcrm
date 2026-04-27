@@ -175,5 +175,14 @@ export const subscriptionInvoices = pgTable(
       foreignColumns: [organizationSubscriptions.id],
       name: "subscription_invoices_organization_subscription_id_fk",
     }).onDelete("cascade"),
+    // RLS Slice A bucket 3 — nested-via-parent on organization_subscriptions.
+    // Parent is Pattern A (organization_id = GUC); the IN-subquery applies it
+    // transitively. Stripe webhook flow looks up by stripe_invoice_id pre-tenant
+    // and uses dbAdmin for the head SELECT (same precedent as the parent).
+    tenantIsolation: pgPolicy("subscription_invoices_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationSubscriptionId} IN (SELECT id FROM organization_subscriptions)`,
+      withCheck: sql`${table.organizationSubscriptionId} IN (SELECT id FROM organization_subscriptions)`,
+    }),
   }),
-);
+).enableRLS();

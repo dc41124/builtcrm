@@ -167,15 +167,17 @@ export async function getInspections(
       )
     : eq(inspections.projectId, input.projectId);
 
-  const rows = await withTenant(ctx.organization.id, (tx) =>
+  // Inspections are project-scoped (subs see them via active POM), but
+  // inspectionTemplates is Pattern A (contractor-owned). Joining them
+  // under a sub's GUC drops every row. Read inspections under withTenant,
+  // then enrich template metadata via dbAdmin — same escape pattern as
+  // the sub-side prequal_template reads.
+  const inspectionRows = await withTenant(ctx.organization.id, (tx) =>
     tx
       .select({
         id: inspections.id,
         sequentialNumber: inspections.sequentialNumber,
         templateId: inspections.templateId,
-        templateName: inspectionTemplates.name,
-        templateTradeCategory: inspectionTemplates.tradeCategory,
-        templatePhase: inspectionTemplates.phase,
         templateSnapshotJson: inspections.templateSnapshotJson,
         zone: inspections.zone,
         status: inspections.status,
@@ -188,10 +190,6 @@ export async function getInspections(
         createdAt: inspections.createdAt,
       })
       .from(inspections)
-      .innerJoin(
-        inspectionTemplates,
-        eq(inspectionTemplates.id, inspections.templateId),
-      )
       .leftJoin(
         organizations,
         eq(organizations.id, inspections.assignedOrgId),
@@ -199,6 +197,41 @@ export async function getInspections(
       .where(where)
       .orderBy(desc(inspections.createdAt)),
   );
+
+  const templateIds = Array.from(
+    new Set(inspectionRows.map((r) => r.templateId)),
+  );
+  const tplMap = new Map<
+    string,
+    { name: string; tradeCategory: string; phase: "rough" | "final" }
+  >();
+  if (templateIds.length > 0) {
+    const tplRows = await dbAdmin
+      .select({
+        id: inspectionTemplates.id,
+        name: inspectionTemplates.name,
+        tradeCategory: inspectionTemplates.tradeCategory,
+        phase: inspectionTemplates.phase,
+      })
+      .from(inspectionTemplates)
+      .where(inArray(inspectionTemplates.id, templateIds));
+    for (const t of tplRows) {
+      tplMap.set(t.id, {
+        name: t.name,
+        tradeCategory: t.tradeCategory,
+        phase: t.phase,
+      });
+    }
+  }
+  const rows = inspectionRows.map((r) => {
+    const tpl = tplMap.get(r.templateId);
+    return {
+      ...r,
+      templateName: tpl?.name ?? "(unknown template)",
+      templateTradeCategory: tpl?.tradeCategory ?? "",
+      templatePhase: tpl?.phase ?? "rough",
+    };
+  });
 
   if (rows.length === 0) {
     return { rows: [], viewerRole: isSub ? "subcontractor" : "contractor" };
@@ -605,22 +638,24 @@ export async function getInspectionTemplates(
     orgId = (ra as { organizationId: string }).organizationId;
   }
 
-  const tplRows = await db
-    .select({
-      id: inspectionTemplates.id,
-      name: inspectionTemplates.name,
-      tradeCategory: inspectionTemplates.tradeCategory,
-      phase: inspectionTemplates.phase,
-      description: inspectionTemplates.description,
-      isCustom: inspectionTemplates.isCustom,
-      isArchived: inspectionTemplates.isArchived,
-      lineItemsJson: inspectionTemplates.lineItemsJson,
-      createdByUserId: inspectionTemplates.createdByUserId,
-      updatedAt: inspectionTemplates.updatedAt,
-    })
-    .from(inspectionTemplates)
-    .where(eq(inspectionTemplates.orgId, orgId))
-    .orderBy(inspectionTemplates.name);
+  const tplRows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: inspectionTemplates.id,
+        name: inspectionTemplates.name,
+        tradeCategory: inspectionTemplates.tradeCategory,
+        phase: inspectionTemplates.phase,
+        description: inspectionTemplates.description,
+        isCustom: inspectionTemplates.isCustom,
+        isArchived: inspectionTemplates.isArchived,
+        lineItemsJson: inspectionTemplates.lineItemsJson,
+        createdByUserId: inspectionTemplates.createdByUserId,
+        updatedAt: inspectionTemplates.updatedAt,
+      })
+      .from(inspectionTemplates)
+      .where(eq(inspectionTemplates.orgId, orgId))
+      .orderBy(inspectionTemplates.name),
+  );
 
   if (tplRows.length === 0) return [];
 
@@ -673,7 +708,9 @@ export async function getInspectionTemplate(input: {
   if (!input.session?.appUserId) {
     throw new AuthorizationError("Not signed in", "unauthenticated");
   }
-  const [t] = await db
+  // Pre-tenant lookup — caller passes only the templateId, so resolve
+  // orgId via dbAdmin before validating contractor membership.
+  const [t] = await dbAdmin
     .select({
       id: inspectionTemplates.id,
       orgId: inspectionTemplates.orgId,

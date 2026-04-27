@@ -39,6 +39,10 @@ export type EffectiveRole =
 export type SessionLike = {
   appUserId?: string | null;
   userId?: string;
+  // Better Auth additionalField — present on AppSessionRow at runtime,
+  // optional here so callers passing minimal session objects (tests) still
+  // type-check. Loaders that need user-scoped RLS (withTenantUser) read this.
+  organizationId?: string | null;
 };
 
 export type EffectiveContext = {

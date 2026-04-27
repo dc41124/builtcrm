@@ -1,6 +1,5 @@
 import { and, asc, eq, inArray, or } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { withTenant } from "@/db/with-tenant";
 import {
   milestoneDependencies,
@@ -128,7 +127,7 @@ export async function getScheduleView(
   const dependencies: MilestoneDependency[] =
     visibleIds.length === 0
       ? []
-      : await loadScopedDependencies(visibleIds);
+      : await loadScopedDependencies(visibleIds, context.organization.id);
 
   const phases = groupByPhase(milestoneRows);
   const stats = computeStats(milestoneRows);
@@ -153,19 +152,25 @@ export async function getScheduleView(
 // intersect here. Called inline from the loader above.
 async function loadScopedDependencies(
   visibleIds: string[],
+  orgId: string,
 ): Promise<MilestoneDependency[]> {
-  const rows = await db
-    .select({
-      predecessorId: milestoneDependencies.predecessorId,
-      successorId: milestoneDependencies.successorId,
-    })
-    .from(milestoneDependencies)
-    .where(
-      and(
-        inArray(milestoneDependencies.predecessorId, visibleIds),
-        inArray(milestoneDependencies.successorId, visibleIds),
+  // milestone_dependencies is RLS'd nested-via-parent on milestones —
+  // the parent's project-scoped policy filters edges to the caller's
+  // accessible projects.
+  const rows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        predecessorId: milestoneDependencies.predecessorId,
+        successorId: milestoneDependencies.successorId,
+      })
+      .from(milestoneDependencies)
+      .where(
+        and(
+          inArray(milestoneDependencies.predecessorId, visibleIds),
+          inArray(milestoneDependencies.successorId, visibleIds),
+        ),
       ),
-    );
+  );
   return rows;
 }
 

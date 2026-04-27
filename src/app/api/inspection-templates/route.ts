@@ -4,7 +4,8 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
+import { withTenant } from "@/db/with-tenant";
 import { inspectionTemplates } from "@/db/schema";
 import { AuthorizationError } from "@/domain/permissions";
 
@@ -51,8 +52,9 @@ export async function POST(req: Request) {
   const input = parsed.data;
 
   try {
-    // Pull the user's contractor org from role_assignments.
-    const [ra] = await db.execute(
+    // Pre-tenant role lookup — role_assignments is RLS'd so use dbAdmin
+    // to discover which contractor org this user belongs to.
+    const [ra] = await dbAdmin.execute(
       sql`select organization_id as "organizationId"
           from role_assignments
           where user_id = ${appUserId}
@@ -67,40 +69,43 @@ export async function POST(req: Request) {
     }
     const orgId = (ra as { organizationId: string }).organizationId;
 
-    // Reject duplicate name within the same org.
-    const [existing] = await db
-      .select({ id: inspectionTemplates.id })
-      .from(inspectionTemplates)
-      .where(
-        and(
-          eq(inspectionTemplates.orgId, orgId),
-          eq(inspectionTemplates.name, input.name),
-        ),
-      )
-      .limit(1);
-    if (existing) {
-      return NextResponse.json(
-        { error: "name_already_used" },
-        { status: 409 },
-      );
-    }
+    const row = await withTenant(orgId, async (tx) => {
+      // Reject duplicate name within the same org.
+      const [existing] = await tx
+        .select({ id: inspectionTemplates.id })
+        .from(inspectionTemplates)
+        .where(
+          and(
+            eq(inspectionTemplates.orgId, orgId),
+            eq(inspectionTemplates.name, input.name),
+          ),
+        )
+        .limit(1);
+      if (existing) {
+        throw new DuplicateNameError();
+      }
 
-    const [row] = await db
-      .insert(inspectionTemplates)
-      .values({
-        orgId,
-        name: input.name,
-        tradeCategory: input.tradeCategory,
-        phase: input.phase,
-        description: input.description ?? null,
-        lineItemsJson: input.lineItems,
-        isCustom: true,
-        createdByUserId: appUserId,
-      })
-      .returning();
+      const [created] = await tx
+        .insert(inspectionTemplates)
+        .values({
+          orgId,
+          name: input.name,
+          tradeCategory: input.tradeCategory,
+          phase: input.phase,
+          description: input.description ?? null,
+          lineItemsJson: input.lineItems,
+          isCustom: true,
+          createdByUserId: appUserId,
+        })
+        .returning();
+      return created;
+    });
 
     return NextResponse.json({ id: row.id });
   } catch (err) {
+    if (err instanceof DuplicateNameError) {
+      return NextResponse.json({ error: "name_already_used" }, { status: 409 });
+    }
     if (err instanceof AuthorizationError) {
       const status =
         err.code === "unauthenticated"
@@ -113,3 +118,5 @@ export async function POST(req: Request) {
     throw err;
   }
 }
+
+class DuplicateNameError extends Error {}

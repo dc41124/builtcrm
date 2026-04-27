@@ -58,7 +58,11 @@ export async function buildUserExportManifest(
 ): Promise<UserExportManifest> {
   const [profile] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 
-  const prefs = await db
+  // userNotificationPreferences is user-scoped RLS'd. The GDPR export runs
+  // outside any session context (called from a worker/API route on the
+  // user's behalf, possibly cross-org), so dbAdmin matches the same
+  // rationale as roleAssignments / organizationUsers below.
+  const prefs = await dbAdmin
     .select()
     .from(userNotificationPreferences)
     .where(eq(userNotificationPreferences.userId, userId));

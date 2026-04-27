@@ -443,5 +443,16 @@ export const milestoneDependencies = pgTable(
     successorIdx: index("milestone_dependencies_successor_idx").on(
       table.successorId,
     ),
+    // RLS Slice A bucket 3 — nested-via-parent on milestones. Both
+    // endpoints sit on the same project (CPM dependencies are
+    // intra-project), so a single subquery on the predecessor side is
+    // sufficient — milestones' policy already encodes the project-scoped
+    // 2-clause hybrid. Cycle/self-edge guards already block cross-project
+    // edges at the action layer.
+    tenantIsolation: pgPolicy("milestone_dependencies_tenant_isolation", {
+      for: "all",
+      using: sql`${table.predecessorId} IN (SELECT id FROM milestones)`,
+      withCheck: sql`${table.predecessorId} IN (SELECT id FROM milestones)`,
+    }),
   }),
-);
+).enableRLS();

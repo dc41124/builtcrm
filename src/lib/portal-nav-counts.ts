@@ -110,15 +110,17 @@ async function contractorGlobalCounts({
       ),
     ),
     countOf(
-      db
-        .select({ c: COUNT })
-        .from(approvals)
-        .where(
-          and(
-            inArray(approvals.projectId, projectIds),
-            eq(approvals.approvalStatus, "pending_review"),
+      withTenant(orgId, (tx) =>
+        tx
+          .select({ c: COUNT })
+          .from(approvals)
+          .where(
+            and(
+              inArray(approvals.projectId, projectIds),
+              eq(approvals.approvalStatus, "pending_review"),
+            ),
           ),
-        ),
+      ),
     ),
     countOf(
       withTenant(orgId, (tx) =>
@@ -167,19 +169,21 @@ async function contractorGlobalCounts({
         ),
     ),
     countOf(
-      db
-        .select({ c: COUNT })
-        .from(uploadRequests)
-        .where(
-          and(
-            inArray(uploadRequests.projectId, projectIds),
-            inArray(uploadRequests.requestStatus, [
-              "open",
-              "revision_requested",
-              "submitted",
-            ]),
+      withTenant(orgId, (tx) =>
+        tx
+          .select({ c: COUNT })
+          .from(uploadRequests)
+          .where(
+            and(
+              inArray(uploadRequests.projectId, projectIds),
+              inArray(uploadRequests.requestStatus, [
+                "open",
+                "revision_requested",
+                "submitted",
+              ]),
+            ),
           ),
-        ),
+      ),
     ),
     countUnreadMessages(userId, projectIds),
   ]);
@@ -224,18 +228,20 @@ async function subcontractorGlobalCounts({
         ),
       ),
       countOf(
-        db
-          .select({ c: COUNT })
-          .from(uploadRequests)
-          .where(
-            and(
-              eq(uploadRequests.requestedFromOrganizationId, orgId),
-              inArray(uploadRequests.requestStatus, [
-                "open",
-                "revision_requested",
-              ]),
+        withTenant(orgId, (tx) =>
+          tx
+            .select({ c: COUNT })
+            .from(uploadRequests)
+            .where(
+              and(
+                eq(uploadRequests.requestedFromOrganizationId, orgId),
+                inArray(uploadRequests.requestStatus, [
+                  "open",
+                  "revision_requested",
+                ]),
+              ),
             ),
-          ),
+        ),
       ),
       // Sub compliance count — own org records, multi-org policy
       // clause A satisfies.
@@ -287,15 +293,17 @@ async function clientProjectCounts({
     unreadMessages,
   ] = await Promise.all([
     countOf(
-      db
-        .select({ c: COUNT })
-        .from(approvals)
-        .where(
-          and(
-            eq(approvals.projectId, projectId),
-            eq(approvals.approvalStatus, "pending_review"),
+      withTenant(orgId, (tx) =>
+        tx
+          .select({ c: COUNT })
+          .from(approvals)
+          .where(
+            and(
+              eq(approvals.projectId, projectId),
+              eq(approvals.approvalStatus, "pending_review"),
+            ),
           ),
-        ),
+      ),
     ),
     countOf(
       withTenant(orgId, (tx) =>

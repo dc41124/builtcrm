@@ -166,12 +166,14 @@ export async function getContractorBillingSummary(
       .limit(1),
   );
 
-  const invoiceRows = await db
-    .select()
-    .from(subscriptionInvoices)
-    .where(eq(subscriptionInvoices.organizationSubscriptionId, subRow.id))
-    .orderBy(desc(subscriptionInvoices.periodStart))
-    .limit(12);
+  const invoiceRows = await withTenant(organizationId, (tx) =>
+    tx
+      .select()
+      .from(subscriptionInvoices)
+      .where(eq(subscriptionInvoices.organizationSubscriptionId, subRow.id))
+      .orderBy(desc(subscriptionInvoices.periodStart))
+      .limit(12),
+  );
 
   return {
     currentPlan: mapPlanRow(planRow),

@@ -171,8 +171,19 @@ export const userNotificationPreferences = pgTable(
       table.eventId,
     ),
     userIdx: index("user_notif_prefs_user_idx").on(table.userId),
+    // RLS Slice A bucket 3 — user-scoped (same shape as notifications).
+    // Reads/writes go through `withTenantUser`. The notification routing
+    // layer (lib/notifications/routing.ts) reads other users' prefs to
+    // decide email-vs-in-app fan-out, so cross-user reads/writes there
+    // route through `dbAdmin` like emit.ts. nullif coerces unset GUC
+    // ('') → NULL so missing-GUC fails closed.
+    tenantIsolation: pgPolicy("user_notification_preferences_tenant_isolation", {
+      for: "all",
+      using: sql`${table.userId} = nullif(current_setting('app.current_user_id', true), '')::uuid`,
+      withCheck: sql`${table.userId} = nullif(current_setting('app.current_user_id', true), '')::uuid`,
+    }),
   }),
-);
+).enableRLS();
 
 export const organizations = pgTable(
   "organizations",

@@ -190,15 +190,17 @@ async function computeProjectHealth(
     }
   }
 
-  const stalePendingApprovals = await db
-    .select({ projectId: approvals.projectId })
-    .from(approvals)
-    .where(
-      and(
-        inArray(approvals.projectId, projectIds),
-        eq(approvals.approvalStatus, "pending_review"),
-      )!,
-    );
+  const stalePendingApprovals = await withTenant(orgId, (tx) =>
+    tx
+      .select({ projectId: approvals.projectId })
+      .from(approvals)
+      .where(
+        and(
+          inArray(approvals.projectId, projectIds),
+          eq(approvals.approvalStatus, "pending_review"),
+        )!,
+      ),
+  );
   for (const r of stalePendingApprovals) {
     if (result.get(r.projectId) === "green") {
       result.set(r.projectId, "amber");

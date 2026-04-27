@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { approvals, organizations, projects, users } from "@/db/schema";
 
 import type { SessionLike } from "../context";
@@ -101,28 +102,30 @@ export async function getContractorCrossProjectApprovals(
   // Every pending approval across those projects. `pending_review` implies
   // `submitted_at IS NOT NULL` by workflow, but the isNotNull guard keeps
   // the age math safe if a row slips through with unexpected state.
-  const rawRows = await db
-    .select({
-      id: approvals.id,
-      projectId: approvals.projectId,
-      approvalNumber: approvals.approvalNumber,
-      category: approvals.category,
-      title: approvals.title,
-      description: approvals.description,
-      impactCostCents: approvals.impactCostCents,
-      impactScheduleDays: approvals.impactScheduleDays,
-      submittedAt: approvals.submittedAt,
-      requestedByUserId: approvals.requestedByUserId,
-      assignedToOrganizationId: approvals.assignedToOrganizationId,
-    })
-    .from(approvals)
-    .where(
-      and(
-        inArray(approvals.projectId, projectIds),
-        eq(approvals.approvalStatus, "pending_review"),
-        isNotNull(approvals.submittedAt),
+  const rawRows = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        id: approvals.id,
+        projectId: approvals.projectId,
+        approvalNumber: approvals.approvalNumber,
+        category: approvals.category,
+        title: approvals.title,
+        description: approvals.description,
+        impactCostCents: approvals.impactCostCents,
+        impactScheduleDays: approvals.impactScheduleDays,
+        submittedAt: approvals.submittedAt,
+        requestedByUserId: approvals.requestedByUserId,
+        assignedToOrganizationId: approvals.assignedToOrganizationId,
+      })
+      .from(approvals)
+      .where(
+        and(
+          inArray(approvals.projectId, projectIds),
+          eq(approvals.approvalStatus, "pending_review"),
+          isNotNull(approvals.submittedAt),
+        ),
       ),
-    );
+  );
 
   // Enrichment — requester display names + assigned-org names. Two small
   // parallel lookups rather than a join per row.

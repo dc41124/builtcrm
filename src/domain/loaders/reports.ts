@@ -272,19 +272,21 @@ export async function getContractorReportsData(
     ),
     // Pending approvals — not a per-project column in the reports
     // KPIs but counted in each project's open-items total.
-    db
-      .select({
-        projectId: approvals.projectId,
-        c: sql<number>`count(*)::int`,
-      })
-      .from(approvals)
-      .where(
-        and(
-          inArray(approvals.projectId, projectIds),
-          inArray(approvals.approvalStatus, ["pending_review", "needs_revision"]),
-        ),
-      )
-      .groupBy(approvals.projectId),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          projectId: approvals.projectId,
+          c: sql<number>`count(*)::int`,
+        })
+        .from(approvals)
+        .where(
+          and(
+            inArray(approvals.projectId, projectIds),
+            inArray(approvals.approvalStatus, ["pending_review", "needs_revision"]),
+          ),
+        )
+        .groupBy(approvals.projectId),
+    ),
     // Draw requests for billed / unpaid rollups
     db
       .select({

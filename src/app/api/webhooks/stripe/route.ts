@@ -332,7 +332,10 @@ async function handleInvoice(
     ? new Date(line.period.end * 1000)
     : periodStart;
 
-  const [existing] = await db
+  // Stripe webhook is pre-tenant; the invoice IS the credential. dbAdmin
+  // for the upsert (subscriptionInvoices is RLS'd; webhooks have no
+  // session/GUC so withTenant'd writes would deny via WITH CHECK).
+  const [existing] = await dbAdmin
     .select({ id: subscriptionInvoices.id })
     .from(subscriptionInvoices)
     .where(eq(subscriptionInvoices.stripeInvoiceId, invoice.id ?? ""))
@@ -356,12 +359,12 @@ async function handleInvoice(
   };
 
   if (existing) {
-    await db
+    await dbAdmin
       .update(subscriptionInvoices)
       .set(values)
       .where(eq(subscriptionInvoices.id, existing.id));
   } else {
-    await db.insert(subscriptionInvoices).values(values);
+    await dbAdmin.insert(subscriptionInvoices).values(values);
   }
 
   await db.insert(auditEvents).values({
