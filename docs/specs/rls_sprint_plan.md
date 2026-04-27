@@ -1,10 +1,47 @@
 # Row-Level Security (RLS) Sprint Plan
 
-**Status:** Plan only — no code shipped. Review and approve before any phase begins.
-**Owner:** TBD
-**Estimated scope:** 4–5 implementation sessions, plus a verification + soak window before phase 4 (full enforcement) is enabled.
+**Status:** ✅ Slice A complete (2026-04-26). 85 of 99 tables under RLS. See "Final state" section below for what shipped vs. what's deferred. The original plan body is preserved below for historical reference.
 
-This doc is the unblocker for [security_posture.md §5 / §6 RLS](security_posture.md#row-level-security-rls). Read that section first for context — this plan picks up where that gap entry leaves off.
+This doc is the historical plan that drove the RLS sprint. The current source of truth for RLS architecture + remaining work is [security_posture.md §6](security_posture.md#row-level-security-rls). Read that first — it tracks live state. This file is reference-only now.
+
+---
+
+## Final state (2026-04-26 EOS)
+
+### ✅ Shipped — 85 of 99 tables RLS'd, enforcing on dev
+
+**Original sprint (phases 1–5, commits 2024-04-21 through 79eab85):**
+- Phases 1/2/3/3b/3c — 20 tables (org-scoped Pattern A + multi-org 3-clause hybrid)
+- Auth-chokepoint slice — `role_assignments`, `project_user_memberships`, `project_organization_memberships`
+- Phase 4 pilot + waves 1–6 — 53 project-scoped tables (workflow + nested children + closeout + drawings + transmittals + selections + punch list)
+- Wave 5 follow-on — BYPASSRLS dev drift fixed; POM clause-C recursion fixed
+- Phase 5 close-out — CI gate (`scripts/check-rls-callsites.ts`), non-bypass test role (`builtcrm_test`), 5-test failure-mode suite (`tests/rls-failure-modes.test.ts`), security_posture.md + compliance_map.md updates
+
+**Slice A — finishing pass (2026-04-26, commits 918fcbc → 18f7ec0):**
+- **Bucket 3** (`918fcbc`, migration `0041`): 7 trivial tables — `inspectionTemplates` (Pattern A), `purchaseOrderLines` / `milestoneDependencies` / `subscriptionInvoices` (nested-via-parent), `uploadRequests` / `approvals` (project-scoped 2-clause hybrid), `userNotificationPreferences` (user-scoped). Sub-side template reads use the dbAdmin-escape pattern.
+- **Bucket 1+2 doc** (`01374e2`): "Tables intentionally NOT RLS'd" subsection in security_posture.md §6 — 11 tables documented as deliberately un-RLS'd (Better Auth machinery, users, organizations, plan catalogs, auditEvents, activityFeedItems).
+- **Bucket 4b** (`f35fee7`, migration `0042`): billing cluster — 6 tables (billingPackages / scheduleOfValues / drawRequests / retainageReleases hybrid; sovLineItems / drawLineItems nested). New sentinel-error pattern for in-tx 4xx shapes (`SovNotFoundError` etc.).
+- **Slice B close-out** (`18f7ec0`): regenerated CI baseline (49 → 28 entries — Slice A paid down ~21 sites). Bumped table count 72 → 85 in security_posture.md + compliance_map.md.
+
+### ⏸ Deferred — documented in security_posture.md §6
+
+- **`projects`** (bucket 4a, `af1cf89`): attempted with the standard 2-clause hybrid; hit `42P17 infinite recursion` due to mutual recursion `projects` → POM → `projects`. Two viable fixes (SECURITY DEFINER STABLE wrapper on the POM subquery; or Pattern A only, dropping the POM clause) judged disproportionate to marginal isolation gain. Migration rolled back. App-layer `getEffectiveContext` already gates project access; downstream child tables are already RLS'd.
+- **`conversations` / `conversationParticipants` / `messages`** (bucket 4c, `9c2d419`): DM semantics need a participant-scoped policy (`conversation_id IN (SELECT conversation_id FROM conversation_participants WHERE user_id = current_user_id GUC)`) — not the project-scoped 2-clause hybrid every other table uses. Building it correctly is a 1–2 session design + sweep on its own (recursion handling on participants self-reference, every messaging call site needs `withTenantUser`). App layer already enforces DM semantics.
+
+### 🔜 Pending future work (optional, no blocker)
+
+1. **`builtcrm_app NOBYPASSRLS` audit on prod.** Deferred until prod host exists. Run `scripts/recreate-builtcrm-app.sql` and verify `pg_roles.rolbypassrls = false`.
+2. **Pay down remaining 28 bare `db.*` baseline entries.** Most are writes to non-RLS tables (auditEvents, users, subscriptionPlans). Pay down opportunistically.
+3. **Optional: revisit `projects` with SECURITY DEFINER fallback** if a future product surface needs sub/client orgs to read projects rows under their own GUC.
+4. **Optional: messaging participant-scoped policy** when a dedicated session is available. Requires a new failure-mode test for the participant shape.
+
+---
+
+## Original sprint plan (preserved for reference)
+
+Original status when written: Plan only — no code shipped.
+Original owner: TBD
+Original estimated scope: 4–5 implementation sessions.
 
 ---
 

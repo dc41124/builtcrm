@@ -1,12 +1,15 @@
-// One-shot: enumerate every pgTable declaration and determine whether
-// the same block has .enableRLS(). Outputs the un-RLS'd table list.
+// Enumerate every pgTable declaration and determine whether the same
+// block has .enableRLS(). Outputs the un-RLS'd table list.
 //
 // USAGE:
 //   node scripts/_audit-rls-coverage.mjs
 //
-// Used during the RLS sprint Slice A planning to enumerate which of
-// the 99 pgTable definitions still lack RLS. Delete when Slice A
-// complete (handoff: docs/specs/rls_sprint_handoff.md).
+// Originally a one-shot for the RLS sprint Slice A planning. Kept as a
+// sanity check — when adding new schemas, run this to verify either
+// RLS is enabled or the table is documented in security_posture.md §6
+// "Tables intentionally NOT RLS'd". As of 2026-04-26 the expected
+// count is 85 / 99 RLS'd; the 14 un-RLS'd tables are all documented in
+// security_posture.md §6 (11 deliberately un-RLS'd, 3 deferred).
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
