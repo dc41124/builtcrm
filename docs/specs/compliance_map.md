@@ -72,7 +72,8 @@ Residual code-level items:
 ### CC5.2 — Technology controls
 | Control | Where |
 |---|---|
-| Database privilege separation | Two-role split: runtime `builtcrm_app` (DML-only) via `DATABASE_URL`, admin via `DATABASE_ADMIN_URL`. Runtime role cannot `DROP`/`ALTER`/`TRUNCATE` even on credential leak. See [security_posture.md §5](security_posture.md#5-authorization). |
+| Database privilege separation | Two-role split: runtime `builtcrm_app` (DML-only, NOBYPASSRLS) via `DATABASE_URL`, admin via `DATABASE_ADMIN_URL`. Runtime role cannot `DROP`/`ALTER`/`TRUNCATE` even on credential leak. See [security_posture.md §5](security_posture.md#5-authorization). |
+| **Row-Level Security (DB-layer tenant isolation)** | **72 tables under RLS, enforcing on the non-bypass runtime role on dev** (RESOLVED 2026-04-26). Policy chokepoints: `withTenant(orgId, ...)` for org-scoped reads/writes, `withTenantUser(orgId, userId, ...)` for user-scoped (`notifications`), `dbAdmin` for cross-org system effects (jobs, anonymous webhooks, notification fan-out). Failure-mode test suite ([tests/rls-failure-modes.test.ts](../../tests/rls-failure-modes.test.ts)) runs as `builtcrm_test` (NOBYPASSRLS) and asserts: cross-tenant SELECT denied, INSERT WITH CHECK denied, missing-GUC fails closed, SET LOCAL transaction-scoped (no pool-reuse leak). CI gate via `npm run check:rls` ratchets new bare `db.*` call sites. Architecture + policy-shape catalog in [security_posture.md §6](security_posture.md#row-level-security-rls). |
 | Encryption at rest for secrets | AES-256-GCM for OAuth integration tokens (`INTEGRATION_ENCRYPTION_KEY`) and `organizations.tax_id` (`TAX_ID_ENCRYPTION_KEY`); Better Auth symmetric encryption for 2FA TOTP secrets + backup codes + OAuth-login tokens (future) |
 | Bounded retention on payloads | 90-day purges scheduled daily: `webhook_events` success-state rows ([webhook-payload-purge.ts](../../src/jobs/webhook-payload-purge.ts)), read `notifications` ([notification-purge.ts](../../src/jobs/notification-purge.ts)), `audit_events` ([audit-event-purge.ts](../../src/jobs/audit-event-purge.ts)), `activity_feed_items` ([activity-feed-purge.ts](../../src/jobs/activity-feed-purge.ts)) |
 
@@ -98,6 +99,7 @@ Residual code-level items:
 ### CC6.6 — Restriction of access
 | Control | Where |
 |---|---|
+| **DB-layer tenant isolation** | **RLS on 72 tables (CC5.2)**. Even an app-layer authz bug that constructs the wrong query cannot return another org's rows — Postgres rejects them at the policy USING clause. Validated by the failure-mode test suite. |
 | Rate limiting | [src/lib/ratelimit.ts](../../src/lib/ratelimit.ts) via `@upstash/ratelimit`. 10 req/min on `/api/auth/*` POST; 30 req/min on invitation-family endpoints |
 | Session timeout | Per-org `session_timeout_minutes` cap applied at session creation in [src/auth/config.ts](../../src/auth/config.ts); Better Auth enforces expiry on every `getSession()` |
 | Session storage isolation | Sessions live in Upstash Redis, not Postgres. `storeSessionInDatabase: false` is pinned. A Postgres leak cannot reveal active session tokens. See [security_posture.md §4](security_posture.md#4-session-storage-upstash-secondary-storage). |
@@ -178,5 +180,6 @@ Residual code-level items:
 
 ## Changelog
 
+- **2026-04-26** — RLS sprint shipped. CC5.2 + CC6.6 updated to credit DB-layer tenant isolation (72 tables, NOBYPASSRLS runtime role on dev, failure-mode test suite, CI gate). New row in CC5.2 documents the `withTenant` / `withTenantUser` / `dbAdmin` chokepoints. CC6.6 updated to note RLS is now an independent backstop to app-layer authz.
 - **2026-04-25** — Retention coverage row in CC5.2 + C1.2 expanded to enumerate the four 90-day purge jobs (was just `webhook_events`). Two new known gaps cross-referenced from `security_posture.md §6`: `messages` retention deferred and R2 orphan cleanup deferred.
 - **2026-04-23** — Initial map, written at the close of the observability + hardening sprint. Reflects the state of the codebase as of commits `84807ae` through `f56929c`. Expect this doc to drift if the code changes and this file doesn't — keep it paired with reality by updating during reviews that touch security-adjacent code.

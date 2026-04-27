@@ -14,7 +14,8 @@
     "trigger:dev": "npx trigger.dev@3 dev",
     "trigger:deploy": "npx trigger.dev@3 deploy",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:rls": "npx tsx scripts/check-rls-callsites.ts"
   },
   "dependencies": {
     "@authenio/samlify-node-xmllint": "^2.0.0",

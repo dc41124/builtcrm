@@ -17,7 +17,7 @@ This document exists so that future contributors — including future me — can
 ### What we do **not** currently defend against
 - **Compromise of `BETTER_AUTH_SECRET`** — this is a master key (see §3). Leaking it defeats 2FA-secret encryption, OAuth-token encryption, cookie signing, and JWE cookie-cache encryption. Mitigate via storage discipline and rotation, not key separation.
 - **Compromise of the runtime DB role (`builtcrm_app`)** — least-privilege limits DDL impact (no `DROP`/`ALTER`), but the role still has full DML on tenant data. SQL-injection defense lives in Drizzle + typed query builders, not the DB role.
-- **Authorized internal user with database access** — privilege separation reduces blast radius but does not eliminate it. No RLS, no column-level masking (deferred — see §6).
+- **Authorized internal user with database access** — privilege separation reduces blast radius but does not eliminate it. RLS now enforces tenant isolation at the DB layer on dev (resolved 2026-04-26 — see §6); no column-level masking yet.
 - **Upstash compromise** — session data lives in Upstash Redis (see §4). A breach of Upstash as a provider, or a leak of our Upstash credentials, reveals active session tokens. Scope is bounded (sessions expire in 7 days), but a real risk.
 - **Logical backup exfiltration** — `pg_dump` files, backup exports, or similar artifacts leaked out-of-band. Neon's disk encryption does not help here; see sub-section below.
 - **Social engineering / phishing of legitimate users** — app-layer authorization works as designed, but if a user hands over credentials or is tricked into an authenticated action, nothing in this stack stops it. Out of scope for this document; listed for completeness.
@@ -142,7 +142,7 @@ Two roles:
 - `builtcrm_admin` — DDL + DML. Used for migrations, seeding, and future admin tooling (backfill jobs, manual data surgery). Configured via `DATABASE_ADMIN_URL`.
 
 ### What we don't have (yet)
-- **Row-Level Security (RLS).** All tenant isolation is application-logic. No DB-layer backstop if an authz bug lets a request query another org's rows. Deferred to a post-baseline sprint — see §6.
+- **~~Row-Level Security (RLS).~~** RESOLVED on dev (2026-04-26). 72 tables under RLS with policies enforcing on the non-bypass runtime role. See §6 for architecture, policy shapes, and prod-verify residual.
 - **Read-only role** for analytics / reporting / debugging. Deferred until an actual consumer exists.
 
 ---
@@ -197,10 +197,32 @@ All three follow the `webhook-payload-purge.ts` pattern, write a `*-purge.run_co
 **Unblocker:** N/A — inert until social login is enabled.
 
 ### Row-Level Security (RLS)
-**Status:** not implemented; sprint plan drafted.
-**Why deferred:** RLS requires `SET LOCAL` of tenant context on every connection via middleware. A bug in that plumbing (connection pool reuse, missed reset, request cross-contamination) can cause worse leaks than the current app-layer-only approach. Needs a dedicated sprint with policy coverage, pooling integration, and failure-mode testing.
-**Plan:** [docs/specs/rls_sprint_plan.md](rls_sprint_plan.md) (drafted 2026-04-25). Scopes 26 tenant-scoped tables across 5 phases (~4–5 sessions): plumbing → pilot one table → org-scoped wave → project-scoped waves → cleanup. Policy backbone is `SET LOCAL app.current_org_id` inside a `withTenant(orgId, async tx => ...)` helper that wraps the existing 156 `db.transaction()` call sites.
-**Unblocker:** sprint plan reviewed and approved → phase 1 begins.
+**Status:** RESOLVED on dev (2026-04-26). 72 tables under RLS, all enforcing on the dev runtime role. Phase 5 close-out shipped: failure-mode test suite (5 tests) runs as the non-bypass `builtcrm_test` role and asserts cross-tenant denials, missing-GUC fail-closed, INSERT WITH CHECK rejection, and SET LOCAL transaction-scoping. CI gate (`npm run check:rls`) ratchets bare `db.*` call sites with a baseline file. Total test count: 108/108.
+
+**Architecture:** Policy backbone is `SET LOCAL app.current_org_id` (and `app.current_user_id` for user-scoped tables) inside `withTenant(orgId, async tx => ...)` / `withTenantUser(orgId, userId, async tx => ...)` helpers. Cross-org system effects (Trigger.dev cron sweeps, anonymous webhook receivers, notification fan-out) route through `dbAdmin` (BYPASSRLS).
+
+**Policy shapes in use** (all documented in [rls_sprint_plan.md](rls_sprint_plan.md)):
+- **Pattern A** (single-org strict): `org_id = GUC`. ~30 tables.
+- **Project-scoped 2-clause hybrid**: `project_id IN (own-projects) OR project_id IN (active-POMs)`. Most workflow tables (RFIs, change orders, submittals, daily logs, etc.).
+- **Multi-org 3-clause hybrid (POM-bearing)**: own + project + active-POM. `lien_waivers`, `compliance_records`, `project_user_memberships`.
+- **Multi-org 2-clause hybrid (POM ITSELF — recursion fix)**: avoids the C-clause that would self-reference POM. Only `project_organization_memberships`.
+- **Nested-via-parent**: `parent_id IN (SELECT id FROM parent)`. Child tables (RFI responses, submittal documents, daily log children, etc.). **Caveat:** unsafe when parent FK is nullable — use the parent's project-scoped policy on the child's own column instead. Precedent: `daily_log_crew_entries`.
+- **Own-side multi-org (no project)**: `field_a = GUC OR field_b = GUC`. Only `prequal_submissions` (sub + contractor 2-org contract, no project_id at upload time).
+- **User-scoped**: `recipient_user_id = nullif(current_setting('app.current_user_id', true), '')::uuid`. Only `notifications`. Requires `withTenantUser`. Cross-user system writes (emit fan-out, purge cron) MUST use `dbAdmin` because WITH CHECK denies cross-user writes. The `nullif(..., '')::uuid` pattern handles the missing-GUC case by collapsing '' → NULL (comparison falsy, fails closed without a uuid-cast error).
+
+**Latent defects fixed during the sprint:**
+- BYPASSRLS dev drift — `builtcrm_app` had been silently re-granted BYPASSRLS at some point. Recreated via `scripts/recreate-builtcrm-app.sql`. Until this fix, every "policy enforcement" claim in earlier waves was a paper guarantee.
+- POM clause-C recursion — the multi-org 3-clause hybrid would have planner-rejected on `project_organization_memberships` itself with a `42P17` recursion error. Fix: dropped clause C from POM's own policy (the 2-clause hybrid above). Recursion is a planner-time error, not runtime — short-circuiting OR doesn't save you. Documented in [rls_sprint_plan.md §4.2](rls_sprint_plan.md).
+
+**Phase 5 close-out artifacts:**
+- [scripts/check-rls-callsites.ts](../../scripts/check-rls-callsites.ts) — grep-based gate, ratchets via `scripts/check-rls-callsites.baseline.txt`. `npm run check:rls`.
+- [scripts/create-builtcrm-test-role.sql](../../scripts/create-builtcrm-test-role.sql) — provisions the non-bypass test role.
+- [tests/rls-failure-modes.test.ts](../../tests/rls-failure-modes.test.ts) — 5 negative-case tests against `builtcrm_test`.
+- Per-wave smoke scripts: `scripts/_wave4-nested-smoke.mjs`, `scripts/_prequal-smoke.mjs`, `scripts/_notifications-smoke.mjs`, `scripts/_background-job-tables-smoke.mjs`.
+
+**Residual gap — prod verification:** the `builtcrm_app NOBYPASSRLS` audit on prod is deferred until prod exists (no host picked yet — see "Hosting + transactional email deferred" in MEMORY.md). When prod stands up, run the same recreate flow used on dev (`scripts/recreate-builtcrm-app.sql`) and verify `pg_roles.rolbypassrls = false` before any user traffic.
+
+**Residual debt — bare-db call sites:** the CI gate's baseline carries 49 tracked `db.*` sites that pre-date the sprint close. Most are false positives (writes to non-RLS tables: `auditEvents`, `users`, `subscriptionPlans`); some are real debt that the failure-mode role would catch if exercised on those routes. Pay down opportunistically; the gate prevents NEW bare calls from accumulating.
 
 ### Read-only DB role
 **Status:** not provisioned.
@@ -248,7 +270,7 @@ Microsoft's Zero Trust framework maps security controls across six pillars. This
 | **Identity** | Better Auth with email+password, 2FA (TOTP+backup codes, encrypted at rest via Better Auth plugin default), SSO scaffolded for Enterprise (SAML), per-org 2FA-required gate, per-org session-timeout cap (hard cap from session creation), 24h sliding-window idle timeout (Better Auth `updateAge` + `expiresIn`), [session tokens hashed/moved-to-Redis](#4-session-storage-upstash-secondary-storage), [invitation tokens SHA-256 at rest](#2-data-at-rest-protections-table-by-table), self-serve account deletion (anonymize-with-30-day-grace; sole-owner block; daily anonymization sweep + 7-day reminder; sign-in blocked during grace), GDPR Article 15 self-serve data export (JSON manifest to R2 with 7-day signed URL, daily cleanup) | No programmatic per-user session bulk-revoke (other-device sessions wait for 24h idle expiry after delete request); GDPR export bundle covers a v1 subset of tables (profile, preferences, audit/messages/notifications, memberships) — construction-PM authorship rows pending follow-up |
 | **Data** | AES-256-GCM for OAuth integration tokens + `organizations.tax_id`, Better Auth master-key encryption for 2FA/OAuth-login tokens, SHA-256 hashes for verification identifiers + invitation tokens + cancel-deletion tokens, bounded 90-day retention on webhook payloads + notifications + audit events + activity feed, Neon disk encryption at rest, TLS in transit everywhere | No column-level masking beyond `tax_id`; R2 orphan cleanup not implemented (see §6) |
 | **Apps** | Backend-mediated authorization via the single `getEffectiveContext()` chokepoint; policy matrix in `src/domain/permissions.ts`; input validation via Zod on all mutation routes; global API error boundary in `src/lib/api/error-handler.ts` (sanitized 500s, no stack-trace leak); rate limiting on auth + invitation endpoints via `@upstash/ratelimit` | Input validation not 100% uniform across read endpoints (~5% gap, code hygiene not risk); opportunistic error-handler retrofit of the remaining ~170 routes still to do |
-| **Infrastructure** | Two-role DB privilege split (`builtcrm_app` DML-only runtime, `builtcrm_admin` DDL); secrets in .env.local and Neon/Upstash consoles; Sentry error monitoring (opt-in via DSN); comprehensive audit logging via `audit_events` + `writeSystemAuditEvent` for background jobs; all managed services (Neon, Upstash, R2, Render) handle underlying platform security | No RLS (deferred — see §6); no formal incident response plan documented; source-map upload to Sentry not wired (deferred until deploy time) |
+| **Infrastructure** | Two-role DB privilege split (`builtcrm_app` DML-only runtime, `builtcrm_admin` DDL); RLS on 72 tables enforcing on dev runtime role with `withTenant`/`withTenantUser`/`dbAdmin` chokepoints + CI gate (`npm run check:rls`) + 5-test failure-mode suite running as non-bypass `builtcrm_test`; secrets in .env.local and Neon/Upstash consoles; Sentry error monitoring (opt-in via DSN); comprehensive audit logging via `audit_events` + `writeSystemAuditEvent` for background jobs; all managed services (Neon, Upstash, R2, Render) handle underlying platform security | RLS prod-verify deferred until prod exists (§6); no formal incident response plan documented; source-map upload to Sentry not wired (deferred until deploy time) |
 | **Network** | TLS-only connections (Neon requires it, Upstash requires it, R2 via HTTPS); CSRF protection via Better Auth's state cookie + SameSite cookies; rate limiting defends auth endpoints at the network edge | No WAF in front of the origin; no explicit IP-allowlist support for admin functions |
 | **Devices** | Out of scope — no employee device management, no MDM. N/A until the project has employees accessing prod. | Not applicable pre-employee. |
 
