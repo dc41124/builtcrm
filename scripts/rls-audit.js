@@ -100,8 +100,16 @@ function audit() {
   const tableAlt = rlsTables
     .map((t) => t.replace(/[\\.*+?^${}()|[\]]/g, (m) => '\\' + m))
     .join('|');
+  // Match the four direct mutators *and* the join verbs. A `.leftJoin(X, ...)`
+  // or `.innerJoin(X, ...)` against an RLS-enabled X reads X's rows, which
+  // fires the policy — same uuid-cast failure as `.from(X)` when the GUC
+  // isn't set. The original audit only matched .from/.insert/.update/.delete
+  // and silently missed joined-side gaps; a runtime UUID-cast error in
+  // loadConversationsForUser (messages join → documents) surfaced the gap.
   const opPattern = new RegExp(
-    '\\.(from|insert|update|delete)\\((' + tableAlt + ')\\b',
+    '\\.(from|insert|update|delete|leftJoin|innerJoin|rightJoin|fullJoin)\\((' +
+      tableAlt +
+      ')\\b',
   );
 
   const findings = [];

@@ -72,6 +72,7 @@ export async function getMessagesView(
   const conversations = await loadConversationsForUser(
     context.project.id,
     context.user.id,
+    context.organization.id,
   );
 
   // Participant picker options: only contractors create conversations, and

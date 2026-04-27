@@ -784,9 +784,16 @@ export type ConversationRow = {
 // Loads every conversation the user participates in for this project,
 // along with recent messages and participant display names. Unread count
 // is derived from the user's own last_read_at marker.
+// `callerOrgId` is required because the messages query JOINs the
+// RLS-enabled `documents` table to attach attachment metadata. The JOIN
+// reads documents rows, so the documents policy fires; without
+// withTenant, the GUC is unset and `''::uuid` throws. Conversations and
+// messages themselves are not RLS'd (deferred — see
+// docs/specs/security_posture.md §6).
 export async function loadConversationsForUser(
   projectId: string,
   userId: string,
+  callerOrgId: string,
 ): Promise<ConversationRow[]> {
   const myParticipantRows = await db
     .select({
@@ -839,24 +846,26 @@ export async function loadConversationsForUser(
       .from(conversationParticipants)
       .leftJoin(users, eq(users.id, conversationParticipants.userId))
       .where(inArray(conversationParticipants.conversationId, conversationIds)),
-    db
-      .select({
-        id: messages.id,
-        conversationId: messages.conversationId,
-        senderUserId: messages.senderUserId,
-        senderName: users.displayName,
-        body: messages.body,
-        attachedDocumentId: messages.attachedDocumentId,
-        attachedDocumentTitle: documents.title,
-        attachedDocumentStorageKey: documents.storageKey,
-        isSystemMessage: messages.isSystemMessage,
-        createdAt: messages.createdAt,
-      })
-      .from(messages)
-      .leftJoin(users, eq(users.id, messages.senderUserId))
-      .leftJoin(documents, eq(documents.id, messages.attachedDocumentId))
-      .where(inArray(messages.conversationId, conversationIds))
-      .orderBy(asc(messages.createdAt)),
+    withTenant(callerOrgId, (tx) =>
+      tx
+        .select({
+          id: messages.id,
+          conversationId: messages.conversationId,
+          senderUserId: messages.senderUserId,
+          senderName: users.displayName,
+          body: messages.body,
+          attachedDocumentId: messages.attachedDocumentId,
+          attachedDocumentTitle: documents.title,
+          attachedDocumentStorageKey: documents.storageKey,
+          isSystemMessage: messages.isSystemMessage,
+          createdAt: messages.createdAt,
+        })
+        .from(messages)
+        .leftJoin(users, eq(users.id, messages.senderUserId))
+        .leftJoin(documents, eq(documents.id, messages.attachedDocumentId))
+        .where(inArray(messages.conversationId, conversationIds))
+        .orderBy(asc(messages.createdAt)),
+    ),
   ]);
 
   const participantsByConversation = new Map<string, ConversationParticipantRow[]>();
@@ -1595,7 +1604,11 @@ export async function getContractorProjectView(
   const selections = await loadSelectionsForProject(projectId, {
     callerOrgId: context.organization.id,
   });
-  const conversationList = await loadConversationsForUser(projectId, context.user.id);
+  const conversationList = await loadConversationsForUser(
+    projectId,
+    context.user.id,
+    context.organization.id,
+  );
   const documentList = await loadDocumentsForProject(
     projectId,
     "contractor",
@@ -2036,6 +2049,7 @@ export async function getSubcontractorProjectView(
   const subProjectConversations = await loadConversationsForUser(
     projectId,
     context.user.id,
+    context.organization.id,
   );
   const subProjectDocuments = await loadDocumentsForProject(
     projectId,
@@ -2542,6 +2556,7 @@ export async function getClientProjectView(
   const clientConversations = await loadConversationsForUser(
     projectId,
     context.user.id,
+    context.organization.id,
   );
   const clientDocuments = await loadDocumentsForProject(
     projectId,
