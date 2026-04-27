@@ -285,9 +285,14 @@ export const webhookEvents = pgTable(
   "webhook_events",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: uuid("organization_id")
-      .notNull()
-      .references(() => organizations.id, { onDelete: "cascade" }),
+    // Nullable so unmatched inbound webhooks (no resolvable org via
+    // integration_connections lookup) can still be persisted for audit /
+    // forensic replay. Tenant-scoped reads ignore null rows by virtue of
+    // the RLS policy (`org_id = GUC` is NULL when org_id is NULL → row
+    // invisible); operator access goes through `dbAdmin`.
+    organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }),
     webhookDirection: webhookDirectionEnum("webhook_direction").notNull(),
     deliveryStatus: webhookDeliveryStatusEnum("delivery_status").default("received").notNull(),
     eventType: varchar("event_type", { length: 255 }).notNull(),

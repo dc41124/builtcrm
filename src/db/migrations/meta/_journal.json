@@ -302,6 +302,13 @@
       "when": 1777253109431,
       "tag": "0042_special_colleen_wing",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1777313778181,
+      "tag": "0043_furry_vulcan",
+      "breakpoints": true
     }
   ]
 }

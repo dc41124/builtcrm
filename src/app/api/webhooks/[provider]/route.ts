@@ -102,10 +102,11 @@ export async function POST(
     ? extractor(payload)
     : { externalAccountId: null, eventId: null, eventType: "unknown" };
 
-  // Resolve target org by looking up the connection. If we can't, Step 26
-  // returns 202 + audit-only so the provider doesn't retry indefinitely but
-  // the row-level trail is lost. The deferred nullable-org_id migration
-  // (HANDOFF.md) closes this blind spot when it lands.
+  // Resolve target org by looking up the connection. If we can't (delivery
+  // doesn't match any registered integration_connection), persist the row
+  // anyway with organizationId=null — the column is nullable specifically
+  // for this case, so we keep full row-level forensic context for unmatched
+  // deliveries instead of just an audit breadcrumb.
   let organizationId: string | null = null;
   if (identity.externalAccountId) {
     // Pre-tenant lookup — webhook arrives with only the provider's
@@ -121,26 +122,6 @@ export async function POST(
       )
       .limit(1);
     organizationId = conn?.id ?? null;
-  }
-
-  if (!organizationId) {
-    await dbAdmin.insert(auditEvents).values({
-      actorUserId: await getSystemUserId(),
-      organizationId: null,
-      objectType: "webhook_event",
-      objectId: "00000000-0000-0000-0000-000000000000",
-      actionName: "webhook.received",
-      metadataJson: {
-        provider: providerKey,
-        unmatched: true,
-        externalAccountId: identity.externalAccountId,
-        eventId: identity.eventId,
-        eventType: identity.eventType,
-      },
-    });
-    // 202 = Accepted-but-not-stored. Providers treat 2xx as success so they
-    // don't retry, which is what we want for unmatchable deliveries.
-    return NextResponse.json({ status: "unmatched" }, { status: 202 });
   }
 
   const now = new Date();
@@ -216,10 +197,15 @@ export async function POST(
       provider: providerKey,
       eventId,
       eventType: identity.eventType,
+      ...(organizationId ? {} : { unmatched: true, externalAccountId: identity.externalAccountId }),
     },
   });
 
-  // 200 fast-ack so the provider doesn't retry. Actual business logic runs
-  // in the Trigger.dev processor (src/jobs/integration-webhook-processor.ts).
+  // Unmatched deliveries 202 (accepted-but-no-tenant-routing); matched 200.
+  // Either way the row is persisted, providers see 2xx and don't retry, and
+  // operators can replay/forensic via dbAdmin reads on the row.
+  if (!organizationId) {
+    return NextResponse.json({ status: "unmatched", id: inserted.id }, { status: 202 });
+  }
   return NextResponse.json({ status: "received", id: inserted.id });
 }
