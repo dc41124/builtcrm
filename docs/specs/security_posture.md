@@ -197,7 +197,7 @@ All three follow the `webhook-payload-purge.ts` pattern, write a `*-purge.run_co
 **Unblocker:** N/A — inert until social login is enabled.
 
 ### Row-Level Security (RLS)
-**Status:** RESOLVED on dev (2026-04-26). 72 tables under RLS, all enforcing on the dev runtime role. Phase 5 close-out shipped: failure-mode test suite (5 tests) runs as the non-bypass `builtcrm_test` role and asserts cross-tenant denials, missing-GUC fail-closed, INSERT WITH CHECK rejection, and SET LOCAL transaction-scoping. CI gate (`npm run check:rls`) ratchets bare `db.*` call sites with a baseline file. Total test count: 108/108.
+**Status:** RESOLVED on dev (2026-04-26, refined Slice A 2026-04-26). 85 of 99 tables under RLS, all enforcing on the dev runtime role. Of the 14 remaining tables: 11 are deliberately un-RLS'd (Better Auth machinery, root tenant entity, plan catalogs, cross-cutting system writers — see "Tables intentionally NOT RLS'd" below); 3 (`projects`, `conversations` cluster) are deferred with documented design tradeoffs. Phase 5 close-out shipped: failure-mode test suite (5 tests) runs as the non-bypass `builtcrm_test` role and asserts cross-tenant denials, missing-GUC fail-closed, INSERT WITH CHECK rejection, and SET LOCAL transaction-scoping. CI gate (`npm run check:rls`) ratchets bare `db.*` call sites with a baseline file (49 → 28 entries after Slice A paid down ~21 sites). Total test count: 108/108.
 
 **Architecture:** Policy backbone is `SET LOCAL app.current_org_id` (and `app.current_user_id` for user-scoped tables) inside `withTenant(orgId, async tx => ...)` / `withTenantUser(orgId, userId, async tx => ...)` helpers. Cross-org system effects (Trigger.dev cron sweeps, anonymous webhook receivers, notification fan-out) route through `dbAdmin` (BYPASSRLS).
 
@@ -218,11 +218,11 @@ All three follow the `webhook-payload-purge.ts` pattern, write a `*-purge.run_co
 - [scripts/check-rls-callsites.ts](../../scripts/check-rls-callsites.ts) — grep-based gate, ratchets via `scripts/check-rls-callsites.baseline.txt`. `npm run check:rls`.
 - [scripts/create-builtcrm-test-role.sql](../../scripts/create-builtcrm-test-role.sql) — provisions the non-bypass test role.
 - [tests/rls-failure-modes.test.ts](../../tests/rls-failure-modes.test.ts) — 5 negative-case tests against `builtcrm_test`.
-- Per-wave smoke scripts: `scripts/_wave4-nested-smoke.mjs`, `scripts/_prequal-smoke.mjs`, `scripts/_notifications-smoke.mjs`, `scripts/_background-job-tables-smoke.mjs`.
+- Per-wave smoke scripts: `scripts/_wave4-nested-smoke.mjs`, `scripts/_prequal-smoke.mjs`, `scripts/_notifications-smoke.mjs`, `scripts/_background-job-tables-smoke.mjs`, `scripts/_slice-a-bucket3-smoke.mjs`, `scripts/_slice-a-bucket4b-smoke.mjs`.
 
 **Residual gap — prod verification:** the `builtcrm_app NOBYPASSRLS` audit on prod is deferred until prod exists (no host picked yet — see "Hosting + transactional email deferred" in MEMORY.md). When prod stands up, run the same recreate flow used on dev (`scripts/recreate-builtcrm-app.sql`) and verify `pg_roles.rolbypassrls = false` before any user traffic.
 
-**Residual debt — bare-db call sites:** the CI gate's baseline carries 49 tracked `db.*` sites that pre-date the sprint close. Most are false positives (writes to non-RLS tables: `auditEvents`, `users`, `subscriptionPlans`); some are real debt that the failure-mode role would catch if exercised on those routes. Pay down opportunistically; the gate prevents NEW bare calls from accumulating.
+**Residual debt — bare-db call sites:** the CI gate's baseline carries 28 tracked `db.*` sites (down from 49 at original sprint close — Slice A paid down ~21 entries during the call-site sweep across approvals, upload-requests, inspection-templates, billing routes, and the Stripe webhook). Remaining entries are mostly writes to non-RLS tables (`auditEvents`, `users`, `subscriptionPlans`); some are real debt that the failure-mode role would catch if exercised on those routes. Pay down opportunistically; the gate prevents NEW bare calls from accumulating.
 
 **Tables intentionally NOT RLS'd (documented to prevent re-asking):**
 
