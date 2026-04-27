@@ -224,6 +224,21 @@ All three follow the `webhook-payload-purge.ts` pattern, write a `*-purge.run_co
 
 **Residual debt — bare-db call sites:** the CI gate's baseline carries 49 tracked `db.*` sites that pre-date the sprint close. Most are false positives (writes to non-RLS tables: `auditEvents`, `users`, `subscriptionPlans`); some are real debt that the failure-mode role would catch if exercised on those routes. Pay down opportunistically; the gate prevents NEW bare calls from accumulating.
 
+**Tables intentionally NOT RLS'd (documented to prevent re-asking):**
+
+The following tables are *deliberately* not under RLS. Each falls into one of two patterns: (1) no tenant model — RLS would be meaningless because the row has no org_id, OR (2) cross-cutting system writers — RLS would deny legitimate cross-org writes from `system_user` / anonymous webhook receivers / Trigger.dev sweeps. Both groups go through the application-layer policy gate (§5) for read authorization; bare `db` access is acceptable here.
+
+| Table | Bucket | Reason |
+|---|---|---|
+| `authUser`, `authTwoFactor`, `authSession`, `authAccount`, `authVerification` | No tenant | Better Auth machinery — managed by Better Auth itself, no org_id column. Session storage is in Upstash anyway (§4); these tables are reference rows. |
+| `users` | No tenant | Shared identity layer between auth and app. A user can belong to multiple orgs (`organization_users` is the membership row, which IS Pattern A RLS'd). The `users` row itself has no org_id. |
+| `organizations` | No tenant | Root tenant entity — `org_id = GUC` reduces to `id = GUC`, which is meaningless. The org IS the tenant context, not a row scoped to one. |
+| `billingPackages`, `subscriptionPlans` | No tenant | Global plan catalog. Read by every org; written only by admin migrations. |
+| `auditEvents` | Cross-cutting writer | Written cross-org by `system_user` (background jobs), `writeSystemAuditEvent` (cron sweeps), and anonymous webhook receivers. RLS would require a 3-way clause (own-org OR system-actor OR anonymous-context) and would still deny legitimate WITH CHECK paths. Kept un-RLS'd; reads are export-endpoint-mediated. |
+| `activityFeedItems` | Cross-cutting writer | Same pattern as `auditEvents` — system fan-out from notification emit, cron jobs, and anonymous transmittal access events. |
+
+**Why this matters:** A future contributor reviewing the audit script (`scripts/_audit-rls-coverage.mjs`) will see 9 + 2 = 11 tables un-RLS'd and may try to "fix" them. This subsection is the canonical answer to "why isn't `auditEvents` RLS'd" — don't add it, the system writers depend on cross-org INSERT.
+
 ### Read-only DB role
 **Status:** not provisioned.
 **Why deferred:** YAGNI. No current consumer (no analytics pipeline, no reporting connection).
