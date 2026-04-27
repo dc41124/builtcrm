@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 import { requireServerSession } from "@/auth/session";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { paymentTransactions } from "@/db/schema";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
@@ -46,7 +46,8 @@ export async function GET(
 ) {
   const { paymentTransactionId } = await params;
   const { session } = await requireServerSession();
-  const [txn] = await db
+  // Pre-tenant head lookup — getEffectiveContext below gates via project.
+  const [txn] = await dbAdmin
     .select({
       id: paymentTransactions.id,
       projectId: paymentTransactions.projectId,

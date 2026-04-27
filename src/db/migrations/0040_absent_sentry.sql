@@ -1,0 +1,6 @@
+ALTER TABLE "payment_transactions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "sync_events" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "webhook_events" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE POLICY "payment_transactions_tenant_isolation" ON "payment_transactions" AS PERMISSIVE FOR ALL TO public USING ("payment_transactions"."organization_id" = current_setting('app.current_org_id', true)::uuid) WITH CHECK ("payment_transactions"."organization_id" = current_setting('app.current_org_id', true)::uuid);--> statement-breakpoint
+CREATE POLICY "sync_events_tenant_isolation" ON "sync_events" AS PERMISSIVE FOR ALL TO public USING ("sync_events"."organization_id" = current_setting('app.current_org_id', true)::uuid) WITH CHECK ("sync_events"."organization_id" = current_setting('app.current_org_id', true)::uuid);--> statement-breakpoint
+CREATE POLICY "webhook_events_tenant_isolation" ON "webhook_events" AS PERMISSIVE FOR ALL TO public USING ("webhook_events"."organization_id" = current_setting('app.current_org_id', true)::uuid) WITH CHECK ("webhook_events"."organization_id" = current_setting('app.current_org_id', true)::uuid);

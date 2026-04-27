@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import {
   auditEvents,
   paymentTransactions,
@@ -69,7 +70,7 @@ export async function POST(req: Request) {
 
     const now = new Date();
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withTenant(ctx.organization.id, async (tx) => {
       const [row] = await tx
         .insert(paymentTransactions)
         .values({

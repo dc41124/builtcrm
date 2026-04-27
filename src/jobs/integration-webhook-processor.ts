@@ -1,7 +1,7 @@
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { eq, sql } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { auditEvents, webhookEvents } from "@/db/schema";
 import type { IntegrationProviderKey } from "@/domain/loaders/integrations";
 import { getSystemUserId } from "@/domain/system-user";
@@ -37,7 +37,7 @@ export const integrationWebhookProcessor = schedules.task({
     // 'queued' and return them. `FOR UPDATE SKIP LOCKED` makes sibling runs
     // no-op against rows this one is already taking.
     const claimed = (
-      await db.execute<ClaimedRow>(sql`
+      await dbAdmin.execute<ClaimedRow>(sql`
         UPDATE webhook_events
         SET delivery_status = 'queued',
             updated_at = NOW()
@@ -73,7 +73,7 @@ export const integrationWebhookProcessor = schedules.task({
       try {
         await dispatch(row);
         const duration = Date.now() - start;
-        await db
+        await dbAdmin
           .update(webhookEvents)
           .set({
             deliveryStatus: "processed",
@@ -82,7 +82,7 @@ export const integrationWebhookProcessor = schedules.task({
             errorMessage: null,
           })
           .where(eq(webhookEvents.id, row.id));
-        await db.insert(auditEvents).values({
+        await dbAdmin.insert(auditEvents).values({
           actorUserId: systemUserId,
           organizationId: row.organization_id,
           objectType: "webhook_event",
@@ -99,7 +99,7 @@ export const integrationWebhookProcessor = schedules.task({
         const message = err instanceof Error ? err.message : String(err);
         const nextAttempt = row.retry_count + 1;
         if (nextAttempt >= row.max_retries) {
-          await db
+          await dbAdmin
             .update(webhookEvents)
             .set({
               deliveryStatus: "exhausted",
@@ -108,7 +108,7 @@ export const integrationWebhookProcessor = schedules.task({
               processingDurationMs: Date.now() - start,
             })
             .where(eq(webhookEvents.id, row.id));
-          await db.insert(auditEvents).values({
+          await dbAdmin.insert(auditEvents).values({
             actorUserId: systemUserId,
             organizationId: row.organization_id,
             objectType: "webhook_event",
@@ -129,7 +129,7 @@ export const integrationWebhookProcessor = schedules.task({
           const nextRetryAt = new Date(
             Date.now() + backoffSec * 1000 * jitter,
           );
-          await db
+          await dbAdmin
             .update(webhookEvents)
             .set({
               deliveryStatus: "retrying",

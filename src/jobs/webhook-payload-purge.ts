@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { and, inArray, lt } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { webhookEvents } from "@/db/schema";
 import { writeSystemAuditEvent } from "@/domain/audit";
 
@@ -37,7 +37,9 @@ export const webhookPayloadPurge = schedules.task({
   run: async (payload) => {
     const cutoff = new Date(payload.timestamp.getTime() - NINETY_DAYS_MS);
 
-    const deleted = await db
+    // Cross-org system purge — webhook_events RLS gates by org_id,
+    // a cron sweep has no caller context. dbAdmin is the right tool.
+    const deleted = await dbAdmin
       .delete(webhookEvents)
       .where(
         and(

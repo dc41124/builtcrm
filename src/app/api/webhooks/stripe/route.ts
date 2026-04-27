@@ -433,14 +433,27 @@ async function handleCheckoutPaymentCompleted(
     typeof session.payment_intent === "string"
       ? session.payment_intent
       : session.payment_intent?.id;
-  await db
-    .update(paymentTransactions)
-    .set({
-      transactionStatus: "processing",
-      stripePaymentIntentId: paymentIntentId ?? null,
-      initiatedAt: new Date(),
-    })
-    .where(eq(paymentTransactions.id, ptId));
+  // Pre-tenant: webhook arrives with no session. Resolve orgId via
+  // dbAdmin head lookup, then route the write through withTenant.
+  const [pt] = await dbAdmin
+    .select({ organizationId: paymentTransactions.organizationId })
+    .from(paymentTransactions)
+    .where(eq(paymentTransactions.id, ptId))
+    .limit(1);
+  if (!pt) {
+    console.warn(`[stripe-webhook] payment_transactions row ${ptId} missing`);
+    return;
+  }
+  await withTenant(pt.organizationId, (tx) =>
+    tx
+      .update(paymentTransactions)
+      .set({
+        transactionStatus: "processing",
+        stripePaymentIntentId: paymentIntentId ?? null,
+        initiatedAt: new Date(),
+      })
+      .where(eq(paymentTransactions.id, ptId)),
+  );
 }
 
 async function handleChargeStatus(
@@ -453,7 +466,9 @@ async function handleChargeStatus(
       : charge.payment_intent?.id;
   if (!piId) return;
 
-  const [pt] = await db
+  // Pre-tenant: webhook arrives with no session. dbAdmin for the lookup;
+  // pt.organizationId then routes the follow-up writes through withTenant.
+  const [pt] = await dbAdmin
     .select()
     .from(paymentTransactions)
     .where(eq(paymentTransactions.stripePaymentIntentId, piId))
@@ -470,18 +485,20 @@ async function handleChargeStatus(
     const feeCents = charge.balance_transaction
       ? null
       : null; // Stripe fee resolves async; we don't fetch balance_transaction here for simplicity
-    await db
-      .update(paymentTransactions)
-      .set({
-        transactionStatus: "succeeded",
-        stripeChargeId: charge.id,
-        paymentMethodDetails: methodDetails ?? undefined,
-        processingFeeCents: feeCents ?? pt.processingFeeCents,
-        netAmountCents: pt.grossAmountCents - (feeCents ?? 0),
-        receiptUrl: charge.receipt_url ?? null,
-        succeededAt: new Date(),
-      })
-      .where(eq(paymentTransactions.id, pt.id));
+    await withTenant(pt.organizationId, (tx) =>
+      tx
+        .update(paymentTransactions)
+        .set({
+          transactionStatus: "succeeded",
+          stripeChargeId: charge.id,
+          paymentMethodDetails: methodDetails ?? undefined,
+          processingFeeCents: feeCents ?? pt.processingFeeCents,
+          netAmountCents: pt.grossAmountCents - (feeCents ?? 0),
+          receiptUrl: charge.receipt_url ?? null,
+          succeededAt: new Date(),
+        })
+        .where(eq(paymentTransactions.id, pt.id)),
+    );
 
     if (pt.relatedEntityType === "draw_request") {
       await db
@@ -512,18 +529,20 @@ async function handleChargeStatus(
   }
 
   // charge.failed
-  await db
-    .update(paymentTransactions)
-    .set({
-      transactionStatus: "failed",
-      stripeChargeId: charge.id,
-      failedAt: new Date(),
-      failureReason:
-        charge.failure_message ??
-        charge.outcome?.seller_message ??
-        "charge_failed",
-    })
-    .where(eq(paymentTransactions.id, pt.id));
+  await withTenant(pt.organizationId, (tx) =>
+    tx
+      .update(paymentTransactions)
+      .set({
+        transactionStatus: "failed",
+        stripeChargeId: charge.id,
+        failedAt: new Date(),
+        failureReason:
+          charge.failure_message ??
+          charge.outcome?.seller_message ??
+          "charge_failed",
+      })
+      .where(eq(paymentTransactions.id, pt.id)),
+  );
 
   await db.insert(auditEvents).values({
     actorUserId: await getSystemUserId(),

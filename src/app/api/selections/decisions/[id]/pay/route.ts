@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { and, eq, ne } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import {
   integrationConnections,
@@ -102,22 +101,24 @@ export async function POST(
     const planCtx = await getOrgPlanContext(contractorOrgId);
     requireFeature(planCtx, "stripe.client_pays_selections");
 
-    // Refuse double-charge.
-    const existing = await db
-      .select({
-        id: paymentTransactions.id,
-        status: paymentTransactions.transactionStatus,
-      })
-      .from(paymentTransactions)
-      .where(
-        and(
-          eq(paymentTransactions.relatedEntityType, "selection_decision"),
-          eq(paymentTransactions.relatedEntityId, row.decisionId),
-          ne(paymentTransactions.transactionStatus, "failed"),
-          ne(paymentTransactions.transactionStatus, "canceled"),
-          ne(paymentTransactions.transactionStatus, "refunded"),
+    // Refuse double-charge — payment_transactions belongs to the contractor.
+    const existing = await withTenant(contractorOrgId, (tx) =>
+      tx
+        .select({
+          id: paymentTransactions.id,
+          status: paymentTransactions.transactionStatus,
+        })
+        .from(paymentTransactions)
+        .where(
+          and(
+            eq(paymentTransactions.relatedEntityType, "selection_decision"),
+            eq(paymentTransactions.relatedEntityId, row.decisionId),
+            ne(paymentTransactions.transactionStatus, "failed"),
+            ne(paymentTransactions.transactionStatus, "canceled"),
+            ne(paymentTransactions.transactionStatus, "refunded"),
+          ),
         ),
-      );
+    );
     if (existing.length > 0) {
       return NextResponse.json(
         {
@@ -164,23 +165,25 @@ export async function POST(
     const appUrl = getAppUrl();
     const returnUrl = `${appUrl}/residential/project/${row.projectId}/selections?pay=`;
 
-    const [ptRow] = await db
-      .insert(paymentTransactions)
-      .values({
-        organizationId: contractorOrgId,
-        projectId: row.projectId,
-        relatedEntityType: "selection_decision",
-        relatedEntityId: row.decisionId,
-        paymentMethodType: "card",
-        transactionStatus: "pending",
-        grossAmountCents: upgradeCents,
-        processingFeeCents: 0,
-        platformFeeCents: 0,
-        netAmountCents: upgradeCents,
-        currency: "cad",
-        initiatedByUserId: ctx.user.id,
-      })
-      .returning({ id: paymentTransactions.id });
+    const [ptRow] = await withTenant(contractorOrgId, (tx) =>
+      tx
+        .insert(paymentTransactions)
+        .values({
+          organizationId: contractorOrgId,
+          projectId: row.projectId,
+          relatedEntityType: "selection_decision",
+          relatedEntityId: row.decisionId,
+          paymentMethodType: "card",
+          transactionStatus: "pending",
+          grossAmountCents: upgradeCents,
+          processingFeeCents: 0,
+          platformFeeCents: 0,
+          netAmountCents: upgradeCents,
+          currency: "cad",
+          initiatedByUserId: ctx.user.id,
+        })
+        .returning({ id: paymentTransactions.id }),
+    );
 
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "payment",

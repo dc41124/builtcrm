@@ -1,7 +1,6 @@
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { and, desc, eq, inArray, lt } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import {
   auditEvents,
@@ -112,7 +111,7 @@ export const stripePaymentReconciliation = schedules.task({
         const locallyKnown =
           stripeIds.length === 0
             ? []
-            : await db
+            : await dbAdmin
                 .select({
                   stripePaymentIntentId:
                     paymentTransactions.stripePaymentIntentId,
@@ -139,7 +138,7 @@ export const stripePaymentReconciliation = schedules.task({
 
         const missing = list.data.filter((pi) => !knownSet.has(pi.id));
         for (const pi of missing) {
-          await db.insert(auditEvents).values({
+          await dbAdmin.insert(auditEvents).values({
             actorUserId: systemUserId,
             organizationId: conn.organizationId,
             objectType: "payment_transaction",
@@ -162,7 +161,7 @@ export const stripePaymentReconciliation = schedules.task({
         }
 
         // --- (b) Stuck-status scan -----------------------------------------
-        const stuckRows = await db
+        const stuckRows = await dbAdmin
           .select({
             id: paymentTransactions.id,
             projectId: paymentTransactions.projectId,
@@ -190,7 +189,7 @@ export const stripePaymentReconciliation = schedules.task({
         for (const row of stuckRows) {
           const ageMs = now.getTime() - row.createdAt.getTime();
           const daysStuck = Math.floor(ageMs / (24 * 60 * 60 * 1000));
-          await db.insert(auditEvents).values({
+          await dbAdmin.insert(auditEvents).values({
             actorUserId: systemUserId,
             organizationId: conn.organizationId,
             projectId: row.projectId,
@@ -216,7 +215,7 @@ export const stripePaymentReconciliation = schedules.task({
           organizationId: conn.organizationId,
           error: message,
         });
-        await db.insert(auditEvents).values({
+        await dbAdmin.insert(auditEvents).values({
           actorUserId: systemUserId,
           organizationId: conn.organizationId,
           objectType: "integration_connection",

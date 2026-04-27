@@ -452,21 +452,23 @@ async function loadDrawRequestEnrichment(
     // Most recent succeeded payment per draw. `asc` order means later
     // entries overwrite earlier ones in the map below, leaving the newest
     // succeeded transaction as the one surfaced to the UI.
-    db
-      .select({
-        id: paymentTransactions.id,
-        relatedEntityId: paymentTransactions.relatedEntityId,
-        succeededAt: paymentTransactions.succeededAt,
-      })
-      .from(paymentTransactions)
-      .where(
-        and(
-          eq(paymentTransactions.relatedEntityType, "draw_request"),
-          inArray(paymentTransactions.relatedEntityId, drawIds),
-          eq(paymentTransactions.transactionStatus, "succeeded"),
-        ),
-      )
-      .orderBy(asc(paymentTransactions.succeededAt)),
+    withTenant(callerOrgId, (tx) =>
+      tx
+        .select({
+          id: paymentTransactions.id,
+          relatedEntityId: paymentTransactions.relatedEntityId,
+          succeededAt: paymentTransactions.succeededAt,
+        })
+        .from(paymentTransactions)
+        .where(
+          and(
+            eq(paymentTransactions.relatedEntityType, "draw_request"),
+            inArray(paymentTransactions.relatedEntityId, drawIds),
+            eq(paymentTransactions.transactionStatus, "succeeded"),
+          ),
+        )
+        .orderBy(asc(paymentTransactions.succeededAt)),
+    ),
   ]);
 
   for (const d of docRows) {

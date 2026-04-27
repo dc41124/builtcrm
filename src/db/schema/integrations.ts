@@ -190,8 +190,17 @@ export const syncEvents = pgTable(
       foreignColumns: [integrationConnections.id],
       name: "sync_events_integration_connection_id_fk",
     }).onDelete("cascade"),
+    // Phase 4 background-job slice — Pattern A. Sync events are org-scoped
+    // (per-tenant integration sync state). Trigger.dev sweep tasks cross
+    // orgs and route through dbAdmin; per-tenant action paths use
+    // withTenant(orgId, ...).
+    tenantIsolation: pgPolicy("sync_events_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Payment transactions
@@ -253,8 +262,20 @@ export const paymentTransactions = pgTable(
       "payment_transactions_net_amount_check",
       sql`net_amount_cents = gross_amount_cents - processing_fee_cents - platform_fee_cents`,
     ),
+    // Phase 4 background-job slice — Pattern A. organizationId here is
+    // the contractor org owning the platform-fee accounting; subs read
+    // payment status via draw_requests / lien_waivers, not this table.
+    // Future widening to project-scoped 2-clause hybrid (using projectId)
+    // is a one-line change if a sub-side surface ever needs to read it.
+    // Stripe webhook handlers + Trigger.dev settlement sweeps route
+    // through dbAdmin (cross-org system effects).
+    tenantIsolation: pgPolicy("payment_transactions_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Webhook events
@@ -297,5 +318,17 @@ export const webhookEvents = pgTable(
     eventIdIdx: index("webhook_events_event_id_idx").on(table.eventId),
     sourceIdx: index("webhook_events_source_idx").on(table.sourceProvider),
     createdIdx: index("webhook_events_created_idx").on(table.createdAt),
+    // Phase 4 background-job slice — Pattern A. Webhook events are
+    // org-scoped (per-tenant inbound/outbound delivery log). Slice 3
+    // entry-point pattern still applies for inbound webhook handlers:
+    // the route receives an external delivery, looks up the
+    // organization via the matching integration_connection or
+    // subscription_id (dbAdmin), then writes the row via
+    // withTenant(orgId, ...). Outbound delivery cron uses dbAdmin.
+    tenantIsolation: pgPolicy("webhook_events_tenant_isolation", {
+      for: "all",
+      using: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+      withCheck: sql`${table.organizationId} = current_setting('app.current_org_id', true)::uuid`,
+    }),
   }),
-);
+).enableRLS();

@@ -226,20 +226,22 @@ export async function getContractorCrossProjectPayments(
       })
       .from(retainageReleases)
       .where(inArray(retainageReleases.projectId, projectIds)),
-    db
-      .select({
-        relatedEntityId: paymentTransactions.relatedEntityId,
-        paymentMethodType: paymentTransactions.paymentMethodType,
-        transactionStatus: paymentTransactions.transactionStatus,
-        grossAmountCents: paymentTransactions.grossAmountCents,
-      })
-      .from(paymentTransactions)
-      .where(
-        and(
-          eq(paymentTransactions.organizationId, orgId),
-          eq(paymentTransactions.relatedEntityType, "draw_request"),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          relatedEntityId: paymentTransactions.relatedEntityId,
+          paymentMethodType: paymentTransactions.paymentMethodType,
+          transactionStatus: paymentTransactions.transactionStatus,
+          grossAmountCents: paymentTransactions.grossAmountCents,
+        })
+        .from(paymentTransactions)
+        .where(
+          and(
+            eq(paymentTransactions.organizationId, orgId),
+            eq(paymentTransactions.relatedEntityType, "draw_request"),
+          ),
         ),
-      ),
+    ),
   ]);
 
   // Aggregate paid-sum and payment-method per draw from payment_transactions.

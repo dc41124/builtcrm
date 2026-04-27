@@ -117,20 +117,22 @@ export async function getARReport(input: LoaderInput): Promise<ARReportView> {
           inArray(drawRequests.drawRequestStatus, [...AR_DRAW_STATUSES]),
         ),
       ),
-    db
-      .select({
-        relatedEntityId: paymentTransactions.relatedEntityId,
-        grossAmountCents: paymentTransactions.grossAmountCents,
-        status: paymentTransactions.transactionStatus,
-        succeededAt: paymentTransactions.succeededAt,
-      })
-      .from(paymentTransactions)
-      .where(
-        and(
-          eq(paymentTransactions.organizationId, orgId),
-          eq(paymentTransactions.relatedEntityType, "draw_request"),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          relatedEntityId: paymentTransactions.relatedEntityId,
+          grossAmountCents: paymentTransactions.grossAmountCents,
+          status: paymentTransactions.transactionStatus,
+          succeededAt: paymentTransactions.succeededAt,
+        })
+        .from(paymentTransactions)
+        .where(
+          and(
+            eq(paymentTransactions.organizationId, orgId),
+            eq(paymentTransactions.relatedEntityType, "draw_request"),
+          ),
         ),
-      ),
+    ),
     // Contractor caller; multi-org POM policy clause B (project
     // ownership) returns every client POM on their projects.
     withTenant(orgId, (tx) =>

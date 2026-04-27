@@ -5,6 +5,7 @@ import { requireServerSession } from "@/auth/session";
 import { renderToBuffer } from "@react-pdf/renderer";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
 import {
   changeOrders,
@@ -155,7 +156,9 @@ export async function GET(
 ) {
   const { paymentTransactionId } = await params;
   const { session } = await requireServerSession();
-  const [txn] = await db
+  // Pre-tenant head lookup — we discover org/project from the row, then
+  // gate via getEffectiveContext below. Slice 3 entry-point pattern.
+  const [txn] = await dbAdmin
     .select()
     .from(paymentTransactions)
     .where(eq(paymentTransactions.id, paymentTransactionId))

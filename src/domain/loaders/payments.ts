@@ -106,32 +106,34 @@ export async function getContractorPaymentsView(input: {
   const stripeConnectionConnectedAndHealthy =
     stripeConnection?.status === "connected";
 
-  const paymentRows = await db
-    .select({
-      id: paymentTransactions.id,
-      projectId: paymentTransactions.projectId,
-      projectName: projects.name,
-      relatedEntityType: paymentTransactions.relatedEntityType,
-      relatedEntityId: paymentTransactions.relatedEntityId,
-      paymentMethodType: paymentTransactions.paymentMethodType,
-      transactionStatus: paymentTransactions.transactionStatus,
-      grossAmountCents: paymentTransactions.grossAmountCents,
-      processingFeeCents: paymentTransactions.processingFeeCents,
-      netAmountCents: paymentTransactions.netAmountCents,
-      currency: paymentTransactions.currency,
-      paymentMethodDetails: paymentTransactions.paymentMethodDetails,
-      initiatedByUserId: paymentTransactions.initiatedByUserId,
-      externalReference: paymentTransactions.externalReference,
-      initiatedAt: paymentTransactions.initiatedAt,
-      succeededAt: paymentTransactions.succeededAt,
-      failedAt: paymentTransactions.failedAt,
-      createdAt: paymentTransactions.createdAt,
-    })
-    .from(paymentTransactions)
-    .innerJoin(projects, eq(projects.id, paymentTransactions.projectId))
-    .where(eq(paymentTransactions.organizationId, context.organization.id))
-    .orderBy(desc(paymentTransactions.createdAt))
-    .limit(100);
+  const paymentRows = await withTenant(context.organization.id, (tx) =>
+    tx
+      .select({
+        id: paymentTransactions.id,
+        projectId: paymentTransactions.projectId,
+        projectName: projects.name,
+        relatedEntityType: paymentTransactions.relatedEntityType,
+        relatedEntityId: paymentTransactions.relatedEntityId,
+        paymentMethodType: paymentTransactions.paymentMethodType,
+        transactionStatus: paymentTransactions.transactionStatus,
+        grossAmountCents: paymentTransactions.grossAmountCents,
+        processingFeeCents: paymentTransactions.processingFeeCents,
+        netAmountCents: paymentTransactions.netAmountCents,
+        currency: paymentTransactions.currency,
+        paymentMethodDetails: paymentTransactions.paymentMethodDetails,
+        initiatedByUserId: paymentTransactions.initiatedByUserId,
+        externalReference: paymentTransactions.externalReference,
+        initiatedAt: paymentTransactions.initiatedAt,
+        succeededAt: paymentTransactions.succeededAt,
+        failedAt: paymentTransactions.failedAt,
+        createdAt: paymentTransactions.createdAt,
+      })
+      .from(paymentTransactions)
+      .innerJoin(projects, eq(projects.id, paymentTransactions.projectId))
+      .where(eq(paymentTransactions.organizationId, context.organization.id))
+      .orderBy(desc(paymentTransactions.createdAt))
+      .limit(100),
+  );
 
   // Resolve human-friendly titles: look up sequential numbers for
   // draw-request / change-order related entities and fold them into titles.

@@ -76,21 +76,25 @@ export async function POST(
     // Refuse to double-charge — if any non-terminal payment_transactions
     // row exists for this draw, return 409. Callers can cancel/refund the
     // prior attempt via the contractor dashboard if needed.
-    const existing = await db
-      .select({
-        id: paymentTransactions.id,
-        status: paymentTransactions.transactionStatus,
-      })
-      .from(paymentTransactions)
-      .where(
-        and(
-          eq(paymentTransactions.relatedEntityType, "draw_request"),
-          eq(paymentTransactions.relatedEntityId, draw.id),
-          ne(paymentTransactions.transactionStatus, "failed"),
-          ne(paymentTransactions.transactionStatus, "canceled"),
-          ne(paymentTransactions.transactionStatus, "refunded"),
+    // The contractor org owns the payment row; route through their tenant
+    // context (the contractor's GUC matches Pattern A on payment_transactions).
+    const existing = await withTenant(ctx.project.contractorOrganizationId, (tx) =>
+      tx
+        .select({
+          id: paymentTransactions.id,
+          status: paymentTransactions.transactionStatus,
+        })
+        .from(paymentTransactions)
+        .where(
+          and(
+            eq(paymentTransactions.relatedEntityType, "draw_request"),
+            eq(paymentTransactions.relatedEntityId, draw.id),
+            ne(paymentTransactions.transactionStatus, "failed"),
+            ne(paymentTransactions.transactionStatus, "canceled"),
+            ne(paymentTransactions.transactionStatus, "refunded"),
+          ),
         ),
-      );
+    );
     if (existing.length > 0) {
       return NextResponse.json(
         {
@@ -156,23 +160,27 @@ export async function POST(
 
     // Insert pending row FIRST so the metadata we set on Stripe is keyed
     // to a known payment_transactions row. Webhook updates this row by id.
-    const [ptRow] = await db
-      .insert(paymentTransactions)
-      .values({
-        organizationId: contractorOrgId,
-        projectId: draw.projectId,
-        relatedEntityType: "draw_request",
-        relatedEntityId: draw.id,
-        paymentMethodType: "ach_debit",
-        transactionStatus: "pending",
-        grossAmountCents: draw.currentPaymentDueCents,
-        processingFeeCents: 0,
-        platformFeeCents: 0,
-        netAmountCents: draw.currentPaymentDueCents,
-        currency: "cad",
-        initiatedByUserId: ctx.user.id,
-      })
-      .returning({ id: paymentTransactions.id });
+    // Insert under contractor's tenant — Pattern A WITH CHECK requires
+    // organization_id = GUC.
+    const [ptRow] = await withTenant(contractorOrgId, (tx) =>
+      tx
+        .insert(paymentTransactions)
+        .values({
+          organizationId: contractorOrgId,
+          projectId: draw.projectId,
+          relatedEntityType: "draw_request",
+          relatedEntityId: draw.id,
+          paymentMethodType: "ach_debit",
+          transactionStatus: "pending",
+          grossAmountCents: draw.currentPaymentDueCents,
+          processingFeeCents: 0,
+          platformFeeCents: 0,
+          netAmountCents: draw.currentPaymentDueCents,
+          currency: "cad",
+          initiatedByUserId: ctx.user.id,
+        })
+        .returning({ id: paymentTransactions.id }),
+    );
 
     const checkoutSession = await stripe.checkout.sessions.create(
       {

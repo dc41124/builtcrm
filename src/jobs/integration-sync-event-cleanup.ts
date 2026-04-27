@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { and, eq, lt } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { syncEvents } from "@/db/schema";
 import { writeSystemAuditEvent } from "@/domain/audit";
 
@@ -24,7 +24,9 @@ export const integrationSyncEventCleanup = schedules.task({
   run: async (payload) => {
     const cutoff = new Date(payload.timestamp.getTime() - NINETY_DAYS_MS);
 
-    const deleted = await db
+    // Cross-org system cleanup. RLS on sync_events gates by organization_id;
+    // a cron sweep has no caller context. dbAdmin bypasses uniformly.
+    const deleted = await dbAdmin
       .delete(syncEvents)
       .where(
         and(

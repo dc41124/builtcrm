@@ -153,19 +153,21 @@ export async function getCashflowProjection(
       })
       .from(drawRequests)
       .where(inArray(drawRequests.projectId, projectIds)),
-    db
-      .select({
-        relatedEntityId: paymentTransactions.relatedEntityId,
-        grossAmountCents: paymentTransactions.grossAmountCents,
-        status: paymentTransactions.transactionStatus,
-      })
-      .from(paymentTransactions)
-      .where(
-        and(
-          eq(paymentTransactions.organizationId, orgId),
-          eq(paymentTransactions.relatedEntityType, "draw_request"),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          relatedEntityId: paymentTransactions.relatedEntityId,
+          grossAmountCents: paymentTransactions.grossAmountCents,
+          status: paymentTransactions.transactionStatus,
+        })
+        .from(paymentTransactions)
+        .where(
+          and(
+            eq(paymentTransactions.organizationId, orgId),
+            eq(paymentTransactions.relatedEntityType, "draw_request"),
+          ),
         ),
-      ),
+    ),
     withTenant(orgId, (tx) =>
       tx
         .select({

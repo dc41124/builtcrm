@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { auditEvents, integrationConnections, webhookEvents } from "@/db/schema";
 import type { IntegrationProviderKey } from "@/domain/loaders/integrations";
@@ -69,7 +68,7 @@ export async function POST(
   if (!verification.verified) {
     // Audit the failure WITHOUT storing the payload — we don't trust forged
     // data. Use the system user as actor since there's no session context.
-    await db.insert(auditEvents).values({
+    await dbAdmin.insert(auditEvents).values({
       actorUserId: await getSystemUserId(),
       organizationId: null,
       objectType: "webhook_event",
@@ -125,7 +124,7 @@ export async function POST(
   }
 
   if (!organizationId) {
-    await db.insert(auditEvents).values({
+    await dbAdmin.insert(auditEvents).values({
       actorUserId: await getSystemUserId(),
       organizationId: null,
       objectType: "webhook_event",
@@ -154,7 +153,10 @@ export async function POST(
   // this atomic via ON CONFLICT DO NOTHING once it lands. Until then we
   // accept the ms-scale race; volume in a portfolio build is single-digit
   // webhooks/day.
-  const [existing] = await db
+  // Webhook handler is pre-tenant by nature (anonymous external delivery,
+  // no session). dbAdmin end-to-end — matches the reviewer-token + transmittal
+  // anonymous-access precedents.
+  const [existing] = await dbAdmin
     .select({ id: webhookEvents.id })
     .from(webhookEvents)
     .where(
@@ -167,7 +169,7 @@ export async function POST(
     .limit(1);
 
   if (existing) {
-    await db.insert(auditEvents).values({
+    await dbAdmin.insert(auditEvents).values({
       actorUserId: await getSystemUserId(),
       organizationId,
       objectType: "webhook_event",
@@ -187,7 +189,7 @@ export async function POST(
       ? (payload as Record<string, unknown>)
       : { _wrapped: payload };
 
-  const [inserted] = await db
+  const [inserted] = await dbAdmin
     .insert(webhookEvents)
     .values({
       organizationId,
@@ -204,7 +206,7 @@ export async function POST(
     })
     .returning({ id: webhookEvents.id });
 
-  await db.insert(auditEvents).values({
+  await dbAdmin.insert(auditEvents).values({
     actorUserId: await getSystemUserId(),
     organizationId,
     objectType: "webhook_event",

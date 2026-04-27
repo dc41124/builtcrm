@@ -1,6 +1,5 @@
 import { and, desc, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { integrationConnections, syncEvents } from "@/db/schema";
 import type { IntegrationProviderKey } from "@/domain/loaders/integrations";
@@ -82,7 +81,7 @@ export async function startSyncEvent(
     input.orgId,
     input.providerKey,
   );
-  const [row] = await db
+  const [row] = await dbAdmin
     .insert(syncEvents)
     .values({
       integrationConnectionId: connectionId,
@@ -105,7 +104,9 @@ export async function startSyncEvent(
 export async function completeSyncEvent(
   input: CompleteSyncEventInput,
 ): Promise<void> {
-  const [existing] = await db
+  // sync-log is shared machinery (jobs + tenant routes); writes route
+  // through dbAdmin since authorization was enforced by the caller.
+  const [existing] = await dbAdmin
     .select({ id: syncEvents.id })
     .from(syncEvents)
     .where(eq(syncEvents.id, input.id))
@@ -116,7 +117,7 @@ export async function completeSyncEvent(
       `sync_events row ${input.id} not found`,
     );
   }
-  await db
+  await dbAdmin
     .update(syncEvents)
     .set({
       syncEventStatus: input.status,
@@ -186,7 +187,7 @@ export async function withIdempotency<T>(
 ): Promise<IdempotencyResult<T>> {
   const connectionId = await resolveConnectionId(input.orgId, input.providerKey);
 
-  const [prior] = await db
+  const [prior] = await dbAdmin
     .select({
       id: syncEvents.id,
       resultData: syncEvents.resultData,
