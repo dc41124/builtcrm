@@ -255,48 +255,56 @@ export async function getMeetings(input: GetMeetingsInput): Promise<{
   // count, carried-forward-agenda count.
   const [attendeeCounts, agendaCounts, actionOpenCounts, carryAgendaCounts] =
     await Promise.all([
-      db
-        .select({
-          meetingId: meetingAttendees.meetingId,
-          c: sql<number>`count(*)::int`,
-        })
-        .from(meetingAttendees)
-        .where(inArray(meetingAttendees.meetingId, meetingIds))
-        .groupBy(meetingAttendees.meetingId),
-      db
-        .select({
-          meetingId: meetingAgendaItems.meetingId,
-          c: sql<number>`count(*)::int`,
-        })
-        .from(meetingAgendaItems)
-        .where(inArray(meetingAgendaItems.meetingId, meetingIds))
-        .groupBy(meetingAgendaItems.meetingId),
-      db
-        .select({
-          meetingId: meetingActionItems.meetingId,
-          c: sql<number>`count(*)::int`,
-        })
-        .from(meetingActionItems)
-        .where(
-          and(
-            inArray(meetingActionItems.meetingId, meetingIds),
-            sql`${meetingActionItems.status} <> 'done'`,
-          ),
-        )
-        .groupBy(meetingActionItems.meetingId),
-      db
-        .select({
-          meetingId: meetingAgendaItems.meetingId,
-          c: sql<number>`count(*)::int`,
-        })
-        .from(meetingAgendaItems)
-        .where(
-          and(
-            inArray(meetingAgendaItems.meetingId, meetingIds),
-            sql`${meetingAgendaItems.carriedFromMeetingId} IS NOT NULL`,
-          ),
-        )
-        .groupBy(meetingAgendaItems.meetingId),
+      withTenant(ctx.organization.id, (tx) =>
+        tx
+          .select({
+            meetingId: meetingAttendees.meetingId,
+            c: sql<number>`count(*)::int`,
+          })
+          .from(meetingAttendees)
+          .where(inArray(meetingAttendees.meetingId, meetingIds))
+          .groupBy(meetingAttendees.meetingId),
+      ),
+      withTenant(ctx.organization.id, (tx) =>
+        tx
+          .select({
+            meetingId: meetingAgendaItems.meetingId,
+            c: sql<number>`count(*)::int`,
+          })
+          .from(meetingAgendaItems)
+          .where(inArray(meetingAgendaItems.meetingId, meetingIds))
+          .groupBy(meetingAgendaItems.meetingId),
+      ),
+      withTenant(ctx.organization.id, (tx) =>
+        tx
+          .select({
+            meetingId: meetingActionItems.meetingId,
+            c: sql<number>`count(*)::int`,
+          })
+          .from(meetingActionItems)
+          .where(
+            and(
+              inArray(meetingActionItems.meetingId, meetingIds),
+              sql`${meetingActionItems.status} <> 'done'`,
+            ),
+          )
+          .groupBy(meetingActionItems.meetingId),
+      ),
+      withTenant(ctx.organization.id, (tx) =>
+        tx
+          .select({
+            meetingId: meetingAgendaItems.meetingId,
+            c: sql<number>`count(*)::int`,
+          })
+          .from(meetingAgendaItems)
+          .where(
+            and(
+              inArray(meetingAgendaItems.meetingId, meetingIds),
+              sql`${meetingAgendaItems.carriedFromMeetingId} IS NOT NULL`,
+            ),
+          )
+          .groupBy(meetingAgendaItems.meetingId),
+      ),
     ]);
 
   const bucket = (rows: { meetingId: string; c: number }[]) => {

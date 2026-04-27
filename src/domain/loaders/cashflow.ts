@@ -141,18 +141,20 @@ export async function getCashflowProjection(
     waiverRows,
     retainageRows,
   ] = await Promise.all([
-    db
-      .select({
-        id: drawRequests.id,
-        projectId: drawRequests.projectId,
-        status: drawRequests.drawRequestStatus,
-        currentPaymentDueCents: drawRequests.currentPaymentDueCents,
-        submittedAt: drawRequests.submittedAt,
-        reviewedAt: drawRequests.reviewedAt,
-        paidAt: drawRequests.paidAt,
-      })
-      .from(drawRequests)
-      .where(inArray(drawRequests.projectId, projectIds)),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          id: drawRequests.id,
+          projectId: drawRequests.projectId,
+          status: drawRequests.drawRequestStatus,
+          currentPaymentDueCents: drawRequests.currentPaymentDueCents,
+          submittedAt: drawRequests.submittedAt,
+          reviewedAt: drawRequests.reviewedAt,
+          paidAt: drawRequests.paidAt,
+        })
+        .from(drawRequests)
+        .where(inArray(drawRequests.projectId, projectIds)),
+    ),
     withTenant(orgId, (tx) =>
       tx
         .select({
@@ -223,17 +225,19 @@ export async function getCashflowProjection(
         .from(lienWaivers)
         .where(inArray(lienWaivers.projectId, projectIds)),
     ),
-    db
-      .select({
-        id: retainageReleases.id,
-        status: retainageReleases.releaseStatus,
-        releaseAmountCents: retainageReleases.releaseAmountCents,
-        scheduledReleaseAt: retainageReleases.scheduledReleaseAt,
-        releaseTriggerMilestoneId: retainageReleases.releaseTriggerMilestoneId,
-        consumedByDrawRequestId: retainageReleases.consumedByDrawRequestId,
-      })
-      .from(retainageReleases)
-      .where(inArray(retainageReleases.projectId, projectIds)),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          id: retainageReleases.id,
+          status: retainageReleases.releaseStatus,
+          releaseAmountCents: retainageReleases.releaseAmountCents,
+          scheduledReleaseAt: retainageReleases.scheduledReleaseAt,
+          releaseTriggerMilestoneId: retainageReleases.releaseTriggerMilestoneId,
+          consumedByDrawRequestId: retainageReleases.consumedByDrawRequestId,
+        })
+        .from(retainageReleases)
+        .where(inArray(retainageReleases.projectId, projectIds)),
+    ),
   ]);
 
   // ---- Starting balance ----

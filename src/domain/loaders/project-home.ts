@@ -1303,11 +1303,13 @@ export async function getContractorProjectView(
         .where(eq(changeOrders.projectId, projectId))
         .orderBy(desc(changeOrders.createdAt)),
     ),
-    db
-      .select()
-      .from(drawRequests)
-      .where(eq(drawRequests.projectId, projectId))
-      .orderBy(desc(drawRequests.drawNumber)),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select()
+        .from(drawRequests)
+        .where(eq(drawRequests.projectId, projectId))
+        .orderBy(desc(drawRequests.drawNumber)),
+    ),
     // Contractor view: caller's org is the project's contractor org.
     // Multi-org PUM policy clause B (project ownership) lets them see
     // every member's PUM regardless of which org owns the row.
@@ -1408,55 +1410,59 @@ export async function getContractorProjectView(
         .where(eq(complianceRecords.projectId, projectId))
         .orderBy(desc(complianceRecords.createdAt)),
     ),
-    db
-      .select({
-        id: scheduleOfValues.id,
-        version: scheduleOfValues.version,
-        sovStatus: scheduleOfValues.sovStatus,
-        totalScheduledValueCents: scheduleOfValues.totalScheduledValueCents,
-        totalOriginalContractCents: scheduleOfValues.totalOriginalContractCents,
-        totalChangeOrdersCents: scheduleOfValues.totalChangeOrdersCents,
-        defaultRetainagePercent: scheduleOfValues.defaultRetainagePercent,
-        createdAt: scheduleOfValues.createdAt,
-      })
-      .from(scheduleOfValues)
-      .where(
-        and(
-          eq(scheduleOfValues.projectId, projectId),
-          inArray(scheduleOfValues.sovStatus, ["draft", "active", "locked"]),
-        ),
-      )
-      .orderBy(desc(scheduleOfValues.createdAt))
-      .limit(1),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          id: scheduleOfValues.id,
+          version: scheduleOfValues.version,
+          sovStatus: scheduleOfValues.sovStatus,
+          totalScheduledValueCents: scheduleOfValues.totalScheduledValueCents,
+          totalOriginalContractCents: scheduleOfValues.totalOriginalContractCents,
+          totalChangeOrdersCents: scheduleOfValues.totalChangeOrdersCents,
+          defaultRetainagePercent: scheduleOfValues.defaultRetainagePercent,
+          createdAt: scheduleOfValues.createdAt,
+        })
+        .from(scheduleOfValues)
+        .where(
+          and(
+            eq(scheduleOfValues.projectId, projectId),
+            inArray(scheduleOfValues.sovStatus, ["draft", "active", "locked"]),
+          ),
+        )
+        .orderBy(desc(scheduleOfValues.createdAt))
+        .limit(1),
+    ),
   ]);
 
   const drawIds = drawRows.map((d) => d.id);
   const [drawLineItemRows, waiverRows, releaseRows] = await Promise.all([
     drawIds.length
-      ? db
-          .select({
-            id: drawLineItems.id,
-            drawRequestId: drawLineItems.drawRequestId,
-            sovLineItemId: drawLineItems.sovLineItemId,
-            itemNumber: sovLineItems.itemNumber,
-            description: sovLineItems.description,
-            scheduledValueCents: sovLineItems.scheduledValueCents,
-            workCompletedPreviousCents: drawLineItems.workCompletedPreviousCents,
-            workCompletedThisPeriodCents: drawLineItems.workCompletedThisPeriodCents,
-            materialsPresentlyStoredCents:
-              drawLineItems.materialsPresentlyStoredCents,
-            totalCompletedStoredToDateCents:
-              drawLineItems.totalCompletedStoredToDateCents,
-            percentCompleteBasisPoints: drawLineItems.percentCompleteBasisPoints,
-            balanceToFinishCents: drawLineItems.balanceToFinishCents,
-            retainageCents: drawLineItems.retainageCents,
-            retainagePercentApplied: drawLineItems.retainagePercentApplied,
-            sortOrder: sovLineItems.sortOrder,
-          })
-          .from(drawLineItems)
-          .innerJoin(sovLineItems, eq(sovLineItems.id, drawLineItems.sovLineItemId))
-          .where(inArray(drawLineItems.drawRequestId, drawIds))
-          .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber))
+      ? withTenant(context.organization.id, (tx) =>
+          tx
+            .select({
+              id: drawLineItems.id,
+              drawRequestId: drawLineItems.drawRequestId,
+              sovLineItemId: drawLineItems.sovLineItemId,
+              itemNumber: sovLineItems.itemNumber,
+              description: sovLineItems.description,
+              scheduledValueCents: sovLineItems.scheduledValueCents,
+              workCompletedPreviousCents: drawLineItems.workCompletedPreviousCents,
+              workCompletedThisPeriodCents: drawLineItems.workCompletedThisPeriodCents,
+              materialsPresentlyStoredCents:
+                drawLineItems.materialsPresentlyStoredCents,
+              totalCompletedStoredToDateCents:
+                drawLineItems.totalCompletedStoredToDateCents,
+              percentCompleteBasisPoints: drawLineItems.percentCompleteBasisPoints,
+              balanceToFinishCents: drawLineItems.balanceToFinishCents,
+              retainageCents: drawLineItems.retainageCents,
+              retainagePercentApplied: drawLineItems.retainagePercentApplied,
+              sortOrder: sovLineItems.sortOrder,
+            })
+            .from(drawLineItems)
+            .innerJoin(sovLineItems, eq(sovLineItems.id, drawLineItems.sovLineItemId))
+            .where(inArray(drawLineItems.drawRequestId, drawIds))
+            .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber)),
+        )
       : Promise.resolve([] as never[]),
     drawIds.length
       ? // Contractor view — multi-org policy clause B (project ownership)
@@ -1484,11 +1490,13 @@ export async function getContractorProjectView(
             .orderBy(asc(lienWaivers.lienWaiverType), desc(lienWaivers.createdAt)),
         )
       : Promise.resolve([] as never[]),
-    db
-      .select()
-      .from(retainageReleases)
-      .where(eq(retainageReleases.projectId, projectId))
-      .orderBy(desc(retainageReleases.createdAt)),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select()
+        .from(retainageReleases)
+        .where(eq(retainageReleases.projectId, projectId))
+        .orderBy(desc(retainageReleases.createdAt)),
+    ),
   ]);
 
   const drawLinesByDraw = new Map<string, typeof drawLineItemRows>();
@@ -1671,21 +1679,23 @@ export async function getContractorProjectView(
 
   const sovRow = sovRows[0] ?? null;
   const sovLineItemRows = sovRow
-    ? await db
-        .select({
-          id: sovLineItems.id,
-          itemNumber: sovLineItems.itemNumber,
-          costCode: sovLineItems.costCode,
-          description: sovLineItems.description,
-          lineItemType: sovLineItems.lineItemType,
-          scheduledValueCents: sovLineItems.scheduledValueCents,
-          retainagePercentOverride: sovLineItems.retainagePercentOverride,
-          sortOrder: sovLineItems.sortOrder,
-          isActive: sovLineItems.isActive,
-        })
-        .from(sovLineItems)
-        .where(eq(sovLineItems.sovId, sovRow.id))
-        .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber))
+    ? await withTenant(context.organization.id, (tx) =>
+        tx
+          .select({
+            id: sovLineItems.id,
+            itemNumber: sovLineItems.itemNumber,
+            costCode: sovLineItems.costCode,
+            description: sovLineItems.description,
+            lineItemType: sovLineItems.lineItemType,
+            scheduledValueCents: sovLineItems.scheduledValueCents,
+            retainagePercentOverride: sovLineItems.retainagePercentOverride,
+            sortOrder: sovLineItems.sortOrder,
+            isActive: sovLineItems.isActive,
+          })
+          .from(sovLineItems)
+          .where(eq(sovLineItems.sovId, sovRow.id))
+          .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber)),
+      )
     : [];
 
   const contractorUrEnrich = await loadUploadRequestEnrichment(uploadRequestRows);
@@ -1926,53 +1936,57 @@ export async function getSubcontractorProjectView(
         )
         .orderBy(milestones.scheduledDate),
     ),
-    db
-      .select({
-        id: uploadRequests.id,
-        title: uploadRequests.title,
-        description: uploadRequests.description,
-        requestStatus: uploadRequests.requestStatus,
-        expectedFileType: uploadRequests.expectedFileType,
-        dueAt: uploadRequests.dueAt,
-        revisionNote: uploadRequests.revisionNote,
-      })
-      .from(uploadRequests)
-      .where(
-        and(
-          eq(uploadRequests.projectId, projectId),
-          eq(uploadRequests.requestedFromOrganizationId, subOrgId),
-          inArray(uploadRequests.requestStatus, ["open", "revision_requested"]),
-        ),
-      )
-      .orderBy(desc(uploadRequests.createdAt)),
-    db
-      .select({
-        id: uploadRequests.id,
-        title: uploadRequests.title,
-        description: uploadRequests.description,
-        requestStatus: uploadRequests.requestStatus,
-        requestedFromOrganizationId: uploadRequests.requestedFromOrganizationId,
-        expectedFileType: uploadRequests.expectedFileType,
-        dueAt: uploadRequests.dueAt,
-        submittedAt: uploadRequests.submittedAt,
-        submittedByUserId: uploadRequests.submittedByUserId,
-        completedAt: uploadRequests.completedAt,
-        revisionNote: uploadRequests.revisionNote,
-        responseNote: uploadRequests.responseNote,
-        createdAt: uploadRequests.createdAt,
-        submittedDocumentId: uploadRequests.submittedDocumentId,
-        submittedDocumentTitle: documents.title,
-        submittedDocumentType: documents.documentType,
-      })
-      .from(uploadRequests)
-      .leftJoin(documents, eq(documents.id, uploadRequests.submittedDocumentId))
-      .where(
-        and(
-          eq(uploadRequests.projectId, projectId),
-          eq(uploadRequests.requestedFromOrganizationId, subOrgId),
-        ),
-      )
-      .orderBy(desc(uploadRequests.createdAt)),
+    withTenant(subOrgId, (tx) =>
+      tx
+        .select({
+          id: uploadRequests.id,
+          title: uploadRequests.title,
+          description: uploadRequests.description,
+          requestStatus: uploadRequests.requestStatus,
+          expectedFileType: uploadRequests.expectedFileType,
+          dueAt: uploadRequests.dueAt,
+          revisionNote: uploadRequests.revisionNote,
+        })
+        .from(uploadRequests)
+        .where(
+          and(
+            eq(uploadRequests.projectId, projectId),
+            eq(uploadRequests.requestedFromOrganizationId, subOrgId),
+            inArray(uploadRequests.requestStatus, ["open", "revision_requested"]),
+          ),
+        )
+        .orderBy(desc(uploadRequests.createdAt)),
+    ),
+    withTenant(subOrgId, (tx) =>
+      tx
+        .select({
+          id: uploadRequests.id,
+          title: uploadRequests.title,
+          description: uploadRequests.description,
+          requestStatus: uploadRequests.requestStatus,
+          requestedFromOrganizationId: uploadRequests.requestedFromOrganizationId,
+          expectedFileType: uploadRequests.expectedFileType,
+          dueAt: uploadRequests.dueAt,
+          submittedAt: uploadRequests.submittedAt,
+          submittedByUserId: uploadRequests.submittedByUserId,
+          completedAt: uploadRequests.completedAt,
+          revisionNote: uploadRequests.revisionNote,
+          responseNote: uploadRequests.responseNote,
+          createdAt: uploadRequests.createdAt,
+          submittedDocumentId: uploadRequests.submittedDocumentId,
+          submittedDocumentTitle: documents.title,
+          submittedDocumentType: documents.documentType,
+        })
+        .from(uploadRequests)
+        .leftJoin(documents, eq(documents.id, uploadRequests.submittedDocumentId))
+        .where(
+          and(
+            eq(uploadRequests.projectId, projectId),
+            eq(uploadRequests.requestedFromOrganizationId, subOrgId),
+          ),
+        )
+        .orderBy(desc(uploadRequests.createdAt)),
+    ),
     // Sub viewing own project compliance — multi-org policy clause A
     // (organization_id = GUC) satisfies.
     withTenant(subOrgId, (tx) =>
@@ -2343,84 +2357,90 @@ export async function getClientProjectView(
         )
         .orderBy(desc(rfis.createdAt)),
     ),
-    db
-      .select({
-        id: approvals.id,
-        approvalNumber: approvals.approvalNumber,
-        title: approvals.title,
-        category: approvals.category,
-        approvalStatus: approvals.approvalStatus,
-        impactCostCents: approvals.impactCostCents,
-        impactScheduleDays: approvals.impactScheduleDays,
-        description: approvals.description,
-        decisionNote: approvals.decisionNote,
-        submittedAt: approvals.submittedAt,
-        decidedAt: approvals.decidedAt,
-      })
-      .from(approvals)
-      .where(
-        and(
-          eq(approvals.projectId, projectId),
-          inArray(approvals.approvalStatus, [
-            "pending_review",
-            "approved",
-            "rejected",
-            "needs_revision",
-          ]),
-        ),
-      )
-      .orderBy(desc(approvals.createdAt)),
-    db
-      .select()
-      .from(drawRequests)
-      .where(
-        and(
-          eq(drawRequests.projectId, projectId),
-          inArray(drawRequests.drawRequestStatus, [
-            "submitted",
-            "under_review",
-            "approved",
-            "approved_with_note",
-            "returned",
-            "revised",
-            "paid",
-          ]),
-        ),
-      )
-      .orderBy(desc(drawRequests.drawNumber)),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          id: approvals.id,
+          approvalNumber: approvals.approvalNumber,
+          title: approvals.title,
+          category: approvals.category,
+          approvalStatus: approvals.approvalStatus,
+          impactCostCents: approvals.impactCostCents,
+          impactScheduleDays: approvals.impactScheduleDays,
+          description: approvals.description,
+          decisionNote: approvals.decisionNote,
+          submittedAt: approvals.submittedAt,
+          decidedAt: approvals.decidedAt,
+        })
+        .from(approvals)
+        .where(
+          and(
+            eq(approvals.projectId, projectId),
+            inArray(approvals.approvalStatus, [
+              "pending_review",
+              "approved",
+              "rejected",
+              "needs_revision",
+            ]),
+          ),
+        )
+        .orderBy(desc(approvals.createdAt)),
+    ),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select()
+        .from(drawRequests)
+        .where(
+          and(
+            eq(drawRequests.projectId, projectId),
+            inArray(drawRequests.drawRequestStatus, [
+              "submitted",
+              "under_review",
+              "approved",
+              "approved_with_note",
+              "returned",
+              "revised",
+              "paid",
+            ]),
+          ),
+        )
+        .orderBy(desc(drawRequests.drawNumber)),
+    ),
   ]);
 
   const clientDrawIds = drawRows.map((d) => d.id);
   const [clientDrawLineRows, clientWaiverRows, clientReleaseRows] =
     await Promise.all([
       clientDrawIds.length
-        ? db
-            .select({
-              id: drawLineItems.id,
-              drawRequestId: drawLineItems.drawRequestId,
-              itemNumber: sovLineItems.itemNumber,
-              description: sovLineItems.description,
-              scheduledValueCents: sovLineItems.scheduledValueCents,
-              workCompletedPreviousCents: drawLineItems.workCompletedPreviousCents,
-              workCompletedThisPeriodCents:
-                drawLineItems.workCompletedThisPeriodCents,
-              materialsPresentlyStoredCents:
-                drawLineItems.materialsPresentlyStoredCents,
-              totalCompletedStoredToDateCents:
-                drawLineItems.totalCompletedStoredToDateCents,
-              percentCompleteBasisPoints: drawLineItems.percentCompleteBasisPoints,
-              balanceToFinishCents: drawLineItems.balanceToFinishCents,
-              retainageCents: drawLineItems.retainageCents,
-              retainagePercentApplied: drawLineItems.retainagePercentApplied,
-              sortOrder: sovLineItems.sortOrder,
-            })
-            .from(drawLineItems)
-            .innerJoin(
-              sovLineItems,
-              eq(sovLineItems.id, drawLineItems.sovLineItemId),
-            )
-            .where(inArray(drawLineItems.drawRequestId, clientDrawIds))
-            .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber))
+        ? withTenant(context.organization.id, (tx) =>
+            tx
+              .select({
+                id: drawLineItems.id,
+                drawRequestId: drawLineItems.drawRequestId,
+                itemNumber: sovLineItems.itemNumber,
+                description: sovLineItems.description,
+                scheduledValueCents: sovLineItems.scheduledValueCents,
+                workCompletedPreviousCents: drawLineItems.workCompletedPreviousCents,
+                workCompletedThisPeriodCents:
+                  drawLineItems.workCompletedThisPeriodCents,
+                materialsPresentlyStoredCents:
+                  drawLineItems.materialsPresentlyStoredCents,
+                totalCompletedStoredToDateCents:
+                  drawLineItems.totalCompletedStoredToDateCents,
+                percentCompleteBasisPoints: drawLineItems.percentCompleteBasisPoints,
+                balanceToFinishCents: drawLineItems.balanceToFinishCents,
+                retainageCents: drawLineItems.retainageCents,
+                retainagePercentApplied: drawLineItems.retainagePercentApplied,
+                sortOrder: sovLineItems.sortOrder,
+              })
+              .from(drawLineItems)
+              .innerJoin(
+                sovLineItems,
+                eq(sovLineItems.id, drawLineItems.sovLineItemId),
+              )
+              .where(inArray(drawLineItems.drawRequestId, clientDrawIds))
+              .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber)),
+          )
         : Promise.resolve([] as never[]),
       clientDrawIds.length
         ? // Client view — multi-org policy clause C (project membership)
@@ -2454,11 +2474,13 @@ export async function getClientProjectView(
               ),
           )
         : Promise.resolve([] as never[]),
-      db
-        .select()
-        .from(retainageReleases)
-        .where(eq(retainageReleases.projectId, projectId))
-        .orderBy(desc(retainageReleases.createdAt)),
+      withTenant(context.organization.id, (tx) =>
+        tx
+          .select()
+          .from(retainageReleases)
+          .where(eq(retainageReleases.projectId, projectId))
+          .orderBy(desc(retainageReleases.createdAt)),
+      ),
     ]);
 
   const clientDrawLinesByDraw = new Map<string, typeof clientDrawLineRows>();

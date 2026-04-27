@@ -248,20 +248,22 @@ export async function getContractorIntegrationsView(input: {
   );
 
   // Aggregate sync-event counts per connection (pushes, pulls, errors).
-  const countRows = await db
-    .select({
-      connectionId: syncEvents.integrationConnectionId,
-      direction: syncEvents.syncDirection,
-      status: syncEvents.syncEventStatus,
-      total: sql<number>`count(*)::int`,
-    })
-    .from(syncEvents)
-    .where(eq(syncEvents.organizationId, context.organization.id))
-    .groupBy(
-      syncEvents.integrationConnectionId,
-      syncEvents.syncDirection,
-      syncEvents.syncEventStatus,
-    );
+  const countRows = await withTenant(context.organization.id, (tx) =>
+    tx
+      .select({
+        connectionId: syncEvents.integrationConnectionId,
+        direction: syncEvents.syncDirection,
+        status: syncEvents.syncEventStatus,
+        total: sql<number>`count(*)::int`,
+      })
+      .from(syncEvents)
+      .where(eq(syncEvents.organizationId, context.organization.id))
+      .groupBy(
+        syncEvents.integrationConnectionId,
+        syncEvents.syncDirection,
+        syncEvents.syncEventStatus,
+      ),
+  );
 
   const countsByConnection = new Map<
     string,
@@ -329,26 +331,28 @@ export async function getContractorIntegrationsView(input: {
     connection: byProvider.get(entry.provider) ?? null,
   }));
 
-  const eventRows = await db
-    .select({
-      id: syncEvents.id,
-      provider: integrationConnections.provider,
-      connectionId: syncEvents.integrationConnectionId,
-      syncDirection: syncEvents.syncDirection,
-      syncEventStatus: syncEvents.syncEventStatus,
-      entityType: syncEvents.entityType,
-      summary: syncEvents.summary,
-      errorMessage: syncEvents.errorMessage,
-      createdAt: syncEvents.createdAt,
-    })
-    .from(syncEvents)
-    .innerJoin(
-      integrationConnections,
-      eq(integrationConnections.id, syncEvents.integrationConnectionId),
-    )
-    .where(eq(syncEvents.organizationId, context.organization.id))
-    .orderBy(desc(syncEvents.createdAt))
-    .limit(50);
+  const eventRows = await withTenant(context.organization.id, (tx) =>
+    tx
+      .select({
+        id: syncEvents.id,
+        provider: integrationConnections.provider,
+        connectionId: syncEvents.integrationConnectionId,
+        syncDirection: syncEvents.syncDirection,
+        syncEventStatus: syncEvents.syncEventStatus,
+        entityType: syncEvents.entityType,
+        summary: syncEvents.summary,
+        errorMessage: syncEvents.errorMessage,
+        createdAt: syncEvents.createdAt,
+      })
+      .from(syncEvents)
+      .innerJoin(
+        integrationConnections,
+        eq(integrationConnections.id, syncEvents.integrationConnectionId),
+      )
+      .where(eq(syncEvents.organizationId, context.organization.id))
+      .orderBy(desc(syncEvents.createdAt))
+      .limit(50),
+  );
 
   const projectRows = await db
     .select({
@@ -508,17 +512,19 @@ export async function buildCsvExport(input: {
 
   if (input.entity === "draw_requests") {
     const { drawRequests } = await import("@/db/schema");
-    const rows = await db
-      .select({
-        id: drawRequests.id,
-        projectId: drawRequests.projectId,
-        drawNumber: drawRequests.drawNumber,
-        status: drawRequests.drawRequestStatus,
-        currentPaymentDueCents: drawRequests.currentPaymentDueCents,
-        periodFrom: drawRequests.periodFrom,
-        periodTo: drawRequests.periodTo,
-      })
-      .from(drawRequests);
+    const rows = await withTenant(orgId, (tx) =>
+      tx
+        .select({
+          id: drawRequests.id,
+          projectId: drawRequests.projectId,
+          drawNumber: drawRequests.drawNumber,
+          status: drawRequests.drawRequestStatus,
+          currentPaymentDueCents: drawRequests.currentPaymentDueCents,
+          periodFrom: drawRequests.periodFrom,
+          periodTo: drawRequests.periodTo,
+        })
+        .from(drawRequests),
+    );
     const filtered = rows.filter((r) => projectIdSet.has(r.projectId));
     return {
       filename: "draw_requests.csv",

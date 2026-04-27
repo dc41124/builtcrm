@@ -206,29 +206,31 @@ export async function GET(
 
     // Pull draw line items joined to their SOV rows for the G703 continuation
     // sheet. Ordered by SOV sortOrder so the PDF matches the on-screen table.
-    const g703Lines = await db
-      .select({
-        itemNumber: sovLineItems.itemNumber,
-        description: sovLineItems.description,
-        scheduledValueCents: sovLineItems.scheduledValueCents,
-        workCompletedPreviousCents: drawLineItems.workCompletedPreviousCents,
-        workCompletedThisPeriodCents:
-          drawLineItems.workCompletedThisPeriodCents,
-        materialsPresentlyStoredCents:
-          drawLineItems.materialsPresentlyStoredCents,
-        totalCompletedStoredToDateCents:
-          drawLineItems.totalCompletedStoredToDateCents,
-        percentCompleteBasisPoints: drawLineItems.percentCompleteBasisPoints,
-        balanceToFinishCents: drawLineItems.balanceToFinishCents,
-        retainageCents: drawLineItems.retainageCents,
-      })
-      .from(drawLineItems)
-      .innerJoin(
-        sovLineItems,
-        eq(sovLineItems.id, drawLineItems.sovLineItemId),
-      )
-      .where(eq(drawLineItems.drawRequestId, drawId))
-      .orderBy(sovLineItems.sortOrder);
+    const g703Lines = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({
+          itemNumber: sovLineItems.itemNumber,
+          description: sovLineItems.description,
+          scheduledValueCents: sovLineItems.scheduledValueCents,
+          workCompletedPreviousCents: drawLineItems.workCompletedPreviousCents,
+          workCompletedThisPeriodCents:
+            drawLineItems.workCompletedThisPeriodCents,
+          materialsPresentlyStoredCents:
+            drawLineItems.materialsPresentlyStoredCents,
+          totalCompletedStoredToDateCents:
+            drawLineItems.totalCompletedStoredToDateCents,
+          percentCompleteBasisPoints: drawLineItems.percentCompleteBasisPoints,
+          balanceToFinishCents: drawLineItems.balanceToFinishCents,
+          retainageCents: drawLineItems.retainageCents,
+        })
+        .from(drawLineItems)
+        .innerJoin(
+          sovLineItems,
+          eq(sovLineItems.id, drawLineItems.sovLineItemId),
+        )
+        .where(eq(drawLineItems.drawRequestId, drawId))
+        .orderBy(sovLineItems.sortOrder),
+    );
 
     // Render G702 + G703 PDFs up-front (before archive streaming starts).
     // Components are called as plain functions (not via createElement) so the

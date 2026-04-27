@@ -120,13 +120,15 @@ export async function getWIPReport(input: LoaderInput): Promise<WIPReportView> {
             ),
           ),
       ),
-      db
-        .select({
-          projectId: drawRequests.projectId,
-          totalCompletedToDateCents: drawRequests.totalCompletedToDateCents,
-        })
-        .from(drawRequests)
-        .where(inArray(drawRequests.projectId, projectIds)),
+      withTenant(orgId, (tx) =>
+        tx
+          .select({
+            projectId: drawRequests.projectId,
+            totalCompletedToDateCents: drawRequests.totalCompletedToDateCents,
+          })
+          .from(drawRequests)
+          .where(inArray(drawRequests.projectId, projectIds)),
+      ),
       // Contractor caller; multi-org POM policy clause B (project
       // ownership) returns every client POM on their projects.
       withTenant(orgId, (tx) =>

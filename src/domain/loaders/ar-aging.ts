@@ -100,23 +100,25 @@ export async function getARReport(input: LoaderInput): Promise<ARReportView> {
   if (projectIds.length === 0) return emptyView(now);
 
   const [drawRows, paymentTxRows, clientRows] = await Promise.all([
-    db
-      .select({
-        id: drawRequests.id,
-        projectId: drawRequests.projectId,
-        status: drawRequests.drawRequestStatus,
-        currentPaymentDueCents: drawRequests.currentPaymentDueCents,
-        submittedAt: drawRequests.submittedAt,
-        reviewedAt: drawRequests.reviewedAt,
-        paidAt: drawRequests.paidAt,
-      })
-      .from(drawRequests)
-      .where(
-        and(
-          inArray(drawRequests.projectId, projectIds),
-          inArray(drawRequests.drawRequestStatus, [...AR_DRAW_STATUSES]),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          id: drawRequests.id,
+          projectId: drawRequests.projectId,
+          status: drawRequests.drawRequestStatus,
+          currentPaymentDueCents: drawRequests.currentPaymentDueCents,
+          submittedAt: drawRequests.submittedAt,
+          reviewedAt: drawRequests.reviewedAt,
+          paidAt: drawRequests.paidAt,
+        })
+        .from(drawRequests)
+        .where(
+          and(
+            inArray(drawRequests.projectId, projectIds),
+            inArray(drawRequests.drawRequestStatus, [...AR_DRAW_STATUSES]),
+          ),
         ),
-      ),
+    ),
     withTenant(orgId, (tx) =>
       tx
         .select({

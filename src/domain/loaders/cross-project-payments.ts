@@ -181,23 +181,25 @@ export async function getContractorCrossProjectPayments(
 
   // Parallel cross-project queries.
   const [drawRows, waiverRows, retainageRows, paymentAgg] = await Promise.all([
-    db
-      .select({
-        id: drawRequests.id,
-        projectId: drawRequests.projectId,
-        drawNumber: drawRequests.drawNumber,
-        drawRequestStatus: drawRequests.drawRequestStatus,
-        currentPaymentDueCents: drawRequests.currentPaymentDueCents,
-        paymentReferenceName: drawRequests.paymentReferenceName,
-        createdByUserId: drawRequests.createdByUserId,
-        periodFrom: drawRequests.periodFrom,
-        periodTo: drawRequests.periodTo,
-        submittedAt: drawRequests.submittedAt,
-        reviewedAt: drawRequests.reviewedAt,
-        paidAt: drawRequests.paidAt,
-      })
-      .from(drawRequests)
-      .where(inArray(drawRequests.projectId, projectIds)),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          id: drawRequests.id,
+          projectId: drawRequests.projectId,
+          drawNumber: drawRequests.drawNumber,
+          drawRequestStatus: drawRequests.drawRequestStatus,
+          currentPaymentDueCents: drawRequests.currentPaymentDueCents,
+          paymentReferenceName: drawRequests.paymentReferenceName,
+          createdByUserId: drawRequests.createdByUserId,
+          periodFrom: drawRequests.periodFrom,
+          periodTo: drawRequests.periodTo,
+          submittedAt: drawRequests.submittedAt,
+          reviewedAt: drawRequests.reviewedAt,
+          paidAt: drawRequests.paidAt,
+        })
+        .from(drawRequests)
+        .where(inArray(drawRequests.projectId, projectIds)),
+    ),
     // Contractor reading every sub's waivers across their projects —
     // multi-org policy clause B (project ownership) authorises.
     withTenant(orgId, (tx) =>
@@ -218,14 +220,16 @@ export async function getContractorCrossProjectPayments(
         .from(lienWaivers)
         .where(inArray(lienWaivers.projectId, projectIds)),
     ),
-    db
-      .select({
-        projectId: retainageReleases.projectId,
-        totalRetainageHeldCents: retainageReleases.totalRetainageHeldCents,
-        releaseStatus: retainageReleases.releaseStatus,
-      })
-      .from(retainageReleases)
-      .where(inArray(retainageReleases.projectId, projectIds)),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          projectId: retainageReleases.projectId,
+          totalRetainageHeldCents: retainageReleases.totalRetainageHeldCents,
+          releaseStatus: retainageReleases.releaseStatus,
+        })
+        .from(retainageReleases)
+        .where(inArray(retainageReleases.projectId, projectIds)),
+    ),
     withTenant(orgId, (tx) =>
       tx
         .select({

@@ -99,7 +99,10 @@ export async function buildUserExportManifest(
     .from(conversationParticipants)
     .where(eq(conversationParticipants.userId, userId));
 
-  const notifs = await db
+  // notifications is user-scoped RLS'd via app.current_user_id. The GDPR
+  // export runs outside any session context, so dbAdmin matches the
+  // rationale used for roleAssignments / organizationUsers above.
+  const notifs = await dbAdmin
     .select()
     .from(notifications)
     .where(eq(notifications.recipientUserId, userId));

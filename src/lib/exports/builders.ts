@@ -189,25 +189,27 @@ export async function buildFinancialCsvs(organizationId: string): Promise<{
   lienWaivers: { csv: string; rowCount: number };
 }> {
   // Draws — one row per draw request
-  const drawRows = await db
-    .select({
-      projectCode: projects.projectCode,
-      projectName: projects.name,
-      drawNumber: drawRequests.drawNumber,
-      periodFrom: drawRequests.periodFrom,
-      periodTo: drawRequests.periodTo,
-      status: drawRequests.drawRequestStatus,
-      contractSumToDate: drawRequests.contractSumToDateCents,
-      totalCompletedToDate: drawRequests.totalCompletedToDateCents,
-      totalRetainage: drawRequests.totalRetainageCents,
-      currentPaymentDue: drawRequests.currentPaymentDueCents,
-      balanceToFinish: drawRequests.balanceToFinishCents,
-      submittedAt: drawRequests.submittedAt,
-      paidAt: drawRequests.paidAt,
-    })
-    .from(drawRequests)
-    .innerJoin(projects, eq(projects.id, drawRequests.projectId))
-    .where(eq(projects.contractorOrganizationId, organizationId));
+  const drawRows = await withTenant(organizationId, (tx) =>
+    tx
+      .select({
+        projectCode: projects.projectCode,
+        projectName: projects.name,
+        drawNumber: drawRequests.drawNumber,
+        periodFrom: drawRequests.periodFrom,
+        periodTo: drawRequests.periodTo,
+        status: drawRequests.drawRequestStatus,
+        contractSumToDate: drawRequests.contractSumToDateCents,
+        totalCompletedToDate: drawRequests.totalCompletedToDateCents,
+        totalRetainage: drawRequests.totalRetainageCents,
+        currentPaymentDue: drawRequests.currentPaymentDueCents,
+        balanceToFinish: drawRequests.balanceToFinishCents,
+        submittedAt: drawRequests.submittedAt,
+        paidAt: drawRequests.paidAt,
+      })
+      .from(drawRequests)
+      .innerJoin(projects, eq(projects.id, drawRequests.projectId))
+      .where(eq(projects.contractorOrganizationId, organizationId)),
+  );
 
   const drawsLines: string[] = [csvLine(DRAWS_COLUMNS)];
   for (const r of drawRows) {
@@ -231,26 +233,28 @@ export async function buildFinancialCsvs(organizationId: string): Promise<{
   }
 
   // SOV line items — joined through scheduleOfValues → projects
-  const sovRows = await db
-    .select({
-      projectCode: projects.projectCode,
-      projectName: projects.name,
-      sovVersion: scheduleOfValues.version,
-      sovStatus: scheduleOfValues.sovStatus,
-      itemNumber: sovLineItems.itemNumber,
-      costCode: sovLineItems.costCode,
-      description: sovLineItems.description,
-      lineItemType: sovLineItems.lineItemType,
-      scheduledValueCents: sovLineItems.scheduledValueCents,
-      isActive: sovLineItems.isActive,
-    })
-    .from(sovLineItems)
-    .innerJoin(
-      scheduleOfValues,
-      eq(scheduleOfValues.id, sovLineItems.sovId),
-    )
-    .innerJoin(projects, eq(projects.id, scheduleOfValues.projectId))
-    .where(eq(projects.contractorOrganizationId, organizationId));
+  const sovRows = await withTenant(organizationId, (tx) =>
+    tx
+      .select({
+        projectCode: projects.projectCode,
+        projectName: projects.name,
+        sovVersion: scheduleOfValues.version,
+        sovStatus: scheduleOfValues.sovStatus,
+        itemNumber: sovLineItems.itemNumber,
+        costCode: sovLineItems.costCode,
+        description: sovLineItems.description,
+        lineItemType: sovLineItems.lineItemType,
+        scheduledValueCents: sovLineItems.scheduledValueCents,
+        isActive: sovLineItems.isActive,
+      })
+      .from(sovLineItems)
+      .innerJoin(
+        scheduleOfValues,
+        eq(scheduleOfValues.id, sovLineItems.sovId),
+      )
+      .innerJoin(projects, eq(projects.id, scheduleOfValues.projectId))
+      .where(eq(projects.contractorOrganizationId, organizationId)),
+  );
 
   const sovLines: string[] = [csvLine(SOV_COLUMNS)];
   for (const r of sovRows) {

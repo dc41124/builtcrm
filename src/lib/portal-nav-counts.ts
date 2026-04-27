@@ -155,18 +155,20 @@ async function contractorGlobalCounts({
       ),
     ),
     countOf(
-      db
-        .select({ c: COUNT })
-        .from(drawRequests)
-        .where(
-          and(
-            inArray(drawRequests.projectId, projectIds),
-            inArray(drawRequests.drawRequestStatus, [
-              "submitted",
-              "under_review",
-            ]),
+      withTenant(orgId, (tx) =>
+        tx
+          .select({ c: COUNT })
+          .from(drawRequests)
+          .where(
+            and(
+              inArray(drawRequests.projectId, projectIds),
+              inArray(drawRequests.drawRequestStatus, [
+                "submitted",
+                "under_review",
+              ]),
+            ),
           ),
-        ),
+      ),
     ),
     countOf(
       withTenant(orgId, (tx) =>
@@ -336,18 +338,20 @@ async function clientProjectCounts({
         )
       : Promise.resolve(0),
     countOf(
-      db
-        .select({ c: COUNT })
-        .from(drawRequests)
-        .where(
-          and(
-            eq(drawRequests.projectId, projectId),
-            inArray(drawRequests.drawRequestStatus, [
-              "submitted",
-              "under_review",
-            ]),
+      withTenant(orgId, (tx) =>
+        tx
+          .select({ c: COUNT })
+          .from(drawRequests)
+          .where(
+            and(
+              eq(drawRequests.projectId, projectId),
+              inArray(drawRequests.drawRequestStatus, [
+                "submitted",
+                "under_review",
+              ]),
+            ),
           ),
-        ),
+      ),
     ),
     countUnreadMessages(userId, [projectId]),
   ]);

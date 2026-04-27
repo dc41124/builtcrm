@@ -244,36 +244,40 @@ export async function getContractorFinancialView(
   const approvedChangeOrderCount = Number(coAgg?.count ?? 0);
 
   // SOV — used for default retainage percent.
-  const [sov] = await db
-    .select({
-      defaultRetainagePercent: scheduleOfValues.defaultRetainagePercent,
-    })
-    .from(scheduleOfValues)
-    .where(eq(scheduleOfValues.projectId, projectId))
-    .orderBy(desc(scheduleOfValues.version))
-    .limit(1);
+  const [sov] = await withTenant(context.organization.id, (tx) =>
+    tx
+      .select({
+        defaultRetainagePercent: scheduleOfValues.defaultRetainagePercent,
+      })
+      .from(scheduleOfValues)
+      .where(eq(scheduleOfValues.projectId, projectId))
+      .orderBy(desc(scheduleOfValues.version))
+      .limit(1),
+  );
   const defaultRetainagePercent = sov?.defaultRetainagePercent ?? 10;
 
   // All draws, newest first. Draft rows are excluded from billing totals
   // but still shown in the history table.
-  const drawRows = await db
-    .select({
-      id: drawRequests.id,
-      drawNumber: drawRequests.drawNumber,
-      periodFrom: drawRequests.periodFrom,
-      periodTo: drawRequests.periodTo,
-      status: drawRequests.drawRequestStatus,
-      currentPaymentDueCents: drawRequests.currentPaymentDueCents,
-      totalCompletedToDateCents: drawRequests.totalCompletedToDateCents,
-      totalEarnedLessRetainageCents: drawRequests.totalEarnedLessRetainageCents,
-      totalRetainageCents: drawRequests.totalRetainageCents,
-      reviewedAt: drawRequests.reviewedAt,
-      paidAt: drawRequests.paidAt,
-      paymentReferenceName: drawRequests.paymentReferenceName,
-    })
-    .from(drawRequests)
-    .where(eq(drawRequests.projectId, projectId))
-    .orderBy(desc(drawRequests.drawNumber));
+  const drawRows = await withTenant(context.organization.id, (tx) =>
+    tx
+      .select({
+        id: drawRequests.id,
+        drawNumber: drawRequests.drawNumber,
+        periodFrom: drawRequests.periodFrom,
+        periodTo: drawRequests.periodTo,
+        status: drawRequests.drawRequestStatus,
+        currentPaymentDueCents: drawRequests.currentPaymentDueCents,
+        totalCompletedToDateCents: drawRequests.totalCompletedToDateCents,
+        totalEarnedLessRetainageCents: drawRequests.totalEarnedLessRetainageCents,
+        totalRetainageCents: drawRequests.totalRetainageCents,
+        reviewedAt: drawRequests.reviewedAt,
+        paidAt: drawRequests.paidAt,
+        paymentReferenceName: drawRequests.paymentReferenceName,
+      })
+      .from(drawRequests)
+      .where(eq(drawRequests.projectId, projectId))
+      .orderBy(desc(drawRequests.drawNumber)),
+  );
 
   let paidCents = 0;
   let approvedUnpaidCents = 0;
@@ -333,17 +337,19 @@ export async function getContractorFinancialView(
   );
   const retainageOnBooksCents = latestNonDraft?.totalRetainageCents ?? 0;
 
-  const [releaseAgg] = await db
-    .select({
-      releasedCents: sql<number>`coalesce(sum(${retainageReleases.releaseAmountCents}), 0)`,
-    })
-    .from(retainageReleases)
-    .where(
-      and(
-        eq(retainageReleases.projectId, projectId),
-        eq(retainageReleases.releaseStatus, "released"),
+  const [releaseAgg] = await withTenant(context.organization.id, (tx) =>
+    tx
+      .select({
+        releasedCents: sql<number>`coalesce(sum(${retainageReleases.releaseAmountCents}), 0)`,
+      })
+      .from(retainageReleases)
+      .where(
+        and(
+          eq(retainageReleases.projectId, projectId),
+          eq(retainageReleases.releaseStatus, "released"),
+        ),
       ),
-    );
+  );
   const releasedCents = Number(releaseAgg?.releasedCents ?? 0);
   const retainageHeldCents = Math.max(0, retainageOnBooksCents - releasedCents);
 
@@ -363,24 +369,26 @@ export async function getContractorFinancialView(
   // params; explicit cast avoids the "Received an instance of Date" driver
   // error).
   const resolvedReleaseDate = sql<Date>`coalesce(${milestones.scheduledDate}, ${retainageReleases.scheduledReleaseAt})`;
-  const [retainagePendingAgg] = await db
-    .select({
-      count: sql<number>`count(*)::int`,
-      total: sql<number>`coalesce(sum(${retainageReleases.releaseAmountCents}), 0)::int`,
-    })
-    .from(retainageReleases)
-    .leftJoin(
-      milestones,
-      eq(milestones.id, retainageReleases.releaseTriggerMilestoneId),
-    )
-    .where(
-      and(
-        eq(retainageReleases.projectId, projectId),
-        inArray(retainageReleases.releaseStatus, ["held", "release_requested"]),
-        sql`${resolvedReleaseDate} is not null`,
-        sql`${resolvedReleaseDate} <= ${thirtyDaysOut.toISOString()}::timestamptz`,
+  const [retainagePendingAgg] = await withTenant(context.organization.id, (tx) =>
+    tx
+      .select({
+        count: sql<number>`count(*)::int`,
+        total: sql<number>`coalesce(sum(${retainageReleases.releaseAmountCents}), 0)::int`,
+      })
+      .from(retainageReleases)
+      .leftJoin(
+        milestones,
+        eq(milestones.id, retainageReleases.releaseTriggerMilestoneId),
+      )
+      .where(
+        and(
+          eq(retainageReleases.projectId, projectId),
+          inArray(retainageReleases.releaseStatus, ["held", "release_requested"]),
+          sql`${resolvedReleaseDate} is not null`,
+          sql`${resolvedReleaseDate} <= ${thirtyDaysOut.toISOString()}::timestamptz`,
+        ),
       ),
-    );
+  );
   const [coPendingAgg] = await withTenant(context.organization.id, (tx) =>
     tx
       .select({
@@ -540,44 +548,48 @@ export async function getContractorFinancialView(
   // first), SOV lines (for "per-line" scoping), and milestones (for the
   // trigger-milestone option).
   const [releaseRows, sovLineRows, milestoneRows] = await Promise.all([
-    db
-      .select({
-        id: retainageReleases.id,
-        sovLineItemId: retainageReleases.sovLineItemId,
-        releaseStatus: retainageReleases.releaseStatus,
-        releaseAmountCents: retainageReleases.releaseAmountCents,
-        totalRetainageHeldCents: retainageReleases.totalRetainageHeldCents,
-        approvalNote: retainageReleases.approvalNote,
-        requestedAt: retainageReleases.requestedAt,
-        approvedAt: retainageReleases.approvedAt,
-        consumedByDrawRequestId: retainageReleases.consumedByDrawRequestId,
-        consumedAt: retainageReleases.consumedAt,
-        scheduledReleaseAt: retainageReleases.scheduledReleaseAt,
-        releaseTriggerMilestoneId: retainageReleases.releaseTriggerMilestoneId,
-        createdAt: retainageReleases.createdAt,
-      })
-      .from(retainageReleases)
-      .where(eq(retainageReleases.projectId, projectId))
-      .orderBy(desc(retainageReleases.createdAt)),
-    db
-      .select({
-        id: sovLineItems.id,
-        itemNumber: sovLineItems.itemNumber,
-        description: sovLineItems.description,
-        sovId: sovLineItems.sovId,
-      })
-      .from(sovLineItems)
-      .innerJoin(
-        scheduleOfValues,
-        eq(scheduleOfValues.id, sovLineItems.sovId),
-      )
-      .where(
-        and(
-          eq(scheduleOfValues.projectId, projectId),
-          eq(sovLineItems.isActive, true),
-        ),
-      )
-      .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber)),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          id: retainageReleases.id,
+          sovLineItemId: retainageReleases.sovLineItemId,
+          releaseStatus: retainageReleases.releaseStatus,
+          releaseAmountCents: retainageReleases.releaseAmountCents,
+          totalRetainageHeldCents: retainageReleases.totalRetainageHeldCents,
+          approvalNote: retainageReleases.approvalNote,
+          requestedAt: retainageReleases.requestedAt,
+          approvedAt: retainageReleases.approvedAt,
+          consumedByDrawRequestId: retainageReleases.consumedByDrawRequestId,
+          consumedAt: retainageReleases.consumedAt,
+          scheduledReleaseAt: retainageReleases.scheduledReleaseAt,
+          releaseTriggerMilestoneId: retainageReleases.releaseTriggerMilestoneId,
+          createdAt: retainageReleases.createdAt,
+        })
+        .from(retainageReleases)
+        .where(eq(retainageReleases.projectId, projectId))
+        .orderBy(desc(retainageReleases.createdAt)),
+    ),
+    withTenant(context.organization.id, (tx) =>
+      tx
+        .select({
+          id: sovLineItems.id,
+          itemNumber: sovLineItems.itemNumber,
+          description: sovLineItems.description,
+          sovId: sovLineItems.sovId,
+        })
+        .from(sovLineItems)
+        .innerJoin(
+          scheduleOfValues,
+          eq(scheduleOfValues.id, sovLineItems.sovId),
+        )
+        .where(
+          and(
+            eq(scheduleOfValues.projectId, projectId),
+            eq(sovLineItems.isActive, true),
+          ),
+        )
+        .orderBy(asc(sovLineItems.sortOrder), asc(sovLineItems.itemNumber)),
+    ),
     withTenant(context.organization.id, (tx) =>
       tx
         .select({
@@ -680,14 +692,16 @@ export async function getSubcontractorFinancialView(
   const projectId = context.project.id;
   const orgId = context.organization.id;
 
-  const [sov] = await db
-    .select({
-      defaultRetainagePercent: scheduleOfValues.defaultRetainagePercent,
-    })
-    .from(scheduleOfValues)
-    .where(eq(scheduleOfValues.projectId, projectId))
-    .orderBy(desc(scheduleOfValues.version))
-    .limit(1);
+  const [sov] = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        defaultRetainagePercent: scheduleOfValues.defaultRetainagePercent,
+      })
+      .from(scheduleOfValues)
+      .where(eq(scheduleOfValues.projectId, projectId))
+      .orderBy(desc(scheduleOfValues.version))
+      .limit(1),
+  );
   const defaultRetainagePercent = sov?.defaultRetainagePercent ?? 10;
 
   // Work scope for this sub on this project — surfaces as

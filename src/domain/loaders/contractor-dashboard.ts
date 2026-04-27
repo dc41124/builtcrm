@@ -190,13 +190,15 @@ export async function getContractorDashboardData(
       .where(inArray(approvals.projectId, projectIds)),
   );
 
-  const [drawAgg] = await db
-    .select({
-      inReview: sql<number>`count(*) filter (where ${drawRequests.drawRequestStatus} in ('ready_for_review','submitted','under_review','returned','revised'))::int`,
-      openPaymentCents: sql<number>`coalesce(sum(${drawRequests.currentPaymentDueCents}) filter (where ${drawRequests.drawRequestStatus} in ('approved','approved_with_note','submitted','under_review')), 0)::int`,
-    })
-    .from(drawRequests)
-    .where(inArray(drawRequests.projectId, projectIds));
+  const [drawAgg] = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        inReview: sql<number>`count(*) filter (where ${drawRequests.drawRequestStatus} in ('ready_for_review','submitted','under_review','returned','revised'))::int`,
+        openPaymentCents: sql<number>`coalesce(sum(${drawRequests.currentPaymentDueCents}) filter (where ${drawRequests.drawRequestStatus} in ('approved','approved_with_note','submitted','under_review')), 0)::int`,
+      })
+      .from(drawRequests)
+      .where(inArray(drawRequests.projectId, projectIds)),
+  );
 
   // Project-scoped read on contractor's projects — multi-org policy
   // clause B (project ownership) returns sub records too.
@@ -382,14 +384,16 @@ export async function getContractorDashboardData(
     (sum, p) => sum + (p.contractValueCents ?? 0),
     0,
   );
-  const [finAgg] = await db
-    .select({
-      paid: sql<number>`coalesce(sum(${drawRequests.currentPaymentDueCents}) filter (where ${drawRequests.paidAt} is not null), 0)::bigint`,
-      unpaid: sql<number>`coalesce(sum(${drawRequests.currentPaymentDueCents}) filter (where ${drawRequests.paidAt} is null and ${drawRequests.drawRequestStatus} in ('submitted','under_review','approved','approved_with_note')), 0)::bigint`,
-      retainage: sql<number>`coalesce(sum(${drawRequests.totalRetainageCents} - ${drawRequests.retainageReleasedCents}), 0)::bigint`,
-    })
-    .from(drawRequests)
-    .where(inArray(drawRequests.projectId, projectIds));
+  const [finAgg] = await withTenant(orgId, (tx) =>
+    tx
+      .select({
+        paid: sql<number>`coalesce(sum(${drawRequests.currentPaymentDueCents}) filter (where ${drawRequests.paidAt} is not null), 0)::bigint`,
+        unpaid: sql<number>`coalesce(sum(${drawRequests.currentPaymentDueCents}) filter (where ${drawRequests.paidAt} is null and ${drawRequests.drawRequestStatus} in ('submitted','under_review','approved','approved_with_note')), 0)::bigint`,
+        retainage: sql<number>`coalesce(sum(${drawRequests.totalRetainageCents} - ${drawRequests.retainageReleasedCents}), 0)::bigint`,
+      })
+      .from(drawRequests)
+      .where(inArray(drawRequests.projectId, projectIds)),
+  );
 
   const paidCents = Number(finAgg?.paid ?? 0);
   const unpaidCents = Number(finAgg?.unpaid ?? 0);

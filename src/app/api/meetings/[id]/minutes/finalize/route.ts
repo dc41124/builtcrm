@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
 import { meetingMinutes, meetings } from "@/db/schema";
@@ -60,15 +59,17 @@ export async function POST(
       );
     }
 
-    const [existing] = await db
-      .select({
-        id: meetingMinutes.id,
-        content: meetingMinutes.content,
-        finalizedAt: meetingMinutes.finalizedAt,
-      })
-      .from(meetingMinutes)
-      .where(eq(meetingMinutes.meetingId, id))
-      .limit(1);
+    const [existing] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({
+          id: meetingMinutes.id,
+          content: meetingMinutes.content,
+          finalizedAt: meetingMinutes.finalizedAt,
+        })
+        .from(meetingMinutes)
+        .where(eq(meetingMinutes.meetingId, id))
+        .limit(1),
+    );
     if (!existing) {
       return NextResponse.json(
         { error: "no_minutes", message: "Draft minutes first" },

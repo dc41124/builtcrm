@@ -67,15 +67,17 @@ async function resolveRelatedSummary(
   callerOrgId: string,
 ): Promise<{ label: string; description: string | null }> {
   if (type === "draw_request") {
-    const [row] = await db
-      .select({
-        drawNumber: drawRequests.drawNumber,
-        periodFrom: drawRequests.periodFrom,
-        periodTo: drawRequests.periodTo,
-      })
-      .from(drawRequests)
-      .where(eq(drawRequests.id, id))
-      .limit(1);
+    const [row] = await withTenant(callerOrgId, (tx) =>
+      tx
+        .select({
+          drawNumber: drawRequests.drawNumber,
+          periodFrom: drawRequests.periodFrom,
+          periodTo: drawRequests.periodTo,
+        })
+        .from(drawRequests)
+        .where(eq(drawRequests.id, id))
+        .limit(1),
+    );
     if (!row) return { label: "Draw request", description: null };
     const periodFrom = new Date(row.periodFrom).toLocaleDateString("en-US", {
       month: "short",
@@ -92,13 +94,15 @@ async function resolveRelatedSummary(
     };
   }
   if (type === "retainage_release") {
-    const [row] = await db
-      .select({
-        releaseAmountCents: retainageReleases.releaseAmountCents,
-      })
-      .from(retainageReleases)
-      .where(eq(retainageReleases.id, id))
-      .limit(1);
+    const [row] = await withTenant(callerOrgId, (tx) =>
+      tx
+        .select({
+          releaseAmountCents: retainageReleases.releaseAmountCents,
+        })
+        .from(retainageReleases)
+        .where(eq(retainageReleases.id, id))
+        .limit(1),
+    );
     if (!row) return { label: "Retainage release", description: null };
     return {
       label: `Retainage release ${id.slice(0, 8).toUpperCase()}`,

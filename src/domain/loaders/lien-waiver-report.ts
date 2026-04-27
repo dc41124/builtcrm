@@ -121,13 +121,15 @@ export async function getLienWaiverLogReport(input: {
   const orgIds = Array.from(new Set(rawRows.map((r) => r.organizationId)));
 
   const [drawRowsResult, orgRowsResult] = await Promise.all([
-    db
-      .select({
-        id: drawRequests.id,
-        drawNumber: drawRequests.drawNumber,
-      })
-      .from(drawRequests)
-      .where(inArray(drawRequests.id, drawIds)),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          id: drawRequests.id,
+          drawNumber: drawRequests.drawNumber,
+        })
+        .from(drawRequests)
+        .where(inArray(drawRequests.id, drawIds)),
+    ),
     db
       .select({
         id: organizations.id,

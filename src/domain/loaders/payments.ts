@@ -146,10 +146,12 @@ export async function getContractorPaymentsView(input: {
 
   const drawNumbers = new Map<string, number>();
   if (drawIds.length > 0) {
-    const rows = await db
-      .select({ id: drawRequests.id, drawNumber: drawRequests.drawNumber })
-      .from(drawRequests)
-      .where(inArray(drawRequests.id, drawIds));
+    const rows = await withTenant(context.organization.id, (tx) =>
+      tx
+        .select({ id: drawRequests.id, drawNumber: drawRequests.drawNumber })
+        .from(drawRequests)
+        .where(inArray(drawRequests.id, drawIds)),
+    );
     for (const r of rows) drawNumbers.set(r.id, r.drawNumber);
   }
 

@@ -4,6 +4,7 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq, ne } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   drawRequests,
   integrationConnections,
@@ -41,7 +42,9 @@ export async function POST(
   const { id: drawId } = await params;
   const { session } = await requireServerSession();
   try {
-    const [draw] = await db
+    // Pre-tenant head lookup: caller passed only the draw id, so we read
+    // via the admin pool to derive projectId for getEffectiveContext.
+    const [draw] = await dbAdmin
       .select()
       .from(drawRequests)
       .where(eq(drawRequests.id, drawId))

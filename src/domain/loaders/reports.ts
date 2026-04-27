@@ -288,16 +288,18 @@ export async function getContractorReportsData(
         .groupBy(approvals.projectId),
     ),
     // Draw requests for billed / unpaid rollups
-    db
-      .select({
-        projectId: drawRequests.projectId,
-        drawRequestStatus: drawRequests.drawRequestStatus,
-        totalCompletedToDateCents: drawRequests.totalCompletedToDateCents,
-        currentPaymentDueCents: drawRequests.currentPaymentDueCents,
-        paidAt: drawRequests.paidAt,
-      })
-      .from(drawRequests)
-      .where(inArray(drawRequests.projectId, projectIds)),
+    withTenant(orgId, (tx) =>
+      tx
+        .select({
+          projectId: drawRequests.projectId,
+          drawRequestStatus: drawRequests.drawRequestStatus,
+          totalCompletedToDateCents: drawRequests.totalCompletedToDateCents,
+          currentPaymentDueCents: drawRequests.currentPaymentDueCents,
+          paidAt: drawRequests.paidAt,
+        })
+        .from(drawRequests)
+        .where(inArray(drawRequests.projectId, projectIds)),
+    ),
     // Compliance — alerts plus expiring-soon records. Project-scoped
     // on contractor's projects -> multi-org policy clause B authorises.
     withTenant(orgId, (tx) =>

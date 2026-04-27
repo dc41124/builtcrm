@@ -4,7 +4,6 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq, or } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
 import { meetingAttendees, meetings } from "@/db/schema";
@@ -65,24 +64,26 @@ export async function POST(
     // Accept the RSVP if the current user has an attendee row either
     // directly (userId match) or via any row at their org (fallback for
     // "invited the sub company, materialized as a specific person").
-    const [attRow] = await db
-      .select({
-        id: meetingAttendees.id,
-        userId: meetingAttendees.userId,
-        orgId: meetingAttendees.orgId,
-        attendedStatus: meetingAttendees.attendedStatus,
-      })
-      .from(meetingAttendees)
-      .where(
-        and(
-          eq(meetingAttendees.meetingId, id),
-          or(
-            eq(meetingAttendees.userId, ctx.user.id),
-            eq(meetingAttendees.orgId, ctx.organization.id),
+    const [attRow] = await withTenant(ctx.organization.id, (tx) =>
+      tx
+        .select({
+          id: meetingAttendees.id,
+          userId: meetingAttendees.userId,
+          orgId: meetingAttendees.orgId,
+          attendedStatus: meetingAttendees.attendedStatus,
+        })
+        .from(meetingAttendees)
+        .where(
+          and(
+            eq(meetingAttendees.meetingId, id),
+            or(
+              eq(meetingAttendees.userId, ctx.user.id),
+              eq(meetingAttendees.orgId, ctx.organization.id),
+            ),
           ),
-        ),
-      )
-      .limit(1);
+        )
+        .limit(1),
+    );
     if (!attRow) {
       throw new AuthorizationError(
         "You are not on the attendee list",

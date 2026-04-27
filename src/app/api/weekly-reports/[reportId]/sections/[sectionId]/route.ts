@@ -4,7 +4,6 @@ import { requireServerSession } from "@/auth/session";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
 import { weeklyReportSections, weeklyReports } from "@/db/schema";
@@ -56,7 +55,10 @@ export async function PATCH(
   }
 
   try {
-    const [section] = await db
+    // Pre-tenant head lookup: caller passed only the section id, so we
+    // read via the admin pool. The follow-up read of weeklyReports below
+    // also routes through dbAdmin to derive projectId for getEffectiveContext.
+    const [section] = await dbAdmin
       .select({
         id: weeklyReportSections.id,
         reportId: weeklyReportSections.reportId,
