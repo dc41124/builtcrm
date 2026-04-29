@@ -13,9 +13,16 @@ const envSchema = z.object({
   R2_ACCESS_KEY_ID: z.string().min(1),
   R2_SECRET_ACCESS_KEY: z.string().min(1),
   R2_BUCKET_NAME: z.string().min(1),
-  TRIGGER_DEV_API_KEY: z.string().min(1),
+  // Trigger.dev v3 SDK reads this var directly. Renamed from
+  // TRIGGER_DEV_API_KEY to match the SDK's canonical name; the old name
+  // was only ever validated, never consumed.
+  TRIGGER_SECRET_KEY: z.string().min(1),
   UPSTASH_REDIS_REST_URL: z.string().url(),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
+  // Public app base URL — used for Stripe Checkout redirects, SAML SP
+  // metadata, and email/invite link construction. Without it,
+  // invite-token routes silently fall back to http://localhost:3000.
+  NEXT_PUBLIC_APP_URL: z.string().url(),
   // 32 bytes base64-encoded; protects organizations.tax_id at rest.
   // See docs/specs/security_posture.md §3 and
   // docs/specs/tax_id_encryption_plan.md. Generate with

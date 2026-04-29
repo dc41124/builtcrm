@@ -26,6 +26,10 @@ const SECURITY_HEADERS = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Standalone output bundles a minimal `server.js` + only the runtime
+  // deps the build actually used. Required for the Docker prod image
+  // (~150 MB instead of ~1.5 GB). See docs/specs/prod_cutover_prep.md §2.
+  output: "standalone",
   async rewrites() {
     return [
       { source: "/marketing", destination: "/marketing.html" },

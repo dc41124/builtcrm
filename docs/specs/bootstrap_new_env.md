@@ -156,5 +156,5 @@ If you're testing this flow on a Neon branch forked from `main`, the branch will
 
 - **Upstash Redis provisioning** — Better Auth's `secondaryStorage` expects `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`. Provision the Redis instance separately (Upstash console); same region as the Postgres DB for session-read latency.
 - **R2 bucket + credentials** — file storage. Provision on Cloudflare R2, set `R2_*` env vars.
-- **Trigger.dev** — background job runner. Set `TRIGGER_DEV_API_KEY`.
+- **Trigger.dev** — background job runner. Set `TRIGGER_SECRET_KEY`.
 - **BETTER_AUTH_SECRET** — generate 32+ random bytes, set as env. Rotation impact documented in [security_posture.md](security_posture.md) §3.

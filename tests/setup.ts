@@ -83,8 +83,9 @@ vi.mock("@/lib/env", () => ({
     R2_ACCESS_KEY_ID: "test",
     R2_SECRET_ACCESS_KEY: "test",
     R2_BUCKET_NAME: "test",
-    TRIGGER_DEV_API_KEY: "test",
+    TRIGGER_SECRET_KEY: "test",
     UPSTASH_REDIS_REST_URL: "http://localhost",
     UPSTASH_REDIS_REST_TOKEN: "test",
+    NEXT_PUBLIC_APP_URL: "http://localhost:3000",
   },
 }));

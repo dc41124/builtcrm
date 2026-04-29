@@ -1,0 +1,32 @@
+.git
+.next
+node_modules
+.trigger
+.migrations-archive-tmp
+.claude
+.vscode
+.idea
+
+# Env files — Render injects via dashboard, never bake into image
+.env
+.env.local
+.env.test
+.env.test.example
+.env.example
+
+# Dev artifacts
+tsconfig.tsbuildinfo
+next-env.d.ts
+src-tree.txt
+
+# Tests + docs (not needed in prod image)
+tests
+docs
+
+# Misc
+*.log
+*.swp
+.DS_Store
+README.md
+HANDOFF.md
+CLAUDE.md
