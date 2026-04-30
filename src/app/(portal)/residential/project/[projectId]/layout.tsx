@@ -25,6 +25,7 @@ export default async function ResidentialProjectLayout({
       orgName={shell.orgName}
       userName={shell.userName}
       userRole={shell.userRole}
+      userAvatarUrl={shell.userAvatarUrl}
       navSections={navSections}
       projects={shell.projects}
     >

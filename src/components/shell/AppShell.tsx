@@ -55,6 +55,8 @@ export type AppShellProps = {
   orgName: string;
   userName: string;
   userRole: string;
+  /** Presigned R2 URL for the user's avatar; null when no avatar uploaded. */
+  userAvatarUrl?: string | null;
   navSections: NavSection[];
   projects: ShellProject[];
   /** Optional override. When omitted, breadcrumbs derive from the pathname. */
@@ -422,6 +424,7 @@ export default function AppShell({
   orgName,
   userName,
   userRole,
+  userAvatarUrl,
   navSections,
   projects,
   breadcrumbs,
@@ -613,7 +616,12 @@ export default function AppShell({
 
           <div className="b-foot">
             <div className="b-user">
-              <div className="b-av">{initials}</div>
+              {userAvatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="b-av" src={userAvatarUrl} alt="" />
+              ) : (
+                <div className="b-av">{initials}</div>
+              )}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="b-un">{userName}</div>
                 <div className="b-ur">{userRole}</div>
@@ -683,7 +691,12 @@ export default function AppShell({
                 <span className="b-theme-icon b-theme-moon" aria-hidden>{MoonIcon}</span>
               </button>
               <NotificationBell portalType={portalType} />
-              <div className="b-tav">{initials}</div>
+              {userAvatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="b-tav" src={userAvatarUrl} alt="" />
+              ) : (
+                <div className="b-tav">{initials}</div>
+              )}
             </div>
           </div>
 

@@ -9,8 +9,9 @@ import {
   type ProjectShortcut,
 } from "@/domain/loaders/portals";
 import { db } from "@/db/client";
-import { projects, complianceRecords, rfis, approvals } from "@/db/schema";
+import { projects, complianceRecords, rfis, approvals, users } from "@/db/schema";
 import { withTenant } from "@/db/with-tenant";
+import { presignDownloadUrl } from "@/lib/storage";
 
 import type { PortalType, ShellProject } from "@/components/shell/AppShell";
 import { getPortalNavCounts, type NavCounts } from "./portal-nav-counts";
@@ -20,6 +21,7 @@ export type PortalShellData = {
   userName: string;
   userEmail: string;
   userRole: string;
+  userAvatarUrl: string | null;
   orgName: string;
   orgId: string;
   projects: ShellProject[];
@@ -90,11 +92,29 @@ export async function loadPortalShell(
 
   const userName = user.name ?? user.email ?? "User";
 
+  // `users` is intentionally not RLS'd (see security_posture.md §6 —
+  // shared identity row, no org_id), so a bare db read is fine here.
+  // `avatarUrl` stores the R2 storage key, not a URL; we presign on
+  // each shell render. 1-hour expiration matches the settings finalize
+  // route.
+  const [userRow] = await db
+    .select({ avatarUrl: users.avatarUrl })
+    .from(users)
+    .where(eq(users.id, appUserId))
+    .limit(1);
+  const userAvatarUrl = userRow?.avatarUrl
+    ? await presignDownloadUrl({
+        key: userRow.avatarUrl,
+        expiresInSeconds: 60 * 60,
+      })
+    : null;
+
   return {
     userId: appUserId,
     userName,
     userEmail: user.email,
     userRole: roleLabel(portalType),
+    userAvatarUrl,
     orgName: option.organizationName,
     orgId: option.organizationId,
     projects: shellProjects,

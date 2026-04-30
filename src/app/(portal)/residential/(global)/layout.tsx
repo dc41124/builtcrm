@@ -21,6 +21,7 @@ export default async function ResidentialGlobalLayout({
       orgName={shell.orgName}
       userName={shell.userName}
       userRole={shell.userRole}
+      userAvatarUrl={shell.userAvatarUrl}
       navSections={navSections}
       projects={shell.projects}
     >

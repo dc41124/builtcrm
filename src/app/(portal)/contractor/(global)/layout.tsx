@@ -17,6 +17,7 @@ export default async function ContractorGlobalLayout({ children }: { children: R
       orgName={shell.orgName}
       userName={shell.userName}
       userRole={shell.userRole}
+      userAvatarUrl={shell.userAvatarUrl}
       navSections={navSections}
       projects={shell.projects}
     >

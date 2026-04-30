@@ -24,6 +24,7 @@ export default async function SubcontractorGlobalLayout({ children }: { children
       orgName={shell.orgName}
       userName={shell.userName}
       userRole={shell.userRole}
+      userAvatarUrl={shell.userAvatarUrl}
       navSections={navSections}
       projects={shell.projects}
     >
