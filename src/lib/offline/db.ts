@@ -28,7 +28,7 @@ export const DB_VERSION = 1;
 
 // ----- Outbox row shape -----------------------------------------------------
 
-export type OutboxKind = "daily_log_create";
+export type OutboxKind = "daily_log_create" | "safety_form_create";
 
 export type OutboxStatus =
   | "pending" // waiting to drain
@@ -62,10 +62,25 @@ export interface DailyLogCreatePayload {
   photoClientIds: string[];
 }
 
-export type OutboxRow = OutboxRowBase & {
-  kind: "daily_log_create";
-  payload: DailyLogCreatePayload;
-};
+// Step 52 — safety form create payload. Mirrors the /api/safety-forms POST
+// body so the producer can replay verbatim. clientSubmittedAt feeds the
+// hybrid clock; clientUuid is the row's own clientId (idempotency key).
+export interface SafetyFormCreatePayload {
+  projectId: string;
+  templateId: string;
+  clientSubmittedAt: string;
+  body: Record<string, unknown>;
+}
+
+export type OutboxRow =
+  | (OutboxRowBase & {
+      kind: "daily_log_create";
+      payload: DailyLogCreatePayload;
+    })
+  | (OutboxRowBase & {
+      kind: "safety_form_create";
+      payload: SafetyFormCreatePayload;
+    });
 
 // ----- Photo row shape ------------------------------------------------------
 

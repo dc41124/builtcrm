@@ -80,19 +80,21 @@ export async function enqueueWrite(input: {
 }): Promise<string> {
   const db = await getDb();
   const t = (input.now ?? Date.now)();
-  const row: OutboxRow = {
+  // The discriminated-union OutboxRow requires (kind, payload) to match;
+  // here we assemble a generic row from the producer's input. Cast through
+  // unknown is required because `payload: unknown` doesn't narrow into the
+  // discriminated payload type. Producers register their drain handlers
+  // with explicit types, so the safety check happens at the drain call.
+  const row = {
     clientId: input.clientId,
-    // The cast is safe: the registry only contains kinds that satisfy
-    // OutboxRow["kind"]. Adding a new kind without expanding the union
-    // would be caught at the producer's drain signature.
-    kind: input.kind as OutboxRow["kind"],
-    status: "pending",
+    kind: input.kind,
+    status: "pending" as const,
     enqueuedAt: t,
     lastAttemptAt: t,
     attempts: 0,
     lastError: null,
-    payload: input.payload as OutboxRow["payload"],
-  };
+    payload: input.payload,
+  } as unknown as OutboxRow;
   await db.put("outbox", row);
   return row.clientId;
 }

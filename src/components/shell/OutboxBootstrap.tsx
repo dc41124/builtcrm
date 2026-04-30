@@ -21,13 +21,19 @@ export function OutboxBootstrap() {
     let drainOnReconnect: (() => void) | null = null;
 
     (async () => {
-      const [{ drainQueue }, { registerDailyLogProducer }] = await Promise.all([
+      const [
+        { drainQueue },
+        { registerDailyLogProducer },
+        { registerSafetyFormProducer },
+      ] = await Promise.all([
         import("@/lib/offline/queue"),
         import("@/lib/offline/dailyLogs"),
+        import("@/lib/offline/safetyForms"),
       ]);
       if (cancelled) return;
 
       registerDailyLogProducer();
+      registerSafetyFormProducer();
 
       // Initial drain — covers the case where rows were enqueued in a
       // previous session and the user is now online.
