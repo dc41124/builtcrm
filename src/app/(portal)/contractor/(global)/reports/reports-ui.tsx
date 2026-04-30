@@ -111,7 +111,7 @@ const REPORTS: ReportDef[] = [
   { id: "schedule", category: "operational", label: "Schedule Performance", Icon: IconCalendarClock, desc: "SPI and planned-vs-actual timeline", built: true, origin: "Step 24.5" },
   { id: "daily-logs", category: "operational", label: "Daily Logs Rollup", Icon: IconFileBarChart, desc: "Cross-project daily log activity", built: false, origin: "Phase 4B" },
   { id: "weekly-reports", category: "operational", label: "Weekly Reports", Icon: IconFileText, desc: "Aggregated weekly progress reports", built: true, origin: "Step 39" },
-  { id: "safety", category: "operational", label: "Safety Forms Summary", Icon: IconShieldCheck, desc: "Toolbox talks, JHAs, incidents", built: false, origin: "Step 52" },
+  { id: "safety", category: "operational", label: "Safety Forms Summary", Icon: IconShieldCheck, desc: "Toolbox talks, JHAs, incidents", built: true, origin: "Step 52" },
   { id: "time", category: "operational", label: "Time Tracking Rollup", Icon: IconClock, desc: "Sub hours by project and crew", built: false, origin: "Step 53" },
   { id: "co-log", category: "operational", label: "Change Order Log", Icon: IconHammer, desc: "All COs with status and aging", built: false, origin: "Phase 4B" },
   { id: "rfi-log", category: "operational", label: "RFI Log", Icon: IconFileText, desc: "All RFIs with turnaround times", built: false, origin: "Phase 4B" },
@@ -743,6 +743,8 @@ function renderReport(id: string, view: ReportsView) {
       return <ScheduleReport view={view} />;
     case "compliance":
       return <ComplianceReport view={view} />;
+    case "safety":
+      return <SafetyReport view={view} />;
     case "saved":
       return <SavedReportsView view={view} />;
     default:
@@ -3444,6 +3446,79 @@ function formatLastRun(d: Date | null): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+// Step 52 — Safety Forms Summary panel.
+function SafetyReport({ view }: { view: ReportsView }) {
+  const safety = view.safety;
+  if (!safety) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        Safety report unavailable.
+      </div>
+    );
+  }
+  if (safety.totals.total === 0) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        No safety forms submitted yet. Forms appear here once your crews
+        start submitting toolbox talks, JHAs, or incident reports.
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <SectionHeading
+        title="Safety Forms Summary"
+        subtitle={`Generated ${new Date(safety.generatedAtIso).toLocaleString()}`}
+      />
+      <div className="rpt-kpis">
+        <KPI label="Total submitted" value={String(safety.totals.total)} sub="all-time" tone="neutral" Icon={IconShieldCheck} />
+        <KPI label="Last 30 days" value={String(safety.totals.last30dTotal)} tone="neutral" />
+        <KPI label="Toolbox talks" value={String(safety.totals.toolboxTalks)} sub="crew sign-ins" tone="neutral" />
+        <KPI label="JHAs" value={String(safety.totals.jhas)} sub="hazard analyses" tone="neutral" />
+        <KPI label="Incidents" value={String(safety.totals.incidents)} sub={`${safety.openIncidents} open`} tone={safety.totals.incidents > 0 ? "warn" : "ok"} />
+        <KPI label="Near misses" value={String(safety.totals.nearMisses)} tone="neutral" />
+        <KPI label="Days w/o lost time" value={safety.daysWithoutLostTime != null ? String(safety.daysWithoutLostTime) : "—"} tone="ok" />
+        <KPI label="Toolbox completion" value={`${safety.toolboxTalkCompletionPct}%`} sub="approx, demo" tone={safety.toolboxTalkCompletionPct >= 90 ? "ok" : "warn"} />
+      </div>
+      <Card>
+        <SectionHeading title="By project" subtitle="Submission counts per project" />
+        <div style={{ overflowX: "auto" }}>
+          <table className="rpt-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th style={{ textAlign: "right" }}>Total</th>
+                <th style={{ textAlign: "right" }}>Toolbox</th>
+                <th style={{ textAlign: "right" }}>JHA</th>
+                <th style={{ textAlign: "right" }}>Incidents</th>
+                <th style={{ textAlign: "right" }}>Near misses</th>
+                <th>Last submitted</th>
+              </tr>
+            </thead>
+            <tbody>
+              {safety.byProject.map((p) => (
+                <tr key={p.projectId}>
+                  <td>{p.projectName}</td>
+                  <td style={{ textAlign: "right", fontFamily: "var(--fm)" }}>{p.total}</td>
+                  <td style={{ textAlign: "right", fontFamily: "var(--fm)" }}>{p.toolboxTalks}</td>
+                  <td style={{ textAlign: "right", fontFamily: "var(--fm)" }}>{p.jhas}</td>
+                  <td style={{ textAlign: "right", fontFamily: "var(--fm)" }}>{p.incidents}</td>
+                  <td style={{ textAlign: "right", fontFamily: "var(--fm)" }}>{p.nearMisses}</td>
+                  <td style={{ fontFamily: "var(--fm)", fontSize: 11.5, color: "var(--t3)" }}>
+                    {p.lastSubmittedAt
+                      ? p.lastSubmittedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+                      : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
 }
 
 function SavedReportsView({ view }: { view: ReportsView }) {

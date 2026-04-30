@@ -109,6 +109,7 @@ import {
 } from "./compliance-report";
 import { getLaborReport, type LaborReportView } from "./labor-report";
 import { getSavedReports, type SavedReportsView } from "./saved-reports";
+import { getSafetyReport, type SafetyReportView } from "./safety-report";
 
 export type ReportsView = {
   context: ContractorOrgContext;
@@ -160,6 +161,11 @@ export type ReportsView = {
   // pairs with optional email delivery cadence. Backed by the saved_reports
   // table (migration 0023).
   savedReports: SavedReportsView | null;
+  // Step 52 wiring — Safety Forms Summary: portfolio-wide submission
+  // counts by form type, per-project rollup, open-incidents, days-
+  // without-lost-time. Some fields are demo-grade approximations until
+  // Step 53 (hours data) and Phase 6.5 (CA tracker) land.
+  safety: SafetyReportView | null;
 };
 
 // ---------------------------------------------------------------
@@ -223,6 +229,7 @@ export async function getContractorReportsData(
       compliance: null,
       labor: null,
       savedReports: null,
+      safety: null,
     };
   }
 
@@ -560,6 +567,14 @@ export async function getContractorReportsData(
     savedReportsList = null;
   }
 
+  // ---- Safety Forms Summary (Step 52 wiring) ----
+  let safety: SafetyReportView | null = null;
+  try {
+    safety = await getSafetyReport(input);
+  } catch {
+    safety = null;
+  }
+
   return {
     context,
     generatedAtIso: now.toISOString(),
@@ -587,6 +602,7 @@ export async function getContractorReportsData(
     compliance,
     labor,
     savedReports: savedReportsList,
+    safety,
   };
 }
 
