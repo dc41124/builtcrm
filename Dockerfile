@@ -20,8 +20,24 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Render injects env vars at build time too — `src/lib/env.ts` zod
-# validation runs during `next build` and would throw without them.
+# Render does NOT pass dashboard env vars to Docker builds by default
+# (only to runtime). `next build` imports every route, which loads
+# `src/lib/env.ts` (zod) and `src/db/client.ts` (throws if DATABASE_URL
+# unset). Inject build-only dummy values that satisfy validation; real
+# values are bound at runtime by Render.
+ENV DATABASE_URL="postgres://dummy:dummy@localhost:5432/dummy"
+ENV DATABASE_ADMIN_URL="postgres://dummy:dummy@localhost:5432/dummy"
+ENV BETTER_AUTH_SECRET="build_dummy_secret_at_least_32_chars_long_xxxxx"
+ENV BETTER_AUTH_URL="http://localhost:3000"
+ENV NEXT_PUBLIC_APP_URL="http://localhost:3000"
+ENV R2_ACCOUNT_ID="dummy"
+ENV R2_ACCESS_KEY_ID="dummy"
+ENV R2_SECRET_ACCESS_KEY="dummy"
+ENV R2_BUCKET_NAME="dummy"
+ENV UPSTASH_REDIS_REST_URL="http://localhost:8079"
+ENV UPSTASH_REDIS_REST_TOKEN="dummy"
+ENV TAX_ID_ENCRYPTION_KEY="dummy"
+ENV TRIGGER_SECRET_KEY="dummy"
 RUN npm run build
 
 # ---------- Stage 3: runtime ----------
