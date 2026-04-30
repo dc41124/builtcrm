@@ -23,7 +23,7 @@ export function getStripe(): Stripe {
   cachedClient = new Stripe(key, {
     // Pin an API version so Stripe SDK-major upgrades don't change behavior
     // mid-session. Bump this deliberately when migrating Stripe APIs.
-    apiVersion: "2026-03-25.dahlia",
+    apiVersion: "2026-04-22.dahlia",
     typescript: true,
   });
   return cachedClient;

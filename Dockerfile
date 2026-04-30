@@ -4,7 +4,11 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=optional
+# --legacy-peer-deps: better-auth@1.6.9 peer-requires drizzle-orm@^0.45.2
+# but the app pins 0.41.0; older npm resolution accepted this, newer
+# npm requires the flag. The lock file was regenerated with the same
+# flag, so this matches the local install.
+RUN npm ci --omit=optional --legacy-peer-deps
 
 # ---------- Stage 2: build ----------
 FROM node:22-alpine AS builder
