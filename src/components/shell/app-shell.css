@@ -76,7 +76,9 @@ button.b-srch-w:focus-visible{border-color:var(--ac);box-shadow:var(--shri);outl
 .b-mod-h{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;user-select:none;background:none;border:none;width:100%;font-family:var(--fd);font-size:12.5px;font-weight:720;color:var(--t1);letter-spacing:-.01em;transition:background var(--df) var(--e)}
 .b-mod-h:hover{background:var(--sb-h)}
 .b-mod-ico{width:16px;height:16px;display:flex;align-items:center;justify-content:center;color:var(--t3);flex-shrink:0}
-.b-mod-chev{width:12px;height:12px;margin-left:auto;flex-shrink:0;color:var(--t3);transition:transform var(--dn) var(--e)}
+.b-mod-ico svg{width:100%;height:100%;display:block}
+.b-mod-chev{width:12px;height:12px;margin-left:auto;flex-shrink:0;color:var(--t3);transition:transform var(--dn) var(--e);display:inline-flex;align-items:center;justify-content:center}
+.b-mod-chev svg{width:100%;height:100%;display:block}
 .b-mod-chev.open{transform:rotate(90deg)}
 
 .b-tree{padding:0 6px 6px}
