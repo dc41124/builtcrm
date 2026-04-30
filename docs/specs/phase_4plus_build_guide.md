@@ -3410,12 +3410,49 @@ one-revert-each.
 
 ---
 
-## Step 51 — Offline-First Daily Logs + Photo Capture
+## Step 51 — Offline-First Daily Logs + Photo Capture ✅ DONE (2026-04-30)
 
 **Mode:** Require-design-input
 **Item:** 6 #51
 **Effort:** M
 **Priority:** P1
+
+### Final state (what shipped)
+
+Six commits on `main` (after `0bc87e8` recorded the two production-grade follow-ups):
+
+| Commit | What |
+|---|---|
+| `73ac175` | Schema: `daily_logs.client_uuid` (nullable + unique). API POST /api/daily-logs accepts `clientUuid` + `clientSubmittedAt`. Idempotent retry returns 200 + `{idempotent:true}`; (project,date) collision still 409. Hybrid clock authority: trust `clientSubmittedAt` when within 48h of receipt, else use server time. |
+| `6ab6b15` | Deps: `idb@8.0.3` runtime, `fake-indexeddb@6.0.0` dev. |
+| `4b28b00` | `src/lib/offline/{db,queue,photos,dailyLogs}.ts`. Generic outbox + producer registry; only `daily_log_create` registered. Backoff schedule [0/5s/30s/5min/30min/abandon]. Photo capture mints 160×160 thumbnails client-side; soft caps 50 photos / 200 MB. |
+| `b5e7d25` | 19 new tests across `tests/lib/offline/{queue,dailyLogs}.test.ts` — 157/157 total. Surfaced + fixed a backoff bug (added `lastAttemptAt` to row shape; was using `enqueuedAt` and compounding waits from enqueue rather than from prior attempt). |
+| `a81bd2d` | Wired contractor daily-logs workspace handler. Online → existing fetch with `clientUuid` + `clientSubmittedAt`. Offline → enqueueWrite to outbox + onSaved. Mounted `OutboxBootstrap` in root layout (lazy-imports producer + queue, registers, drains on mount + `online` event). |
+| `5346e57` | `/contractor/settings/offline-queue` page (server auth via `getOrgContext`, client list reads IndexedDB). Per-row Status pill / Sync now / Retry / Discard. `OfflineIndicator` upgraded to show pending count whenever rows are queued, even after reconnect — links to the queue page. |
+
+### Decisions taken
+
+- **Decision 1 — Conflict policy:** Reject + quarantine (status="conflict"). Drained rows that hit 409 stay in the outbox until the user explicitly retries / discards via the queue page. No silent LWW.
+- **Decision 2 — Scope:** Generic outbox by design; only `daily_log_create` registered. Other producers (RFI, punch, inspections, crew, submittal review, drawing markup, transmittal ack) deferred to a dedicated "Phase 6.5: Offline Coverage Expansion." Tracked in `docs/specs/production_grade_upgrades/offline_outbox_generic_producers.md`.
+- **Decision 3 — Edit-window clock:** Hybrid. Server uses client `clientSubmittedAt` if it's within 48h of server time, else falls back to server-receipt. Caps clock-skew abuse without penalising the legit overnight-no-signal field user.
+- **Schema idempotency:** Added `daily_logs.client_uuid` (nullable + unique). Pre-Step-51 rows coexist (multiple NULLs allowed in Postgres).
+
+### Production-grade follow-ups (deferred)
+
+Not bugs — pragmatic narrowings. Both spec'd in `docs/specs/production_grade_upgrades/`:
+
+1. **`offline_outbox_generic_producers.md`** — register the other 7 producers + per-kind conflict resolvers + cross-kind drain ordering. ≈ 6–8 sessions.
+2. **`offline_background_sync_api.md`** — service-worker Background Sync (Chrome/Edge), Periodic Sync (Chrome desktop), iOS-tail UX (oldest-pending age, Web Push reminder). Native iOS shell as long-tail escape hatch. ≈ 2 sessions for T2+T3+iOS-tail; native shell is multi-phase.
+
+### Smoke / verification (deferred to deploy)
+
+User to validate on a real device once next deploy lands on Render:
+
+- Submit a daily log offline (DevTools → Network → "Offline") → re-online → log appears in DB, photos uploaded if any. ✓ unit-tested.
+- Two devices same `(project, date)` offline → both reconnect → first wins, second goes to conflict state with Retry/Discard affordances on `/contractor/settings/offline-queue`. ✓ unit-tested via 409 path.
+- Quota near limit → graceful warning. ✓ unit-tested via mocked QuotaExceededError.
+- App force-closed mid-sync (Chrome) → next page open drains via `OutboxBootstrap` initial-mount drain. ✓ wired but no Background Sync (deferred).
+- Permanent-fail row (e.g., logDate now outside edit window because of slow sync) → user sees actionable error with Retry/Discard, not silent drop. ✓ unit-tested.
 
 ### What this does
 
