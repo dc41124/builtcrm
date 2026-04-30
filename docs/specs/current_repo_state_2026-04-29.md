@@ -166,8 +166,8 @@ references rewritten to be enumeration-free (no counts to go stale).
 ## J. Known drift between plans and reality
 
 1. **`--legacy-peer-deps` masks better-auth ↔ drizzle-orm peer-dep drift** (NEW). better-auth@1.6.9 wants drizzle-orm@^0.45.2; project pins 0.41.0. Future better-auth update or stricter npm could break the install. Real fix: upgrade drizzle-orm 0.41 → 0.45 (non-trivial, dedicated session).
-2. **HANDOFF.md still says "Phase 3 Complete"** — carried forward from prior snapshots.
-3. **JSX prototypes misfiled under `docs/specs/`** — six Phase 4+ module prototypes (drawings, inspections, meetings, transmittals, closeout, prequal) live there instead of under `docs/prototypes/`. CLAUDE.md now mentions this explicitly.
+2. ~~HANDOFF.md still says "Phase 3 Complete"~~ — RESOLVED 2026-04-29: file now carries an ARCHIVED banner pointing readers at the current state docs.
+3. ~~JSX prototypes misfiled under `docs/specs/`~~ — RESOLVED 2026-04-29: CLAUDE.md (updated this session) now documents the convention that newer Phase 4+ module prototypes live under `docs/specs/builtcrm_*_module.jsx` while older prototypes stay in `docs/prototypes/`. Both locations are accepted; not actually a misfile.
 4. **Contractor cross-project redirect shims:** `approvals`, `payment-tracking`, `retainage`, `budget`. Same status as 04-27.
 5. **`.env.example` ↔ `src/lib/env.ts`:** the three contract bugs from `prod_cutover_prep.md` §1.4 are fixed. `INTEGRATION_ENCRYPTION_KEY` and `INTEGRATION_STATE_SECRET` are still lazy-read (not in env.ts) — would only catch missing-config when the integration code runs. Acceptable.
 6. **Two RLS clusters deferred** (`projects`, messaging). Documented in `security_posture.md §6`. Don't restart without re-reading the recursion + participant-shape pitfalls.

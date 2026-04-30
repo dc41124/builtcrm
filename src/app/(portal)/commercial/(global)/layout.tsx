@@ -22,6 +22,7 @@ export default async function CommercialGlobalLayout({
       userName={shell.userName}
       userRole={shell.userRole}
       userAvatarUrl={shell.userAvatarUrl}
+      orgLogoUrl={shell.orgLogoUrl}
       navSections={navSections}
       projects={shell.projects}
     >

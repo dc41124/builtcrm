@@ -1,4 +1,17 @@
-# BuiltCRM — Handoff
+# BuiltCRM — Phase 3 Handoff (ARCHIVED)
+
+> **⚠ This document is a Phase 3 close-out snapshot, preserved for
+> historical context only. It does NOT reflect current state.**
+>
+> For the live project state, read:
+> - **Current state:** [`docs/specs/current_repo_state_2026-04-29.md`](docs/specs/current_repo_state_2026-04-29.md) (or the most recent dated file)
+> - **Active scope:** [`docs/specs/builtcrm_phase4_portfolio_scope.md`](docs/specs/builtcrm_phase4_portfolio_scope.md)
+> - **Build progress:** [`docs/specs/phase_4plus_build_guide.md`](docs/specs/phase_4plus_build_guide.md)
+> - **Conventions:** [`CLAUDE.md`](CLAUDE.md)
+>
+> Per CLAUDE.md, handoff documents are written on demand at session
+> boundaries — not maintained as long-lived state. This file remains
+> only as a Phase 3 record. Do not update it.
 
 ## Status: Phase 3 Complete
 

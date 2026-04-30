@@ -57,6 +57,8 @@ export type AppShellProps = {
   userRole: string;
   /** Presigned R2 URL for the user's avatar; null when no avatar uploaded. */
   userAvatarUrl?: string | null;
+  /** Presigned R2 URL for the active organization's logo; null when none uploaded. */
+  orgLogoUrl?: string | null;
   navSections: NavSection[];
   projects: ShellProject[];
   /** Optional override. When omitted, breadcrumbs derive from the pathname. */
@@ -425,6 +427,7 @@ export default function AppShell({
   userName,
   userRole,
   userAvatarUrl,
+  orgLogoUrl,
   navSections,
   projects,
   breadcrumbs,
@@ -570,6 +573,20 @@ export default function AppShell({
               <div className="b-logo">{LogoMark}</div>
               <span className="b-appn">BuiltCRM</span>
               <span className="b-slash">/</span>
+              {orgLogoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={orgLogoUrl}
+                  alt=""
+                  style={{
+                    height: 18,
+                    width: 18,
+                    borderRadius: 3,
+                    objectFit: "cover",
+                    flexShrink: 0,
+                  }}
+                />
+              )}
               <span className="b-orgn">{orgName}</span>
               <button className="b-sw" aria-label="Switch workspace">
                 {ChevronDown}

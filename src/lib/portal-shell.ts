@@ -9,7 +9,7 @@ import {
   type ProjectShortcut,
 } from "@/domain/loaders/portals";
 import { db } from "@/db/client";
-import { projects, complianceRecords, rfis, approvals, users } from "@/db/schema";
+import { projects, complianceRecords, rfis, approvals, users, organizations } from "@/db/schema";
 import { withTenant } from "@/db/with-tenant";
 import { presignDownloadUrl } from "@/lib/storage";
 
@@ -24,6 +24,7 @@ export type PortalShellData = {
   userAvatarUrl: string | null;
   orgName: string;
   orgId: string;
+  orgLogoUrl: string | null;
   projects: ShellProject[];
   projectShortcuts: ProjectShortcut[];
   option: PortalOption;
@@ -90,21 +91,40 @@ export async function loadPortalShell(
     active: activeProjectId ? p.projectId === activeProjectId : false,
   }));
 
-  const userName = user.name ?? user.email ?? "User";
-
   // `users` is intentionally not RLS'd (see security_posture.md §6 —
   // shared identity row, no org_id), so a bare db read is fine here.
   // `avatarUrl` stores the R2 storage key, not a URL; we presign on
   // each shell render. 1-hour expiration matches the settings finalize
-  // route.
+  // route. `displayName` is preferred over Better Auth's `authUser.name`
+  // (which is fixed at signup) — keeps the shell in sync with edits to
+  // the settings page.
   const [userRow] = await db
-    .select({ avatarUrl: users.avatarUrl })
+    .select({
+      displayName: users.displayName,
+      avatarUrl: users.avatarUrl,
+    })
     .from(users)
     .where(eq(users.id, appUserId))
     .limit(1);
+  const userName = userRow?.displayName ?? user.name ?? user.email ?? "User";
   const userAvatarUrl = userRow?.avatarUrl
     ? await presignDownloadUrl({
         key: userRow.avatarUrl,
+        expiresInSeconds: 60 * 60,
+      })
+    : null;
+
+  // Org logo: same pattern as the avatar — `organizations.logoStorageKey`
+  // holds the R2 key, presign on each shell render. `organizations` is
+  // intentionally not RLS'd (root tenant entity), so a bare db read is fine.
+  const [orgRow] = await db
+    .select({ logoStorageKey: organizations.logoStorageKey })
+    .from(organizations)
+    .where(eq(organizations.id, option.organizationId))
+    .limit(1);
+  const orgLogoUrl = orgRow?.logoStorageKey
+    ? await presignDownloadUrl({
+        key: orgRow.logoStorageKey,
         expiresInSeconds: 60 * 60,
       })
     : null;
@@ -117,6 +137,7 @@ export async function loadPortalShell(
     userAvatarUrl,
     orgName: option.organizationName,
     orgId: option.organizationId,
+    orgLogoUrl,
     projects: shellProjects,
     projectShortcuts: shortcuts,
     option,
