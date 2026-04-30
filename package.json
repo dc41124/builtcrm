@@ -28,7 +28,7 @@
     "@upstash/redis": "^1.34.3",
     "archiver": "^7.0.1",
     "better-auth": "^1.0.0",
-    "drizzle-orm": "^0.41.0",
+    "drizzle-orm": "^0.45.2",
     "frappe-gantt": "^1.2.2",
     "nanoid": "^5.0.7",
     "next": "^14.2.15",

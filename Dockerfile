@@ -4,16 +4,11 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-# --legacy-peer-deps: better-auth@1.6.9 peer-requires drizzle-orm@^0.45.2
-# but the app pins 0.41.0; older npm resolution accepted this, newer
-# npm requires the flag. The lock file was regenerated with the same
-# flag, so this matches the local install.
-#
 # We do NOT pass --omit=optional. lightningcss ships its platform-
 # specific native binaries (lightningcss.linux-x64-musl.node, etc.) as
 # optional deps; Tailwind v4's postcss plugin requires the matching
 # binary at build time, so omitting optional breaks `next build`.
-RUN npm ci --legacy-peer-deps
+RUN npm ci
 
 # ---------- Stage 2: build ----------
 FROM node:22-alpine AS builder
