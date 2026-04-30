@@ -74,7 +74,12 @@ import {
   prequalSubmissions,
   prequalDocuments,
   prequalProjectExemptions,
+  safetyFormTemplates,
 } from "./schema";
+import {
+  STANDARD_SAFETY_TEMPLATES,
+  DEMO_SAFETY_TEMPLATES,
+} from "../lib/safety-forms/standard-templates";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -556,6 +561,9 @@ async function seed() {
 
   // ---- Inspection templates (org-scoped library, Step 45) --------------
   await seedInspectionTemplates(summitOrg.id, summitPm.id);
+
+  // ---- Safety-form templates (org-scoped library, Step 52) -------------
+  await seedSafetyFormTemplates(summitOrg.id, summitPm.id);
 
   // ---- Per-project content ---------------------------------------------
   await seedProjectContent({
@@ -3293,6 +3301,37 @@ async function seedInspectionTemplates(
       description: t.description,
       lineItemsJson: t.lineItems,
       isCustom: false,
+      createdByUserId,
+    });
+  }
+}
+
+// Step 52 — safety form templates. Idempotent: skip if a template with the
+// same (orgId, name) already exists. Bootstraps the 3 standard templates +
+// 3 demo-only ones (the JHA pair + Fall-Protection toolbox talk) into the
+// seed contractor org.
+async function seedSafetyFormTemplates(
+  orgId: string,
+  createdByUserId: string,
+): Promise<void> {
+  for (const t of [...STANDARD_SAFETY_TEMPLATES, ...DEMO_SAFETY_TEMPLATES]) {
+    const existing = await db
+      .select({ id: safetyFormTemplates.id })
+      .from(safetyFormTemplates)
+      .where(
+        and(
+          eq(safetyFormTemplates.organizationId, orgId),
+          eq(safetyFormTemplates.name, t.name),
+        ),
+      )
+      .limit(1);
+    if (existing[0]) continue;
+    await db.insert(safetyFormTemplates).values({
+      organizationId: orgId,
+      formType: t.formType,
+      name: t.name,
+      description: t.description,
+      fieldsJson: t.fields,
       createdByUserId,
     });
   }
