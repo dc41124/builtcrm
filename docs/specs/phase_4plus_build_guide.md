@@ -3499,12 +3499,60 @@ git commit -m "Step 51 (6 #51): Offline-first daily logs + photo capture"
 
 ---
 
-## Step 52 — Safety Forms
+## Step 52 — Safety Forms ✅ DONE (2026-04-30)
 
 **Mode:** Require-design-input
 **Item:** 6 #52
 **Effort:** M
 **Priority:** P1
+
+### Final state (what shipped)
+
+Eight commits on `main` (after `fbe63ff` recorded the two production-grade follow-ups):
+
+| Commit | What |
+|---|---|
+| `b72490c` | Schema: 4 new tables (`safety_form_templates`, `safety_form_template_assignments`, `safety_form_counters`, `safety_forms`, `safety_form_incidents` 1:1 subtype) + 3 enums (`safety_form_type`, `safety_form_status`, `safety_severity`). RLS Pattern A on org-owned templates + counters; project-scoped multi-org pattern (same as daily_logs / inspections) on submissions + incidents. Per-org SF-#### atomic allocation via counter row. FK names declared explicitly where auto-naming would exceed 63 chars. |
+| `3db2b81` | Seed 3 standard templates (Daily Toolbox Talk, Incident Report, Near Miss Report) + 3 demo-only templates (Roofing JHA, Energized Electrical JHA, Fall-Protection Toolbox Talk). Idempotent — skip if `(orgId, name)` exists. |
+| `6b7255f` | `safety-forms.css` ported verbatim from prototype + `safety-forms-shared.tsx` (badges, pills, signature pad, FieldRenderer for all 11 field types, isFieldFilled helper). |
+| `a75bce2` | Five API routes: POST/GET `/api/safety-forms`, GET/PATCH `/api/safety-forms/[id]`, GET `/api/safety-form-templates`, GET/PUT `/api/safety-form-templates/[id]/assignments`. Idempotent on `clientUuid`. Hybrid clock per Step 51 Decision 3. Notification fan-out via emit (catalog + routing + recipients added for `safety_incident_reported` and `safety_form_submitted`). |
+| `d953c75` | Contractor pages: workspace (KPI strip + filter + table + rail), submission detail (incident vs generic branches), templates index, template detail (read-only field list with type icons). Loaders for all four. |
+| `b553c17` | Subcontractor pages: list (assigned templates + recent submissions), wizard (one-field-per-step with all-steps rail). Step 51 producer `safety_form_create` registered alongside `daily_log_create`. OutboxRow becomes a discriminated union; queue.ts adapted. |
+| `39d1620` | Reports tile wiring: `safety` tile flipped to `built: true`, new portfolio-wide loader `getSafetyReport`, new SafetyReport panel rendering 8 KPIs + per-project rollup table. |
+| `5730bd4` | 11 new tests (168/168 total) covering POST auth + idempotency + counter + incident-required, PATCH flag/unflag authz, PUT assignments authz + replace-all semantics. |
+
+### Decisions taken
+
+- **Schema**: 5 tables (one more than the build-guide stub — added `safety_form_template_assignments` to satisfy Decision-6 per-template sub visibility) + 3 enums + counter. `safety_form_status` deliberately omits `'queued'` (client-only state in the Step 51 IndexedDB outbox).
+- **Signature storage**: inline base64 data URLs in `data_json`. Tiny, immutable, self-contained for offline replay.
+- **Form numbering**: per-org SF-#### via `safety_form_counters` (matches prototype's flat numbering and `closeout_counters` precedent).
+- **Template ownership**: org-level + 3 standards seeded into every contractor org via the bootstrap seed.
+- **Flagging**: contractor admin/PM only.
+- **Sub template visibility**: per-template assignment via `safety_form_template_assignments`. Sub sees a template if `(template, sub_org, NULL)` for org-wide OR `(template, sub_org, project)` for project-scoped.
+- **Corrective actions**: denormalized JSON inside `safety_form_incidents` for v1.
+- **Reports tile**: wired in this step.
+
+### Production-grade follow-ups (deferred)
+
+Both spec'd in `docs/specs/production_grade_upgrades/`:
+
+1. **`safety_corrective_action_tracker.md`** — promote CAs from JSON to a first-class table with status lifecycle, due-date reminders, closeout-blocking gate, and cross-project queue. ~3 sessions in Phase 6.5.
+2. **`safety_template_field_editor.md`** — replace the read-only field list with an in-app drag-reorder editor + template versioning so historical submissions render against the field set in effect at submission time. ~3 sessions in Phase 6.5.
+
+Plus inline TODOs surfaced during build:
+- PDF export route is a no-op stub button. Real implementation deferred — same `src/lib/pdf/` infra as transmittals would work.
+- Photo capture in the wizard emits client-minted `IMG_####` tokens instead of real R2 uploads. The producer can grow a 4-step R2 chain mirroring `dailyLogs.ts` when real camera capture lands.
+- OSHA recordable rate calc on the reports tile is a demo placeholder until Step 53 (subcontractor time tracking) provides the hours-worked denominator.
+
+### Smoke / verification (deferred to deploy)
+
+User to validate on next deploy:
+- Contractor sees seeded templates in `/contractor/settings/safety-templates` ✓ unit-tested via seed verification.
+- Contractor opens `/contractor/project/[projectId]/safety-forms`, sees the workspace with KPI strip + filter pills + empty table.
+- Contractor assigns a toolbox-talk template to a sub org via the (PUT) assignment endpoint (UI pending — sub-multi-select dialog is Phase 6.5).
+- Sub sees the assigned template at `/subcontractor/project/[projectId]/safety-forms`, completes the wizard step-by-step, submits.
+- Submission appears on the contractor's workspace with appropriate badges; incident report fans out a notification to the contractor's project admins.
+- Reports → Safety Forms Summary renders portfolio-wide KPIs and per-project rollup.
 
 ### What this does
 
