@@ -8,9 +8,14 @@ import {
 import type { Auth } from "./config";
 
 export const authClient = createAuthClient({
+  // Prefer the actual page origin in the browser. NEXT_PUBLIC_* vars are
+  // baked into the client bundle at build time, so a build-time dummy
+  // (or a stale value from a different deploy) would otherwise pin every
+  // auth fetch to the wrong host. SSR falls back to the env var.
   baseURL:
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"),
+    typeof window !== "undefined"
+      ? window.location.origin
+      : (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   plugins: [inferAdditionalFields<Auth>(), twoFactorClient()],
 });
 
