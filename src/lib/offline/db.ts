@@ -41,6 +41,7 @@ export interface OutboxRowBase {
   kind: OutboxKind;
   status: OutboxStatus;
   enqueuedAt: number; // Date.now() at enqueue
+  lastAttemptAt: number; // Date.now() of last drain attempt; equals enqueuedAt before first attempt
   attempts: number;
   lastError: string | null;
   // Free-form payload — drainer reads kind, branches.
@@ -134,7 +135,17 @@ export function getDb(): Promise<IDBPDatabase<OfflineSchema>> {
   return dbPromise;
 }
 
-/** Test-only — drop the singleton handle so each test reopens fresh. */
-export function __resetDbHandleForTests(): void {
+/** Test-only — drop the singleton handle so each test reopens fresh.
+ * Closes the underlying connection if it was opened so deleteDatabase
+ * isn't blocked. */
+export async function __resetDbHandleForTests(): Promise<void> {
+  if (dbPromise) {
+    try {
+      const db = await dbPromise;
+      db.close();
+    } catch {
+      // ignore
+    }
+  }
   dbPromise = null;
 }

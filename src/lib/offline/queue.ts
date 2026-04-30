@@ -76,8 +76,10 @@ export async function enqueueWrite(input: {
   clientId: string;
   kind: OutboxKind;
   payload: unknown;
+  now?: () => number;
 }): Promise<string> {
   const db = await getDb();
+  const t = (input.now ?? Date.now)();
   const row: OutboxRow = {
     clientId: input.clientId,
     // The cast is safe: the registry only contains kinds that satisfy
@@ -85,7 +87,8 @@ export async function enqueueWrite(input: {
     // would be caught at the producer's drain signature.
     kind: input.kind as OutboxRow["kind"],
     status: "pending",
-    enqueuedAt: Date.now(),
+    enqueuedAt: t,
+    lastAttemptAt: t,
     attempts: 0,
     lastError: null,
     payload: input.payload as OutboxRow["payload"],
@@ -121,6 +124,7 @@ export async function retryRow(clientId: string): Promise<void> {
   row.status = "pending";
   row.attempts = 0;
   row.lastError = null;
+  row.lastAttemptAt = Date.now();
   await db.put("outbox", row);
 }
 
@@ -152,7 +156,7 @@ export async function drainQueue(now: () => number = Date.now): Promise<{
     for (const row of ordered) {
       if (row.status === "conflict" || row.status === "failed_permanent") continue;
       if (row.status === "syncing") continue;
-      if (!shouldRetry(row.attempts, row.enqueuedAt, now())) continue;
+      if (!shouldRetry(row.attempts, row.lastAttemptAt, now())) continue;
 
       const producer = producers.get(row.kind);
       if (!producer) {
@@ -162,6 +166,7 @@ export async function drainQueue(now: () => number = Date.now): Promise<{
 
       // Mark in-flight, persist, then attempt.
       row.status = "syncing";
+      row.lastAttemptAt = now();
       await db.put("outbox", row);
 
       let outcome: DrainOutcome;
