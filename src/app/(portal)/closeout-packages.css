@@ -691,7 +691,7 @@
 }
 .cp-modal {
   background: var(--surface-1); border-radius: 13px; box-shadow: var(--shadow-lg);
-  width: 600px; max-width: 100%; max-height: 90vh; display: flex; flex-direction: column;
+  width: 600px; max-width: min(100%, calc(100vw - 32px)); max-height: 90vh; display: flex; flex-direction: column;
 }
 .cp-modal-hdr { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 24px 14px; border-bottom: 1px solid var(--border); gap: 18px; }
 .cp-modal-title { font-size: 20px; margin: 0 0 3px; letter-spacing: -0.015em; }
@@ -740,4 +740,20 @@
   display: flex; justify-content: flex-end; gap: 8px;
   padding: 14px 24px; border-top: 1px solid var(--border); background: var(--surface-2);
   border-bottom-left-radius: 13px; border-bottom-right-radius: 13px;
+}
+
+/* ─── Responsive (Step 16 baseline) ─────────────────────────────── */
+@media (max-width: 767px) {
+  .cp-page-title { font-size: 22px; }
+  .cp-item-row,
+  .cp-review-item-row {
+    grid-template-columns: 36px 1fr;
+    row-gap: 6px;
+  }
+  .cp-item-row > :nth-child(n + 4),
+  .cp-review-item-row > :nth-child(n + 3) {
+    grid-column: 1 / -1;
+  }
+  .cp-modal-backdrop { padding: 16px; }
+  .cp-modal-ftr { flex-wrap: wrap; }
 }
