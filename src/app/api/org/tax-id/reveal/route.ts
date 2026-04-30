@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { requireServerSession } from "@/auth/session";
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { auditEvents, organizations } from "@/db/schema";
 import { resolveOrgEditContext } from "@/domain/loaders/resolve-org-context";
 import { AuthorizationError } from "@/domain/permissions";
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
     // value (which would expose ciphertext as if it were plaintext).
     const plaintext = decryptTaxId(row.taxId);
 
-    await db.insert(auditEvents).values({
+    await dbAdmin.insert(auditEvents).values({
       actorUserId: ctx.userId,
       organizationId: ctx.orgId,
       objectType: "organization",

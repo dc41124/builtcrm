@@ -13,7 +13,7 @@ import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { withTenant } from "@/db/with-tenant";
 import { assertCan, AuthorizationError } from "@/domain/permissions";
 import { resolveSheetAccess } from "@/lib/drawings/access";
 
@@ -53,7 +53,13 @@ export async function POST(
     let lastErr: unknown = null;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        const rows = await db.execute(sql`
+        // drawing_comments is RLS-enabled — wrap the raw-SQL insert in
+        // withTenant so the policy's `org_id = GUC` check is satisfied.
+        // Without this the policy fires `''::uuid` on a missing GUC and
+        // throws (same class of bug as the messages→documents leftJoin
+        // fix in security_posture.md §6).
+        const rows = await withTenant(access.ctx.organization.id, async (tx) =>
+          tx.execute(sql`
           INSERT INTO drawing_comments
             (sheet_id, user_id, pin_number, x, y, text)
           VALUES (
@@ -71,7 +77,8 @@ export async function POST(
             ${parsed.data.text}
           )
           RETURNING id, pin_number
-        `);
+        `),
+        );
         const inserted = (rows as unknown as { rows?: Array<{ id: string; pin_number: number }> }).rows
           ?? (rows as unknown as Array<{ id: string; pin_number: number }>);
         const row = Array.isArray(inserted) ? inserted[0] : inserted;

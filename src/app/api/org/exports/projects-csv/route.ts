@@ -4,6 +4,7 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   auditEvents,
   dataExports,
@@ -132,7 +133,7 @@ export async function POST() {
         .returning({ id: dataExports.id }),
     );
 
-    await db.insert(auditEvents).values({
+    await dbAdmin.insert(auditEvents).values({
       actorUserId: ctx.user.id,
       organizationId: ctx.organization.id,
       objectType: "data_export",

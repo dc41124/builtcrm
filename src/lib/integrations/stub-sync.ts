@@ -1,6 +1,5 @@
 import { and, desc, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { auditEvents, integrationConnections } from "@/db/schema";
 import type { IntegrationProviderKey } from "@/domain/loaders/integrations";
@@ -63,7 +62,7 @@ export async function runStubSync(
     },
   });
 
-  await db.insert(auditEvents).values({
+  await dbAdmin.insert(auditEvents).values({
     actorUserId: input.actorUserId,
     organizationId: input.orgId,
     objectType: "integration_connection",

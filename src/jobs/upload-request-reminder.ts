@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { schedules, logger } from "@trigger.dev/sdk/v3";
 import { and, eq, lt } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { activityFeedItems, uploadRequests } from "@/db/schema";
 import { writeSystemAuditEvent } from "@/domain/audit";
@@ -80,7 +79,7 @@ export const uploadRequestReminder = schedules.task({
     // Re-sync the set with currently-open overdue IDs so that entries for
     // requests which have since closed can be re-added if they ever reopen.
     // (Not strictly required for correctness, just keeps the set bounded.)
-    await db.transaction(async (tx) => {
+    await dbAdmin.transaction(async (tx) => {
       await tx.insert(activityFeedItems).values(
         toRemind.map((r) => {
           const daysOverdue = Math.max(

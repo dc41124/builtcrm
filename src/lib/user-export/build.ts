@@ -56,7 +56,10 @@ export async function buildUserExportManifest(
   userId: string,
   exportId: string,
 ): Promise<UserExportManifest> {
-  const [profile] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  // `users` is intentionally non-RLS (shared identity row); GDPR export
+  // crosses orgs by design. Same dbAdmin pattern as the cross-org reads
+  // below for roleAssignments / organizationUsers.
+  const [profile] = await dbAdmin.select().from(users).where(eq(users.id, userId)).limit(1);
 
   // userNotificationPreferences is user-scoped RLS'd. The GDPR export runs
   // outside any session context (called from a worker/API route on the

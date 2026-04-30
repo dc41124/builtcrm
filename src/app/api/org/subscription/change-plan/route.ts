@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import {
   auditEvents,
   organizationSubscriptions,
@@ -118,7 +119,7 @@ export async function POST(req: Request) {
         proration_behavior: "create_prorations",
       });
 
-      await db.insert(auditEvents).values({
+      await dbAdmin.insert(auditEvents).values({
         actorUserId: ctx.user.id,
         organizationId: ctx.organization.id,
         objectType: "subscription",

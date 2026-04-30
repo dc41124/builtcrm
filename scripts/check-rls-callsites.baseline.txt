@@ -9,22 +9,4 @@
 # a legitimate fix and commit the smaller diff.
 
 src/app/api/conversations/[id]/messages/route.ts:72:transaction
-src/app/api/drawings/sheets/[sheetId]/comments/route.ts:56:execute
 src/app/api/health/route.ts:16:execute
-src/app/api/org/exports/audit-log-csv/route.ts:94:insert
-src/app/api/org/exports/documents-zip/route.ts:99:insert
-src/app/api/org/exports/full-archive/route.ts:140:insert
-src/app/api/org/exports/projects-csv/route.ts:135:insert
-src/app/api/org/imports/projects/commit/route.ts:94:transaction
-src/app/api/org/logo/finalize/route.ts:129:transaction
-src/app/api/org/logo/finalize/route.ts:79:transaction
-src/app/api/org/profile/route.ts:172:transaction
-src/app/api/org/security/route.ts:107:transaction
-src/app/api/org/subscription/change-plan/route.ts:121:insert
-src/app/api/org/tax-id/reveal/route.ts:69:insert
-src/domain/prequal/enforcement.ts:54:transaction
-src/domain/user-deletion.ts:32:transaction
-src/jobs/upload-request-reminder.ts:83:transaction
-src/lib/integrations/oauth.ts:101:insert
-src/lib/integrations/stub-sync.ts:66:insert
-src/lib/user-export/build.ts:59:select

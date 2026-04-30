@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { auditEvents, organizations } from "@/db/schema";
 import { getOrgPlanContext } from "@/domain/loaders/billing";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
@@ -104,7 +105,7 @@ export async function PATCH(req: Request) {
       throw new AuthorizationError("Organization not found", "not_found");
     }
 
-    await db.transaction(async (tx) => {
+    await dbAdmin.transaction(async (tx) => {
       await tx
         .update(organizations)
         .set(updates)

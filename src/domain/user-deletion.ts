@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { authUser, users } from "@/db/schema";
 
 // Anonymization payload applied when a user's grace window expires.
@@ -29,7 +29,7 @@ export type AnonymizationOutcome = {
 export async function anonymizeUserRow(
   userId: string,
 ): Promise<AnonymizationOutcome> {
-  return await db.transaction(async (tx) => {
+  return await dbAdmin.transaction(async (tx) => {
     const [before] = await tx
       .select({ email: users.email })
       .from(users)

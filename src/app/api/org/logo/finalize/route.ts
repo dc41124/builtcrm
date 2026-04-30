@@ -4,7 +4,7 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { auditEvents, organizations } from "@/db/schema";
 import { getObjectSize, objectExists, presignDownloadUrl } from "@/lib/storage";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       );
     }
 
-    await db.transaction(async (tx) => {
+    await dbAdmin.transaction(async (tx) => {
       await tx
         .update(organizations)
         .set({ logoStorageKey: parsed.data.storageKey })
@@ -126,7 +126,7 @@ export async function DELETE() {
 
   try {
     const { orgId, userId } = await resolveAdminOrg(sessionShim);
-    await db.transaction(async (tx) => {
+    await dbAdmin.transaction(async (tx) => {
       await tx
         .update(organizations)
         .set({ logoStorageKey: null })

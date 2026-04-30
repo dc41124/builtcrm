@@ -1,6 +1,7 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
 import {
   organizations,
@@ -51,7 +52,7 @@ export async function setPrequalEnforcementMode(input: {
   const previous = org?.mode ?? "off";
   if (previous === input.mode) return;
 
-  await db.transaction(async (tx) => {
+  await dbAdmin.transaction(async (tx) => {
     await tx
       .update(organizations)
       .set({ prequalEnforcementMode: input.mode, updatedAt: new Date() })

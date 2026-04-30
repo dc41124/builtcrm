@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { requireServerSession } from "@/auth/session";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { auditEvents, projects } from "@/db/schema";
 import { getOrgPlanContext } from "@/domain/loaders/billing";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
@@ -91,7 +91,7 @@ export async function POST(req: Request) {
 
     // Single transaction — all rows land or none do. Drizzle batches the
     // insert under the hood when we pass an array of values.
-    const insertedIds = await db.transaction(async (tx) => {
+    const insertedIds = await dbAdmin.transaction(async (tx) => {
       const ids = await tx
         .insert(projects)
         .values(

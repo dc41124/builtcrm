@@ -1,6 +1,5 @@
 import { and, eq } from "drizzle-orm";
 
-import { db } from "@/db/client";
 import { dbAdmin } from "@/db/admin-pool";
 import { auditEvents, integrationConnections } from "@/db/schema";
 
@@ -98,7 +97,7 @@ async function writeOAuthAudit(args: {
   provider: IntegrationProviderKey;
   metadata?: Record<string, unknown>;
 }): Promise<void> {
-  await db.insert(auditEvents).values({
+  await dbAdmin.insert(auditEvents).values({
     actorUserId: args.actorUserId,
     organizationId: args.organizationId,
     objectType: "integration_connection",

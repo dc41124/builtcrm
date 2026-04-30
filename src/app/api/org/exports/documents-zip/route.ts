@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import archiver from "archiver";
 
 import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { auditEvents, dataExports, organizations } from "@/db/schema";
 import { withTenant } from "@/db/with-tenant";
 import { getOrgPlanContext } from "@/domain/loaders/billing";
@@ -96,7 +97,7 @@ export async function POST() {
         .returning({ id: dataExports.id }),
     );
 
-    await db.insert(auditEvents).values({
+    await dbAdmin.insert(auditEvents).values({
       actorUserId: ctx.user.id,
       organizationId: ctx.organization.id,
       objectType: "data_export",
