@@ -8,7 +8,12 @@ COPY package.json package-lock.json ./
 # but the app pins 0.41.0; older npm resolution accepted this, newer
 # npm requires the flag. The lock file was regenerated with the same
 # flag, so this matches the local install.
-RUN npm ci --omit=optional --legacy-peer-deps
+#
+# We do NOT pass --omit=optional. lightningcss ships its platform-
+# specific native binaries (lightningcss.linux-x64-musl.node, etc.) as
+# optional deps; Tailwind v4's postcss plugin requires the matching
+# binary at build time, so omitting optional breaks `next build`.
+RUN npm ci --legacy-peer-deps
 
 # ---------- Stage 2: build ----------
 FROM node:22-alpine AS builder
