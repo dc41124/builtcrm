@@ -90,17 +90,17 @@ const BodySchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const { session } = await requireServerSession();
-  const parsed = BodySchema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "invalid_body", issues: parsed.error.issues },
-      { status: 400 },
-    );
-  }
-  const input = parsed.data;
-
   try {
+    const { session } = await requireServerSession();
+    const parsed = BodySchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "invalid_body", issues: parsed.error.issues },
+        { status: 400 },
+      );
+    }
+    const input = parsed.data;
+
     const ctx = await getEffectiveContext(session, input.projectId);
 
     // Subs and contractors both author safety forms (Decision-6 — sub
