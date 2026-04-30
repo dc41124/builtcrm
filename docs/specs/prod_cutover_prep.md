@@ -365,6 +365,7 @@ Order matters. Each step is independently revertible.
 ### 4.3 Deploy
 
 1. **DNS:** point `app.example.com` (or whichever subdomain) at Render. Add Resend's SPF/DKIM/DMARC records to the domain.
+1a. **R2 CORS:** add the new origin to the `builtcrm-uploads` bucket's CORS policy (Cloudflare dashboard → R2 → bucket → Settings → CORS). Without this, presigned PUT uploads from the browser get blocked at preflight. Same fix was needed for the Render `<name>.onrender.com` origin during portfolio-mode setup.
 2. **Render:** create the web service from `render.yaml`. Set every secret in the dashboard (the §1.1–§1.3 manifest, with the prod values from 4.1.7).
 3. **Trigger first deploy.** Watch the build log — first build is slow (~5 min on starter plan).
 4. **Smoke test:** hit `https://app.example.com/api/health` — expect 200.

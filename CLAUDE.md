@@ -44,17 +44,26 @@ src/
   auth/          # Better Auth config, session helpers
   jobs/          # Trigger.dev background jobs
 docs/            # Architecture specs and reference docs
-  design/        # HTML mockups from design sprint (24 files)
-  schema/        # Drizzle schema files (5 files)
+  design/        # HTML mockups from design sprint (production reference)
+  schema/        # Historical schema prototypes (reference only — see below)
   specs/         # Architecture and integration specs
+  prototypes/    # JSX prototypes — pixel-level visual reference
 ```
 
-## Schema (36 tables + 2 mods across 5 files)
-- `drizzle_schema_first_pass.ts` — tables 1-15 (identity, projects, docs, workflows, billing, compliance, audit)
-- `drizzle_schema_v2_additions.ts` — tables 16-22 (rfis, change_orders, milestones, conversations, messages)
-- `drizzle_schema_phase3_billing.ts` — tables 23-28 (SOV, draw requests, lien waivers, retainage)
-- `drizzle_schema_remaining_gaps.ts` — tables 29-32 + mods (invitations, selections)
-- `drizzle_schema_phase4_integrations.ts` — tables 33-36 (integrations, sync, payments, webhooks)
+## Schema
+Live source-of-truth: `src/db/schema/*.ts` — one file per domain
+(`projects.ts`, `dailyLogs.ts`, `meetings.ts`, `drawings.ts`, etc.)
+re-exported via `src/db/schema/index.ts`. Migrations are journalled
+under `src/db/migrations/` (numbered SQL files + meta snapshots);
+generate with `npm run db:generate`, apply with `npm run db:migrate`.
+
+The five `drizzle_schema_*.ts` files under `docs/schema/` are the
+original design prototypes — reference-only, do NOT edit when
+changing the live schema.
+
+For the current table count + RLS coverage, see
+[`docs/specs/security_posture.md` §6](docs/specs/security_posture.md)
+and the most recent `docs/specs/current_repo_state_*.md` snapshot.
 
 ## Portal Accent Colors
 - Contractor: purple `#5b4fc7`
@@ -107,8 +116,8 @@ docs/            # Architecture specs and reference docs
 - **Compliance map:** `@docs/specs/compliance_map.md` — SOC 2 TSC (Security + Confidentiality + Privacy) criterion-by-criterion coverage; portfolio artifact
 - **Fresh-env bootstrap:** `@docs/specs/bootstrap_new_env.md` — step-by-step provisioning for a new DB (prod, new Neon branch, fresh dev)
 - **Schema draft notes:** `@docs/specs/schema_draft_v1.pdf` — design rules and ID strategy
-- **Design mockups:** `@docs/design/*.html` — 24 production HTML mockups (feature spec, not implementation target)
-- **JSX prototypes:** `@docs/prototypes/*.jsx` — 24 JSX prototypes showing exact visual design for every screen. These are the pixel-level reference. Match them exactly for layout, typography, spacing, and colors.
+- **Design mockups:** `@docs/design/*.html` — production HTML mockups (feature spec, not implementation target)
+- **JSX prototypes:** `@docs/prototypes/*.jsx` — JSX prototypes showing exact visual design for every screen. These are the pixel-level reference. Match them exactly for layout, typography, spacing, and colors. Newer Phase 4+ module prototypes (drawings, inspections, meetings, transmittals, closeout, prequal) live under `@docs/specs/builtcrm_*_module.jsx` rather than `@docs/prototypes/`.
 - **Phase 4+ portfolio scope:** `@docs/specs/builtcrm_phase4_portfolio_scope.md` — **the active Phase 4+ plan, source of truth for what to build and in what order**
 - **Phase 4+ full implementation plan:** `@docs/specs/builtcrm_phase4_plus_implementation_plan.md` — full enterprise plan (reference only; do not build from this)
 - **2026 gap analysis:** `@docs/specs/builtcrm_2026_gap_analysis.md` — competitive research catalog (reference)
