@@ -309,6 +309,13 @@
       "when": 1777313778181,
       "tag": "0043_furry_vulcan",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1777556890694,
+      "tag": "0044_yummy_vertigo",
+      "breakpoints": true
     }
   ]
 }

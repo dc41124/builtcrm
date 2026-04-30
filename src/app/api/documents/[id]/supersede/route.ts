@@ -6,12 +6,12 @@ import { z } from "zod";
 
 import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
-import { documentLinks, documents } from "@/db/schema";
+import { documentLinks, documents, r2OrphanQueue } from "@/db/schema";
 import { isInChain } from "@/domain/documents/versioning";
 import { writeAuditEvent } from "@/domain/audit";
 import { getEffectiveContext } from "@/domain/context";
 import { AuthorizationError, assertCan } from "@/domain/permissions";
-import { deleteObject, objectExists } from "@/lib/storage";
+import { objectExists } from "@/lib/storage";
 
 // POST /api/documents/[id]/supersede
 //
@@ -228,10 +228,18 @@ export async function POST(
         return { newId: next.id };
       });
     } catch (err) {
-      // Transaction failed. Delete the orphan R2 object so the
-      // bucket doesn't accumulate dead uploads. Matches the advisor
-      // directive (race-loss + orphan cleanup).
-      await deleteObject(parsed.data.storageKey);
+      // Transaction failed. The just-uploaded R2 object now has no DB row
+      // referencing it (path-5 orphan: upload succeeded, finalize tx
+      // failed). Enqueue it for the r2-orphan-purge job — single source
+      // of truth for R2 deletions. ON CONFLICT DO NOTHING in case a
+      // concurrent retry already enqueued the same key.
+      await dbAdmin
+        .insert(r2OrphanQueue)
+        .values({
+          storageKey: parsed.data.storageKey,
+          sourceTable: "documents.storage_key (supersede tx failed)",
+        })
+        .onConflictDoNothing({ target: r2OrphanQueue.storageKey });
 
       if (err instanceof TxError && err.code === "race_lost") {
         return NextResponse.json(
@@ -262,7 +270,14 @@ export async function POST(
     // Last defensive: the static analysis can't prove result is set,
     // but the transaction either returns it or threw.
     if (!result) {
-      await deleteObject(parsed.data.storageKey);
+      // Defensive: same path-5 enqueue as above.
+      await dbAdmin
+        .insert(r2OrphanQueue)
+        .values({
+          storageKey: parsed.data.storageKey,
+          sourceTable: "documents.storage_key (supersede defensive)",
+        })
+        .onConflictDoNothing({ target: r2OrphanQueue.storageKey });
       return NextResponse.json({ error: "internal" }, { status: 500 });
     }
 

@@ -1,17 +1,18 @@
 import { randomUUID } from "node:crypto";
 
-import { logger, schedules } from "@trigger.dev/sdk/v3";
+import { schedules } from "@trigger.dev/sdk/v3";
 import { and, eq, isNotNull, lt } from "drizzle-orm";
 
 import { dbAdmin } from "@/db/admin-pool";
 import { dataExports } from "@/db/schema";
 import { writeSystemAuditEvent } from "@/domain/audit";
-import { deleteObject } from "@/lib/storage";
 
 // Daily cleanup for the GDPR data-export bundles. After expires_at
-// passes, the R2 object should not be reachable; we also delete the
-// dataExports row so the user's history doesn't carry expired entries
-// indefinitely.
+// passes, we delete the dataExports row; the AFTER DELETE trigger on
+// data_exports.storage_key enqueues the R2 object into r2_orphan_queue,
+// and the r2-orphan-purge job (04:45 UTC) picks it up. Single source of
+// truth for R2 cleanup — see docs/specs/security_posture.md §6
+// "R2 orphan cleanup".
 //
 // Scoped to user_data_gdpr exports only. Other export kinds
 // (projects_csv, full_archive, etc.) have their own retention story
@@ -32,10 +33,7 @@ export const dataExportCleanup = schedules.task({
     // Cross-org sweep — use the admin pool so RLS doesn't silently
     // hide rows for orgs other than the (nonexistent) current GUC.
     const expired = await dbAdmin
-      .select({
-        id: dataExports.id,
-        storageKey: dataExports.storageKey,
-      })
+      .select({ id: dataExports.id })
       .from(dataExports)
       .where(
         and(
@@ -46,20 +44,11 @@ export const dataExportCleanup = schedules.task({
       );
 
     let deletedRows = 0;
-    let r2Deletes = 0;
 
     for (const row of expired) {
-      if (row.storageKey) {
-        try {
-          await deleteObject(row.storageKey);
-          r2Deletes++;
-        } catch (err) {
-          logger.warn("R2 delete failed during data-export cleanup", {
-            exportId: row.id,
-            error: (err as Error).message,
-          });
-        }
-      }
+      // R2 cleanup happens via the AFTER DELETE trigger on data_exports
+      // → r2_orphan_queue → r2-orphan-purge job. No explicit deleteObject
+      // call here.
       await dbAdmin.delete(dataExports).where(eq(dataExports.id, row.id));
       deletedRows++;
     }
@@ -73,11 +62,10 @@ export const dataExportCleanup = schedules.task({
           jobId: "data-export-cleanup",
           cutoff: cutoff.toISOString(),
           deletedRowCount: deletedRows,
-          r2DeleteCount: r2Deletes,
         },
       },
     });
 
-    return { deletedRows, r2Deletes };
+    return { deletedRows };
   },
 });

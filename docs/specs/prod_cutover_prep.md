@@ -390,6 +390,29 @@ Order matters. Each step is independently revertible.
 
 ---
 
+## 4.7 Deferred follow-up — R2 orphan cleanup, path 5 + dev backfill
+
+The trigger-queue solution shipped 2026-04-30 covers leak paths 1–4
+(cascade delete, direct delete, replacement, supersede). Two related
+items are intentionally deferred to prod-cutover bandwidth:
+
+**Path 5 — failed-upload orphans.** A presigned PUT URL completes
+the upload but the finalize endpoint never gets called. No DB row,
+no trigger, no queue entry. Fix: periodic listing sweep
+(daily/weekly Trigger.dev job that lists R2 by prefix, cross-checks
+against `documents.storage_key` / `prequal_documents.storage_key` /
+`drawing_sets.source_file_key` / `drawing_sheets.thumbnail_key` /
+`users.avatar_url` / `organizations.logo_storage_key`, deletes
+anything > 24h old with no row). Estimated 2–3 hours. Cost-benefit
+only matters once storage costs become visible.
+
+**Dev-bucket backfill.** The dev R2 bucket already has orphans from
+pre-trigger deletes (avatars/logos/documents replaced before the
+queue existed). Not addressed in v1. When prod cutover happens, prod
+gets a fresh bucket so backfill is moot there; dev orphans are
+accepted as known residue. The path-5 listing sweep above is the
+same tool that would clean dev if we ever want to.
+
 ## 4.6 Deferred follow-up — user-timezone display sweep
 
 `users.timezone` is set in the settings page but no UI date renderer

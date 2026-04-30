@@ -1,6 +1,5 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import {
-  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   HeadObjectCommand,
@@ -79,19 +78,6 @@ export async function getObjectSize(key: string): Promise<number | null> {
     return res.ContentLength ?? null;
   } catch {
     return null;
-  }
-}
-
-// Best-effort R2 delete for orphan cleanup paths (e.g. a superseded
-// upload that lost the DB race). Swallows errors — orphan objects
-// are recoverable by storage-side lifecycle rules; failing loud here
-// would just mask the underlying DB error the caller is trying to
-// surface.
-export async function deleteObject(key: string): Promise<void> {
-  try {
-    await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
-  } catch {
-    // intentional no-op
   }
 }
 

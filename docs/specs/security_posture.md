@@ -186,10 +186,22 @@ All three follow the `webhook-payload-purge.ts` pattern, write a `*-purge.run_co
 **Unblocker:** any of (a) a conversation lifecycle state is added (closed/archived), (b) DB size becomes a real constraint, (c) a compliance requirement around user-data minimization arrives.
 
 ### R2 orphan cleanup
-**Status:** open — known leak.
-**Why gap exists:** [src/lib/storage.ts](../../src/lib/storage.ts) `deleteObject()` is only called in the upload-supersede path ([src/app/api/documents/[id]/supersede/route.ts](../../src/app/api/documents/[id]/supersede/route.ts)). Every other deletion path leaks the R2 object: cascade-deletes from project removal, direct row deletes, organization logo replacement, expired exports. Four tables hold storage keys: `documents.storage_key`, `prequal_documents.storage_key`, `exports.storage_key`, `organizations.logo_storage_key`.
-**Why deferred:** the right fix is a mark-and-sweep design (queue table + daily processor + cascade-trigger handling), not a naive listing sweep. Needs a dedicated session.
-**Unblocker:** any of (a) R2 storage cost becomes visible, (b) a compliance audit asks about file lifecycle, (c) bandwidth to design the queue + trigger architecture.
+**Status:** RESOLVED for paths 1–4 (2026-04-30). Trigger-based queue + daily purge job.
+
+**Architecture:** new system table `r2_orphan_queue` (`storage_key UNIQUE`, `source_table`, `queued_at`, `attempt_count`, `status`, `last_error`). Generic plpgsql trigger function `enqueue_r2_orphan_generic(<col>)` attached as AFTER DELETE / AFTER UPDATE on each of the 7 tables holding R2 keys: `documents.storage_key`, `prequal_documents.storage_key`, `data_exports.storage_key`, `users.avatar_url`, `organizations.logo_storage_key`, `drawing_sets.source_file_key`, `drawing_sheets.thumbnail_key`. The function uses `row_to_json(OLD/NEW)->>col` so a single function serves all tables. Triggers enqueue when DELETE removes a row with a non-null key OR UPDATE changes the key from non-null to a different value. ON CONFLICT DO NOTHING handles the rare race.
+
+Daily Trigger.dev job [`src/jobs/r2-orphan-purge.ts`](../../src/jobs/r2-orphan-purge.ts) at 04:45 UTC reads up to 200 `pending` rows ordered by `queued_at`, calls `DeleteObjectCommand` per key, marks `deleted` on success, increments `attempt_count` + retries on failure, marks `failed_permanent` after 5 attempts. Writes a `r2-orphan-purge.run_complete` system audit event per run with deletedCount/retryCount/failedPermanentCount.
+
+**Single source of truth:** all R2 deletes route through the queue. The two prior `deleteObject` call sites — `data-export-cleanup` and `documents/[id]/supersede` — were both refactored: `data-export-cleanup` now just deletes the row (the trigger handles R2); `documents/[id]/supersede`'s catch-block path-5 cleanup (R2 uploaded, finalize tx failed, no row to fire a trigger on) inserts directly into `r2_orphan_queue` with `sourceTable = 'documents.storage_key (supersede tx failed)'`. The `deleteObject` helper in `src/lib/storage.ts` was removed entirely — the purge job uses `r2.send(new DeleteObjectCommand(...))` directly. Grep for `DeleteObjectCommand` returns exactly one source-code reference (the purge job).
+
+**Coverage:**
+- ✅ Path 1 — cascade delete of a parent (project, organization, user) → child rows hit AFTER DELETE → enqueued.
+- ✅ Path 2 — direct row delete → AFTER DELETE → enqueued.
+- ✅ Path 3 — replacement (UPDATE that swaps key) → AFTER UPDATE with `OLD.key IS DISTINCT FROM NEW.key` → enqueued.
+- ✅ Path 4 — supersede via documents tx → AFTER UPDATE on the prior document row → enqueued.
+- ⏸ Path 5 — failed-upload orphans (R2 PUT completed but finalize endpoint never called → no DB row → trigger never fires). Partial coverage in `documents/supersede` (the catch block enqueues when the tx failed); fully unhandled when the route is never called at all. Deferred to prod-cutover bandwidth: needs a periodic listing sweep that walks R2 prefixes and cross-checks against DB. See [`prod_cutover_prep.md` §4.7](prod_cutover_prep.md).
+
+**Residual:** the existing dev-bucket has accumulated orphans from pre-2026-04-30 deletes (avatars/logos replaced before the queue existed). Not backfilled — accepted as known dev residue. Prod gets a fresh bucket, so backfill is moot there. The future path-5 listing sweep is the same tool that would clean dev if anyone ever wants to. See `MEMORY.md` entry `project_hosting_and_email_deferred.md`.
 
 ### `auth_account.{access,refresh,id}_token` encryption config
 **Status:** `encryptOAuthTokens: true` is set, but the columns are always NULL today because no social providers are configured.
