@@ -316,6 +316,11 @@ export async function getEventRecipients(
     case "punch_item_ready_to_verify":
     case "submittal_submitted":
     case "submittal_reviewer_responded":
+    case "safety_incident_reported":
+    case "safety_form_submitted":
+      // Step 52 — safety events fan out to all contractor staff on the
+      // project (admin + PM). Same pattern as daily-log-crew/submittals
+      // because the legitimate audience is the project's GC team.
       if (projectId) recipients = await projectContractors(projectId);
       break;
 

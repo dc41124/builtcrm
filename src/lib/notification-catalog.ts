@@ -224,6 +224,21 @@ export const NOTIFICATION_GROUPS: Record<
         },
       ],
     },
+    {
+      group: "Safety",
+      events: [
+        {
+          id: "safety_incident_reported",
+          label: "Incident report submitted",
+          desc: "A crew submitted an incident report — immediate alert",
+        },
+        {
+          id: "safety_form_submitted",
+          label: "Safety form submitted",
+          desc: "Toolbox talk, JHA, or near-miss submitted to your project",
+        },
+      ],
+    },
   ],
   subcontractor: [
     {

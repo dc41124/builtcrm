@@ -559,6 +559,36 @@ export function renderNotification(
         linkUrl: "/contractor/prequalification",
       };
 
+    // ── Safety forms ─────────────────────────────────────────────
+    case "safety_incident_reported": {
+      const sevLabel = str(v.severityLabel) || "Incident";
+      return {
+        title: `${sevLabel} reported — ${str(v.formNumber, "?")}`,
+        body: str(v.actorName)
+          ? str(v.location)
+            ? `${v.actorName} reported an incident at ${v.location}. Immediate review required.`
+            : `${v.actorName} reported an incident. Immediate review required.`
+          : "A new incident report needs immediate review.",
+        linkUrl:
+          base && relatedObjectId
+            ? `${base}/safety-forms/${relatedObjectId}`
+            : base,
+      };
+    }
+    case "safety_form_submitted":
+      return {
+        title: `Safety form submitted — ${str(v.formNumber, "?")}`,
+        body: str(v.actorName)
+          ? str(v.formTypeLabel)
+            ? `${v.actorName} submitted a ${v.formTypeLabel}.`
+            : `${v.actorName} submitted a safety form.`
+          : "A safety form was submitted on your project.",
+        linkUrl:
+          base && relatedObjectId
+            ? `${base}/safety-forms/${relatedObjectId}`
+            : base,
+      };
+
     // ── Messages ─────────────────────────────────────────────────
     case "message_new":
       return {
