@@ -1153,7 +1153,7 @@
   border-radius: 18px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, .28);
   width: 100%;
-  max-width: 620px;
+  max-width: min(620px, calc(100vw - 32px));
   max-height: 90vh;
   overflow: hidden;
   display: flex;
@@ -1362,9 +1362,29 @@
   .dr-sheet-rail { display: none; }
   .dr-toolbar { left: 8px; padding: 4px; }
   .dr-tool { width: 32px; height: 32px; }
+  /* thumb-row table — drop low-priority columns (status/markup-count/comment-count) below ~900px */
+  .dr-thumb-row { grid-template-columns: 70px 90px 1fr 80px; }
+  .dr-thumb-row > :nth-child(n + 5) { display: none; }
+}
+@media (max-width: 767px) {
+  .dr-page-hdr { flex-wrap: wrap; }
+  .dr-page-actions { flex-wrap: wrap; }
+  .dr-index-hdr { flex-direction: column; align-items: stretch; }
+  .dr-index-tools { margin-left: 0; flex-wrap: wrap; }
+  .dr-index-search input { width: 100%; }
+  .dr-thumb-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+  .dr-thumb-row { grid-template-columns: 60px 1fr; padding: 10px 14px; }
+  .dr-thumb-row > :nth-child(n + 3) { display: none; }
+  .dr-thumb-row.header { display: none; }
 }
 @media (max-width: 640px) {
   .dr-summary { grid-template-columns: 1fr; }
   .dr-content { padding: 16px; }
   .dr-viewer-title-name { display: none; }
+  .dr-page-title { font-size: 22px; }
+  .dr-set-card { flex-direction: column; padding: 14px 16px; gap: 12px; }
+  .dr-modal-hdr,
+  .dr-modal-body,
+  .dr-modal-foot { padding-left: 16px; padding-right: 16px; }
+  .dr-modal-foot { flex-wrap: wrap; }
 }
