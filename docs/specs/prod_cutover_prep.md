@@ -390,6 +390,30 @@ Order matters. Each step is independently revertible.
 
 ---
 
+## 4.6 Deferred follow-up — user-timezone display sweep
+
+`users.timezone` is set in the settings page but no UI date renderer
+respects it; dates currently render in browser-local or project
+timezone. This is real drift, not a bug per se — the column exists
+and the settings UI writes it, but no consumer reads it for display.
+
+**Why deferred to prod cutover:** the fix is 3–6 hours and touches
+every date render across the app (RFIs, daily logs, dashboard,
+weekly reports, etc.). Each render needs a UX decision: user
+timezone, project timezone, or either? That's a design question,
+not a code question. Doing it as part of the prod-cutover sweep lets
+the design decision live alongside the email-template tone choice
+and the org-name branding decisions — all "polish before real users
+see this" calls.
+
+**Mechanical work when ready:**
+1. Audit all date renders (grep `toLocaleString`, `Intl.DateTimeFormat`, `format(`, `formatDistanceToNow`, `format-file-size`, etc.).
+2. Classify each as user-tz / project-tz / browser-local.
+3. Add `formatUserDate(date, timezone)` to `@/lib/format/`.
+4. Plumb `users.timezone` through `loadPortalShell` (already loaded for the `users` row — extend the existing query).
+5. Update each render site to call the appropriate formatter.
+6. Smoke-test across all four portals.
+
 ## 5. Open decisions (when you're ready)
 
 - [ ] **Domain name** — needed before any wire-up. (Brainstorming list discussed separately.)

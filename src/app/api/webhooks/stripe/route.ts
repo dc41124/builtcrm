@@ -191,7 +191,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     .set({ currentPlanSlug: planSlug })
     .where(eq(organizations.id, organizationId));
 
-  await db.insert(auditEvents).values({
+  await dbAdmin.insert(auditEvents).values({
     actorUserId: await getSystemUserId(),
     organizationId,
     objectType: "subscription",
@@ -235,7 +235,7 @@ async function handleSubscriptionChanged(
   let newPlanSlug: string | null = null;
   if (firstItem?.price?.id) {
     const priceId = firstItem.price.id;
-    const matches = await db.select().from(subscriptionPlans);
+    const matches = await dbAdmin.select().from(subscriptionPlans);
     const hit = matches.find(
       (p) =>
         p.stripePriceIdMonthly === priceId ||
@@ -273,7 +273,7 @@ async function handleSubscriptionChanged(
       .where(eq(organizations.id, row.organizationId));
   }
 
-  await db.insert(auditEvents).values({
+  await dbAdmin.insert(auditEvents).values({
     actorUserId: await getSystemUserId(),
     organizationId: row.organizationId,
     objectType: "subscription",
@@ -367,7 +367,7 @@ async function handleInvoice(
     await dbAdmin.insert(subscriptionInvoices).values(values);
   }
 
-  await db.insert(auditEvents).values({
+  await dbAdmin.insert(auditEvents).values({
     actorUserId: await getSystemUserId(),
     organizationId: row.organizationId,
     objectType: "subscription_invoice",
@@ -516,7 +516,7 @@ async function handleChargeStatus(
         .where(eq(drawRequests.id, pt.relatedEntityId));
     }
 
-    await db.insert(auditEvents).values({
+    await dbAdmin.insert(auditEvents).values({
       actorUserId: await getSystemUserId(),
       organizationId: pt.organizationId,
       projectId: pt.projectId,
@@ -549,7 +549,7 @@ async function handleChargeStatus(
       .where(eq(paymentTransactions.id, pt.id)),
   );
 
-  await db.insert(auditEvents).values({
+  await dbAdmin.insert(auditEvents).values({
     actorUserId: await getSystemUserId(),
     organizationId: pt.organizationId,
     projectId: pt.projectId,
@@ -662,7 +662,7 @@ async function handleConnectAccountUpdated(account: Stripe.Account) {
   );
 
   if (row.connectionStatus !== nextStatus) {
-    await db.insert(auditEvents).values({
+    await dbAdmin.insert(auditEvents).values({
       actorUserId: await getSystemUserId(),
       organizationId: row.organizationId,
       objectType: "stripe_connect_account",

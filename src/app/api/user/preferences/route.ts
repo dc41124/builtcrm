@@ -4,7 +4,7 @@ import { requireServerSession } from "@/auth/session";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { db } from "@/db/client";
+import { dbAdmin } from "@/db/admin-pool";
 import { users } from "@/db/schema";
 
 const BodySchema = z.object({
@@ -37,6 +37,8 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ ok: true, noop: true });
   }
 
-  await db.update(users).set(updates).where(eq(users.id, appUserId));
+  // `users` is intentionally not RLS'd (shared identity row, no org_id).
+  // dbAdmin signals this is an unscoped write to a non-tenant table.
+  await dbAdmin.update(users).set(updates).where(eq(users.id, appUserId));
   return NextResponse.json({ ok: true });
 }

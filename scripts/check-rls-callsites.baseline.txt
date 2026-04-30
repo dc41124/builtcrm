@@ -10,6 +10,7 @@
 
 src/app/api/conversations/[id]/messages/route.ts:72:transaction
 src/app/api/drawings/sheets/[sheetId]/comments/route.ts:56:execute
+src/app/api/health/route.ts:16:execute
 src/app/api/org/exports/audit-log-csv/route.ts:94:insert
 src/app/api/org/exports/documents-zip/route.ts:99:insert
 src/app/api/org/exports/full-archive/route.ts:140:insert
@@ -21,15 +22,6 @@ src/app/api/org/profile/route.ts:172:transaction
 src/app/api/org/security/route.ts:107:transaction
 src/app/api/org/subscription/change-plan/route.ts:121:insert
 src/app/api/org/tax-id/reveal/route.ts:69:insert
-src/app/api/user/preferences/route.ts:40:update
-src/app/api/user/profile/route.ts:46:update
-src/app/api/webhooks/stripe/route.ts:194:insert
-src/app/api/webhooks/stripe/route.ts:238:select
-src/app/api/webhooks/stripe/route.ts:276:insert
-src/app/api/webhooks/stripe/route.ts:370:insert
-src/app/api/webhooks/stripe/route.ts:519:insert
-src/app/api/webhooks/stripe/route.ts:552:insert
-src/app/api/webhooks/stripe/route.ts:665:insert
 src/domain/prequal/enforcement.ts:54:transaction
 src/domain/user-deletion.ts:32:transaction
 src/jobs/upload-request-reminder.ts:83:transaction
