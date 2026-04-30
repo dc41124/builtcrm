@@ -7,6 +7,8 @@ import "@/styles/workspaces.css";
 import { getServerSession } from "@/auth/session";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
+import { OfflineIndicator } from "@/components/shell/OfflineIndicator";
+import { RegisterServiceWorker } from "@/components/shell/RegisterServiceWorker";
 
 export const metadata: Metadata = {
   title: "BuiltCRM",
@@ -71,8 +73,17 @@ export default async function RootLayout({
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <meta name="theme-color" content="#5b4fc7" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="BuiltCRM" />
+        <link rel="apple-touch-icon" href="/icon.svg" />
       </head>
-      <body>{children}</body>
+      <body>
+        <OfflineIndicator />
+        <RegisterServiceWorker />
+        {children}
+      </body>
     </html>
   );
 }

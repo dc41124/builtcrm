@@ -6,3 +6,8 @@ node_modules/
 dist/
 .turbo/
 
+# Serwist build artifacts (regenerated on every `next build`)
+/public/sw.js
+/public/sw.js.map
+/public/swe-worker-*.js
+/public/swe-worker-*.js.map

@@ -1,4 +1,5 @@
 import { withSentryConfig } from "@sentry/nextjs";
+import withSerwistInit from "@serwist/next";
 
 // Security headers applied globally. CSP is intentionally NOT set here —
 // a working CSP for a Next.js + Sentry + frappe-gantt + react-pdf wasm
@@ -62,6 +63,19 @@ const sentryOptions = {
   },
 };
 
+// PWA wrapper — Step 50. Compiles `src/app/sw.ts` into the public output as
+// `/sw.js`. Disabled in dev so HMR isn't shadowed by a stale service worker;
+// re-enabled in prod (NODE_ENV !== 'development').
+const withSerwist = withSerwistInit({
+  swSrc: "src/app/sw.ts",
+  swDest: "public/sw.js",
+  disable: process.env.NODE_ENV === "development",
+  cacheOnNavigation: true,
+  reloadOnOnline: true,
+});
+
+const withPwa = withSerwist(nextConfig);
+
 export default process.env.SENTRY_DSN
-  ? withSentryConfig(nextConfig, sentryOptions)
-  : nextConfig;
+  ? withSentryConfig(withPwa, sentryOptions)
+  : withPwa;

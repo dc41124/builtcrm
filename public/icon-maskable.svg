@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+  <!-- Maskable icons need ~80% safe zone (Android crops the corners). The full
+       80x80 viewport is filled with the brand color; the cascading rectangles
+       are inset to fit comfortably within the 64x64 (80%) safe area. -->
+  <rect width="80" height="80" fill="#5b4fc7"/>
+  <rect x="20" y="20" width="22" height="22" rx="3" fill="none" stroke="white" stroke-width="3" opacity=".5"/>
+  <rect x="29" y="29" width="22" height="22" rx="3" fill="none" stroke="white" stroke-width="3" opacity=".75"/>
+  <rect x="34" y="34" width="22" height="22" rx="3" fill="white" opacity=".95"/>
+</svg>

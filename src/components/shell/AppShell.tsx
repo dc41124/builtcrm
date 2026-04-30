@@ -14,6 +14,7 @@ import { signOut } from "@/auth/client";
 import "./app-shell.css";
 
 import { CommandPalette, type CommandPaletteHandle } from "./CommandPalette";
+import { InstallPrompt } from "./InstallPrompt";
 import { NotificationBell } from "./NotificationBell";
 import { PORTAL_ACCENTS, type PortalType } from "@/lib/portal-colors";
 
@@ -647,6 +648,20 @@ export default function AppShell({
                 className="b-signout"
                 onClick={async () => {
                   await signOut();
+                  // Flush PWA caches so the next user on this device can't
+                  // see this user's cached API responses. Step 50 single-
+                  // source-of-truth caching strategy. `caches` is the
+                  // Cache Storage API (separate from localStorage); the
+                  // service worker will rebuild as the next user navigates.
+                  if (typeof window !== "undefined" && "caches" in window) {
+                    try {
+                      const keys = await caches.keys();
+                      await Promise.all(keys.map((k) => caches.delete(k)));
+                    } catch {
+                      // Quiet failure: a cache-clear hiccup shouldn't block
+                      // the redirect to /login.
+                    }
+                  }
                   window.location.href = "/login";
                 }}
                 aria-label="Sign out"
@@ -721,6 +736,7 @@ export default function AppShell({
         </main>
       </div>
       <CommandPalette ref={paletteRef} portalType={portalType} />
+      <InstallPrompt />
     </div>
   );
 }

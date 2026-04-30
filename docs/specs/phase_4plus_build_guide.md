@@ -3279,12 +3279,30 @@ Phase 5 done. Commercial GC parity landed. Clickthrough: drawings viewer with ma
 
 ---
 
-## Step 50 — PWA Scaffolding
+## Step 50 — PWA Scaffolding ✅ DONE (2026-04-30)
 
 **Mode:** Require-design-input
 **Item:** 6 #50
 **Effort:** M
 **Priority:** P0
+
+### Final state
+
+- **Library:** Serwist (`serwist@^9.5.9`, `@serwist/next@^9.5.9`) — successor to next-pwa, designed for Next.js 14 App Router. Drop-in install.
+- **Service worker:** `src/app/sw.ts` compiled to `public/sw.js` at build time by `@serwist/next`. Disabled in dev so HMR isn't shadowed. Build artifacts (`public/sw.js`, `public/sw.js.map`, `public/swe-worker-*.js`) in `.gitignore` — regenerated each `next build`.
+- **Caching strategy:** App shell via Serwist `defaultCache`. `/api/*` GET via `NetworkFirst` (5s timeout, 60s TTL, 200 max entries). R2 presigned URLs via `CacheFirst` (1 week TTL, 100 max entries). Caches **flushed on sign-out** (AppShell's signout button calls `caches.keys() → caches.delete(...)` before redirect to `/login`).
+- **Manifest:** `src/app/manifest.ts` (Next 14 metadata API). `theme_color: #5b4fc7` (contractor purple), `start_url: /select-portal`, `display: standalone`. Icons are SVG (`/icon.svg`, `/icon-maskable.svg`) — modern browsers support natively; PNG fallback can be added later if metrics show it matters.
+- **Install prompt:** `src/components/shell/InstallPrompt.tsx` mounted globally inside `AppShell`. Hooks `beforeinstallprompt` on Android Chrome / desktop Chrome / Edge. Renders an iOS-specific "Add to Home Screen" tip on iPhones (which don't fire that event). 30-day dismissal cool-off in `localStorage`. Auto-hides post-install via `appinstalled` event.
+- **Offline indicator:** `src/components/shell/OfflineIndicator.tsx` mounted in root `app/layout.tsx`. Thin banner at top of every page when `navigator.onLine === false`.
+- **Service worker registration:** `src/components/shell/RegisterServiceWorker.tsx` mounted in root layout. Registers `/sw.js` on `window.load`, skipped in dev.
+
+### Smoke / verification (deferred to deploy)
+
+Device tests left for the user once the next deploy lands on Render:
+- Visit on Android Chrome → install prompt should fire on second visit
+- Visit on iOS Safari → "Add to Home Screen" produces an installable icon with the cascading-rectangle logo
+- Turn off network → app shell still loads; offline banner appears
+- Sign out → caches flushed (verifiable via DevTools → Application → Cache Storage)
 
 ### What this does
 
