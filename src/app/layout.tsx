@@ -8,6 +8,7 @@ import { getServerSession } from "@/auth/session";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
 import { OfflineIndicator } from "@/components/shell/OfflineIndicator";
+import { OutboxBootstrap } from "@/components/shell/OutboxBootstrap";
 import { RegisterServiceWorker } from "@/components/shell/RegisterServiceWorker";
 
 export const metadata: Metadata = {
@@ -81,6 +82,7 @@ export default async function RootLayout({
       </head>
       <body>
         <OfflineIndicator />
+        <OutboxBootstrap />
         <RegisterServiceWorker />
         {children}
       </body>

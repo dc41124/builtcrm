@@ -761,28 +761,60 @@ function CreateLogDrawer({
     setSubmitting(true);
     setError(null);
     try {
+      const body = {
+        projectId,
+        logDate,
+        intent,
+        weather: {
+          conditions: weather.conditions,
+          highC: weather.highC === "" ? null : Number(weather.highC),
+          lowC: weather.lowC === "" ? null : Number(weather.lowC),
+          precipPct:
+            weather.precipPct === "" ? null : Number(weather.precipPct),
+          windKmh: weather.windKmh === "" ? null : Number(weather.windKmh),
+          source: weather.source,
+          capturedAt:
+            weather.source === "api" ? new Date().toISOString() : null,
+        },
+        notes: notes || null,
+        clientSummary: clientSummary || null,
+        delays: [],
+        issues: [],
+      };
+
+      // Step 51: when offline, enqueue to IndexedDB outbox instead of failing.
+      // The shell-mounted OutboxBootstrap component drains on reconnect.
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const { enqueueWrite } = await import("@/lib/offline/queue");
+        const clientId = crypto.randomUUID();
+        await enqueueWrite({
+          clientId,
+          kind: "daily_log_create",
+          payload: {
+            projectId,
+            logDate,
+            intent,
+            clientSubmittedAt:
+              intent === "submit" ? new Date().toISOString() : null,
+            body,
+            photoClientIds: [],
+          },
+        });
+        onSaved();
+        return;
+      }
+
+      // Online path — include clientUuid so a retry-after-success-but-network-died
+      // is treated as idempotent rather than a (project,date) collision.
+      const clientUuid = crypto.randomUUID();
       const res = await fetch("/api/daily-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectId,
-          logDate,
-          intent,
-          weather: {
-            conditions: weather.conditions,
-            highC: weather.highC === "" ? null : Number(weather.highC),
-            lowC: weather.lowC === "" ? null : Number(weather.lowC),
-            precipPct:
-              weather.precipPct === "" ? null : Number(weather.precipPct),
-            windKmh: weather.windKmh === "" ? null : Number(weather.windKmh),
-            source: weather.source,
-            capturedAt:
-              weather.source === "api" ? new Date().toISOString() : null,
-          },
-          notes: notes || null,
-          clientSummary: clientSummary || null,
-          delays: [],
-          issues: [],
+          ...body,
+          clientUuid,
+          clientSubmittedAt:
+            intent === "submit" ? new Date().toISOString() : null,
         }),
       });
       if (!res.ok) {
