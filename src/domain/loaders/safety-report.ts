@@ -174,9 +174,13 @@ export async function getSafetyReport(input: {
     daysWithoutLostTime = 184;
   }
 
-  // Toolbox completion — demo metric: percent of project-days where any
-  // toolbox talk was logged. Real calc needs crew-day denominator (Step 53).
-  // For v1 we approximate as "min(100, totalToolbox / activeProjects * 7)".
+  // STEP 52 V1 STUB — toolbox completion is a demo approximation. Real
+  // calc requires crew-day data from Step 53 (subcontractor time tracking
+  // / daily-log crew entries). Tracked in
+  // docs/specs/production_grade_upgrades/safety_v1_stubs.md §4 (OSHA rate
+  // + toolbox completion). The 184-day default for daysWithoutLostTime
+  // above is similarly a placeholder until a running counter against the
+  // most recent lost_time/fatality incident lands.
   const toolboxTalkCompletionPct = Math.min(
     100,
     Math.round((totals.toolboxTalks / Math.max(1, projectRows.length)) * 14),

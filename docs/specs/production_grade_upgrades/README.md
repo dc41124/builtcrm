@@ -19,6 +19,7 @@ The full catalog will be audited after Phase 4+ completes and promoted into numb
 - [offline_background_sync_api.md](offline_background_sync_api.md) — Step 51 drain triggers on `online` event + manual button only; Background Sync API (Chrome/Edge), Periodic Sync (Chrome desktop), and iOS-tail UX (push reminders) are deferred. Native iOS shell is a long-tail escape hatch.
 - [safety_corrective_action_tracker.md](safety_corrective_action_tracker.md) — Step 52 corrective actions are denormalised JSON inside `safety_form_incidents`; production needs a first-class table with status lifecycle, due-date reminders, closeout-blocking gate, and cross-project queue.
 - [safety_template_field_editor.md](safety_template_field_editor.md) — Step 52 templates are seeded fixtures only; production needs an in-app field editor with drag-reorder, type-aware config, validation rules, and template versioning so historical submissions render against the field set in effect at submission time.
+- [safety_v1_stubs.md](safety_v1_stubs.md) — Step 52 ships four UI/metric stubs that need real implementations: PDF export of safety-form history (no-op button today), photo capture with R2 upload chain (emits IMG_#### tokens today), subcontractor template-assignment UI (API exists, no UI), and OSHA recordable rate calculation (gated by Step 53 hours data).
 
 ## Running lists (seed notes — not full specs)
 

@@ -49,7 +49,24 @@ export default async function SafetyTemplateDetailPage({
           </div>
         </div>
         <div className="sf-page-actions">
-          <button className="sf-btn" type="button" disabled title="Coming in Phase 6.5 — see safety_template_field_editor.md">
+          {/* Both buttons are Phase 6.5 follow-ups. Edit fields →
+              safety_template_field_editor.md. Assign to subs →
+              safety_v1_stubs.md §3 (the API exists at
+              PUT /api/safety-form-templates/[id]/assignments). */}
+          <button
+            className="sf-btn"
+            type="button"
+            disabled
+            title="Stub — see docs/specs/production_grade_upgrades/safety_v1_stubs.md §3"
+          >
+            {Icon.users} Assign to subs
+          </button>
+          <button
+            className="sf-btn"
+            type="button"
+            disabled
+            title="Phase 6.5 — see safety_template_field_editor.md"
+          >
             {Icon.edit} Edit fields
           </button>
         </div>

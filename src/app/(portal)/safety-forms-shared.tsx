@@ -587,13 +587,14 @@ export function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
           <button
             type="button"
             className="sf-photo-btn"
+            title="Stub — see docs/specs/production_grade_upgrades/safety_v1_stubs.md §2"
             onClick={() =>
-              // Step 51 producer registration handles the actual R2 upload
-              // chain on submit. Until then the photo field stores client-
-              // minted IDs that the producer will replace with real
-              // documentIds. Real camera input would go through
-              // `<input type="file" capture="environment">`; for v1 this
-              // is a placeholder that records intent.
+              // STEP 52 V1 STUB — emits a client-minted IMG_#### token.
+              // Real camera capture + R2 upload chain is tracked in
+              // docs/specs/production_grade_upgrades/safety_v1_stubs.md §2
+              // (Photo capture in the wizard). The Step 51 producer for
+              // safety_form_create will gain a 4-step R2 chain mirroring
+              // dailyLogs.ts at that point.
               onChange([...arr, `IMG_${Math.floor(1000 + Math.random() * 9000)}`])
             }
           >

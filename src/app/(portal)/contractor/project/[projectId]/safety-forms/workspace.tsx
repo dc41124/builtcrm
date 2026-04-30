@@ -44,8 +44,13 @@ export function SafetyFormsWorkspace({ view }: { view: SafetyFormsWorkspaceView 
         <div className="sf-page-actions">
           <button
             className="sf-btn"
-            onClick={() => alert("PDF export — coming next")}
+            onClick={() =>
+              alert(
+                "PDF export — Step 52 v1 stub. Real implementation tracked in docs/specs/production_grade_upgrades/safety_v1_stubs.md §1.",
+              )
+            }
             type="button"
+            title="Stub — see safety_v1_stubs.md §1"
           >
             {Icon.download} Export history
           </button>
@@ -286,8 +291,29 @@ export function SafetyFormsWorkspace({ view }: { view: SafetyFormsWorkspaceView 
             })}
           </div>
 
-          <div className="sf-rail-card">
-            <h4>Compliance posture</h4>
+          {/* STEP 52 V1 STUB — these three values are static demo numbers.
+              Real calc gated by Step 53 (hours data for OSHA rate + toolbox
+              completion) and a running incident counter for days-without-
+              lost-time. Tracked in safety_v1_stubs.md §4. */}
+          <div
+            className="sf-rail-card"
+            title="Stub — see docs/specs/production_grade_upgrades/safety_v1_stubs.md §4"
+          >
+            <h4>
+              Compliance posture
+              <span
+                style={{
+                  marginLeft: 8,
+                  fontSize: 10,
+                  color: "var(--text-tertiary)",
+                  fontWeight: 600,
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                }}
+              >
+                v1 demo
+              </span>
+            </h4>
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
               <div className="sf-rail-typeRow">
                 <span style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>OSHA recordable rate</span>

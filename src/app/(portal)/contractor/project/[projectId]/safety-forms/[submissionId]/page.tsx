@@ -57,13 +57,15 @@ export default async function ContractorSafetyFormDetailPage({
           </div>
         </div>
         <div className="sf-page-actions">
-          <button className="sf-btn" type="button">
+          {/* All three buttons are Step 52 v1 stubs — see
+              docs/specs/production_grade_upgrades/safety_v1_stubs.md §1 (PDF). */}
+          <button className="sf-btn" type="button" disabled title="Stub — see safety_v1_stubs.md §1">
             {Icon.download} Export PDF
           </button>
-          <button className="sf-btn" type="button">
+          <button className="sf-btn" type="button" disabled title="Phase 6.5 follow-up">
             {Icon.copy} Duplicate
           </button>
-          <button className="sf-btn" type="button">
+          <button className="sf-btn" type="button" disabled title="Phase 6.5 follow-up">
             {Icon.send} Forward
           </button>
         </div>
