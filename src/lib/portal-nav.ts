@@ -64,6 +64,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
             { label: "Change Orders", href: `${base}/change-orders` },
             { label: "Approvals", href: `${base}/approvals` },
             { label: "Compliance", href: `${base}/compliance` },
+            { label: "Safety Forms", href: `${base}/safety-forms` },
             { label: "Procurement / POs", href: `${base}/procurement` },
             { label: "Billing", href: `${base}/billing` },
             { label: "Financials", href: `${base}/financials` },
@@ -80,6 +81,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
           placement: "after-projects",
           items: mark([
             { label: "Settings", href: "/contractor/settings" },
+            { label: "Safety Templates", href: "/contractor/settings/safety-templates" },
           ]),
         },
       ];
@@ -132,6 +134,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
         placement: "after-projects",
         items: mark([
           { label: "Settings", href: "/contractor/settings" },
+          { label: "Safety Templates", href: "/contractor/settings/safety-templates" },
         ]),
       },
     ];
@@ -162,6 +165,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
             { label: "RFIs", href: `${base}/rfis` },
             { label: "Upload Requests", href: `${base}/upload-requests` },
             { label: "Compliance", href: `${base}/compliance` },
+            { label: "Safety Forms", href: `${base}/safety-forms` },
             { label: "Financials", href: `${base}/financials` },
             { label: "Messages", href: `${base}/messages` },
             { label: "Drawings", href: `${base}/drawings` },
