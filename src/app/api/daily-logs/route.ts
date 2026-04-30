@@ -87,6 +87,19 @@ const BodySchema = z.object({
   residentialTeamNote: z.string().max(2000).optional().nullable(),
   delays: z.array(DelayInput).max(20).default([]),
   issues: z.array(IssueInput).max(20).default([]),
+
+  // Step 51 — offline outbox idempotency. Client mints a UUID before any
+  // network attempt and includes it on every retry. Two semantics:
+  //  (a) post-success-network-died retry: server already has the row, returns 200 with that row.
+  //  (b) genuine duplicate (project+date collision): server returns 409 as before.
+  // Optional for backwards compat — direct online submits don't need it.
+  clientUuid: z.string().uuid().optional().nullable(),
+
+  // Step 51 — hybrid clock authority for offline submits. If the client was
+  // offline and queued the submit at clientSubmittedAt, the server uses it
+  // when it's within 48h of drain (server time); otherwise falls back to
+  // server-receipt time. Optional, ignored when intent !== "submit".
+  clientSubmittedAt: z.string().datetime().optional().nullable(),
 });
 
 export async function POST(req: Request) {
@@ -110,6 +123,26 @@ export async function POST(req: Request) {
         "Only contractors can author daily logs",
         "forbidden",
       );
+    }
+
+    // Step 51 idempotency: if the client included a clientUuid we've seen
+    // before, treat as a successful retry of the original write. This is
+    // distinct from the (project, date) 409 path below — that's a genuine
+    // collision between two distinct payloads (e.g. two devices same date).
+    if (input.clientUuid) {
+      const [prior] = await withTenant(ctx.organization.id, (tx) =>
+        tx
+          .select({ id: dailyLogs.id })
+          .from(dailyLogs)
+          .where(eq(dailyLogs.clientUuid, input.clientUuid!))
+          .limit(1),
+      );
+      if (prior) {
+        return NextResponse.json(
+          { id: prior.id, idempotent: true },
+          { status: 200 },
+        );
+      }
     }
 
     // Reject duplicates explicitly so the UI gets a 409 (not a 500) and
@@ -138,7 +171,25 @@ export async function POST(req: Request) {
     }
 
     const now = new Date();
-    const submittedAt = input.intent === "submit" ? now : null;
+
+    // Hybrid clock per Step-51 Decision 3: trust the client's offline
+    // submittedAt only when it's within 48h of server-receipt; otherwise
+    // fall back to now. Caps clock-skew abuse without penalising the legit
+    // overnight-no-signal field user.
+    const HYBRID_WINDOW_MS = 48 * 60 * 60 * 1000;
+    const clientSubmittedAt = input.clientSubmittedAt
+      ? new Date(input.clientSubmittedAt)
+      : null;
+    const honourClientClock =
+      clientSubmittedAt &&
+      clientSubmittedAt.getTime() <= now.getTime() &&
+      now.getTime() - clientSubmittedAt.getTime() <= HYBRID_WINDOW_MS;
+    const submittedAt =
+      input.intent === "submit"
+        ? honourClientClock
+          ? clientSubmittedAt
+          : now
+        : null;
     const editWindowClosesAt = submittedAt
       ? computeEditWindowClosesAt(submittedAt)
       : null;
@@ -174,6 +225,7 @@ export async function POST(req: Request) {
           residentialTeamNoteByUserId: input.residentialTeamNote
             ? ctx.user.id
             : null,
+          clientUuid: input.clientUuid ?? null,
         })
         .returning();
 

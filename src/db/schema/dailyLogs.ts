@@ -110,6 +110,15 @@ export const dailyLogs = pgTable(
     submittedAt: timestamp("submitted_at", { withTimezone: true }),
     editWindowClosesAt: timestamp("edit_window_closes_at", { withTimezone: true }),
 
+    // Step 51: offline-write idempotency. The client mints a UUID before any
+    // network attempt and includes it on the create payload. If a retry-after-
+    // success-but-network-died fires the same write twice, the second insert
+    // hits this unique constraint and the action layer treats it as "already
+    // committed" rather than a duplicate (different from the (project,date)
+    // 409 path which is a genuine collision between distinct payloads).
+    // Nullable for back-compat with rows created before Step 51.
+    clientUuid: uuid("client_uuid"),
+
     // Weather — manual entry today. weatherSource + weatherCapturedAt are
     // carried now so a later weather-API integration (Phase 6/7) doesn't
     // need a schema change.
@@ -152,6 +161,10 @@ export const dailyLogs = pgTable(
       table.projectId,
       table.logDate,
     ),
+    // Step 51: offline idempotency. Partial-style unique via plain unique
+    // on a nullable column — Postgres permits multiple NULLs by default,
+    // so pre-Step-51 rows (clientUuid=NULL) coexist freely.
+    clientUuidUnique: unique("daily_logs_client_uuid_unique").on(table.clientUuid),
     // Primary list view — recent logs for a project, newest first.
     projectStatusDateIdx: index("daily_logs_project_status_date_idx").on(
       table.projectId,
