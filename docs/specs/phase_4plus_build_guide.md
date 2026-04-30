@@ -3348,6 +3348,68 @@ git commit -m "Step 50 (6 #50): PWA scaffolding — service worker, manifest, in
 
 ---
 
+## Step 16 re-run (Phase 4+ surfaces) ✅ DONE (2026-04-30)
+
+**Mode:** Safe-to-autorun
+**Item:** Phase 3 Step 16 carry-forward
+**Effort:** S–M
+**Priority:** P1 (precedes Step 17 polish pass)
+
+### Why this was needed
+
+Phase 3 Step 16 made the original 24 screens responsive. Everything built
+since then — drawings, inspections, meetings, transmittals, closeout,
+prequal, plus the dashboard / financials / reports / settings expansions —
+inherited the AppShell breakpoints (handled in `app-shell.css`: tablet
+≤1279, mobile ≤767) but each module's own page CSS only had partial
+coverage. Symptoms varied by module: 5-col KPI strips with no mobile
+fallback, fixed multi-column tables that overflowed below 700px, modals
+without a `100vw - 32px` viewport cap, page titles stuck at 26px on
+phones.
+
+### Final state
+
+Module-by-module follow-ups committed against `main`:
+
+| Commit | Module | Gaps closed |
+|---|---|---|
+| `ab7ed66` | `drawings.css` | 22px page title, modal `min(620px, calc(100vw - 32px))` cap, thumb-row column drops at 900/767px, hero/index header wrap at 767px |
+| `4969275` | `inspections.css` | 22px title rule, list-row card-stack at 767px (header hidden, columns 3+ dropped), modal tpl-pick 2→1, modal viewport cap |
+| `49e75cd` | `meetings.css` | Three table types (`mt-row`, `mt-sub-row`, `mt-actions-row`) card-stack at 767px, modal-grid 2→1, type-pick 3→2, modal viewport cap |
+| `cea526a` | `transmittals.css` | Missing 1280px KPI step (5→3), audit-log table card-stack, page-title 22px, mobile padding (24/28/40 → 16/14/32), modal viewport cap |
+| `4298309` | `closeout-packages.css` | 22px page title, `cp-item-row` and `cp-review-item-row` collapse at 767px (extra cells span full width), modal viewport cap |
+| `3fa7d6f` | `prequalification.css` | Page-hdr stack, 22px title, `pq-score-table` 4→2 col with question spanning, doc-row stack |
+| `10bb8fb` | `integrations-ui.tsx` | Inline 5-col card grid → `auto-fill, minmax(220px, 1fr)` so settings page fluidly collapses on tablet/phone |
+
+The shell itself (`AppShell.tsx`, `app-shell.css`) was not touched —
+its breakpoints were already correct from the original Phase 3 Step 16.
+
+### What was NOT touched and why
+
+- **Reports** (`contractor/(global)/reports/reports-ui.tsx`): no fixed
+  multi-column grids found; page is already a stack of cards using
+  `auto-fit`/`auto-fill` patterns. No mobile gap.
+- **Dashboard** (`dashboard.css`): already had 1280/767/420 tier
+  coverage from the Phase 3 build. Audit confirmed zero gaps.
+- **`SettingRow` inline-style 220px label + 1fr control**: label gets
+  cramped on a 320px phone but doesn't break layout. Phase 3 build guide
+  explicitly de-prioritises settings for mobile, and a proper fix
+  requires moving the inline styles to a CSS class. Deferred.
+- **Drawings detail viewer at <600px**: the toolbar + canvas + viewer
+  topbar are already adequately responsive at 900/640px tiers. Going
+  smaller (sub-360px sheet viewing) is a Step 51 / offline-field
+  problem, not a layout problem.
+
+### Smoke / verification
+
+`npm run lint && npm run build` clean after every commit. No DevTools
+session; the user will validate at 375 / 768 / 1440 breakpoints in a
+follow-up review pass. If anything visibly breaks, the responsive
+blocks were appended in clearly-marked sections and are
+one-revert-each.
+
+---
+
 ## Step 51 — Offline-First Daily Logs + Photo Capture
 
 **Mode:** Require-design-input
