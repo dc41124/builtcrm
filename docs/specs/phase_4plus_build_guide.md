@@ -4136,12 +4136,46 @@ git commit -m "Step 58 (8-lite.1 #58): Per-org API key management"
 
 ---
 
-## Step 59 — Rate Limiting per API Key
+## Step 59 — Rate Limiting per API Key ✅ DONE (2026-05-01)
 
 **Mode:** Safe-to-autorun
 **Item:** 8-lite.1 #59
 **Effort:** S
 **Priority:** P1
+
+### Final state (what shipped)
+
+| Slice | What |
+|---|---|
+| Schema | `src/db/schema/apiKeys.ts` extended with two nullable columns: `rate_limit_per_minute`, `rate_limit_per_hour`. Null → platform defaults (60/min, 1000/hr). Migration `0051_closed_kronos.sql`. |
+| Limiter factory | `src/lib/ratelimit.ts` extended (folded into the existing file alongside the four global limiters from earlier phases). New `Map<string, Ratelimit>` cache keyed by `${limit}:${window}` — typically 2 entries (default minute, default hour). Custom-limit keys add an entry per unique tuple. New `enforceApiKeyRateLimit({keyId, perMinute, perHour})` runs both windows in parallel, picks `blockedBy` and `retryAfterSec` from the more restrictive failure. New `rateLimitHeadersFor()` materializes standard `X-RateLimit-*` + `Retry-After` headers. |
+| Auth wiring | `src/lib/api-keys/auth.ts` — `requireApiKey()` reads the per-key columns, runs the dual-window check after auth + scope, throws new `RateLimitExceededError` (distinct from `AuthorizationError` so 429 is treated as transient). Successful path attaches `rateLimit: ApiKeyRateLimitResult` to the returned `ApiKeyContext`. Convenience `apiKeyResponseHeaders(ctx)` for routes. |
+| Sample route | `src/app/api/v1/ping/route.ts` updated — applies `apiKeyResponseHeaders(ctx)` on 200, converts `RateLimitExceededError` to 429 with `rateLimitHeadersFor(err.result)`. Documents the canonical try/catch shape every future `/api/v1/*` route should follow. |
+| UI | `page.tsx` loader pulls the new columns; `ui.tsx` banner copy refined to state real defaults + Retry-After + header shape; "Endpoint" stat card swapped for "Default rate limit" (60/min · 1,000/hr); per-row warning-yellow "Custom RL" pill appears only when a key has overrides set, with the actual values in the title attribute. Default-key visual still matches the prototype byte-for-byte. |
+| Headers emitted | `X-RateLimit-Limit` (minute cap), `X-RateLimit-Remaining` (minute remaining), `X-RateLimit-Reset` (unix-sec timestamp of minute window reset), `X-RateLimit-Limit-Hour`, `X-RateLimit-Remaining-Hour`, `Retry-After` (only on 429, derived from whichever window blocked). |
+| Verification | Build clean, lint clean, 202/202 tests still passing. Manually smoke-tested with the 65-request loop against `/api/v1/ping`: first 60 succeed with declining `X-RateLimit-Remaining`, requests 61-65 return 429 with `Retry-After: ~60`. |
+
+### Decisions taken (re-confirming the proposal)
+
+- **Cached `Ratelimit` instances per (limit, window) tuple**, not the manual `INCR + EXPIRE` shape the build guide leaned toward. Sliding window via `@upstash/ratelimit` is smoother under burst, the cache keeps memory bounded for the realistic workload (most orgs default), and the SDK already handles edge cases (clock skew, atomic incr-and-test, analytics) we'd otherwise reimplement.
+- **Folded into the existing `src/lib/ratelimit.ts`**, not a new `src/lib/rateLimit.ts`. The existing file has the right shape (named limiters + `enforceLimit` helper) and one file is easier to find than two with names that collide on case-insensitive filesystems.
+- **Schema column names match the build-guide spec verbatim** (`rate_limit_per_minute`, `rate_limit_per_hour`). Both nullable; the auth helper applies defaults when null.
+- **Sliding window over fixed window** — the build guide allowed either; sliding is the safer default. The classic fixed-window edge (request lands at window-end then immediately at window-start) doesn't exist with sliding.
+- **Hour cap takes Retry-After precedence** when both windows block. Waiting out the minute window doesn't help if the hour cap is also exhausted; `Retry-After` should reflect the longer wait.
+- **No middleware** — same reasoning as Step 58. `/api/v1/*` routes call `requireApiKey()` per-route which handles both auth and rate-limit in one pass.
+
+### Production-grade follow-ups (deferred)
+
+All spec'd in `docs/specs/production_grade_upgrades/rate_limiting_v1_stubs.md`:
+
+1. Admin UI to mutate per-key limits — columns exist + are surfaced read-only, but no PATCH route or modal.
+2. Tests for the rate-limit surface — auth helper, factory cache hit, 429 path with header assertions.
+3. Limiter cache eviction policy — currently unbounded; cap at ~256 entries with LRU once §1 enables wider usage.
+4. Per-IP rate limit layered on top of per-key — defense-in-depth against credential rotation.
+5. Per-endpoint rate-limit overrides — weighted costs, expensive endpoints consume more budget.
+6. `GET /api/v1/usage` peek endpoint — let clients query their state without consuming budget.
+7. Sustained-429 alerting — notify org admin when a key has been throttling for hours.
+8. Header shape — add RFC 9239 `RateLimit` / `RateLimit-Policy` alongside the de-facto `X-RateLimit-*` family before Step 60's API docs lock in expectations.
 
 ### What this does
 

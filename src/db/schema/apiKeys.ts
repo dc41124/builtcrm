@@ -1,5 +1,6 @@
 import {
   index,
+  integer,
   pgEnum,
   pgPolicy,
   pgTable,
@@ -74,6 +75,14 @@ export const apiKeys = pgTable(
       onDelete: "set null",
     }),
     revokeReason: text("revoke_reason"),
+    // Step 59 — per-key rate-limit overrides. Both nullable; when null
+    // the auth helper falls back to the platform defaults
+    // (60/min, 1000/hr — see DEFAULT_API_KEY_RATE_LIMITS in
+    // src/lib/ratelimit.ts). Letting the column live here means a
+    // future "raise this customer's limits" admin action is a
+    // single-row UPDATE with no migration.
+    rateLimitPerMinute: integer("rate_limit_per_minute"),
+    rateLimitPerHour: integer("rate_limit_per_hour"),
     ...timestamps,
   },
   (table) => ({

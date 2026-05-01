@@ -45,6 +45,8 @@ export default async function ContractorApiKeysPage() {
             revokedAt: apiKeys.revokedAt,
             revokedByUserId: apiKeys.revokedByUserId,
             revokeReason: apiKeys.revokeReason,
+            rateLimitPerMinute: apiKeys.rateLimitPerMinute,
+            rateLimitPerHour: apiKeys.rateLimitPerHour,
           })
           .from(apiKeys)
           .where(eq(apiKeys.orgId, ctx.organization.id))
@@ -132,6 +134,8 @@ export default async function ContractorApiKeysPage() {
         revokedAtIso: k.revokedAt?.toISOString() ?? null,
         revokedByName: revoked?.name ?? null,
         revokeReason: k.revokeReason,
+        rateLimitPerMinute: k.rateLimitPerMinute,
+        rateLimitPerHour: k.rateLimitPerHour,
       };
     });
 

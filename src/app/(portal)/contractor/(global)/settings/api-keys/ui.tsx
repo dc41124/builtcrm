@@ -39,7 +39,16 @@ export type ApiKeyRow = {
   revokedAtIso: string | null;
   revokedByName: string | null;
   revokeReason: string | null;
+  /** Per-key override; null falls back to the platform default
+   *  (60/min). Step 59 — surfaced read-only in the UI; future
+   *  admin action will let support raise individual customers. */
+  rateLimitPerMinute: number | null;
+  /** Same shape as perMinute; null → 1000/hr default. */
+  rateLimitPerHour: number | null;
 };
+
+const DEFAULT_RATE_LIMIT_PER_MINUTE = 60;
+const DEFAULT_RATE_LIMIT_PER_HOUR = 1000;
 
 export type AuditRow = {
   id: string;
@@ -619,13 +628,17 @@ export function ApiKeysUI({
             <span style={{ fontFamily: F.mono, fontSize: 11.5 }}>
               /api/v1/*
             </span>
-            . Revoked keys return 401 immediately on next call. Test-mode
-            keys (
+            . Default rate limit is{" "}
+            <strong>{DEFAULT_RATE_LIMIT_PER_MINUTE} req/min · {DEFAULT_RATE_LIMIT_PER_HOUR.toLocaleString()} req/hour per key</strong>
+            ; over the limit returns 429 with{" "}
+            <span style={{ fontFamily: F.mono, fontSize: 11.5 }}>Retry-After</span>
+            . Every response includes{" "}
+            <span style={{ fontFamily: F.mono, fontSize: 11.5 }}>X-RateLimit-Limit / -Remaining / -Reset</span>{" "}
+            headers. Revoked keys return 401 immediately. Test-mode keys (
             <span style={{ fontFamily: F.mono, fontSize: 11.5 }}>
               bcrm_test_
             </span>
-            ) are coming soon — only live keys are available today. Try the
-            sample{" "}
+            ) are coming soon. Try the sample{" "}
             <span style={{ fontFamily: F.mono, fontSize: 11.5 }}>
               GET /api/v1/ping
             </span>{" "}
@@ -707,6 +720,20 @@ export function ApiKeysUI({
                         {s}
                       </span>
                     ))}
+                    {(k.rateLimitPerMinute !== null ||
+                      k.rateLimitPerHour !== null) && (
+                      <span
+                        className="ak-scope-pill"
+                        style={{
+                          background: "var(--ak-warning-soft)",
+                          color: "var(--ak-warning-text)",
+                          border: "1px solid #f5d6a0",
+                        }}
+                        title={`Custom rate limits: ${k.rateLimitPerMinute ?? DEFAULT_RATE_LIMIT_PER_MINUTE}/min · ${k.rateLimitPerHour ?? DEFAULT_RATE_LIMIT_PER_HOUR}/hr`}
+                      >
+                        Custom RL
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="ak-creator">
@@ -802,11 +829,17 @@ export function ApiKeysUI({
           </div>
         </div>
         <div className="ak-stat">
-          <div className="ak-stat-label">Endpoint</div>
-          <div className="ak-stat-val" style={{ fontFamily: F.mono, fontSize: 16 }}>
-            /api/v1/*
+          <div className="ak-stat-label">Default rate limit</div>
+          <div
+            className="ak-stat-val"
+            style={{ fontFamily: F.display, fontSize: 16 }}
+          >
+            {DEFAULT_RATE_LIMIT_PER_MINUTE}/min ·{" "}
+            {DEFAULT_RATE_LIMIT_PER_HOUR.toLocaleString()}/hr
           </div>
-          <div className="ak-stat-meta">Bearer-token auth, JSON only</div>
+          <div className="ak-stat-meta">
+            Per key. Overrides land per-row when set.
+          </div>
         </div>
       </div>
 

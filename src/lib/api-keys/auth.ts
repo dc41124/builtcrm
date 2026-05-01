@@ -3,6 +3,11 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { dbAdmin } from "@/db/admin-pool";
 import { apiKeys } from "@/db/schema";
 import { AuthorizationError } from "@/domain/permissions";
+import {
+  enforceApiKeyRateLimit,
+  rateLimitHeadersFor,
+  type ApiKeyRateLimitResult,
+} from "@/lib/ratelimit";
 
 import { hashApiKey, parseBearerToken } from "./hash";
 
@@ -35,7 +40,35 @@ export type ApiKeyContext = {
   /** The most-privileged scope on the key, used for sample-rate
    *  decisions and audit-event metadata. */
   effectiveScope: ApiKeyScope;
+  /** Rate-limit state from the just-completed enforcement pass.
+   *  Routes call `apiKeyResponseHeaders(ctx)` to surface this. */
+  rateLimit: ApiKeyRateLimitResult;
 };
+
+/**
+ * Thrown when a key passes auth but exceeds its rate limit. Routes
+ * convert this to a 429 with the standard headers (see
+ * `apiKeyResponseHeaders` below). Distinct from AuthorizationError
+ * so middlewares / catches downstream can treat it differently —
+ * 429 is a transient state, 401/403 are not.
+ */
+export class RateLimitExceededError extends Error {
+  constructor(
+    public readonly result: Extract<ApiKeyRateLimitResult, { ok: false }>,
+  ) {
+    super(
+      `API key rate limit exceeded (${result.blockedBy} window). Retry after ${result.retryAfterSec}s.`,
+    );
+    this.name = "RateLimitExceededError";
+  }
+}
+
+/** Convenience: lift the rate-limit headers off a context for a route's
+ *  successful response. Spread onto NextResponse.json options or set
+ *  individually on a Response. */
+export function apiKeyResponseHeaders(ctx: ApiKeyContext): Record<string, string> {
+  return rateLimitHeadersFor(ctx.rateLimit);
+}
 
 const SCOPE_RANK: Record<ApiKeyScope, number> = {
   read: 1,
@@ -77,6 +110,8 @@ export async function requireApiKey(
       orgId: apiKeys.orgId,
       scopes: apiKeys.scopes,
       revokedAt: apiKeys.revokedAt,
+      rateLimitPerMinute: apiKeys.rateLimitPerMinute,
+      rateLimitPerHour: apiKeys.rateLimitPerHour,
     })
     .from(apiKeys)
     .where(and(eq(apiKeys.keyHash, keyHash), isNull(apiKeys.revokedAt)))
@@ -97,6 +132,19 @@ export async function requireApiKey(
     );
   }
 
+  // Step 59 — rate limit. Both windows enforced; cached limiter
+  // instances per (limit, window) tuple keep this cheap. Failure
+  // throws with the full result so the route can spread the standard
+  // headers onto the 429 response.
+  const rateLimit = await enforceApiKeyRateLimit({
+    keyId: row.id,
+    perMinute: row.rateLimitPerMinute,
+    perHour: row.rateLimitPerHour,
+  });
+  if (!rateLimit.ok) {
+    throw new RateLimitExceededError(rateLimit);
+  }
+
   // Fire-and-forget last_used_at bump. Awaiting this would add a
   // round-trip to every authenticated request. Errors here are
   // intentionally swallowed — they don't justify failing an otherwise-
@@ -112,5 +160,6 @@ export async function requireApiKey(
     orgId: row.orgId,
     scopes,
     effectiveScope: effective,
+    rateLimit,
   };
 }
