@@ -1,6 +1,6 @@
 "use client";
 
-// Step 60 — Public API docs UI.
+// Step 60 — API docs UI.
 //
 // TypeScript port of `docs/prototypes/builtcrm_api_docs_public.jsx`. The
 // prototype is the design contract; the OpenAPI spec at
@@ -13,30 +13,20 @@
 //   - The endpoint surface is small (12 endpoints); the data model fits
 //     in this file without ceremony.
 //
-// API docs is just another page on the marketing site. Same nav, same
-// chrome — copy of the marketing-page nav HTML rendered inline. No
-// shared component, no session plumbing.
+// Chrome is intentionally isolated: a single in-product-style topbar
+// (logo · download OpenAPI · API Reference · search-far-right). No
+// marketing nav, no marketing footer, no session plumbing. The page is
+// reached either from the marketing footer or from the contractor
+// settings "Read API docs" button — both expect the same isolated shell.
 //
 // What's wired beyond the prototype:
-//   - Sidebar search filters the endpoint list.
+//   - Topbar search filters the endpoint list (same filter that used to
+//     live in the left sidebar).
 //   - "Download OpenAPI" hits /openapi.yaml (the route handler).
 //   - "Try it · Sign in" stays disabled per spec (auth-only feature).
 
-import Link from "next/link";
-import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-
-const MKT_F = {
-  display: "'DM Sans',system-ui,sans-serif",
-  body: "'Instrument Sans',system-ui,sans-serif",
-};
-
-const MKT_ARR = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M5 12h14" />
-    <path d="m12 5 7 7-7 7" />
-  </svg>
-);
+import type { ReactNode } from "react";
 
 const F = {
   display: "'DM Sans',system-ui,sans-serif",
@@ -126,6 +116,18 @@ const I = {
   zap: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </svg>
+  ),
+  book: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </svg>
+  ),
+  code: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
     </svg>
   ),
 };
@@ -708,15 +710,7 @@ function statusColor(code: string): Swatch {
 // Main component
 // ────────────────────────────────────────────────────────────────────
 
-export type ApiDocsSession = {
-  signedIn: boolean;
-  dashboardHref: string | null;
-};
-
-export function ApiDocsUI({ session }: { session?: ApiDocsSession } = {}) {
-  const signedIn = session?.signedIn ?? false;
-  const dashboardHref = session?.dashboardHref ?? "/no-portal";
-
+export function ApiDocsUI() {
   const [selected, setSelected] = useState<string>("intro");
   const [lang, setLang] = useState<SampleLang>("curl");
   const [search, setSearch] = useState<string>("");
@@ -749,68 +743,155 @@ export function ApiDocsUI({ session }: { session?: ApiDocsSession } = {}) {
         minHeight: "100vh",
       }}
     >
-      {/* Marketing-site nav — copy of the nav in marketing-page.tsx. Five
-          tabs (Product / Solutions / Pricing / Resources are real Links
-          back to /; "API docs" is the active page). */}
-      <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(250,249,247,.85)", backdropFilter: "blur(16px)", borderBottom: "1px solid #eeece8", padding: "0 32px" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 32 }}>
-          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", textDecoration: "none", color: "inherit" }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg,#2c2541,#5b4fc7)", display: "grid", placeItems: "center" }}>
-              <svg viewBox="0 0 80 80" width="19" height="19"><rect x="14" y="14" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".5" /><rect x="26" y="26" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".75" /><rect x="32" y="32" width="26" height="26" rx="4" fill="white" opacity=".95" /></svg>
-            </div>
-            <div style={{ fontFamily: MKT_F.display, fontSize: 19, fontWeight: 780, letterSpacing: "-.04em" }}>BuiltCRM</div>
-          </Link>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Product</Link>
-            <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Solutions</Link>
-            <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Pricing</Link>
-            <Link href="/integrations" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Integrations</Link>
-            <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Resources</Link>
-            <span style={{ padding: "8px 14px", fontSize: 14, fontWeight: 640, color: "#1a1714", borderRadius: 10 }}>API docs</span>
+      {/* Isolated docs topbar — Resend-style. Logo on the far left,
+          OpenAPI download + active "API Reference" tab next to it,
+          and a search box pinned to the far right. No marketing nav,
+          no login/signup CTAs. */}
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+          background: T.surface,
+          borderBottom: `1px solid ${T.border}`,
+          padding: "0 24px",
+          height: 56,
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+        }}
+      >
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, paddingRight: 10, borderRight: `1px solid ${T.border}`, marginRight: 6, height: 32 }}>
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 8,
+              background: "linear-gradient(135deg,#2c2541,#5b4fc7)",
+              display: "grid",
+              placeItems: "center",
+            }}
+          >
+            <svg viewBox="0 0 80 80" width="16" height="16">
+              <rect x="14" y="14" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".5" />
+              <rect x="26" y="26" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".75" />
+              <rect x="32" y="32" width="26" height="26" rx="4" fill="white" opacity=".95" />
+            </svg>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {signedIn ? (
-              <Link href={dashboardHref} style={{ height: 38, padding: "0 20px", fontSize: 13.5, fontWeight: 650, color: "white", background: "#5b4fc7", borderRadius: 10, display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer", textDecoration: "none", fontFamily: MKT_F.body }}>
-                Open dashboard <span style={{ width: 14, height: 14, display: "block" }}>{MKT_ARR}</span>
-              </Link>
-            ) : (
-              <>
-                <Link href="/login" style={{ height: 38, padding: "0 16px", fontSize: 13.5, fontWeight: 620, color: "#5e5850", background: "transparent", border: "none", borderRadius: 10, cursor: "pointer", display: "inline-flex", alignItems: "center", textDecoration: "none", fontFamily: MKT_F.body }}>Log in</Link>
-                <Link href="/signup" style={{ height: 38, padding: "0 20px", fontSize: 13.5, fontWeight: 650, color: "white", background: "#5b4fc7", borderRadius: 10, display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer", textDecoration: "none", fontFamily: MKT_F.body }}>
-                  Get started free <span style={{ width: 14, height: 14, display: "block" }}>{MKT_ARR}</span>
-                </Link>
-              </>
-            )}
-          </div>
+          <div style={{ fontFamily: F.display, fontSize: 16, fontWeight: 760, letterSpacing: "-.025em" }}>BuiltCRM</div>
         </div>
-      </nav>
 
-      {/* Sub-header just for the docs page: API version pill +
-          Download OpenAPI. Sits below the marketing nav. */}
-      <div style={{ borderBottom: `1px solid ${T.border}`, background: T.surface, padding: "0 32px" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", height: 44, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontFamily: F.display, fontSize: 11, fontWeight: 700, color: T.accentText, padding: "3px 10px", background: T.accentSoft, border: `1px solid ${T.accentMuted}`, borderRadius: 999, letterSpacing: ".02em" }}>
-              API · v1
-            </span>
-            <span style={{ fontSize: 12.5, color: T.textTertiary, fontWeight: 520 }}>REST · JSON · Bearer auth</span>
-          </div>
-          <a href="/openapi.yaml" download style={{ height: 30, padding: "0 12px", fontSize: 12.5, fontWeight: 600, color: T.textSecondary, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, fontFamily: F.display, textDecoration: "none" }}>
-            <span style={{ width: 14, height: 14, display: "block" }}>{I.download}</span>
-            Download OpenAPI
-          </a>
+        {/* Action tabs */}
+        <a
+          href="/openapi.yaml"
+          download
+          style={{
+            height: 32,
+            padding: "0 12px",
+            fontSize: 13,
+            fontWeight: 580,
+            color: T.textSecondary,
+            background: "transparent",
+            border: `1px solid transparent`,
+            borderRadius: 8,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 7,
+            fontFamily: F.display,
+            textDecoration: "none",
+            cursor: "pointer",
+            transition: "all 120ms",
+          }}
+          title="Download the OpenAPI 3.1 spec"
+        >
+          <span style={{ width: 14, height: 14, display: "block" }}>{I.book}</span>
+          OpenAPI spec
+        </a>
+        <span
+          style={{
+            height: 32,
+            padding: "0 12px",
+            fontSize: 13,
+            fontWeight: 640,
+            color: T.textPrimary,
+            background: T.surfaceAlt,
+            border: `1px solid ${T.border}`,
+            borderRadius: 8,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 7,
+            fontFamily: F.display,
+          }}
+        >
+          <span style={{ width: 14, height: 14, display: "block" }}>{I.code}</span>
+          API Reference
+        </span>
+
+        {/* Search — pinned to the far right */}
+        <div style={{ flex: 1 }} />
+        <div style={{ position: "relative", width: 320 }}>
+          <span
+            style={{
+              position: "absolute",
+              left: 10,
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: 14,
+              height: 14,
+              color: T.textTertiary,
+              pointerEvents: "none",
+            }}
+          >
+            {I.search}
+          </span>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search the API reference"
+            aria-label="Search the API reference"
+            style={{
+              width: "100%",
+              height: 34,
+              padding: "0 56px 0 32px",
+              borderRadius: 8,
+              border: `1px solid ${T.border}`,
+              background: T.surface,
+              color: T.textPrimary,
+              fontSize: 12.5,
+              fontFamily: F.body,
+              fontWeight: 520,
+              boxSizing: "border-box",
+              outline: "none",
+            }}
+          />
+          <span
+            style={{
+              position: "absolute",
+              right: 10,
+              top: "50%",
+              transform: "translateY(-50%)",
+              fontFamily: F.mono,
+              fontSize: 10.5,
+              fontWeight: 600,
+              color: T.textTertiary,
+              letterSpacing: ".04em",
+            }}
+          >
+            CTRL-K
+          </span>
         </div>
-      </div>
+      </header>
 
       {/* ══════ THREE-PANE LAYOUT ══════ */}
-      {/* Marketing nav 64 + sub-header 44 = 108px total chrome. */}
+      {/* Topbar 56px = total chrome. */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "260px 1fr 380px",
           maxWidth: 1440,
           margin: "0 auto",
-          minHeight: "calc(100vh - 108px)",
+          minHeight: "calc(100vh - 56px)",
         }}
       >
         {/* ── LEFT NAV ── */}
@@ -819,48 +900,11 @@ export function ApiDocsUI({ session }: { session?: ApiDocsSession } = {}) {
             borderRight: `1px solid ${T.border}`,
             padding: "24px 8px 40px 24px",
             position: "sticky",
-            top: 108,
-            height: "calc(100vh - 108px)",
+            top: 56,
+            height: "calc(100vh - 56px)",
             overflowY: "auto",
           }}
         >
-          {/* Search */}
-          <div style={{ position: "relative", marginBottom: 18 }}>
-            <span
-              style={{
-                position: "absolute",
-                left: 10,
-                top: "50%",
-                transform: "translateY(-50%)",
-                width: 14,
-                height: 14,
-                color: T.textTertiary,
-              }}
-            >
-              {I.search}
-            </span>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search endpoints…"
-              aria-label="Search the API reference"
-              style={{
-                width: "100%",
-                height: 34,
-                padding: "0 12px 0 32px",
-                borderRadius: 8,
-                border: `1px solid ${T.border}`,
-                background: T.surface,
-                color: T.textPrimary,
-                fontSize: 12.5,
-                fontFamily: F.body,
-                fontWeight: 520,
-                boxSizing: "border-box",
-                outline: "none",
-              }}
-            />
-          </div>
-
           {filteredNav.length === 0 ? (
             <div
               style={{
@@ -974,8 +1018,8 @@ export function ApiDocsUI({ session }: { session?: ApiDocsSession } = {}) {
             color: T.codeText,
             padding: "24px 20px",
             position: "sticky",
-            top: 108,
-            height: "calc(100vh - 108px)",
+            top: 56,
+            height: "calc(100vh - 56px)",
             overflowY: "auto",
             borderLeft: `1px solid ${T.borderDark}`,
           }}

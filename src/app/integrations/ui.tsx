@@ -22,15 +22,7 @@ const ARR = (
   </svg>
 );
 
-export type IntegrationsSession = {
-  signedIn: boolean;
-  dashboardHref: string | null;
-};
-
-export function PublicIntegrationsUI({ session }: { session: IntegrationsSession }) {
-  const signedIn = session.signedIn;
-  const dashboardHref = session.dashboardHref ?? "/no-portal";
-
+export function PublicIntegrationsUI() {
   return (
     <div
       style={{
@@ -41,8 +33,9 @@ export function PublicIntegrationsUI({ session }: { session: IntegrationsSession
         WebkitFontSmoothing: "antialiased",
       }}
     >
-      {/* Marketing nav — same five-tab nav as marketing-page.tsx and
-          api-docs-ui.tsx. "Integrations" is the active tab here. */}
+      {/* Marketing nav — same four-tab nav as marketing-page.tsx and
+          api-docs-ui.tsx. Integrations + API docs were folded into the
+          footer to keep top-nav real estate tight. */}
       <nav
         style={{
           position: "sticky",
@@ -100,78 +93,50 @@ export function PublicIntegrationsUI({ session }: { session: IntegrationsSession
             <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Product</Link>
             <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Solutions</Link>
             <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Pricing</Link>
-            <span style={{ padding: "8px 14px", fontSize: 14, fontWeight: 640, color: "#1a1714", borderRadius: 10 }}>Integrations</span>
             <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Resources</Link>
-            <Link href="/api-docs" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>API docs</Link>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {signedIn ? (
-              <Link
-                href={dashboardHref}
-                style={{
-                  height: 38,
-                  padding: "0 20px",
-                  fontSize: 13.5,
-                  fontWeight: 650,
-                  color: "white",
-                  background: "#5b4fc7",
-                  borderRadius: 10,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  border: "none",
-                  cursor: "pointer",
-                  textDecoration: "none",
-                  fontFamily: F.body,
-                }}
-              >
-                Open dashboard <span style={{ width: 14, height: 14, display: "block" }}>{ARR}</span>
-              </Link>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  style={{
-                    height: 38,
-                    padding: "0 16px",
-                    fontSize: 13.5,
-                    fontWeight: 620,
-                    color: "#5e5850",
-                    background: "transparent",
-                    border: "none",
-                    borderRadius: 10,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    textDecoration: "none",
-                    fontFamily: F.body,
-                  }}
-                >
-                  Log in
-                </Link>
-                <Link
-                  href="/signup"
-                  style={{
-                    height: 38,
-                    padding: "0 20px",
-                    fontSize: 13.5,
-                    fontWeight: 650,
-                    color: "white",
-                    background: "#5b4fc7",
-                    borderRadius: 10,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    border: "none",
-                    cursor: "pointer",
-                    textDecoration: "none",
-                    fontFamily: F.body,
-                  }}
-                >
-                  Get started free <span style={{ width: 14, height: 14, display: "block" }}>{ARR}</span>
-                </Link>
-              </>
-            )}
+            <Link
+              href="/login"
+              style={{
+                height: 38,
+                padding: "0 16px",
+                fontSize: 13.5,
+                fontWeight: 620,
+                color: "#5e5850",
+                background: "transparent",
+                border: "none",
+                borderRadius: 10,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                textDecoration: "none",
+                fontFamily: F.body,
+              }}
+            >
+              Log in
+            </Link>
+            <Link
+              href="/signup"
+              style={{
+                height: 38,
+                padding: "0 20px",
+                fontSize: 13.5,
+                fontWeight: 650,
+                color: "white",
+                background: "#5b4fc7",
+                borderRadius: 10,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                border: "none",
+                cursor: "pointer",
+                textDecoration: "none",
+                fontFamily: F.body,
+              }}
+            >
+              Get started free <span style={{ width: 14, height: 14, display: "block" }}>{ARR}</span>
+            </Link>
           </div>
         </div>
       </nav>

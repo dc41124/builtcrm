@@ -255,18 +255,7 @@ const ARTICLES: Article[] = [
 
 type PageKey = "home" | "solutions" | "pricing" | "resources";
 
-export type MarketingSession = {
-  signedIn: boolean;
-  dashboardHref: string | null;
-};
-
-export default function MarketingPage({
-  session,
-}: {
-  session?: MarketingSession;
-} = {}) {
-  const signedIn = session?.signedIn ?? false;
-  const dashboardHref = session?.dashboardHref ?? "/no-portal";
+export default function MarketingPage() {
   const [page, setPage] = useState<PageKey>("home");
   const [audience, setAudience] = useState<SolutionKey>("gc");
   const [annual, setAnnual] = useState(true);
@@ -313,23 +302,13 @@ export default function MarketingPage({
             {([["home", "Product"], ["solutions", "Solutions"], ["pricing", "Pricing"]] as [PageKey, string][]).map(([k, l]) => (
               <div key={k} onClick={() => nav(k)} style={{ padding: "8px 14px", fontSize: 14, fontWeight: page === k ? 640 : 560, color: page === k ? "#1a1714" : "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms" }}>{l}</div>
             ))}
-            <Link href="/integrations" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Integrations</Link>
             <div onClick={() => nav("resources")} style={{ padding: "8px 14px", fontSize: 14, fontWeight: page === "resources" ? 640 : 560, color: page === "resources" ? "#1a1714" : "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms" }}>Resources</div>
-            <Link href="/api-docs" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>API docs</Link>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {signedIn ? (
-              <Link href={dashboardHref} className="mkt-nav-signup" style={{ height: 38, padding: "0 20px", fontSize: 13.5, fontWeight: 650, color: "white", background: "#5b4fc7", borderRadius: 10, display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer", textDecoration: "none", fontFamily: F.body }}>
-                Open dashboard <span style={{ width: 14, height: 14, display: "block" }}>{ARR}</span>
-              </Link>
-            ) : (
-              <>
-                <Link href="/login" className="mkt-nav-login" style={{ height: 38, padding: "0 16px", fontSize: 13.5, fontWeight: 620, color: "#5e5850", background: "transparent", border: "none", borderRadius: 10, cursor: "pointer", display: "inline-flex", alignItems: "center", textDecoration: "none", fontFamily: F.body }}>Log in</Link>
-                <Link href="/signup" className="mkt-nav-signup" style={{ height: 38, padding: "0 20px", fontSize: 13.5, fontWeight: 650, color: "white", background: "#5b4fc7", borderRadius: 10, display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer", textDecoration: "none", fontFamily: F.body }}>
-                  Get started free <span style={{ width: 14, height: 14, display: "block" }}>{ARR}</span>
-                </Link>
-              </>
-            )}
+            <Link href="/login" className="mkt-nav-login" style={{ height: 38, padding: "0 16px", fontSize: 13.5, fontWeight: 620, color: "#5e5850", background: "transparent", border: "none", borderRadius: 10, cursor: "pointer", display: "inline-flex", alignItems: "center", textDecoration: "none", fontFamily: F.body }}>Log in</Link>
+            <Link href="/signup" className="mkt-nav-signup" style={{ height: 38, padding: "0 20px", fontSize: 13.5, fontWeight: 650, color: "white", background: "#5b4fc7", borderRadius: 10, display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer", textDecoration: "none", fontFamily: F.body }}>
+              Get started free <span style={{ width: 14, height: 14, display: "block" }}>{ARR}</span>
+            </Link>
             <button
               type="button"
               aria-label={mobileMenu ? "Close menu" : "Open menu"}
@@ -349,22 +328,12 @@ export default function MarketingPage({
           {([["home", "Product"], ["solutions", "Solutions"], ["pricing", "Pricing"]] as [PageKey, string][]).map(([k, l]) => (
             <button key={k} onClick={() => nav(k)} style={{ textAlign: "left", padding: "16px 14px", fontFamily: F.display, fontSize: 18, fontWeight: page === k ? 720 : 620, color: page === k ? "#5b4fc7" : "#1a1714", background: page === k ? "#eeedfb" : "transparent", border: "none", borderRadius: 12, cursor: "pointer" }}>{l}</button>
           ))}
-          <Link href="/integrations" onClick={() => setMobileMenu(false)} style={{ display: "block", padding: "16px 14px", fontFamily: F.display, fontSize: 18, fontWeight: 620, color: "#1a1714", borderRadius: 12, textDecoration: "none" }}>Integrations</Link>
           <button onClick={() => nav("resources")} style={{ textAlign: "left", padding: "16px 14px", fontFamily: F.display, fontSize: 18, fontWeight: page === "resources" ? 720 : 620, color: page === "resources" ? "#5b4fc7" : "#1a1714", background: page === "resources" ? "#eeedfb" : "transparent", border: "none", borderRadius: 12, cursor: "pointer" }}>Resources</button>
-          <Link href="/api-docs" onClick={() => setMobileMenu(false)} style={{ display: "block", padding: "16px 14px", fontFamily: F.display, fontSize: 18, fontWeight: 620, color: "#1a1714", borderRadius: 12, textDecoration: "none" }}>API docs</Link>
           <div style={{ height: 1, background: "#eeece8", margin: "12px 0" }} />
-          {signedIn ? (
-            <Link href={dashboardHref} onClick={() => setMobileMenu(false)} style={{ marginTop: 4, height: 50, borderRadius: 12, background: "#5b4fc7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 15, fontWeight: 680, textDecoration: "none", fontFamily: F.body }}>
-              Open dashboard <span style={{ width: 16, height: 16, display: "block" }}>{ARR}</span>
-            </Link>
-          ) : (
-            <>
-              <Link href="/login" onClick={() => setMobileMenu(false)} style={{ padding: "14px 14px", fontSize: 15, fontWeight: 620, color: "#5e5850", textDecoration: "none", fontFamily: F.body }}>Log in</Link>
-              <Link href="/signup" onClick={() => setMobileMenu(false)} style={{ marginTop: 8, height: 50, borderRadius: 12, background: "#5b4fc7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 15, fontWeight: 680, textDecoration: "none", fontFamily: F.body }}>
-                Get started free <span style={{ width: 16, height: 16, display: "block" }}>{ARR}</span>
-              </Link>
-            </>
-          )}
+          <Link href="/login" onClick={() => setMobileMenu(false)} style={{ padding: "14px 14px", fontSize: 15, fontWeight: 620, color: "#5e5850", textDecoration: "none", fontFamily: F.body }}>Log in</Link>
+          <Link href="/signup" onClick={() => setMobileMenu(false)} style={{ marginTop: 8, height: 50, borderRadius: 12, background: "#5b4fc7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 15, fontWeight: 680, textDecoration: "none", fontFamily: F.body }}>
+            Get started free <span style={{ width: 16, height: 16, display: "block" }}>{ARR}</span>
+          </Link>
         </div>
       )}
 
@@ -840,14 +809,18 @@ export default function MarketingPage({
               </div>
               <p style={{ fontSize: 13.5, lineHeight: 1.65, maxWidth: 260, color: "rgba(250,249,247,.5)" }}>Construction project management built for the way real teams actually work.</p>
             </div>
-            {[
-              { h: "Product", links: ["Features", "Pricing", "Integrations", "Changelog", "Roadmap"] },
-              { h: "Solutions", links: ["General Contractors", "Subcontractors", "Commercial Owners", "Homeowners"] },
-              { h: "Company", links: ["About", "Blog", "Careers", "Contact", "Security"] },
-            ].map((col, i) => (
+            {([
+              { h: "Product", links: [{ l: "Features" }, { l: "Pricing" }, { l: "Integrations", href: "/integrations" }, { l: "API docs", href: "/api-docs" }, { l: "Changelog" }, { l: "Roadmap" }] },
+              { h: "Solutions", links: [{ l: "General Contractors" }, { l: "Subcontractors" }, { l: "Commercial Owners" }, { l: "Homeowners" }] },
+              { h: "Company", links: [{ l: "About" }, { l: "Blog" }, { l: "Careers" }, { l: "Contact" }, { l: "Security" }] },
+            ] as { h: string; links: { l: string; href?: string }[] }[]).map((col, i) => (
               <div key={i}>
                 <h4 style={{ fontFamily: F.display, fontSize: 11.5, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "rgba(250,249,247,.3)", marginBottom: 20 }}>{col.h}</h4>
-                {col.links.map(l => <div key={l} style={{ fontSize: 13.5, color: "rgba(250,249,247,.6)", fontWeight: 480, marginBottom: 12, cursor: "pointer" }}>{l}</div>)}
+                {col.links.map(({ l, href }) => href ? (
+                  <Link key={l} href={href} style={{ display: "block", fontSize: 13.5, color: "rgba(250,249,247,.6)", fontWeight: 480, marginBottom: 12, textDecoration: "none" }}>{l}</Link>
+                ) : (
+                  <div key={l} style={{ fontSize: 13.5, color: "rgba(250,249,247,.6)", fontWeight: 480, marginBottom: 12, cursor: "pointer" }}>{l}</div>
+                ))}
               </div>
             ))}
           </div>

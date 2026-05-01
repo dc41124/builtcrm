@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 import { getServerSession } from "@/auth/session";
 import { loadUserPortalContext } from "@/domain/loaders/portals";
 
-import { PublicIntegrationsUI, type IntegrationsSession } from "./ui";
+import { PublicIntegrationsUI } from "./ui";
 
-// Step 64 — Public marketing version of the integration gallery.
-// Same marketing-site chrome as /api-docs. Anyone (signed-in or not)
-// can browse the catalog; nothing is gated.
+// Step 64 — Public marketing version of the integration gallery. Anyone
+// logged-out can browse the catalog. Signed-in visitors are redirected
+// straight to their portal — the marketing surface is never shown to
+// authenticated sessions.
 
 export const metadata: Metadata = {
   title: "Integrations · BuiltCRM",
@@ -17,24 +19,21 @@ export const metadata: Metadata = {
 };
 
 export default async function IntegrationsPage() {
-  const session = await loadDocsSession();
-  return <PublicIntegrationsUI session={session} />;
-}
-
-async function loadDocsSession(): Promise<IntegrationsSession> {
   const sessionData = await getServerSession();
   const appUserId = sessionData?.session.appUserId;
-  if (!appUserId) return { signedIn: false, dashboardHref: null };
+  if (appUserId) {
+    redirect(await resolvePortalHref(appUserId));
+  }
+  return <PublicIntegrationsUI />;
+}
+
+async function resolvePortalHref(appUserId: string): Promise<string> {
   try {
     const ctx = await loadUserPortalContext(appUserId);
-    if (ctx.options.length === 0) {
-      return { signedIn: true, dashboardHref: "/no-portal" };
-    }
-    if (ctx.options.length === 1) {
-      return { signedIn: true, dashboardHref: ctx.options[0].href };
-    }
-    return { signedIn: true, dashboardHref: "/select-portal" };
+    if (ctx.options.length === 0) return "/no-portal";
+    if (ctx.options.length === 1) return ctx.options[0].href;
+    return "/select-portal";
   } catch {
-    return { signedIn: true, dashboardHref: "/no-portal" };
+    return "/no-portal";
   }
 }
