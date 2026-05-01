@@ -5,6 +5,7 @@ node_modules/
 .next/
 dist/
 .turbo/
+.trigger/
 
 # Serwist build artifacts (regenerated on every `next build`)
 /public/sw.js

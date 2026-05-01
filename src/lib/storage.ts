@@ -1,5 +1,6 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   HeadObjectCommand,
@@ -97,4 +98,37 @@ export async function putObject(params: {
       ContentType: params.contentType,
     }),
   );
+}
+
+// Server-side fetch — used by background jobs that need the bytes
+// (e.g. Whisper transcription pulling the audio uploaded by the
+// browser via a presigned PUT). Throws on missing key or transport
+// failure. Caller is responsible for memory ceiling — don't use this
+// for large arbitrary files.
+export async function getObjectBytes(key: string): Promise<Buffer> {
+  const res = await r2.send(
+    new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }),
+  );
+  if (!res.Body) {
+    throw new Error(`R2 object missing body: ${key}`);
+  }
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of res.Body as AsyncIterable<Uint8Array>) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+// Best-effort delete — used to clean up transient assets (audio after
+// transcription, R2 orphans). Swallows NoSuchKey so re-runs are
+// idempotent; rethrows other errors so caller can decide.
+export async function deleteObject(key: string): Promise<void> {
+  try {
+    await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+  } catch (err) {
+    const code = (err as { Code?: string; name?: string }).Code
+      ?? (err as { name?: string }).name;
+    if (code === "NoSuchKey" || code === "NotFound") return;
+    throw err;
+  }
 }

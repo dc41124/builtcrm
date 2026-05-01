@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import type {
   AttendeeScope,
@@ -95,6 +95,16 @@ export function MeetingDetailUI({
   });
   const [addingAction, setAddingAction] = useState(false);
   const [showAddAction, setShowAddAction] = useState(false);
+
+  // Step 56 — Meeting Minutes AI: tracks the in-flight transcription
+  // Trigger.dev run. `runId` is set when the upload + trigger
+  // succeeds; `status` is the polled run status; `error` surfaces
+  // both client-side validation errors and run failures.
+  const [aiRunId, setAiRunId] = useState<string | null>(null);
+  const [aiStatus, setAiStatus] = useState<
+    "idle" | "uploading" | "transcribing" | "extracting" | "done" | "error"
+  >("idle");
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const [showInvite, setShowInvite] = useState(false);
   const [inviteUserId, setInviteUserId] = useState("");
@@ -261,6 +271,189 @@ export function MeetingDetailUI({
       setMinutesSaving(false);
     }
   };
+
+  // Step 56 — kick off Whisper + Claude pipeline. Three phases:
+  //   1. presign + browser PUT to R2
+  //   2. POST /transcribe to fire the Trigger.dev task
+  //   3. poll /status until terminal, then router.refresh()
+  // Soft cap: 1h warning. Hard cap: 2h reject (the in-task backstop
+  // also catches this if the browser metadata read fails).
+  const SOFT_CAP_SECONDS = 60 * 60;
+  const HARD_CAP_SECONDS = 60 * 60 * 2;
+
+  const startAiTranscription = async (file: File, keepAudio: boolean) => {
+    if (minutesFinalized) {
+      setAiError("Minutes are already finalized — cannot regenerate.");
+      setAiStatus("error");
+      return;
+    }
+    setAiError(null);
+    setAiStatus("uploading");
+
+    try {
+      const duration = await readAudioDuration(file).catch(() => null);
+      if (duration !== null) {
+        if (duration > HARD_CAP_SECONDS) {
+          setAiError(
+            `Audio is ${Math.round(duration / 60)}min. Hard cap is 120min.`,
+          );
+          setAiStatus("error");
+          return;
+        }
+        if (duration > SOFT_CAP_SECONDS) {
+          const proceed = window.confirm(
+            `This is a ${Math.round(duration / 60)}min recording. Whisper transcription will cost ~$${(duration * 0.006 / 60).toFixed(2)}. Continue?`,
+          );
+          if (!proceed) {
+            setAiStatus("idle");
+            return;
+          }
+        }
+      }
+
+      // 1. Presign
+      const upRes = await fetch(
+        `/api/meetings/${meetingId}/minutes/ai/upload`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: file.name,
+            contentType: file.type || "audio/mpeg",
+            sizeBytes: file.size,
+          }),
+        },
+      );
+      if (!upRes.ok) {
+        const body = await upRes.json().catch(() => ({}));
+        throw new Error(body.message ?? body.error ?? "Upload presign failed");
+      }
+      const { key, uploadUrl } = (await upRes.json()) as {
+        key: string;
+        uploadUrl: string;
+      };
+
+      // 2. Direct PUT to R2
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "audio/mpeg" },
+        body: file,
+      });
+      if (!putRes.ok) {
+        throw new Error(`Upload to storage failed (${putRes.status})`);
+      }
+
+      // 3. Trigger task
+      setAiStatus("transcribing");
+      const trigRes = await fetch(
+        `/api/meetings/${meetingId}/minutes/ai/transcribe`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            audioR2Key: key,
+            audioFilename: file.name,
+            audioMimeType: file.type || "audio/mpeg",
+            keepAudio,
+          }),
+        },
+      );
+      if (!trigRes.ok) {
+        const body = await trigRes.json().catch(() => ({}));
+        throw new Error(body.message ?? body.error ?? "Trigger failed");
+      }
+      const { runId } = (await trigRes.json()) as { runId: string };
+      setAiRunId(runId);
+    } catch (err) {
+      setAiError((err as Error).message);
+      setAiStatus("error");
+    }
+  };
+
+  // Status poller — runs while a runId is set. Re-fetches the meeting
+  // detail when the run reports terminal so the UI shows the new
+  // minutes + action items.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (!aiRunId) return;
+    let cancelled = false;
+    let extractingFlipped = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(
+          `/api/meetings/${meetingId}/minutes/ai/status?runId=${encodeURIComponent(aiRunId)}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          status: string;
+          isTerminal: boolean;
+          error: string | null;
+        };
+        if (cancelled) return;
+
+        // Heuristic: after ~15s of "EXECUTING" we assume Whisper is
+        // done and Claude is running. Trigger.dev v3 doesn't expose
+        // sub-step progress here, so the label is best-effort.
+        if (
+          !extractingFlipped &&
+          body.status === "EXECUTING" &&
+          aiStatus === "transcribing"
+        ) {
+          // hold "transcribing" for first poll, then advance
+          extractingFlipped = true;
+          setTimeout(() => {
+            if (!cancelled) setAiStatus("extracting");
+          }, 15000);
+        }
+
+        if (body.isTerminal) {
+          if (body.status === "COMPLETED") {
+            setAiStatus("done");
+            setAiRunId(null);
+            // Pull updated minutes + action items from the loader.
+            router.refresh();
+            // Drop the user back into the "minutes" tab so the
+            // generated draft is visible immediately.
+            setMinutesDirty(false);
+            setTab("minutes");
+          } else {
+            setAiError(body.error ?? `Run ${body.status.toLowerCase()}`);
+            setAiStatus("error");
+            setAiRunId(null);
+          }
+        }
+      } catch {
+        // transient network error — next tick will retry
+      }
+    };
+    void poll();
+    const interval = setInterval(poll, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [aiRunId, aiStatus, meetingId, router]);
+
+  // After minutes have been refreshed onto the page, let the user
+  // dismiss the "done" banner. Auto-clear after 4s so the success
+  // chrome doesn't linger.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (aiStatus !== "done") return;
+    const t = setTimeout(() => setAiStatus("idle"), 4000);
+    return () => clearTimeout(t);
+  }, [aiStatus]);
+
+  // Sync the local minutes draft with the server-refreshed value when
+  // the AI run completes — otherwise the user keeps seeing the old
+  // (probably empty) draft until they switch tabs.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (aiStatus === "done") {
+      setMinutesDraft(detail.minutes?.content ?? "");
+    }
+  }, [aiStatus, detail.minutes?.content]);
 
   const finalizeMinutes = async () => {
     if (minutesDirty) {
@@ -655,6 +848,13 @@ export function MeetingDetailUI({
                   dirty={minutesDirty}
                   onSave={saveMinutes}
                   onFinalize={finalizeMinutes}
+                  aiStatus={aiStatus}
+                  aiError={aiError}
+                  onAiUpload={startAiTranscription}
+                  onAiDismissError={() => {
+                    setAiError(null);
+                    setAiStatus("idle");
+                  }}
                 />
               ) : null}
 
@@ -737,6 +937,33 @@ export function MeetingDetailUI({
       ) : null}
     </>
   );
+}
+
+// Browser-side helper: pull duration (seconds) from an audio File via
+// a hidden <audio> element. Used to surface a cost warning before
+// uploading. Some MP4/M4A containers refuse to expose duration in
+// some browsers — caller swallows the rejection and falls through to
+// the in-task hard cap.
+function readAudioDuration(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const audio = document.createElement("audio");
+    audio.preload = "metadata";
+    audio.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      const d = audio.duration;
+      if (!Number.isFinite(d) || d <= 0) {
+        reject(new Error("Could not read duration"));
+      } else {
+        resolve(d);
+      }
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Audio metadata read failed"));
+    };
+    audio.src = url;
+  });
 }
 
 // ── Agenda tab ──
@@ -1113,6 +1340,14 @@ function AttendeesTab({
 }
 
 // ── Minutes tab ──
+type AiStatus =
+  | "idle"
+  | "uploading"
+  | "transcribing"
+  | "extracting"
+  | "done"
+  | "error";
+
 function MinutesTab({
   value,
   onChange,
@@ -1125,6 +1360,10 @@ function MinutesTab({
   dirty,
   onSave,
   onFinalize,
+  aiStatus,
+  aiError,
+  onAiUpload,
+  onAiDismissError,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -1137,12 +1376,37 @@ function MinutesTab({
   dirty: boolean;
   onSave: () => void;
   onFinalize: () => void;
+  aiStatus: AiStatus;
+  aiError: string | null;
+  onAiUpload: (file: File, keepAudio: boolean) => void;
+  onAiDismissError: () => void;
 }) {
   const savedLabel = dirty
     ? "Unsaved changes"
     : updatedAt
       ? `Auto-saved · ${formatDateShort(updatedAt)}`
       : "Draft";
+
+  const aiBusy =
+    aiStatus === "uploading" ||
+    aiStatus === "transcribing" ||
+    aiStatus === "extracting";
+  const aiLabel = (() => {
+    switch (aiStatus) {
+      case "uploading":
+        return "Uploading audio…";
+      case "transcribing":
+        return "Transcribing…";
+      case "extracting":
+        return "Extracting action items…";
+      case "done":
+        return "Minutes generated";
+      default:
+        return null;
+    }
+  })();
+
+  const aiInputId = `mt-ai-audio-${useId()}`;
 
   return (
     <div>
@@ -1152,14 +1416,42 @@ function MinutesTab({
           {finalizedAt ? "— published" : canEdit ? "— draft" : ""}
         </h3>
         <div style={{ display: "flex", gap: 6 }}>
-          <button
-            type="button"
+          <input
+            id={aiInputId}
+            type="file"
+            accept="audio/mpeg,audio/mp3,audio/wav,audio/mp4,audio/x-m4a,audio/m4a,audio/webm,audio/ogg"
+            style={{ display: "none" }}
+            disabled={aiBusy || !canEdit || !!finalizedAt}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) {
+                onAiUpload(f, false);
+                // reset so picking the same file twice still triggers
+                e.currentTarget.value = "";
+              }
+            }}
+          />
+          <label
+            htmlFor={aiInputId}
             className="mt-btn ai xs"
-            disabled
-            title="Available after Step 56 (Meeting Minutes AI)"
+            aria-disabled={aiBusy || !canEdit || !!finalizedAt}
+            title={
+              finalizedAt
+                ? "Cannot regenerate finalized minutes"
+                : !canEdit
+                  ? "Read-only"
+                  : aiBusy
+                    ? aiLabel ?? "Working…"
+                    : "Upload audio (MP3, WAV, M4A, WebM)"
+            }
+            style={{
+              cursor:
+                aiBusy || !canEdit || !!finalizedAt ? "not-allowed" : "pointer",
+              opacity: aiBusy || !canEdit || !!finalizedAt ? 0.6 : 1,
+            }}
           >
-            {Icon.mic} Generate from audio
-          </button>
+            {Icon.mic} {aiBusy ? aiLabel : "Generate from audio"}
+          </label>
           <button
             type="button"
             className="mt-btn xs ghost"
@@ -1302,22 +1594,61 @@ function MinutesTab({
         <span className="mt-ai-callout-icon">{Icon.sparkle}</span>
         <div className="mt-ai-callout-body">
           <div className="mt-ai-callout-title">
-            Generate minutes from audio
+            {aiStatus === "error"
+              ? "Generation failed"
+              : aiStatus === "done"
+                ? "Minutes generated"
+                : aiBusy
+                  ? aiLabel
+                  : "Generate minutes from audio"}
           </div>
           <div className="mt-ai-callout-text">
-            Upload a recording and the Minutes Assistant will draft a
-            structured summary with decisions and action items.{" "}
-            <strong>Available in Step 56 (Phase 7.1).</strong>
+            {aiStatus === "error" && aiError ? (
+              <>{aiError}</>
+            ) : aiStatus === "done" ? (
+              "Action items posted to the Actions tab. Review the draft above and finalize when ready."
+            ) : aiBusy ? (
+              "This usually takes 30s–2min depending on recording length. You can leave this page; the draft will be waiting when you return."
+            ) : (
+              <>
+                Upload a recording (MP3, WAV, M4A, WebM, OGG) and the
+                Minutes Assistant will draft a structured summary with
+                decisions and action items.
+              </>
+            )}
           </div>
         </div>
-        <button
-          type="button"
-          className="mt-btn ai sm"
-          disabled
-          title="Available in Phase 7.1 (Step 56)"
-        >
-          {Icon.mic} Upload audio
-        </button>
+        {aiStatus === "error" ? (
+          <button
+            type="button"
+            className="mt-btn xs ghost"
+            onClick={onAiDismissError}
+          >
+            Dismiss
+          </button>
+        ) : aiBusy ? (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--text-tertiary)",
+            }}
+          >
+            Working…
+          </span>
+        ) : (
+          <label
+            htmlFor={aiInputId}
+            className="mt-btn ai sm"
+            aria-disabled={!canEdit || !!finalizedAt}
+            style={{
+              cursor: !canEdit || !!finalizedAt ? "not-allowed" : "pointer",
+              opacity: !canEdit || !!finalizedAt ? 0.6 : 1,
+            }}
+          >
+            {Icon.mic} Upload audio
+          </label>
+        )}
       </div>
     </div>
   );

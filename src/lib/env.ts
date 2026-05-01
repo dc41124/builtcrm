@@ -32,6 +32,12 @@ const envSchema = z.object({
   // runs without error monitoring.
   SENTRY_DSN: z.string().url().optional(),
   NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
+  // Meeting Minutes AI (Step 56). Both required when the feature is
+  // wired up; transcribeAndExtract throws at the call site if either is
+  // missing rather than blocking app boot, so dev environments without
+  // AI keys still run.
+  OPENAI_API_KEY: z.string().min(1).optional(),
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
