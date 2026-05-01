@@ -1,17 +1,14 @@
 import type { Metadata } from "next";
 
-import { ApiDocsUI } from "./api-docs-ui";
+import { getServerSession } from "@/auth/session";
+import { loadUserPortalContext } from "@/domain/loaders/portals";
 
-// Step 60 (Phase 8-lite.1 #60) — Public API docs page.
-//
-// Sits outside (auth) and (portal) so it never inherits portal chrome or
-// auth gates — anyone with the URL can browse it. Intentionally session-
-// agnostic: the nav shows the same signed-out marketing CTAs to everyone.
-// Signed-in users navigating away (e.g. clicking the logo) hit `/`, where
-// the existing redirect dispatches them to their portal.
-//
-// The OpenAPI spec served at /openapi.yaml is the machine-readable
-// counterpart; this page is the human-readable view.
+import { ApiDocsUI, type ApiDocsSession } from "./api-docs-ui";
+
+// Step 60 — Public API docs page. Same chrome as the rest of the
+// marketing site. We load session info just so the right-side nav
+// CTA can swap from "Log in / Get started free" to "Open dashboard"
+// for signed-in visitors. No deeper plumbing.
 
 export const metadata: Metadata = {
   title: "API docs · BuiltCRM",
@@ -20,6 +17,25 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-export default function ApiDocsPage() {
-  return <ApiDocsUI />;
+export default async function ApiDocsPage() {
+  const session = await loadDocsSession();
+  return <ApiDocsUI session={session} />;
+}
+
+async function loadDocsSession(): Promise<ApiDocsSession> {
+  const sessionData = await getServerSession();
+  const appUserId = sessionData?.session.appUserId;
+  if (!appUserId) return { signedIn: false, dashboardHref: null };
+  try {
+    const ctx = await loadUserPortalContext(appUserId);
+    if (ctx.options.length === 0) {
+      return { signedIn: true, dashboardHref: "/no-portal" };
+    }
+    if (ctx.options.length === 1) {
+      return { signedIn: true, dashboardHref: ctx.options[0].href };
+    }
+    return { signedIn: true, dashboardHref: "/select-portal" };
+  } catch {
+    return { signedIn: true, dashboardHref: "/no-portal" };
+  }
 }

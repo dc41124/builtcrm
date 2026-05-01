@@ -13,13 +13,12 @@
 //   - The endpoint surface is small (12 endpoints); the data model fits
 //     in this file without ceremony.
 //
-// Post-prototype iteration: the prototype's bespoke top bar was scrapped
-// in favor of the shared `<MarketingNav>` so /api-docs lives under the
-// same chrome as the marketing site. That nav handles login state and the
-// "Get an API key" CTA; this file is now just the body + footer.
+// API docs is just another page on the marketing site. Same nav, same
+// chrome — copy of the marketing-page nav HTML rendered inline. No
+// shared component, no session plumbing.
 //
 // What's wired beyond the prototype:
-//   - Sidebar search filters the nav.
+//   - Sidebar search filters the endpoint list.
 //   - "Download OpenAPI" hits /openapi.yaml (the route handler).
 //   - "Try it · Sign in" stays disabled per spec (auth-only feature).
 
@@ -27,16 +26,17 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 
-import { MarketingNav, type MarketingSession } from "@/components/marketing/marketing-nav";
-
-// Public docs page — no session plumbing. The shared marketing nav always
-// shows the signed-out CTAs here; signed-in users get redirected to their
-// portal when they click the logo and land on `/`.
-const PUBLIC_NAV_SESSION: MarketingSession = {
-  signedIn: false,
-  dashboardHref: null,
-  apiKeysHref: null,
+const MKT_F = {
+  display: "'DM Sans',system-ui,sans-serif",
+  body: "'Instrument Sans',system-ui,sans-serif",
 };
+
+const MKT_ARR = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 12h14" />
+    <path d="m12 5 7 7-7 7" />
+  </svg>
+);
 
 const F = {
   display: "'DM Sans',system-ui,sans-serif",
@@ -708,7 +708,15 @@ function statusColor(code: string): Swatch {
 // Main component
 // ────────────────────────────────────────────────────────────────────
 
-export function ApiDocsUI() {
+export type ApiDocsSession = {
+  signedIn: boolean;
+  dashboardHref: string | null;
+};
+
+export function ApiDocsUI({ session }: { session?: ApiDocsSession } = {}) {
+  const signedIn = session?.signedIn ?? false;
+  const dashboardHref = session?.dashboardHref ?? "/no-portal";
+
   const [selected, setSelected] = useState<string>("intro");
   const [lang, setLang] = useState<SampleLang>("curl");
   const [search, setSearch] = useState<string>("");
@@ -741,69 +749,52 @@ export function ApiDocsUI() {
         minHeight: "100vh",
       }}
     >
-      {/* Shared marketing nav — same chrome as the rest of the public site. */}
-      <MarketingNav currentPage="api-docs" session={PUBLIC_NAV_SESSION} variant="api-docs" />
-
-      {/* Sub-header: API-version pill + Download OpenAPI. Sits below the
-          shared nav so the global chrome stays consistent. */}
-      <div
-        style={{
-          borderBottom: `1px solid ${T.border}`,
-          background: T.surface,
-          padding: "0 32px",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1440,
-            margin: "0 auto",
-            height: 48,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 16,
-          }}
-        >
+      {/* Marketing-site nav — copy of the nav in marketing-page.tsx. Five
+          tabs (Product / Solutions / Pricing / Resources are real Links
+          back to /; "API docs" is the active page). */}
+      <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(250,249,247,.85)", backdropFilter: "blur(16px)", borderBottom: "1px solid #eeece8", padding: "0 32px" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 32 }}>
+          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", textDecoration: "none", color: "inherit" }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg,#2c2541,#5b4fc7)", display: "grid", placeItems: "center" }}>
+              <svg viewBox="0 0 80 80" width="19" height="19"><rect x="14" y="14" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".5" /><rect x="26" y="26" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".75" /><rect x="32" y="32" width="26" height="26" rx="4" fill="white" opacity=".95" /></svg>
+            </div>
+            <div style={{ fontFamily: MKT_F.display, fontSize: 19, fontWeight: 780, letterSpacing: "-.04em" }}>BuiltCRM</div>
+          </Link>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Product</Link>
+            <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Solutions</Link>
+            <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Pricing</Link>
+            <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Resources</Link>
+            <span style={{ padding: "8px 14px", fontSize: 14, fontWeight: 640, color: "#1a1714", borderRadius: 10 }}>API docs</span>
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span
-              style={{
-                fontFamily: F.display,
-                fontSize: 12,
-                fontWeight: 700,
-                color: T.accentText,
-                padding: "3px 10px",
-                background: T.accentSoft,
-                border: `1px solid ${T.accentMuted}`,
-                borderRadius: 999,
-                letterSpacing: ".02em",
-              }}
-            >
+            {signedIn ? (
+              <Link href={dashboardHref} style={{ height: 38, padding: "0 20px", fontSize: 13.5, fontWeight: 650, color: "white", background: "#5b4fc7", borderRadius: 10, display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer", textDecoration: "none", fontFamily: MKT_F.body }}>
+                Open dashboard <span style={{ width: 14, height: 14, display: "block" }}>{MKT_ARR}</span>
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" style={{ height: 38, padding: "0 16px", fontSize: 13.5, fontWeight: 620, color: "#5e5850", background: "transparent", border: "none", borderRadius: 10, cursor: "pointer", display: "inline-flex", alignItems: "center", textDecoration: "none", fontFamily: MKT_F.body }}>Log in</Link>
+                <Link href="/signup" style={{ height: 38, padding: "0 20px", fontSize: 13.5, fontWeight: 650, color: "white", background: "#5b4fc7", borderRadius: 10, display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer", textDecoration: "none", fontFamily: MKT_F.body }}>
+                  Get started free <span style={{ width: 14, height: 14, display: "block" }}>{MKT_ARR}</span>
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      {/* Sub-header just for the docs page: API version pill +
+          Download OpenAPI. Sits below the marketing nav. */}
+      <div style={{ borderBottom: `1px solid ${T.border}`, background: T.surface, padding: "0 32px" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", height: 44, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontFamily: F.display, fontSize: 11, fontWeight: 700, color: T.accentText, padding: "3px 10px", background: T.accentSoft, border: `1px solid ${T.accentMuted}`, borderRadius: 999, letterSpacing: ".02em" }}>
               API · v1
             </span>
-            <span style={{ fontSize: 12.5, color: T.textTertiary, fontWeight: 520 }}>
-              REST · JSON · Bearer auth
-            </span>
+            <span style={{ fontSize: 12.5, color: T.textTertiary, fontWeight: 520 }}>REST · JSON · Bearer auth</span>
           </div>
-          <a
-            href="/openapi.yaml"
-            download
-            style={{
-              height: 32,
-              padding: "0 12px",
-              fontSize: 12.5,
-              fontWeight: 600,
-              color: T.textSecondary,
-              background: T.surface,
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              fontFamily: F.display,
-              textDecoration: "none",
-            }}
-          >
+          <a href="/openapi.yaml" download style={{ height: 30, padding: "0 12px", fontSize: 12.5, fontWeight: 600, color: T.textSecondary, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, fontFamily: F.display, textDecoration: "none" }}>
             <span style={{ width: 14, height: 14, display: "block" }}>{I.download}</span>
             Download OpenAPI
           </a>
@@ -811,14 +802,14 @@ export function ApiDocsUI() {
       </div>
 
       {/* ══════ THREE-PANE LAYOUT ══════ */}
-      {/* The shared nav is 64px tall and the sub-header is 48px = 112px total. */}
+      {/* Marketing nav 64 + sub-header 44 = 108px total chrome. */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "260px 1fr 380px",
           maxWidth: 1440,
           margin: "0 auto",
-          minHeight: "calc(100vh - 112px)",
+          minHeight: "calc(100vh - 108px)",
         }}
       >
         {/* ── LEFT NAV ── */}
@@ -827,8 +818,8 @@ export function ApiDocsUI() {
             borderRight: `1px solid ${T.border}`,
             padding: "24px 8px 40px 24px",
             position: "sticky",
-            top: 112,
-            height: "calc(100vh - 112px)",
+            top: 108,
+            height: "calc(100vh - 108px)",
             overflowY: "auto",
           }}
         >
@@ -982,8 +973,8 @@ export function ApiDocsUI() {
             color: T.codeText,
             padding: "24px 20px",
             position: "sticky",
-            top: 112,
-            height: "calc(100vh - 112px)",
+            top: 108,
+            height: "calc(100vh - 108px)",
             overflowY: "auto",
             borderLeft: `1px solid ${T.borderDark}`,
           }}
@@ -1020,9 +1011,6 @@ export function ApiDocsUI() {
             </a>
           </div>
           <div style={{ display: "flex", gap: 16, fontSize: 12, color: T.textSecondary }}>
-            <Link href="/" style={{ cursor: "pointer", textDecoration: "none", color: "inherit" }}>
-              Marketing site
-            </Link>
             <a href="mailto:support@builtcrm.app" style={{ cursor: "pointer", textDecoration: "none", color: "inherit" }}>
               Support
             </a>

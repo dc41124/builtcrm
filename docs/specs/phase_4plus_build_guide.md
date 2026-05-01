@@ -4212,6 +4212,17 @@ git commit -m "Step 59 (8-lite.1 #59): Rate limiting per API key"
 
 ## Step 60 — Public API Docs Page ✅ DONE (2026-05-01)
 
+> **Follow-up (2026-05-01):** /api-docs lives under the same chrome as the
+> rest of the marketing site (Product / Solutions / Pricing / Resources +
+> "API docs" as a 5th tab). The nav HTML is duplicated inline on both the
+> marketing page and the docs page rather than extracted to a shared
+> component — earlier iterations tried to share, and the "deep plumbing"
+> (`?page=` deep-links, session-aware shared component) ended up causing
+> more confusion than it saved. Root `/` no longer auto-redirects signed-in
+> users; instead the marketing nav swaps "Log in / Get started free" for
+> a single "Open dashboard" CTA when signed in. Settings → API Keys →
+> "Read API docs" is a plain `<a href="/api-docs">`.
+
 **Mode:** Require-design-input
 **Item:** 8-lite.1 #60
 **Effort:** M

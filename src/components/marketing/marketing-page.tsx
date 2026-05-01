@@ -3,8 +3,6 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 
-import { MarketingNav, type MarketingSession } from "./marketing-nav";
-
 const F = {
   display: "'DM Sans',system-ui,sans-serif",
   body: "'Instrument Sans',system-ui,sans-serif",
@@ -257,19 +255,25 @@ const ARTICLES: Article[] = [
 
 type PageKey = "home" | "solutions" | "pricing" | "resources";
 
-export type MarketingPageProps = {
-  /** Session info threaded down to the nav. Defaults to signed-out for any
-   *  call site that doesn't pass it (mostly tests). */
-  session?: MarketingSession;
+export type MarketingSession = {
+  signedIn: boolean;
+  dashboardHref: string | null;
 };
 
-export default function MarketingPage({ session }: MarketingPageProps = {}) {
+export default function MarketingPage({
+  session,
+}: {
+  session?: MarketingSession;
+} = {}) {
+  const signedIn = session?.signedIn ?? false;
+  const dashboardHref = session?.dashboardHref ?? "/no-portal";
   const [page, setPage] = useState<PageKey>("home");
   const [audience, setAudience] = useState<SolutionKey>("gc");
   const [annual, setAnnual] = useState(true);
   const [resCat, setResCat] = useState<"all" | ResCat>("all");
   const [activeArticle, setActiveArticle] = useState<number | null>(null);
   const [activeFaq, setActiveFaq] = useState<number>(0);
+  const [mobileMenu, setMobileMenu] = useState(false);
 
   useEffect(() => {
     if (activeArticle === null) return;
@@ -281,18 +285,84 @@ export default function MarketingPage({ session }: MarketingPageProps = {}) {
   const nav = (p: PageKey) => {
     setPage(p);
     setActiveArticle(null);
+    setMobileMenu(false);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const navSession: MarketingSession = session ?? {
-    signedIn: false,
-    dashboardHref: null,
-    apiKeysHref: null,
-  };
+  useEffect(() => {
+    if (!mobileMenu) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [mobileMenu]);
 
   return (
     <div className="mkt" style={{ fontFamily: F.body, background: "#faf9f7", color: "#1a1714", WebkitFontSmoothing: "antialiased", lineHeight: 1.6, fontSize: 15, minHeight: "100vh" }}>
-      <MarketingNav currentPage={page} onNavClick={nav} session={navSession} variant="default" />
+      
+
+      {/* ── STICKY NAV ── */}
+      <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(250,249,247,.85)", backdropFilter: "blur(16px)", borderBottom: "1px solid #eeece8", padding: "0 32px" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 32 }}>
+          <div onClick={() => nav("home")} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg,#2c2541,#5b4fc7)", display: "grid", placeItems: "center" }}>
+              <svg viewBox="0 0 80 80" width="19" height="19"><rect x="14" y="14" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".5" /><rect x="26" y="26" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".75" /><rect x="32" y="32" width="26" height="26" rx="4" fill="white" opacity=".95" /></svg>
+            </div>
+            <div style={{ fontFamily: F.display, fontSize: 19, fontWeight: 780, letterSpacing: "-.04em" }}>BuiltCRM</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {([["home", "Product"], ["solutions", "Solutions"], ["pricing", "Pricing"], ["resources", "Resources"]] as [PageKey, string][]).map(([k, l]) => (
+              <div key={k} onClick={() => nav(k)} style={{ padding: "8px 14px", fontSize: 14, fontWeight: page === k ? 640 : 560, color: page === k ? "#1a1714" : "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms" }}>{l}</div>
+            ))}
+            <Link href="/api-docs" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>API docs</Link>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {signedIn ? (
+              <Link href={dashboardHref} className="mkt-nav-signup" style={{ height: 38, padding: "0 20px", fontSize: 13.5, fontWeight: 650, color: "white", background: "#5b4fc7", borderRadius: 10, display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer", textDecoration: "none", fontFamily: F.body }}>
+                Open dashboard <span style={{ width: 14, height: 14, display: "block" }}>{ARR}</span>
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className="mkt-nav-login" style={{ height: 38, padding: "0 16px", fontSize: 13.5, fontWeight: 620, color: "#5e5850", background: "transparent", border: "none", borderRadius: 10, cursor: "pointer", display: "inline-flex", alignItems: "center", textDecoration: "none", fontFamily: F.body }}>Log in</Link>
+                <Link href="/signup" className="mkt-nav-signup" style={{ height: 38, padding: "0 20px", fontSize: 13.5, fontWeight: 650, color: "white", background: "#5b4fc7", borderRadius: 10, display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer", textDecoration: "none", fontFamily: F.body }}>
+                  Get started free <span style={{ width: 14, height: 14, display: "block" }}>{ARR}</span>
+                </Link>
+              </>
+            )}
+            <button
+              type="button"
+              aria-label={mobileMenu ? "Close menu" : "Open menu"}
+              onClick={() => setMobileMenu(!mobileMenu)}
+              className="mkt-hamburger"
+              style={{ display: "none", width: 40, height: 40, borderRadius: 10, border: "1px solid #e5e2dc", background: "white", cursor: "pointer", alignItems: "center", justifyContent: "center", padding: 0 }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a1714" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                {mobileMenu ? (<><path d="M18 6 6 18" /><path d="m6 6 12 12" /></>) : (<><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></>)}
+              </svg>
+            </button>
+          </div>
+        </div>
+      </nav>
+      {mobileMenu && (
+        <div className="mkt-mobile-menu" style={{ position: "fixed", top: 58, left: 0, right: 0, bottom: 0, background: "#faf9f7", zIndex: 99, padding: "24px 20px", display: "flex", flexDirection: "column", gap: 4, overflowY: "auto" }}>
+          {([["home", "Product"], ["solutions", "Solutions"], ["pricing", "Pricing"], ["resources", "Resources"]] as [PageKey, string][]).map(([k, l]) => (
+            <button key={k} onClick={() => nav(k)} style={{ textAlign: "left", padding: "16px 14px", fontFamily: F.display, fontSize: 18, fontWeight: page === k ? 720 : 620, color: page === k ? "#5b4fc7" : "#1a1714", background: page === k ? "#eeedfb" : "transparent", border: "none", borderRadius: 12, cursor: "pointer" }}>{l}</button>
+          ))}
+          <Link href="/api-docs" onClick={() => setMobileMenu(false)} style={{ display: "block", padding: "16px 14px", fontFamily: F.display, fontSize: 18, fontWeight: 620, color: "#1a1714", borderRadius: 12, textDecoration: "none" }}>API docs</Link>
+          <div style={{ height: 1, background: "#eeece8", margin: "12px 0" }} />
+          {signedIn ? (
+            <Link href={dashboardHref} onClick={() => setMobileMenu(false)} style={{ marginTop: 4, height: 50, borderRadius: 12, background: "#5b4fc7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 15, fontWeight: 680, textDecoration: "none", fontFamily: F.body }}>
+              Open dashboard <span style={{ width: 16, height: 16, display: "block" }}>{ARR}</span>
+            </Link>
+          ) : (
+            <>
+              <Link href="/login" onClick={() => setMobileMenu(false)} style={{ padding: "14px 14px", fontSize: 15, fontWeight: 620, color: "#5e5850", textDecoration: "none", fontFamily: F.body }}>Log in</Link>
+              <Link href="/signup" onClick={() => setMobileMenu(false)} style={{ marginTop: 8, height: 50, borderRadius: 12, background: "#5b4fc7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 15, fontWeight: 680, textDecoration: "none", fontFamily: F.body }}>
+                Get started free <span style={{ width: 16, height: 16, display: "block" }}>{ARR}</span>
+              </Link>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ══════════ HOME / PRODUCT ══════════ */}
       {page === "home" && (
@@ -759,48 +829,21 @@ export default function MarketingPage({ session }: MarketingPageProps = {}) {
       {/* ── FOOTER ── */}
       <footer style={{ background: "#2c2541", color: "rgba(250,249,247,.7)", padding: "72px 32px 36px" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr repeat(4, 1fr)", gap: 48, marginBottom: 56 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 64, marginBottom: 56 }}>
             <div>
               <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg,#5b4fc7,#7c6fe0)", display: "grid", placeItems: "center", marginBottom: 14 }}>
                 <svg viewBox="0 0 80 80" width="19" height="19"><rect x="14" y="14" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".5" /><rect x="26" y="26" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".75" /><rect x="32" y="32" width="26" height="26" rx="4" fill="white" opacity=".95" /></svg>
               </div>
               <p style={{ fontSize: 13.5, lineHeight: 1.65, maxWidth: 260, color: "rgba(250,249,247,.5)" }}>Construction project management built for the way real teams actually work.</p>
             </div>
-            {(
-              [
-                { h: "Product", links: [{ label: "Features" }, { label: "Pricing" }, { label: "Integrations" }, { label: "Changelog" }, { label: "Roadmap" }] },
-                { h: "Solutions", links: [{ label: "General Contractors" }, { label: "Subcontractors" }, { label: "Commercial Owners" }, { label: "Homeowners" }] },
-                {
-                  h: "Developers",
-                  links: [
-                    { label: "API docs", href: "/api-docs" },
-                    { label: "OpenAPI spec", href: "/openapi.yaml" },
-                    { label: "Get an API key", href: "/login" },
-                  ],
-                },
-                { h: "Company", links: [{ label: "About" }, { label: "Blog" }, { label: "Careers" }, { label: "Contact" }, { label: "Security" }] },
-              ] as { h: string; links: { label: string; href?: string }[] }[]
-            ).map((col) => (
-              <div key={col.h}>
+            {[
+              { h: "Product", links: ["Features", "Pricing", "Integrations", "Changelog", "Roadmap"] },
+              { h: "Solutions", links: ["General Contractors", "Subcontractors", "Commercial Owners", "Homeowners"] },
+              { h: "Company", links: ["About", "Blog", "Careers", "Contact", "Security"] },
+            ].map((col, i) => (
+              <div key={i}>
                 <h4 style={{ fontFamily: F.display, fontSize: 11.5, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "rgba(250,249,247,.3)", marginBottom: 20 }}>{col.h}</h4>
-                {col.links.map((l) =>
-                  l.href ? (
-                    <Link
-                      key={l.label}
-                      href={l.href}
-                      style={{ display: "block", fontSize: 13.5, color: "rgba(250,249,247,.6)", fontWeight: 480, marginBottom: 12, cursor: "pointer", textDecoration: "none" }}
-                    >
-                      {l.label}
-                    </Link>
-                  ) : (
-                    <div
-                      key={l.label}
-                      style={{ fontSize: 13.5, color: "rgba(250,249,247,.6)", fontWeight: 480, marginBottom: 12, cursor: "pointer" }}
-                    >
-                      {l.label}
-                    </div>
-                  ),
-                )}
+                {col.links.map(l => <div key={l} style={{ fontSize: 13.5, color: "rgba(250,249,247,.6)", fontWeight: 480, marginBottom: 12, cursor: "pointer" }}>{l}</div>)}
               </div>
             ))}
           </div>
