@@ -8,6 +8,9 @@
 // intentionally omitted because the portal layout already provides
 // the equivalent — same trade as Step 57's catalog page.
 //
+// Step 60 update: "Read API docs" header button now links out to the
+// public API reference at /api-docs (rendered from docs/specs/openapi.yaml).
+//
 // What's wired (vs the prototype which mocks state):
 //   - List/create/revoke/rotate hit real REST endpoints under
 //     /api/contractor/api-keys/*. Loader feeds keys + recent api_key.*
@@ -601,10 +604,17 @@ export function ApiKeysUI({
           </p>
         </div>
         <div className="ak-hdr-acts">
-          <button className="ak-btn" disabled title="API docs page coming in Step 60">
+          <a
+            className="ak-btn"
+            href="/api-docs"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open the public API reference"
+            style={{ textDecoration: "none" }}
+          >
             <span className="ak-btn-icon">{I.book}</span>
             Read API docs
-          </button>
+          </a>
           {isAdmin && (
             <button className="ak-btn primary" onClick={openCreate}>
               <span className="ak-btn-icon">{I.plus}</span>
