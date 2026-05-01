@@ -75,6 +75,11 @@ import {
   prequalDocuments,
   prequalProjectExemptions,
   safetyFormTemplates,
+  meetings,
+  meetingAgendaItems,
+  meetingAttendees,
+  meetingMinutes,
+  meetingActionItems,
 } from "./schema";
 import {
   STANDARD_SAFETY_TEMPLATES,
@@ -1982,6 +1987,13 @@ async function seedProjectContent(ctx: ProjectContext) {
   if (!residential) {
     await seedCloseoutPackage(ctx);
   }
+
+  // ---- Meetings (Step 50/55 — OAC, coordination, safety) --------------
+  // Commercial only — the prototype is contractor-led OAC + sub
+  // coordination; residential portal hides Meetings in Phase 4+.
+  if (!residential) {
+    await seedMeetings(ctx);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -3789,6 +3801,570 @@ async function seedCloseoutPackage(ctx: ProjectContext): Promise<void> {
       itemId: null,
       authorUserId: clientUserId,
       body: "Overall the package looks complete. A couple of clarifications below before I sign off.",
+    },
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// Meetings seed (Step 50/55)
+//
+// Per project, creates 4 meetings spanning the realistic OAC cadence:
+//
+//   MTG-0001  OAC #1                   completed   (~3 weeks ago)
+//   MTG-0002  Subcontractor coord #1   completed   (~10 days ago)
+//   MTG-0003  Safety walkthrough        in_progress (~yesterday)
+//   MTG-0004  OAC #2                    scheduled   (carries forward
+//                                                    open actions +
+//                                                    un-covered agenda
+//                                                    from MTG-0001)
+//
+// Each completed meeting gets agenda items, attendees (chair + sub +
+// client), finalized minutes, and a mix of done / open / in-progress
+// action items so the action-item rails on every portal have content.
+//
+// Idempotent: bails if any meeting already exists for the project. We
+// don't re-bump `projects.meeting_counter` on re-run because the
+// counter is the source of truth for the next sequential number.
+// ---------------------------------------------------------------------------
+
+async function seedMeetings(ctx: ProjectContext): Promise<void> {
+  const {
+    project,
+    contractorOrgId,
+    pmUserId,
+    adminUserId,
+    clientUserId,
+    subUserId,
+    subOrgId,
+    sub2UserId,
+    sub2OrgId,
+  } = ctx;
+  const day = 86400000;
+  const now = Date.now();
+
+  const existing = await db
+    .select({ id: meetings.id })
+    .from(meetings)
+    .where(eq(meetings.projectId, project.id))
+    .limit(1);
+  if (existing[0]) return;
+
+  // Bump the per-project counter to 4 atomically; we'll insert with
+  // sequentialNumber 1..4 inline below.
+  await db
+    .update(projects)
+    .set({ meetingCounter: sql`${projects.meetingCounter} + 4` })
+    .where(eq(projects.id, project.id));
+
+  const oac1ScheduledAt = new Date(now - 21 * day);
+  const coord1ScheduledAt = new Date(now - 10 * day);
+  const safetyScheduledAt = new Date(now - 1 * day);
+  const oac2ScheduledAt = new Date(now + 7 * day);
+
+  // ---- MTG-0001 — OAC #1 (completed) ----
+  const [oac1] = await db
+    .insert(meetings)
+    .values({
+      projectId: project.id,
+      sequentialNumber: 1,
+      title: "OAC Meeting #1 — Phase 2 kickoff",
+      type: "oac",
+      scheduledAt: oac1ScheduledAt,
+      durationMinutes: 60,
+      status: "completed",
+      chairUserId: pmUserId,
+      completedAt: new Date(oac1ScheduledAt.getTime() + 60 * 60 * 1000),
+      createdByUserId: pmUserId,
+      createdAt: oac1ScheduledAt,
+      updatedAt: new Date(oac1ScheduledAt.getTime() + 60 * 60 * 1000),
+    })
+    .returning();
+
+  await db.insert(meetingAttendees).values([
+    {
+      meetingId: oac1.id,
+      userId: pmUserId,
+      orgId: contractorOrgId,
+      scope: "internal",
+      attendedStatus: "attended",
+      isChair: 1,
+      respondedAt: oac1ScheduledAt,
+    },
+    {
+      meetingId: oac1.id,
+      userId: adminUserId,
+      orgId: contractorOrgId,
+      scope: "internal",
+      attendedStatus: "attended",
+      isChair: 0,
+      respondedAt: oac1ScheduledAt,
+    },
+    {
+      meetingId: oac1.id,
+      userId: clientUserId,
+      orgId: null,
+      roleLabel: "Owner Representative",
+      scope: "external",
+      attendedStatus: "attended",
+      isChair: 0,
+      respondedAt: oac1ScheduledAt,
+    },
+    {
+      meetingId: oac1.id,
+      email: "alex.dubois@vandermeerarch.ca",
+      displayName: "Alex Dubois",
+      orgId: null,
+      roleLabel: "Architect of Record",
+      scope: "external",
+      attendedStatus: "attended",
+      isChair: 0,
+      respondedAt: oac1ScheduledAt,
+    },
+  ]);
+
+  const oac1Agenda = await db
+    .insert(meetingAgendaItems)
+    .values([
+      {
+        meetingId: oac1.id,
+        orderIndex: 1,
+        title: "Schedule review — Phase 2 critical path",
+        description:
+          "Walk through the four-week look-ahead and confirm long-lead procurement is tracking.",
+        assignedUserId: pmUserId,
+        estimatedMinutes: 15,
+      },
+      {
+        meetingId: oac1.id,
+        orderIndex: 2,
+        title: "Open RFI log",
+        description: "Status of formal RFIs awaiting design response.",
+        assignedUserId: pmUserId,
+        estimatedMinutes: 10,
+      },
+      {
+        meetingId: oac1.id,
+        orderIndex: 3,
+        title: "Mechanical submittal package 03",
+        description:
+          "Confirm acceptance of Pacific Plumbing's resubmission ahead of fabrication release.",
+        assignedUserId: pmUserId,
+        estimatedMinutes: 15,
+      },
+      {
+        meetingId: oac1.id,
+        orderIndex: 4,
+        title: "Tenant fit-out coordination — Suite 1604",
+        description:
+          "New demising wall scope (CO-001) impacts tenant move-in date — review revised handover.",
+        assignedUserId: adminUserId,
+        estimatedMinutes: 10,
+      },
+      {
+        meetingId: oac1.id,
+        orderIndex: 5,
+        title: "Open items from prior meeting",
+        description: "Carry-over reminder; nothing outstanding from preconstruction.",
+        assignedUserId: pmUserId,
+        estimatedMinutes: 10,
+      },
+    ])
+    .returning({ id: meetingAgendaItems.id, orderIndex: meetingAgendaItems.orderIndex });
+
+  await db.insert(meetingMinutes).values({
+    meetingId: oac1.id,
+    content: [
+      "OAC #1 — Phase 2 kickoff",
+      "",
+      "Schedule: Phase 2 critical path on track. Long-lead steel arriving on schedule; no impact to substantial completion.",
+      "",
+      "Open RFIs: RFI-001 (slab penetration coordination) closed last week. RFI-002 (fire-rated ceiling assembly substitution) pending design response — Alex to circle back by Friday.",
+      "",
+      "Submittal package 03: accepted with comments. Pacific Plumbing to resubmit corrected schedule of values before fabrication release.",
+      "",
+      "Tenant fit-out: Suite 1604 demising wall (CO-001) approved. Owner rep confirms tenant aware of revised handover date.",
+      "",
+      "Action items recorded below.",
+    ].join("\n"),
+    draftedByUserId: pmUserId,
+    finalizedAt: new Date(oac1ScheduledAt.getTime() + 26 * 60 * 60 * 1000),
+    finalizedByUserId: pmUserId,
+  });
+
+  await db.insert(meetingActionItems).values([
+    {
+      meetingId: oac1.id,
+      description: "Issue revised look-ahead schedule incorporating CO-001 demising wall.",
+      assignedUserId: pmUserId,
+      assignedOrgId: contractorOrgId,
+      dueDate: new Date(oac1ScheduledAt.getTime() + 7 * day).toISOString().slice(0, 10),
+      status: "done",
+      originAgendaItemId: oac1Agenda[0].id,
+      createdByUserId: pmUserId,
+      createdAt: oac1ScheduledAt,
+    },
+    {
+      meetingId: oac1.id,
+      description:
+        "Architect to issue formal response on fire-rated ceiling assembly substitution (RFI-002).",
+      assignedUserId: null,
+      assignedOrgId: null,
+      dueDate: new Date(now + 3 * day).toISOString().slice(0, 10),
+      status: "in_progress",
+      originAgendaItemId: oac1Agenda[1].id,
+      createdByUserId: pmUserId,
+      createdAt: oac1ScheduledAt,
+    },
+    {
+      meetingId: oac1.id,
+      description:
+        "Pacific Plumbing to resubmit corrected SOV for submittal package 03 before fabrication release.",
+      assignedUserId: sub2UserId ?? subUserId,
+      assignedOrgId: sub2OrgId ?? subOrgId,
+      dueDate: new Date(now + 5 * day).toISOString().slice(0, 10),
+      status: "open",
+      originAgendaItemId: oac1Agenda[2].id,
+      createdByUserId: pmUserId,
+      createdAt: oac1ScheduledAt,
+    },
+    {
+      meetingId: oac1.id,
+      description: "Owner rep to confirm Suite 1604 tenant move-in date in writing.",
+      assignedUserId: clientUserId,
+      assignedOrgId: null,
+      dueDate: new Date(now - 2 * day).toISOString().slice(0, 10),
+      status: "open",
+      originAgendaItemId: oac1Agenda[3].id,
+      createdByUserId: pmUserId,
+      createdAt: oac1ScheduledAt,
+    },
+  ]);
+
+  // ---- MTG-0002 — Subcontractor coordination #1 (completed) ----
+  const [coord1] = await db
+    .insert(meetings)
+    .values({
+      projectId: project.id,
+      sequentialNumber: 2,
+      title: "Subcontractor coordination #1 — MEP rough-in sequencing",
+      type: "coordination",
+      scheduledAt: coord1ScheduledAt,
+      durationMinutes: 45,
+      status: "completed",
+      chairUserId: pmUserId,
+      completedAt: new Date(coord1ScheduledAt.getTime() + 45 * 60 * 1000),
+      createdByUserId: pmUserId,
+      createdAt: coord1ScheduledAt,
+      updatedAt: new Date(coord1ScheduledAt.getTime() + 45 * 60 * 1000),
+    })
+    .returning();
+
+  await db.insert(meetingAttendees).values([
+    {
+      meetingId: coord1.id,
+      userId: pmUserId,
+      orgId: contractorOrgId,
+      scope: "internal",
+      attendedStatus: "attended",
+      isChair: 1,
+      respondedAt: coord1ScheduledAt,
+    },
+    {
+      meetingId: coord1.id,
+      userId: subUserId,
+      orgId: subOrgId,
+      scope: "sub",
+      roleLabel: "Electrical lead",
+      attendedStatus: "attended",
+      isChair: 0,
+      respondedAt: coord1ScheduledAt,
+    },
+    ...(sub2UserId && sub2OrgId
+      ? [
+          {
+            meetingId: coord1.id,
+            userId: sub2UserId,
+            orgId: sub2OrgId,
+            scope: "sub" as const,
+            roleLabel: "Mechanical lead",
+            attendedStatus: "attended" as const,
+            isChair: 0,
+            respondedAt: coord1ScheduledAt,
+          },
+        ]
+      : []),
+  ]);
+
+  const coord1Agenda = await db
+    .insert(meetingAgendaItems)
+    .values([
+      {
+        meetingId: coord1.id,
+        orderIndex: 1,
+        title: "Level 15 MEP sequencing — north corridor",
+        description:
+          "Confirm trade order and clearances. Mechanical takes priority at grid D/4 per resolved RFI-001.",
+        assignedUserId: pmUserId,
+        estimatedMinutes: 15,
+      },
+      {
+        meetingId: coord1.id,
+        orderIndex: 2,
+        title: "Conflict at grid B riser — Levels 14-15",
+        description: "Open RFI-003 — record drawing discrepancy on existing 2\" EMT.",
+        assignedUserId: subUserId,
+        estimatedMinutes: 10,
+      },
+      {
+        meetingId: coord1.id,
+        orderIndex: 3,
+        title: "Daily log expectations",
+        description:
+          "Reminder: subs to submit daily logs by 5pm. Three missed submissions last week.",
+        assignedUserId: pmUserId,
+        estimatedMinutes: 10,
+      },
+    ])
+    .returning({ id: meetingAgendaItems.id });
+
+  await db.insert(meetingMinutes).values({
+    meetingId: coord1.id,
+    content: [
+      "Coordination — MEP rough-in sequencing",
+      "",
+      "Sequencing locked for Level 15 north corridor: mechanical first at grid D/4, electrical follows shifted 18\" east per closed RFI-001.",
+      "",
+      "Grid B riser conflict (RFI-003): Northline to verify existing conduit on Friday walkdown and report back. If absent, route per record drawing.",
+      "",
+      "Daily logs: subs reminded of 5pm submission window. Three missed entries last week — repeat misses will trigger non-compliance flags.",
+    ].join("\n"),
+    draftedByUserId: pmUserId,
+    finalizedAt: new Date(coord1ScheduledAt.getTime() + 4 * 60 * 60 * 1000),
+    finalizedByUserId: pmUserId,
+  });
+
+  await db.insert(meetingActionItems).values([
+    {
+      meetingId: coord1.id,
+      description:
+        "Northline to walk grid B riser between Levels 14-15 and confirm whether the 2\" EMT exists.",
+      assignedUserId: subUserId,
+      assignedOrgId: subOrgId,
+      dueDate: new Date(now + 2 * day).toISOString().slice(0, 10),
+      status: "in_progress",
+      originAgendaItemId: coord1Agenda[1].id,
+      createdByUserId: pmUserId,
+      createdAt: coord1ScheduledAt,
+    },
+    {
+      meetingId: coord1.id,
+      description: "PM to circulate daily-log template + 5pm submission reminder to all subs.",
+      assignedUserId: pmUserId,
+      assignedOrgId: contractorOrgId,
+      dueDate: new Date(coord1ScheduledAt.getTime() + 1 * day).toISOString().slice(0, 10),
+      status: "done",
+      originAgendaItemId: coord1Agenda[2].id,
+      createdByUserId: pmUserId,
+      createdAt: coord1ScheduledAt,
+    },
+  ]);
+
+  // ---- MTG-0003 — Safety walkthrough (in_progress) ----
+  const [safety] = await db
+    .insert(meetings)
+    .values({
+      projectId: project.id,
+      sequentialNumber: 3,
+      title: "Weekly safety walkthrough — Level 15-17",
+      type: "safety",
+      scheduledAt: safetyScheduledAt,
+      durationMinutes: 30,
+      status: "in_progress",
+      chairUserId: pmUserId,
+      createdByUserId: pmUserId,
+      createdAt: new Date(now - 3 * day),
+      updatedAt: safetyScheduledAt,
+    })
+    .returning();
+
+  await db.insert(meetingAttendees).values([
+    {
+      meetingId: safety.id,
+      userId: pmUserId,
+      orgId: contractorOrgId,
+      scope: "internal",
+      attendedStatus: "accepted",
+      isChair: 1,
+      respondedAt: new Date(now - 2 * day),
+    },
+    {
+      meetingId: safety.id,
+      userId: subUserId,
+      orgId: subOrgId,
+      scope: "sub",
+      roleLabel: "Electrical lead",
+      attendedStatus: "accepted",
+      isChair: 0,
+      respondedAt: new Date(now - 2 * day),
+    },
+    ...(sub2UserId && sub2OrgId
+      ? [
+          {
+            meetingId: safety.id,
+            userId: sub2UserId,
+            orgId: sub2OrgId,
+            scope: "sub" as const,
+            roleLabel: "Mechanical lead",
+            attendedStatus: "tentative" as const,
+            isChair: 0,
+            respondedAt: new Date(now - 2 * day),
+          },
+        ]
+      : []),
+  ]);
+
+  await db.insert(meetingAgendaItems).values([
+    {
+      meetingId: safety.id,
+      orderIndex: 1,
+      title: "Fall-protection audit — Level 17 perimeter",
+      description: "Check guardrail continuity on the south face after curtain wall install.",
+      assignedUserId: pmUserId,
+      estimatedMinutes: 10,
+    },
+    {
+      meetingId: safety.id,
+      orderIndex: 2,
+      title: "Hot-work permits — open count",
+      description: "Confirm open permits and end-of-day fire-watch log.",
+      assignedUserId: pmUserId,
+      estimatedMinutes: 10,
+    },
+    {
+      meetingId: safety.id,
+      orderIndex: 3,
+      title: "Last week's near-miss follow-up",
+      description: "Status on the dropped-tool incident corrective action.",
+      assignedUserId: subUserId,
+      estimatedMinutes: 10,
+    },
+  ]);
+
+  // ---- MTG-0004 — OAC #2 (scheduled, with carry-forward from OAC #1) ----
+  const [oac2] = await db
+    .insert(meetings)
+    .values({
+      projectId: project.id,
+      sequentialNumber: 4,
+      title: "OAC Meeting #2 — Mid-month review",
+      type: "oac",
+      scheduledAt: oac2ScheduledAt,
+      durationMinutes: 60,
+      status: "scheduled",
+      chairUserId: pmUserId,
+      createdByUserId: pmUserId,
+      createdAt: new Date(now - 2 * day),
+      updatedAt: new Date(now - 2 * day),
+    })
+    .returning();
+
+  await db.insert(meetingAttendees).values([
+    {
+      meetingId: oac2.id,
+      userId: pmUserId,
+      orgId: contractorOrgId,
+      scope: "internal",
+      attendedStatus: "accepted",
+      isChair: 1,
+      respondedAt: new Date(now - 2 * day),
+    },
+    {
+      meetingId: oac2.id,
+      userId: adminUserId,
+      orgId: contractorOrgId,
+      scope: "internal",
+      attendedStatus: "accepted",
+      isChair: 0,
+      respondedAt: new Date(now - 1 * day),
+    },
+    {
+      meetingId: oac2.id,
+      userId: clientUserId,
+      orgId: null,
+      roleLabel: "Owner Representative",
+      scope: "external",
+      attendedStatus: "tentative",
+      isChair: 0,
+      respondedAt: new Date(now - 1 * day),
+    },
+    {
+      meetingId: oac2.id,
+      email: "alex.dubois@vandermeerarch.ca",
+      displayName: "Alex Dubois",
+      orgId: null,
+      roleLabel: "Architect of Record",
+      scope: "external",
+      attendedStatus: "invited",
+      isChair: 0,
+    },
+  ]);
+
+  // Carry-forward agenda from OAC #1 (only items not previously
+  // carried — MTG-0001 has none, so all 5 originals come over).
+  await db.insert(meetingAgendaItems).values(
+    oac1Agenda.map((a, idx) => ({
+      meetingId: oac2.id,
+      orderIndex: idx + 1,
+      title:
+        idx === 0
+          ? "Schedule review — four-week look-ahead"
+          : idx === 1
+            ? "Open RFI log"
+            : idx === 2
+              ? "Submittal status — open packages"
+              : idx === 3
+                ? "Tenant fit-out coordination — Suite 1604"
+                : "Open items from MTG-0001",
+      description: null,
+      assignedUserId: pmUserId,
+      estimatedMinutes: 10,
+      carriedFromMeetingId: oac1.id,
+    })),
+  );
+
+  // Carry-forward open + in_progress action items from OAC #1.
+  await db.insert(meetingActionItems).values([
+    {
+      meetingId: oac2.id,
+      description:
+        "Architect to issue formal response on fire-rated ceiling assembly substitution (RFI-002).",
+      assignedUserId: null,
+      assignedOrgId: null,
+      dueDate: new Date(now + 3 * day).toISOString().slice(0, 10),
+      status: "in_progress",
+      carriedFromMeetingId: oac1.id,
+      createdByUserId: pmUserId,
+    },
+    {
+      meetingId: oac2.id,
+      description:
+        "Pacific Plumbing to resubmit corrected SOV for submittal package 03 before fabrication release.",
+      assignedUserId: sub2UserId ?? subUserId,
+      assignedOrgId: sub2OrgId ?? subOrgId,
+      dueDate: new Date(now + 5 * day).toISOString().slice(0, 10),
+      status: "open",
+      carriedFromMeetingId: oac1.id,
+      createdByUserId: pmUserId,
+    },
+    {
+      meetingId: oac2.id,
+      description: "Owner rep to confirm Suite 1604 tenant move-in date in writing.",
+      assignedUserId: clientUserId,
+      assignedOrgId: null,
+      dueDate: new Date(now - 2 * day).toISOString().slice(0, 10),
+      status: "open",
+      carriedFromMeetingId: oac1.id,
+      createdByUserId: pmUserId,
     },
   ]);
 }

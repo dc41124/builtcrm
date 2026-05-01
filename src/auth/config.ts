@@ -19,8 +19,14 @@ import {
   roleAssignments,
   users,
 } from "@/db/schema";
+import { env } from "@/lib/env";
 
 export const auth = betterAuth({
+  // Always trust localhost so `npm run dev` works regardless of which
+  // BETTER_AUTH_URL (prod, staging, etc.) is loaded from .env.local.
+  // Localhost can't be reached from outside the developer's machine,
+  // so this is harmless in production.
+  trustedOrigins: [env.BETTER_AUTH_URL, "http://localhost:3000"],
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {
