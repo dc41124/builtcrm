@@ -3957,12 +3957,44 @@ Phase 7.1 done. One AI agent, shipped. In the demo this is the "wow" moment.
 
 ---
 
-## Step 57 — Webhook Event Catalog Page
+## Step 57 — Webhook Event Catalog Page ✅ DONE (2026-05-01)
 
 **Mode:** Safe-to-autorun
 **Item:** 8-lite.1 #57
 **Effort:** S
 **Priority:** P1
+
+### Final state (what shipped)
+
+| Slice | What |
+|---|---|
+| Registry | `src/lib/integrations/webhookEventCatalog.ts` — typed `WebhookEventDefinition` with `key/category/description/deliveryGuarantee/sinceVersion/examplePayload`, plus `WEBHOOK_CATEGORY_CONFIG` (label/color/soft/desc per category) and convenience helpers `listEventsByCategory` / `getEventDefinition` / `WEBHOOK_EVENT_CATALOG_VERSION`. Seeded with **27 events** across 5 categories: projects (4), workflows (7), billing (6), compliance (4), documents (6) — covers every event listed in the build-guide spec plus a handful from the prototype (`approval.requested`, `approval.approved`, `payment.received`, `payment.failed`, `selection.locked`, `compliance.uploaded`, `project.member_added`). |
+| Page | `src/app/(portal)/contractor/(global)/settings/webhooks/catalog/page.tsx` (server, contractor-only via `getContractorOrgContext`) + `catalog-ui.tsx` (client, ~1100 lines). Direct port of `docs/prototypes/builtcrm_webhook_event_catalog.jsx` — hero with eyebrow + title + 4-stat grid + 3 action buttons; collapsible test-instructions panel with curl example; quick-reference TOC card grid; sticky filter pills + expand-all/collapse-all; grouped category sections with accordion event cards; syntax-highlighted JSON viewer (no `dangerouslySetInnerHTML` — recursive `<JsonNode>` component); delivery-guarantee badges; copy-to-clipboard with toast; footer note. All CSS class names + color tokens preserved 1:1 from the prototype, namespaced with `--wec-` prefix on the design tokens to avoid colliding with the portal shell's CSS variables. |
+| Sidebar | `src/components/settings/settings-shell.tsx` — added `"webhooks"` to `TabId` union + new "Webhooks" entry in `CONTRACTOR_TABS` with `link: "/contractor/settings/webhooks/catalog"` (same navigate-out pattern Prequalification uses). |
+| Auth | `getContractorOrgContext` rejects subs/clients with AuthorizationError (`forbidden` for wrong-role, `unauthenticated` redirects to `/login`). Subs and clients get a Forbidden surface, not 404. |
+| Verification | Build clean (route at `/contractor/settings/webhooks/catalog`, 12.6 kB), lint clean, 202/202 tests still passing. |
+
+### Decisions taken (re-confirming the proposal)
+
+- **27 events, not ~25.** Build-guide spec listed 18 explicit events plus "a handful more drawn from what your audit log actually logs"; prototype seeded 27. We follow the prototype since the user said "treat the prototype as truth."
+- **Catalog documents intent, emission deferred.** Build guide explicitly authorized this: "If outbound webhook emission isn't wired yet, that's fine — this catalog documents the intended event surface and drives the emission code." Tracked in stubs §1.
+- **Prototype's outer chrome (top bar + standalone settings sidebar) NOT duplicated.** The contractor portal's `AppShell` already provides analogous nav + breadcrumbs; reproducing them would create double navigation. The main content area (everything from the hero down) is rendered byte-for-byte.
+- **`sinceVersion` field included.** Build-guide type signature didn't include it but the prototype did; kept it because version-pinning per endpoint is on the production roadmap (stubs §6).
+- **Dot-notation event keys (`rfi.responded`).** Internal audit-event `actionName` is bare verbs (`responded`) keyed by `objectType`. The catalog is the *projection* that pins the public-facing names; they don't have to match internal storage.
+- **Schema tab decorative.** Both tabs render as in the prototype; only "Example payload" is wired. Tracked in stubs §7.
+- **OpenAPI YAML button copies a placeholder string** to match the prototype. Real generation tracked in stubs §2.
+
+### Production-grade follow-ups (deferred)
+
+All spec'd in `docs/specs/production_grade_upgrades/webhook_event_catalog_v1_stubs.md`:
+
+1. Outbound webhook emission — `outbound_webhook_endpoints` + `outbound_webhook_deliveries` schema, `emitWebhookEvent` helper hooked into audit-event sites, `outbound-webhook-dispatcher` Trigger.dev task.
+2. Real OpenAPI 3.1 YAML generation — `webhookOpenapi.ts` + `/api/webhooks/openapi.yaml` route + hero-button rewire.
+3. Formal JSON Schema per event — extend `WebhookEventDefinition.payloadSchema`, hand-author 27 schemas, lint test that examples conform to schemas.
+4. Endpoint CRUD UI — sibling routes for `/endpoints`, `/deliveries`, `/signing-secrets` under Settings › Webhooks.
+5. HMAC signature helper + per-endpoint signing-secret rotation.
+6. API-version pinning per endpoint (filter newer events, drop newer fields, restore renamed fields based on endpoint's pinned version).
+7. Schema tab functionality (placeholder pane now, real schema render once §3 lands).
 
 ### What this does
 

@@ -298,7 +298,8 @@ type TabId =
   | "household"
   | "access"
   | "payment"
-  | "prequalification";
+  | "prequalification"
+  | "webhooks";
 type TabDescriptor = {
   id: TabId;
   label: string;
@@ -334,6 +335,16 @@ const CONTRACTOR_TABS: TabDescriptor[] = [
     icon: I.shield,
     desc: "Templates, scoring, and assignment-time enforcement",
     link: "/contractor/settings/prequalification",
+  },
+  // Step 57 — webhook event catalog. Same navigate-out pattern: the
+  // catalog is a standalone docs page (developer surface) rather than
+  // a tab pane with org-state to mutate.
+  {
+    id: "webhooks",
+    label: "Webhooks",
+    icon: I.link,
+    desc: "Outbound event catalog, payload schemas, and signature verification",
+    link: "/contractor/settings/webhooks/catalog",
   },
 ];
 const SUBCONTRACTOR_TABS: TabDescriptor[] = [
