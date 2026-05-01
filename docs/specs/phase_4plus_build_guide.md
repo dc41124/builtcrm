@@ -3836,12 +3836,49 @@ Phase 6 done. Field workflows land. Clickthrough on mobile (or emulator): instal
 
 ---
 
-## Step 56 — Meeting Minutes AI
+## Step 56 — Meeting Minutes AI ✅ DONE (2026-05-01)
 
 **Mode:** Require-design-input
 **Item:** 7.1 #56
 **Effort:** M
 **Priority:** P0
+
+### Final state (what shipped)
+
+| Slice | What |
+|---|---|
+| Schema | New `ai_usage` counter table (org-scoped RLS) tracks per-call provider/operation/tokens/cost-cents/audioSeconds. Migration `0049_secret_rhodey.sql`. Existing `meeting_minutes` and `meeting_action_items` from Step 46 are the write targets — no changes there. |
+| Deps | `@anthropic-ai/sdk` ^0.92.0 (Claude Opus 4.7), `openai` ^6.35.0 (Whisper). Both env keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) optional in `src/lib/env.ts` so the app boots without them; pipeline throws at the call site if either is missing. |
+| AI module | `src/lib/ai/{pricing,transcribe,extractMinutes}.ts`. Whisper uses `verbose_json` for the `duration` field (drives `ai_usage.audio_seconds`). Claude uses `output_config.format` with a json_schema (cleaner than tool-use for structured extraction). System prompt encodes construction-meeting domain norms; roster is passed inline so the model resolves names to userIds; hallucinated userIds are sanitized to null with `confidence: "low"`. |
+| Background job | `src/jobs/meeting-minutes-ai.ts` — Trigger.dev v3 `task` (not a server action; matches the `meeting_minutes` schema comment that already committed to this design). 10-min `maxDuration`. Pulls audio → Whisper → Claude → upserts minutes + inserts action items + writes 2 `ai_usage` rows + audits `meeting.minutes.ai_generated` + discards audio (unless `keepAudio: true`). Refuses to overwrite finalized minutes. |
+| API routes | Three under `/api/meetings/[id]/minutes/ai/` — `upload` (presigned R2 PUT), `transcribe` (validates + triggers task, returns `runId`), `status` (proxies `runs.retrieve()`). Contractor-only (`contractor_admin` / `contractor_pm`). |
+| UI | Meeting detail Minutes tab "Generate from audio" button is now live. File picker (MP3, WAV, M4A, WebM, OGG) → HTML5 metadata duration check → 1h soft warn + 2h hard reject → presign + direct PUT to R2 → trigger task → 3s status poll → auto `router.refresh()` on completion. Inline status/error banner. |
+| R2 helpers | Added `getObjectBytes` + `deleteObject` to `src/lib/storage.ts` for the task's pull-then-discard flow. |
+| Verification | Build + lint clean, 202/202 existing tests still passing (no new tests written — see deferred §2). Manual smoke test passed end-to-end on 2026-05-01. |
+
+### Decisions taken (re-confirming the proposal)
+
+- **Whisper over Deepgram.** No latency advantage matters for a background job; Whisper is half the price.
+- **Upload-only for v1; live MediaRecorder deferred** to `meeting_minutes_ai_v1_stubs.md §1`. Validating mobile-record UX needs a real meeting.
+- **`output_config.format` with json_schema, not tool-use.** Cleaner idiom for "give me a JSON list."
+- **Opus 4.7 with adaptive thinking.** Per skill default; extraction quality on construction transcripts is intelligence-sensitive.
+- **Roster-based assignee matching, no client-side fuzzy fallback.** The model handles "Mike said he'd handle X" → Mike Reyes far better than Levenshtein. Unmapped names become `confidence: "low"` for the UI to flag.
+- **Trigger.dev v3 background job, not a sync server action.** Whisper on a long meeting exceeds Render's HTTP request budget; the schema comment on `meeting_minutes` already committed to this.
+- **Audio auto-discarded post-extraction**, with a `keepAudio` payload flag for future opt-in. No consent toggle in the v1 UI.
+- **No paid-tier gate.** Portfolio mode per `project_billing_model.md`. `ai_usage` rows are captured so a dashboard + cap can land later (deferred §5).
+
+### Production-grade follow-ups (deferred)
+
+All spec'd in `docs/specs/production_grade_upgrades/meeting_minutes_ai_v1_stubs.md`:
+
+1. Live in-browser recording (MediaRecorder).
+2. Tests for the AI surface (Whisper wrapper, Claude wrapper, three API routes — role/org gating).
+3. Server-side transcript retention (`meeting_transcripts` table) for audit + re-extraction.
+4. Hard duration cap inside the Trigger.dev task (Whisper-reported duration backstop).
+5. Per-org cost dashboard + monthly cap.
+6. Action-item idempotency on re-run (replace vs append, plus a `source` enum).
+7. External (email-only) attendees as candidate assignees.
+8. Real sub-step progress events from the task (replace the `setTimeout` heuristic).
 
 ### What this does
 
