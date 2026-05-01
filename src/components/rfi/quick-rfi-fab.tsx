@@ -33,6 +33,26 @@ interface Props {
   defaultSubjectPrefix?: string;
 }
 
+// Local shape of the non-standard SpeechRecognition interface. We type it
+// minimally — the global lib.dom typing for this is partial across TS
+// versions and we only use a handful of fields.
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult:
+    | ((event: {
+        results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }>;
+        resultIndex: number;
+      }) => void)
+    | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+};
+
 type SubmitState =
   | { kind: "idle" }
   | { kind: "submitting" }
@@ -61,11 +81,22 @@ export function QuickRfiFab({
   const router = useRouter();
 
   useEffect(() => {
-    setSpeechSupported(
-      typeof window !== "undefined" &&
-        // @ts-expect-error - non-standard, browser-vendor prefix
-        (window.SpeechRecognition || window.webkitSpeechRecognition),
-    );
+    if (typeof window === "undefined") {
+      setSpeechSupported(false);
+      return;
+    }
+    const w = window as unknown as {
+      SpeechRecognition?: unknown;
+      webkitSpeechRecognition?: unknown;
+    };
+    // Existence check only — some browsers (Brave, hardened Chromium) expose
+    // a getter that THROWS when read like a function or in a boolean context,
+    // which is the bug that caused "Failed to construct 'SpeechRecognition'"
+    // in this codebase. Keep this as a typeof === "function" probe.
+    const hasCtor =
+      typeof w.SpeechRecognition === "function" ||
+      typeof w.webkitSpeechRecognition === "function";
+    setSpeechSupported(hasCtor);
   }, []);
 
   useEffect(() => {
@@ -157,10 +188,27 @@ export function QuickRfiFab({
   };
 
   const startRecording = () => {
-    if (!speechSupported) return;
-    // @ts-expect-error - browser-vendor prefix
-    const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recog = new Ctor();
+    if (!speechSupported || typeof window === "undefined") return;
+    const w = window as unknown as {
+      SpeechRecognition?: new () => SpeechRecognitionLike;
+      webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+    };
+    const Ctor =
+      typeof w.SpeechRecognition === "function"
+        ? w.SpeechRecognition
+        : typeof w.webkitSpeechRecognition === "function"
+          ? w.webkitSpeechRecognition
+          : null;
+    if (!Ctor) return;
+    let recog: SpeechRecognitionLike;
+    try {
+      recog = new Ctor();
+    } catch {
+      // Some hardened browsers expose the constructor but throw on
+      // construction. Fail open — the textarea is still usable.
+      setSpeechSupported(false);
+      return;
+    }
     recog.continuous = true;
     recog.interimResults = true;
     recog.lang = "en-US";
