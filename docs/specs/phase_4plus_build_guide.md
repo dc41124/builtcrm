@@ -1756,7 +1756,7 @@ As each upstream module ships, its matching report tile flips from stub to built
 | `closeout` | Step 48 | Operational | Stub |
 | `prequal` | Step 49 | Compliance | Stub |
 | `safety` | Step 52 | Operational | Stub |
-| `time` | Step 53 | Operational | Stub |
+| `time` | Step 53 | Operational | Built |
 | `t5018` | Step 67 | Tax & Legal | Stub |
 | `holdback` | Step 68 | Tax & Legal | Stub |
 | `allowances` | Step 74 | Residential | Stub |
@@ -3542,7 +3542,7 @@ Both spec'd in `docs/specs/production_grade_upgrades/`:
 Plus inline TODOs surfaced during build:
 - PDF export route is a no-op stub button. Real implementation deferred — same `src/lib/pdf/` infra as transmittals would work.
 - Photo capture in the wizard emits client-minted `IMG_####` tokens instead of real R2 uploads. The producer can grow a 4-step R2 chain mirroring `dailyLogs.ts` when real camera capture lands.
-- OSHA recordable rate calc on the reports tile is a demo placeholder until Step 53 (subcontractor time tracking) provides the hours-worked denominator.
+- OSHA recordable rate calc on the reports tile is a demo placeholder. Step 53 now provides the hours-worked denominator (`getContractorTimeRollup.totalApprovedMinutes`); the actual calc still needs to be wired into `safety-report.ts`.
 
 ### Smoke / verification (deferred to deploy)
 
@@ -3595,12 +3595,42 @@ git commit -m "Step 52 (6 #52): Safety forms — toolbox talks, JHAs, incident r
 
 ---
 
-## Step 53 — Subcontractor Time Tracking
+## Step 53 — Subcontractor Time Tracking ✅ DONE (2026-04-30)
 
 **Mode:** Require-design-input
 **Item:** 6 #53
 **Effort:** M
 **Priority:** P1
+
+### Final state (what shipped)
+
+| Slice | What |
+|---|---|
+| Schema | 2 new tables (`time_entries`, `time_entry_amendments`) + 2 enums (`time_entry_status`, `time_entry_amendment_action`). RLS Pattern A on `time_entries` (org-owned, sub-internal — contractor + clients denied). Audit child defers to parent via subquery. Partial unique index `(user_id) WHERE status = 'running'` enforces one running entry per worker at the DB level. `client_uuid` reserved for the future PWA outbox (parallels `daily_logs.client_uuid`). |
+| Migration | `0047_true_hercules.sql` |
+| Domain layer | `src/domain/actions/time-entries.ts` (clockIn / clockOut / editDraft / manualEntry / submitWeek / approveEntry / rejectEntry / amendEntry) + `src/domain/loaders/time-entries.ts` (getWorkerWeekView / getAdminTeamView / getAdminWorkerDetailView / getContractorTimeRollup). Overlap prevention is app-level (assertNoOverlap helper); friendly error message + matching tests. Sub-on-project gated via `project_organization_memberships`. Worker-can-only-edit-own-drafts enforced at the action layer (RLS gives org-wide read for roster context). |
+| API routes | POST `/api/time-entries` (mode: clock-in or manual). POST `/api/time-entries/clock-out`. POST `/api/time-entries/submit-week`. PATCH `/api/time-entries/[id]`. POST `/api/time-entries/[id]/approve` (with `reject: true` + reason for rejections). POST `/api/time-entries/[id]/amend` (admin-only, reason required). All routes share a single `mapError` helper. |
+| Pages | `/subcontractor/time` (worker — Today + Timesheet, 4 modals: clock-in / clock-out / submit-week / manual-entry, GPS toggle, week navigation). `/subcontractor/time/admin` (sub-admin only — Team grid + Approvals table + Worker Detail with daily bars + audit trail). Both ported from `docs/prototypes/builtcrm_time_tracking_module.jsx` into `src/app/(portal)/time-tracking.css` (`tt-*` namespace) with the same token-aliasing block as safety-forms.css. |
+| Reports tile | `time` tile in `reports-ui.tsx` flipped to `built: true`. New `TimeRollupReport` panel renders 4 KPIs (approved hours, pending, active subs, projects with time) + by-project table + by-sub-org table. Reads `getContractorTimeRollup` (aggregated only — no raw row exposure across sub-org boundary). |
+| Tests | 18 new tests covering: 401/403 auth, sub-on-project gate, single-running enforcement, clock-out duration math, manual-entry overlap rejection, draft-edit allowed, submitted-edit blocked, submit-week + audit row, worker-can't-approve, admin approves + audit, admin amends with before/after snapshot, partial unique index at DB level. |
+
+### Decisions taken (re-confirming the proposal)
+
+- **Two tables, not one** — dedicated `time_entry_amendments` (vs. dumping into the generic `audit_events` JSON). Same call as safety incidents.
+- **Task is a label, not a FK** — there is no live `tasks` table. Snapshot `task_label` + `task_code` columns. Migration to FK is straightforward when the schedule-tasks table lands.
+- **Overlap enforced in app, not exclusion constraint** — adding `btree_gist` touches bootstrap; tracked in `time_tracking_v1_stubs.md` for production cutover.
+- **Sub-only data, contractor reads aggregates** — RLS hides raw rows from contractor and client portals. Reports tile reads via the dedicated rollup loader through admin pool, filtered to contractor's own projects.
+- **`amended` is a sticky terminal state** — admin amendment doesn't flip back to `approved`; the row stays `amended` and the audit row carries the diff.
+
+### Production-grade follow-ups (deferred)
+
+All spec'd in `docs/specs/production_grade_upgrades/time_tracking_v1_stubs.md`:
+
+1. **Postgres exclusion constraint for overlap** — replace app-level `assertNoOverlap` with `btree_gist`-backed `EXCLUDE USING gist (user_id WITH =, tstzrange(...) WITH &&)`.
+2. **PWA offline outbox** — wire `client_uuid` into a real IndexedDB outbox so workers in low-signal sites get reliable clock-in/out across blips. Schema is ready; producer wiring is the work.
+3. **Mobile today-board "big Clock In" button** — held out per user direction; rolls into the production-grade mobile pass.
+4. **Real geolocation capture** — clock-in modal exposes the toggle + the schema accepts lat/lng; adding the actual `navigator.geolocation` call is a 1-day task.
+5. **Contractor visibility ladder** — sub admin opt-in for per-day project visibility + forensic mode with audit-event approval chain. Defaulted to "no raw access" until a real customer asks.
 
 ### What this does
 

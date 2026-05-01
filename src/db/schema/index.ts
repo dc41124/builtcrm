@@ -25,4 +25,5 @@ export * from "./transmittals";
 export * from "./closeoutPackages";
 export * from "./prequal";
 export * from "./safetyForms";
+export * from "./timeEntries";
 export * from "./r2OrphanQueue";

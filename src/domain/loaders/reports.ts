@@ -110,6 +110,10 @@ import {
 import { getLaborReport, type LaborReportView } from "./labor-report";
 import { getSavedReports, type SavedReportsView } from "./saved-reports";
 import { getSafetyReport, type SafetyReportView } from "./safety-report";
+import {
+  getContractorTimeRollup,
+  type ContractorTimeRollup,
+} from "./time-entries";
 
 export type ReportsView = {
   context: ContractorOrgContext;
@@ -166,6 +170,10 @@ export type ReportsView = {
   // without-lost-time. Some fields are demo-grade approximations until
   // Step 53 (hours data) and Phase 6.5 (CA tracker) land.
   safety: SafetyReportView | null;
+  // Step 53 wiring — Sub hours rollup by project + by sub crew. Sourced
+  // from time_entries; reads aggregated data only (no raw row access for
+  // the contractor — sub-org data stays sub-internal).
+  timeRollup: ContractorTimeRollup | null;
 };
 
 // ---------------------------------------------------------------
@@ -230,6 +238,7 @@ export async function getContractorReportsData(
       labor: null,
       savedReports: null,
       safety: null,
+      timeRollup: null,
     };
   }
 
@@ -575,6 +584,14 @@ export async function getContractorReportsData(
     safety = null;
   }
 
+  // ---- Time Tracking Rollup (Step 53 wiring) ----
+  let timeRollup: ContractorTimeRollup | null = null;
+  try {
+    timeRollup = await getContractorTimeRollup(input);
+  } catch {
+    timeRollup = null;
+  }
+
   return {
     context,
     generatedAtIso: now.toISOString(),
@@ -603,6 +620,7 @@ export async function getContractorReportsData(
     labor,
     savedReports: savedReportsList,
     safety,
+    timeRollup,
   };
 }
 

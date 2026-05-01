@@ -112,7 +112,7 @@ const REPORTS: ReportDef[] = [
   { id: "daily-logs", category: "operational", label: "Daily Logs Rollup", Icon: IconFileBarChart, desc: "Cross-project daily log activity", built: false, origin: "Phase 4B" },
   { id: "weekly-reports", category: "operational", label: "Weekly Reports", Icon: IconFileText, desc: "Aggregated weekly progress reports", built: true, origin: "Step 39" },
   { id: "safety", category: "operational", label: "Safety Forms Summary", Icon: IconShieldCheck, desc: "Toolbox talks, JHAs, incidents", built: true, origin: "Step 52" },
-  { id: "time", category: "operational", label: "Time Tracking Rollup", Icon: IconClock, desc: "Sub hours by project and crew", built: false, origin: "Step 53" },
+  { id: "time", category: "operational", label: "Time Tracking Rollup", Icon: IconClock, desc: "Sub hours by project and crew", built: true, origin: "Step 53" },
   { id: "co-log", category: "operational", label: "Change Order Log", Icon: IconHammer, desc: "All COs with status and aging", built: false, origin: "Phase 4B" },
   { id: "rfi-log", category: "operational", label: "RFI Log", Icon: IconFileText, desc: "All RFIs with turnaround times", built: false, origin: "Phase 4B" },
   { id: "submittal-log", category: "operational", label: "Submittal Log", Icon: IconPackageCheck, desc: "Submittal status and reviewer activity", built: false, origin: "Step 20" },
@@ -745,6 +745,8 @@ function renderReport(id: string, view: ReportsView) {
       return <ComplianceReport view={view} />;
     case "safety":
       return <SafetyReport view={view} />;
+    case "time":
+      return <TimeRollupReport view={view} />;
     case "saved":
       return <SavedReportsView view={view} />;
     default:
@@ -3510,6 +3512,126 @@ function SafetyReport({ view }: { view: ReportsView }) {
                     {p.lastSubmittedAt
                       ? p.lastSubmittedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" })
                       : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// Step 53 — Time Tracking rollup tile. Reads aggregated minutes from
+// `view.timeRollup` (populated by getContractorTimeRollup). The contractor
+// never sees raw time-entry rows; this view trades that detail for org-wide
+// crew totals + per-project hours.
+function TimeRollupReport({ view }: { view: ReportsView }) {
+  const t = view.timeRollup;
+  if (!t) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        Time rollup unavailable.
+      </div>
+    );
+  }
+  const totalMins = t.totalApprovedMinutes + t.totalSubmittedMinutes;
+  if (totalMins === 0) {
+    return (
+      <div style={{ padding: 24, color: "var(--t3)", fontFamily: "var(--fb)" }}>
+        No time entries yet. Hours appear here once your subcontractors clock
+        in and submit weekly timesheets.
+      </div>
+    );
+  }
+  const fmtMins = (m: number) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <SectionHeading
+        title="Time Tracking Rollup"
+        subtitle="Aggregated subcontractor hours by project and crew. Contractor view — no individual entry detail."
+      />
+      <div className="rpt-kpis">
+        <KPI
+          label="Approved hours"
+          value={fmtMins(t.totalApprovedMinutes)}
+          sub="approved + amended"
+          tone="ok"
+          Icon={IconClock}
+        />
+        <KPI
+          label="Pending approval"
+          value={fmtMins(t.totalSubmittedMinutes)}
+          sub="awaiting sub admin review"
+          tone={t.totalSubmittedMinutes > 0 ? "warn" : "neutral"}
+        />
+        <KPI
+          label="Active subcontractors"
+          value={String(t.bySubOrg.length)}
+          sub="logging hours"
+          tone="neutral"
+        />
+        <KPI
+          label="Projects with time"
+          value={String(t.byProject.length)}
+          tone="neutral"
+        />
+      </div>
+      <Card>
+        <SectionHeading title="By project" subtitle="Hours per project" />
+        <div style={{ overflowX: "auto" }}>
+          <table className="rpt-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th style={{ textAlign: "right" }}>Approved</th>
+                <th style={{ textAlign: "right" }}>Pending</th>
+              </tr>
+            </thead>
+            <tbody>
+              {t.byProject.map((p) => (
+                <tr key={p.projectId}>
+                  <td>{p.projectName}</td>
+                  <td style={{ textAlign: "right", fontFamily: "var(--fm)" }}>
+                    {fmtMins(p.approvedMinutes)}
+                  </td>
+                  <td style={{ textAlign: "right", fontFamily: "var(--fm)" }}>
+                    {p.submittedMinutes > 0 ? fmtMins(p.submittedMinutes) : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      <Card>
+        <SectionHeading
+          title="By subcontractor"
+          subtitle="Crew hours across all projects"
+        />
+        <div style={{ overflowX: "auto" }}>
+          <table className="rpt-table">
+            <thead>
+              <tr>
+                <th>Subcontractor</th>
+                <th style={{ textAlign: "right" }}>Workers</th>
+                <th style={{ textAlign: "right" }}>Approved</th>
+                <th style={{ textAlign: "right" }}>Pending</th>
+              </tr>
+            </thead>
+            <tbody>
+              {t.bySubOrg.map((s) => (
+                <tr key={s.organizationId}>
+                  <td>{s.organizationName}</td>
+                  <td style={{ textAlign: "right", fontFamily: "var(--fm)" }}>
+                    {s.workerCount}
+                  </td>
+                  <td style={{ textAlign: "right", fontFamily: "var(--fm)" }}>
+                    {fmtMins(s.approvedMinutes)}
+                  </td>
+                  <td style={{ textAlign: "right", fontFamily: "var(--fm)" }}>
+                    {s.submittedMinutes > 0 ? fmtMins(s.submittedMinutes) : "—"}
                   </td>
                 </tr>
               ))}

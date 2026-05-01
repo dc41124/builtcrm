@@ -330,6 +330,13 @@
       "when": 1777580617725,
       "tag": "0046_happy_radioactive_man",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1777588380914,
+      "tag": "0047_true_hercules",
+      "breakpoints": true
     }
   ]
 }
