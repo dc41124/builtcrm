@@ -12,10 +12,7 @@ import {
   listOrganizationLicenses,
 } from "@/domain/loaders/organization-profile";
 import { listInvitationsForOrganization } from "@/domain/loaders/invitations";
-import {
-  getContractorIntegrationsView,
-  getContractorOrgContext,
-} from "@/domain/loaders/integrations";
+import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { getContractorPaymentsView } from "@/domain/loaders/payments";
 import {
   getContractorBillingSummary,
@@ -45,7 +42,6 @@ export default async function ContractorSettingsPage() {
       members,
       invitations,
       auditEvents,
-      integrations,
       payments,
       orgProfile,
       orgLicenses,
@@ -57,7 +53,6 @@ export default async function ContractorSettingsPage() {
       listOrganizationMembers(ctx.organization.id),
       listInvitationsForOrganization(ctx.organization.id),
       listOrganizationAuditEvents(ctx.organization.id, { limit: 200 }),
-      getContractorIntegrationsView({ session: sessionShim }),
       getContractorPaymentsView({ session: sessionShim }),
       getOrganizationProfile(ctx.organization.id),
       listOrganizationLicenses(ctx.organization.id),
@@ -113,7 +108,6 @@ export default async function ContractorSettingsPage() {
             members,
             invitations,
             auditEvents,
-            integrations,
             payments,
             orgProfile,
             orgLicenses,
