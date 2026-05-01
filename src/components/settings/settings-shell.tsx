@@ -327,7 +327,16 @@ const CONTRACTOR_TABS: TabDescriptor[] = [
   { id: "billing", label: "Plan & billing", icon: I.card, desc: "Subscription, payment method, and invoices" },
   { id: "data", label: "Data", icon: I.database, desc: "Import, export, and migration" },
   { id: "orgsec", label: "Org security", icon: I.lock, desc: "SSO, domain rules, and the audit log" },
-  { id: "integrations", label: "Integrations", icon: I.link, desc: "Accounting, calendar, and productivity tools" },
+  // Step 64 fold — Integrations lives on its own page now (combines
+  // Active connections + catalog gallery). Navigate-out link, same
+  // pattern as Prequalification / Webhooks / API keys / Custom fields.
+  {
+    id: "integrations",
+    label: "Integrations",
+    icon: I.link,
+    desc: "Accounting, calendar, productivity tools, and the full catalog",
+    link: "/contractor/integrations",
+  },
   { id: "payments", label: "Payments", icon: I.card, desc: "Stripe Connect, payouts, and payment history" },
   // Step 49 — prequal owns its own page tree at /contractor/settings/prequalification.
   // The `link` field renders this entry as a navigate-out link instead of a pane.
@@ -491,7 +500,6 @@ export function SettingsShell({
         {tab === "billing" && <ContractorPlanBillingTab contractor={contractor} />}
         {tab === "data" && <ContractorDataTab contractor={contractor} />}
         {tab === "orgsec" && <ContractorOrgSecurityTab contractor={contractor} />}
-        {tab === "integrations" && <ContractorIntegrationsTab contractor={contractor} />}
         {tab === "payments" && <ContractorPaymentsTab contractor={contractor} />}
         {tab === "compliance" && (
           <SubcontractorComplianceTab subcontractor={subcontractor} />
@@ -2914,6 +2922,12 @@ const SYNC_LOG: SyncLogEntry[] = [
 type IntFilter = "all" | "connected" | "available";
 type QbDetailTab = "overview" | "project mapping" | "sync activity" | "settings";
 
+// Step 64 fold: Integrations is no longer rendered as a settings pane.
+// The tab in the sub-nav is now a navigate-out link to /contractor/integrations
+// (the merged Active connections + catalog gallery page). The wrapper +
+// `ContractorIntegrationsSampleTab` below remain as reference demo content
+// for future surface ideas; both are intentionally unused.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ContractorIntegrationsTab({
   contractor,
 }: {

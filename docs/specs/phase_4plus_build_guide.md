@@ -4412,7 +4412,16 @@ git commit -m "Step 63 (8-lite.2 #63): SSO stub — SAML 2.0 endpoint against te
 
 ---
 
-## Step 64 — Integration Gallery Page
+## Step 64 — Integration Gallery Page ✅ DONE (2026-05-01)
+
+> **Note:** The original spec called for the gallery to live alongside the
+> Settings → Integrations page (Step 28) as a separate ecosystem view. We
+> folded the two into a single page at `/contractor/integrations` — Active
+> connections (`<IntegrationsView>`) on top, catalog gallery
+> (`<IntegrationsGalleryBody>`) below. The old `/contractor/settings/integrations`
+> route is a redirect stub for old bookmarks; the OAuth callback was updated
+> to land on the new path. Public marketing version at `/integrations` with
+> the same six-tab marketing nav as the rest of the marketing site.
 
 **Mode:** Require-design-input
 **Item:** 8-lite.3 #64

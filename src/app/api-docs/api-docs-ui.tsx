@@ -764,6 +764,7 @@ export function ApiDocsUI({ session }: { session?: ApiDocsSession } = {}) {
             <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Product</Link>
             <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Solutions</Link>
             <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Pricing</Link>
+            <Link href="/integrations" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Integrations</Link>
             <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Resources</Link>
             <span style={{ padding: "8px 14px", fontSize: 14, fontWeight: 640, color: "#1a1714", borderRadius: 10 }}>API docs</span>
           </div>

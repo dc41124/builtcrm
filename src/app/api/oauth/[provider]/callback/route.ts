@@ -20,7 +20,10 @@ const VALID_PROVIDERS = new Set<IntegrationProviderKey>([
   "outlook_365",
 ]);
 
-const SETTINGS_PATH = "/contractor/settings/integrations";
+// Step 64 fold: integrations live at /contractor/integrations now (the
+// page combining Active connections + the catalog gallery). The old
+// /contractor/settings/integrations route is a redirect stub.
+const SETTINGS_PATH = "/contractor/integrations";
 
 export async function GET(
   req: Request,

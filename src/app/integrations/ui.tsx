@@ -1,0 +1,184 @@
+"use client";
+
+// Step 64 — Public marketing-site integration gallery UI.
+//
+// Marketing nav is duplicated inline (same five-tab nav as marketing-page
+// and api-docs). No shared component. Catalog body comes from the shared
+// IntegrationsGalleryBody used by both the public and contractor versions.
+
+import Link from "next/link";
+
+import { IntegrationsGalleryBody } from "@/components/integrations/IntegrationsGalleryBody";
+
+const F = {
+  display: "'DM Sans',system-ui,sans-serif",
+  body: "'Instrument Sans',system-ui,sans-serif",
+};
+
+const ARR = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 12h14" />
+    <path d="m12 5 7 7-7 7" />
+  </svg>
+);
+
+export type IntegrationsSession = {
+  signedIn: boolean;
+  dashboardHref: string | null;
+};
+
+export function PublicIntegrationsUI({ session }: { session: IntegrationsSession }) {
+  const signedIn = session.signedIn;
+  const dashboardHref = session.dashboardHref ?? "/no-portal";
+
+  return (
+    <div
+      style={{
+        background: "#faf9f7",
+        color: "#1a1714",
+        minHeight: "100vh",
+        fontFamily: F.body,
+        WebkitFontSmoothing: "antialiased",
+      }}
+    >
+      {/* Marketing nav — same five-tab nav as marketing-page.tsx and
+          api-docs-ui.tsx. "Integrations" is the active tab here. */}
+      <nav
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+          background: "rgba(250,249,247,.85)",
+          backdropFilter: "blur(16px)",
+          borderBottom: "1px solid #eeece8",
+          padding: "0 32px",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1200,
+            margin: "0 auto",
+            height: 64,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 32,
+          }}
+        >
+          <Link
+            href="/"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              cursor: "pointer",
+              textDecoration: "none",
+              color: "inherit",
+            }}
+          >
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: "linear-gradient(135deg,#2c2541,#5b4fc7)",
+                display: "grid",
+                placeItems: "center",
+              }}
+            >
+              <svg viewBox="0 0 80 80" width="19" height="19">
+                <rect x="14" y="14" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".5" />
+                <rect x="26" y="26" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".75" />
+                <rect x="32" y="32" width="26" height="26" rx="4" fill="white" opacity=".95" />
+              </svg>
+            </div>
+            <div style={{ fontFamily: F.display, fontSize: 19, fontWeight: 780, letterSpacing: "-.04em" }}>
+              BuiltCRM
+            </div>
+          </Link>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Product</Link>
+            <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Solutions</Link>
+            <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Pricing</Link>
+            <span style={{ padding: "8px 14px", fontSize: 14, fontWeight: 640, color: "#1a1714", borderRadius: 10 }}>Integrations</span>
+            <Link href="/" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Resources</Link>
+            <Link href="/api-docs" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>API docs</Link>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {signedIn ? (
+              <Link
+                href={dashboardHref}
+                style={{
+                  height: 38,
+                  padding: "0 20px",
+                  fontSize: 13.5,
+                  fontWeight: 650,
+                  color: "white",
+                  background: "#5b4fc7",
+                  borderRadius: 10,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  border: "none",
+                  cursor: "pointer",
+                  textDecoration: "none",
+                  fontFamily: F.body,
+                }}
+              >
+                Open dashboard <span style={{ width: 14, height: 14, display: "block" }}>{ARR}</span>
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  style={{
+                    height: 38,
+                    padding: "0 16px",
+                    fontSize: 13.5,
+                    fontWeight: 620,
+                    color: "#5e5850",
+                    background: "transparent",
+                    border: "none",
+                    borderRadius: 10,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    textDecoration: "none",
+                    fontFamily: F.body,
+                  }}
+                >
+                  Log in
+                </Link>
+                <Link
+                  href="/signup"
+                  style={{
+                    height: 38,
+                    padding: "0 20px",
+                    fontSize: 13.5,
+                    fontWeight: 650,
+                    color: "white",
+                    background: "#5b4fc7",
+                    borderRadius: 10,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    border: "none",
+                    cursor: "pointer",
+                    textDecoration: "none",
+                    fontFamily: F.body,
+                  }}
+                >
+                  Get started free <span style={{ width: 14, height: 14, display: "block" }}>{ARR}</span>
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "48px 32px 80px" }}>
+        <IntegrationsGalleryBody variant="public" />
+      </div>
+    </div>
+  );
+}

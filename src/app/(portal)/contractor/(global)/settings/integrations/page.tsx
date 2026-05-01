@@ -1,26 +1,10 @@
 import { redirect } from "next/navigation";
 
-import { requireServerSession } from "@/auth/session";
-
-import { getContractorIntegrationsView } from "@/domain/loaders/integrations";
-import { AuthorizationError } from "@/domain/permissions";
-
-import { IntegrationsView } from "./integrations-ui";
-
-export default async function ContractorIntegrationsPage() {
-  const { session } = await requireServerSession();
-  let view;
-  try {
-    view = await getContractorIntegrationsView({
-      session: session,
-    });
-  } catch (err) {
-    if (err instanceof AuthorizationError) {
-      if (err.code === "unauthenticated") redirect("/login");
-      return <pre>Forbidden: {err.message}</pre>;
-    }
-    throw err;
-  }
-
-  return <IntegrationsView view={view} nowMs={Date.now()} />;
+// Step 64 fold: the integrations page moved to /contractor/integrations
+// (now the single page combining Active connections + the catalog
+// gallery). This stub stays in place so old bookmarks still land on
+// the new home. The OAuth callback was updated to redirect to the new
+// path directly; this stub is the safety net.
+export default function MovedIntegrationsSettings() {
+  redirect("/contractor/integrations");
 }

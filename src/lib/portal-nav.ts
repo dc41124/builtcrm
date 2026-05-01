@@ -141,6 +141,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
         placement: "after-projects",
         items: mark([
           { label: "Settings", href: "/contractor/settings" },
+          { label: "Integrations", href: "/contractor/integrations" },
           { label: "Safety Templates", href: "/contractor/settings/safety-templates" },
         ]),
       },

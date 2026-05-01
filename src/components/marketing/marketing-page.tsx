@@ -310,9 +310,11 @@ export default function MarketingPage({
             <div style={{ fontFamily: F.display, fontSize: 19, fontWeight: 780, letterSpacing: "-.04em" }}>BuiltCRM</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            {([["home", "Product"], ["solutions", "Solutions"], ["pricing", "Pricing"], ["resources", "Resources"]] as [PageKey, string][]).map(([k, l]) => (
+            {([["home", "Product"], ["solutions", "Solutions"], ["pricing", "Pricing"]] as [PageKey, string][]).map(([k, l]) => (
               <div key={k} onClick={() => nav(k)} style={{ padding: "8px 14px", fontSize: 14, fontWeight: page === k ? 640 : 560, color: page === k ? "#1a1714" : "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms" }}>{l}</div>
             ))}
+            <Link href="/integrations" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>Integrations</Link>
+            <div onClick={() => nav("resources")} style={{ padding: "8px 14px", fontSize: 14, fontWeight: page === "resources" ? 640 : 560, color: page === "resources" ? "#1a1714" : "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms" }}>Resources</div>
             <Link href="/api-docs" style={{ padding: "8px 14px", fontSize: 14, fontWeight: 560, color: "#5e5850", borderRadius: 10, cursor: "pointer", transition: "all 120ms", textDecoration: "none" }}>API docs</Link>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -344,9 +346,11 @@ export default function MarketingPage({
       </nav>
       {mobileMenu && (
         <div className="mkt-mobile-menu" style={{ position: "fixed", top: 58, left: 0, right: 0, bottom: 0, background: "#faf9f7", zIndex: 99, padding: "24px 20px", display: "flex", flexDirection: "column", gap: 4, overflowY: "auto" }}>
-          {([["home", "Product"], ["solutions", "Solutions"], ["pricing", "Pricing"], ["resources", "Resources"]] as [PageKey, string][]).map(([k, l]) => (
+          {([["home", "Product"], ["solutions", "Solutions"], ["pricing", "Pricing"]] as [PageKey, string][]).map(([k, l]) => (
             <button key={k} onClick={() => nav(k)} style={{ textAlign: "left", padding: "16px 14px", fontFamily: F.display, fontSize: 18, fontWeight: page === k ? 720 : 620, color: page === k ? "#5b4fc7" : "#1a1714", background: page === k ? "#eeedfb" : "transparent", border: "none", borderRadius: 12, cursor: "pointer" }}>{l}</button>
           ))}
+          <Link href="/integrations" onClick={() => setMobileMenu(false)} style={{ display: "block", padding: "16px 14px", fontFamily: F.display, fontSize: 18, fontWeight: 620, color: "#1a1714", borderRadius: 12, textDecoration: "none" }}>Integrations</Link>
+          <button onClick={() => nav("resources")} style={{ textAlign: "left", padding: "16px 14px", fontFamily: F.display, fontSize: 18, fontWeight: page === "resources" ? 720 : 620, color: page === "resources" ? "#5b4fc7" : "#1a1714", background: page === "resources" ? "#eeedfb" : "transparent", border: "none", borderRadius: 12, cursor: "pointer" }}>Resources</button>
           <Link href="/api-docs" onClick={() => setMobileMenu(false)} style={{ display: "block", padding: "16px 14px", fontFamily: F.display, fontSize: 18, fontWeight: 620, color: "#1a1714", borderRadius: 12, textDecoration: "none" }}>API docs</Link>
           <div style={{ height: 1, background: "#eeece8", margin: "12px 0" }} />
           {signedIn ? (
