@@ -34,19 +34,6 @@
   display: flex;
   flex-direction: column;
 }
-:where(.dark) .sfm-page {
-  --bg: #141312;
-  --surface-1: #1d1c1a;
-  --surface-2: #232120;
-  --surface-3: #2e2c29;
-  --text-primary: #f1efea;
-  --text-secondary: #b0ada7;
-  --text-tertiary: #6f6d68;
-  --border: #2e2c29;
-  --border-strong: #3a3733;
-  --accent-soft: rgba(126, 114, 230, 0.18);
-  --accent: #7e72e6;
-}
 
 .sfm-hdr {
   background: var(--accent);

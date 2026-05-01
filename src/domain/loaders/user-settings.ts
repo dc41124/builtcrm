@@ -29,7 +29,6 @@ export type UserProfile = {
   phone: string | null;
   title: string | null;
   timezone: string;
-  theme: "light" | "dark" | "system";
   density: "comfortable" | "compact";
   language: string;
   avatarUrl: string | null;
@@ -76,7 +75,6 @@ export async function getUserSettingsView(input: {
       phone: users.phone,
       title: users.title,
       timezone: users.timezone,
-      theme: users.theme,
       density: users.density,
       language: users.language,
       avatarUrl: users.avatarUrl,
@@ -200,7 +198,6 @@ export async function getUserSettingsView(input: {
       phone: profile.phone,
       title: profile.title,
       timezone: profile.timezone,
-      theme: profile.theme,
       density: profile.density,
       language: profile.language,
       avatarUrl: profile.avatarUrl,

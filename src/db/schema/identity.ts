@@ -28,14 +28,8 @@ export const prequalEnforcementModeEnum = pgEnum("prequal_enforcement_mode", [
 ]);
 
 // -----------------------------------------------------------------------------
-// User-preference enums (used by users.theme / users.density and elsewhere)
+// User-preference enums (used by users.density and elsewhere)
 // -----------------------------------------------------------------------------
-
-export const themeModeEnum = pgEnum("theme_mode", [
-  "light",
-  "dark",
-  "system",
-]);
 
 export const displayDensityEnum = pgEnum("display_density", [
   "comfortable",
@@ -113,7 +107,6 @@ export const users = pgTable(
     timezone: varchar("timezone", { length: 64 })
       .default("America/Los_Angeles")
       .notNull(),
-    theme: themeModeEnum("theme").default("system").notNull(),
     density: displayDensityEnum("density").default("comfortable").notNull(),
     language: varchar("language", { length: 10 }).default("en").notNull(),
     avatarUrl: text("avatar_url"),

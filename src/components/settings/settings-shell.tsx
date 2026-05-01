@@ -319,7 +319,7 @@ const BASE_TABS: TabDescriptor[] = [
   { id: "profile", label: "Profile", icon: I.user, desc: "Name, contact info, and how you appear to others" },
   { id: "security", label: "Security", icon: I.shield, desc: "Password, two-factor authentication, and active sessions" },
   { id: "notifications", label: "Notifications", icon: I.bellOutline, desc: "What you hear about and how you hear about it" },
-  { id: "appearance", label: "Appearance", icon: I.sparkle, desc: "Theme, language, and display preferences" },
+  { id: "appearance", label: "Appearance", icon: I.sparkle, desc: "Language and display preferences" },
 ];
 const CONTRACTOR_TABS: TabDescriptor[] = [
   { id: "organization", label: "Organization", icon: I.building, desc: "Company profile, logo, and licensing" },
@@ -1898,37 +1898,13 @@ function AppearanceTab({
   showDangerZone: boolean;
 }) {
   const router = useRouter();
-  const [theme, setThemeState] = useState(view.profile.theme);
   const [density, setDensity] = useState(view.profile.density);
   const [language, setLanguage] = useState(view.profile.language);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
 
-  // Apply theme imperatively to <html>.
-  useEffect(() => {
-    const root = document.documentElement;
-    const apply = () => {
-      const effectiveDark =
-        theme === "dark" ||
-        (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-      root.classList.toggle("dark", effectiveDark);
-      try {
-        localStorage.setItem("builtcrm-theme", theme);
-      } catch {
-        /* ignore */
-      }
-    };
-    apply();
-    if (theme === "system") {
-      const mq = window.matchMedia("(prefers-color-scheme: dark)");
-      const handler = () => apply();
-      mq.addEventListener("change", handler);
-      return () => mq.removeEventListener("change", handler);
-    }
-  }, [theme]);
-
-  async function persist(partial: { theme?: string; density?: string; language?: string }) {
+  async function persist(partial: { density?: string; language?: string }) {
     setSaving(true);
     const res = await fetch("/api/user/preferences", {
       method: "PATCH",
@@ -1945,78 +1921,6 @@ function AppearanceTab({
 
   return (
     <>
-      <Panel
-        title="Theme"
-        subtitle="Choose how BuiltCRM looks. System follows your device's setting automatically."
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-            gap: 12,
-            marginTop: 8,
-          }}
-        >
-          {(
-            [
-              { id: "light", label: "Light", desc: "Bright, warm surfaces" },
-              { id: "dark", label: "Dark", desc: "Easier on the eyes at night" },
-              { id: "system", label: "System", desc: "Match your device" },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.id}
-              onClick={() => {
-                setThemeState(t.id);
-                persist({ theme: t.id });
-              }}
-              style={{
-                padding: 14,
-                border: `1.5px solid ${theme === t.id ? "var(--ac)" : "var(--s3)"}`,
-                borderRadius: 14,
-                cursor: "pointer",
-                textAlign: "left",
-                background: theme === t.id ? "var(--ac-s)" : "var(--s1)",
-                transition: "all 120ms",
-              }}
-            >
-              <div
-                style={{
-                  height: 64,
-                  borderRadius: 10,
-                  marginBottom: 10,
-                  position: "relative",
-                  overflow: "hidden",
-                  border: "1px solid var(--s3)",
-                  background:
-                    t.id === "light"
-                      ? "#fff"
-                      : t.id === "dark"
-                        ? "#0c0e14"
-                        : "linear-gradient(90deg,#fff 50%,#0c0e14 50%)",
-                }}
-              />
-              <div
-                style={{
-                  fontFamily: "'DM Sans',system-ui,sans-serif",
-                  fontSize: 13,
-                  fontWeight: 650,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
-                {t.label}
-                {theme === t.id && <span style={{ color: "var(--ac)" }}>{I.check}</span>}
-              </div>
-              <div style={{ fontSize: 11.5, color: "var(--t3)", marginTop: 2, fontWeight: 500 }}>
-                {t.desc}
-              </div>
-            </button>
-          ))}
-        </div>
-      </Panel>
-
       <Panel
         title="Display density"
         subtitle="Controls how tightly information is packed. Compact fits more on screen, comfortable is easier to scan."

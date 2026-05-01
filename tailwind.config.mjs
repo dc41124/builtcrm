@@ -18,7 +18,6 @@ const config = {
     './src/components/**/*.{ts,tsx}',
     './src/lib/**/*.{ts,tsx}',
   ],
-  darkMode: 'class',
   theme: {
     extend: {
       colors: {

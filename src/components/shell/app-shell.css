@@ -24,24 +24,6 @@
   -webkit-font-smoothing:antialiased;line-height:1.5;font-size:14px;
   background:var(--s0);min-height:100vh;
 }
-/* Dark-mode overrides. The AppShell used to only respond to `.bcrm.dark`
- * (class on the wrapper itself). That meant toggling `.dark` on <html>
- * — which is our canonical source of truth — didn't cascade into the
- * shell because `.bcrm` re-declares base tokens locally and blocks the
- * html-level .dark rule from tokens.css. Matching `html.dark .bcrm` too
- * makes the shell follow whatever theme <html> is in. */
-.bcrm.dark,
-html.dark .bcrm{
-  --s0:#0c0e14;--s1:#171a24;--s2:#1e2130;--s3:#2a2e3c;--s4:#3a3f52;
-  --sh:#222536;--sa:#2a2e3c;
-  --sb-bg:#10121a;--sb-h:#1a1d2a;--sb-a:#222536;
-  --sb-bdr:#222536;--sb-mbg:#151820;--sb-mbdr:#272b3a;
-  --t1:#edeae5;--t2:#a8a39a;--t3:#6e6a62;
-  --ok:#3da872;--ok-s:#162a1f;--ok-t:#5ec494;
-  --wr:#d49530;--wr-s:#2a2010;--wr-t:#e8b44e;
-  --dg:#e05252;--dg-s:#2c1414;--dg-t:#f28080;
-  --tb-bg:rgba(16,18,26,.88);--tl:#2e3240;
-}
 
 .b-app{display:grid;grid-template-columns:var(--sw) 1fr;min-height:100vh}
 
@@ -149,10 +131,6 @@ button.b-srch-w:focus-visible{border-color:var(--ac);box-shadow:var(--shri);outl
 .b-psw-row.on .b-psw-row-phase{color:var(--ac-t);opacity:.85}
 .b-tbb{width:32px;height:32px;border-radius:var(--r-m);border:1px solid var(--s3);background:var(--s1);color:var(--t3);display:grid;place-items:center;cursor:pointer;transition:all var(--df) var(--e);position:relative}
 .b-tbb:hover{border-color:var(--s4);color:var(--t2);background:var(--sh)}
-.b-theme-icon{display:grid;place-items:center;line-height:0}
-.b-theme-sun{display:none}
-html.dark .b-theme-sun{display:grid}
-html.dark .b-theme-moon{display:none}
 .b-nd{position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--dg);border:2px solid var(--s1)}
 
 /* command palette trigger (topbar chip) */

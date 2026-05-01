@@ -1,7 +1,6 @@
 /* Shared mobile PWA styles. Tokens here mirror the prototype's safety-
    forms / time-tracking light theme; both modules layer their own
-   namespaced styles on top. The dark-mode path is handled by the root
-   layout's html.dark class — modules opt in via :where(.dark) overrides. */
+   namespaced styles on top. */
 
 .m-root {
   min-height: 100vh;
@@ -26,9 +25,4 @@
   border: none;
   background: none;
   color: inherit;
-}
-
-:where(.dark) .m-root {
-  background: #1a1814;
-  color: #f0ede4;
 }

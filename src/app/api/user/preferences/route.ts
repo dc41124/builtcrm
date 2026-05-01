@@ -8,7 +8,6 @@ import { dbAdmin } from "@/db/admin-pool";
 import { users } from "@/db/schema";
 
 const BodySchema = z.object({
-  theme: z.enum(["light", "dark", "system"]).optional(),
   density: z.enum(["comfortable", "compact"]).optional(),
   language: z.string().trim().min(2).max(10).optional(),
 });
@@ -30,7 +29,6 @@ export async function PATCH(req: Request) {
   }
 
   const updates: Record<string, unknown> = {};
-  if (parsed.data.theme) updates.theme = parsed.data.theme;
   if (parsed.data.density) updates.density = parsed.data.density;
   if (parsed.data.language) updates.language = parsed.data.language;
   if (Object.keys(updates).length === 0) {

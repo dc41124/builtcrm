@@ -170,17 +170,6 @@ const SearchIcon = (
     <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
   </svg>
 );
-const MoonIcon = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-  </svg>
-);
-const SunIcon = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="5" />
-    <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-  </svg>
-);
 const MenuIcon = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
@@ -434,36 +423,6 @@ export default function AppShell({
   breadcrumbs,
   children,
 }: AppShellProps) {
-  // Theme toggle is imperative (no React state) to avoid SSR/client hydration
-  // mismatch — the pre-hydration script in app/layout.tsx may have already
-  // applied `.dark` to <html> before React boots. Icons are rendered via CSS
-  // (`html.dark` selectors in app-shell.css), not React conditionals.
-  //
-  // Toggling light <-> dark here also persists to the user's `users.theme`
-  // preference so the topbar toggle and the Settings > Appearance radio stay
-  // in sync. If the user had `theme = 'system'`, toggling demotes them to
-  // an explicit `light` or `dark` (matches the spec's two-control model).
-  const router = useRouter();
-  const toggleTheme = () => {
-    const root = document.documentElement;
-    const isDark = root.classList.toggle("dark");
-    const next: "light" | "dark" = isDark ? "dark" : "light";
-    try {
-      localStorage.setItem("builtcrm-theme", next);
-      root.setAttribute("data-theme-pref", next);
-    } catch {}
-    // Persist then refresh the current route so any server-rendered shell
-    // (e.g. the Settings > Appearance radio) re-reads the DB and stays in
-    // sync with this imperative change. If the POST fails, localStorage
-    // still holds the new choice so the next reload is still correct.
-    void fetch("/api/user/preferences", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ theme: next }),
-    }).then((res) => {
-      if (res.ok) router.refresh();
-    });
-  };
   const [mobileOpen, setMobileOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => ({
     ...Object.fromEntries(navSections.map((s) => [s.label, s.defaultOpen ?? true])),
@@ -712,16 +671,6 @@ export default function AppShell({
               <kbd className="b-cmd-kbd">⌘K</kbd>
             </button>
             <div className="b-tr">
-              <button
-                type="button"
-                className="b-tbb"
-                onClick={toggleTheme}
-                aria-label="Toggle theme"
-                title="Toggle theme"
-              >
-                <span className="b-theme-icon b-theme-sun" aria-hidden>{SunIcon}</span>
-                <span className="b-theme-icon b-theme-moon" aria-hidden>{MoonIcon}</span>
-              </button>
               <NotificationBell portalType={portalType} />
               {userAvatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element

@@ -38,19 +38,6 @@
   /* Reserve room for the sticky bottom nav. */
   padding-bottom: calc(72px + env(safe-area-inset-bottom));
 }
-:where(.dark) .ttm-page {
-  --bg: #1a1814;
-  --surface-1: #221f1a;
-  --surface-2: #1f1c17;
-  --surface-3: #2a2620;
-  --surface-hover: #27241e;
-  --border: #34302a;
-  --border-strong: #403b33;
-  --text-primary: #f0ede4;
-  --text-secondary: #aca9a1;
-  --text-tertiary: #7a766f;
-  --accent-soft: rgba(112, 144, 179, 0.18);
-}
 
 .ttm-hdr {
   padding: 16px 18px 18px;
