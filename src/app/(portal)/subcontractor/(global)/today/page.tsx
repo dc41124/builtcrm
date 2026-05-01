@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { QuickRfiFab } from "@/components/rfi/quick-rfi-fab";
 import { getSubcontractorTodayData } from "@/domain/loaders/subcontractor-today";
 import { loadPortalShell } from "@/lib/portal-shell";
 
@@ -237,7 +238,8 @@ export default async function SubcontractorTodayPage() {
         </div>
       </section>
 
-      
+
+      {focus ? <QuickRfiFab projectId={focus.projectId} /> : null}
     </div>
   );
 }

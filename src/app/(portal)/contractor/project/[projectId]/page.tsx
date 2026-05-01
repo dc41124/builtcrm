@@ -12,6 +12,7 @@ import { AuthorizationError } from "@/domain/permissions";
 import { formatMoneyCentsCompact } from "@/lib/format/money";
 
 import "./project-home.css";
+import { QuickRfiFab } from "@/components/rfi/quick-rfi-fab";
 import { WorkspaceCard, type WorkspaceTab } from "./workspace-card";
 
 type PillKind = "red" | "orange" | "blue" | "green" | "purple" | "gray";
@@ -935,6 +936,7 @@ export default async function ContractorProjectHomePage({
           </div>
         </aside>
       </section>
+      <QuickRfiFab projectId={view.project.id} />
     </div>
   );
 }

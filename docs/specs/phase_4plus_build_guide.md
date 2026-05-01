@@ -3742,12 +3742,42 @@ git commit -m "Step 54 (6 #54): Photo spatial pinning on drawings"
 
 ---
 
-## Step 55 — Field RFI Quick-Capture
+## Step 55 — Field RFI Quick-Capture ✅ DONE (2026-04-30)
 
 **Mode:** Require-design-input
 **Item:** 6 #55
 **Effort:** S
 **Priority:** P1
+
+### Final state (what shipped)
+
+| Slice | What |
+|---|---|
+| API | `/api/rfis` POST extended: accepts `status: "draft" \| "open"`, `clientUuid` (audit-events JSONB dedupe; idempotent retries return prior id with `idempotent: true`), and `attachmentDocumentIds[]` (writes `document_links` rows pivoting to the new RFI). Subs are now permitted to create RFIs but ONLY in `draft` status; status defaults differ by role (sub→draft, contractor→open). Sub-created drafts auto-assign to `project.contractor_organization_id` so the contractor inbox surfaces them. |
+| Offline outbox | New producer `rfi_quick_create` registered alongside `daily_log_create` and `safety_form_create`. Drains via POST `/api/rfis` with `clientUuid`. The `OutboxBootstrap` shell component now imports `registerRfiQuickCreateProducer` at startup. |
+| Component | `src/components/rfi/quick-rfi-fab.tsx` — mobile-first FAB + flow modal. Features: photo capture (`<input capture="environment">` → 3-step R2 chain that uploads while the user records voice), Web Speech API dictation with editable textarea fallback (auto-detects support), silent GPS capture on submit (5s timeout, swallows errors), `clientUuid` minted on submit, inline submit/queued/error banner. Hidden above 720px to keep the existing "New RFI" surfaces in charge of desktop. |
+| Mounts | Sub today board at `/subcontractor/today` (scoped to `currentFocus.projectId`; no FAB when the worker has no projects) + contractor project home at `/contractor/project/[projectId]`. |
+| Tests | 6 new (202/202 total green): contractor-omit-status-still-needs-assignee, contractor-quick-capture-defaults-to-org, sub-can-only-create-draft, sub-creates-draft-with-GPS-prefix, idempotent-retry-returns-prior-id, attachmentDocumentIds-writes-document-links. |
+
+### Decisions taken (re-confirming the proposal)
+
+- **Subs may now create RFIs in `draft` only.** `/api/rfis` POST gates this at the action layer; `rfi_status` enum already has `draft` so no schema change.
+- **No "default RFI recipient" column.** Heuristic: assign quick-captures to the project's contractor org. Full per-project recipient column tracked in `rfi_quick_capture_v1_stubs.md`.
+- **GPS packed into `location_description`.** Schema-free; structured `location_lat / location_lng` columns are a follow-up.
+- **Photos via `documents` + `document_links`.** No `rfis.attachment_document_id` column; a polymorphic link row keeps the RFI table skinny and matches every other photo surface.
+- **`clientUuid` dedupe via `audit_events.metadata_json` lookup.** No new idempotency table; partial expression index is the production-grade path.
+- **FAB on mobile only.** Above 720px the FAB stays present but compacts; desktop keeps using the full "New RFI" forms.
+- **Web Speech with textarea fallback.** Always editable.
+
+### Production-grade follow-ups (deferred)
+
+All spec'd in `docs/specs/production_grade_upgrades/rfi_quick_capture_v1_stubs.md`:
+
+1. Structured `location_lat / location_lng` columns on `rfis` (schema change).
+2. `projects.default_rfi_recipient_user_id` config column (schema change).
+3. Server-side transcription — Step 56 hand-off, called out in spec.
+4. Photo offline outbox so quick-RFI photo capture survives a no-signal submit (the daily-logs photo chain is the template).
+5. Dedicated `rfi_idempotency_keys` table OR a partial expression index on `audit_events` if dedupe volume warrants.
 
 ### What this does
 

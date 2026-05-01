@@ -28,7 +28,10 @@ export const DB_VERSION = 1;
 
 // ----- Outbox row shape -----------------------------------------------------
 
-export type OutboxKind = "daily_log_create" | "safety_form_create";
+export type OutboxKind =
+  | "daily_log_create"
+  | "safety_form_create"
+  | "rfi_quick_create";
 
 export type OutboxStatus =
   | "pending" // waiting to drain
@@ -72,6 +75,15 @@ export interface SafetyFormCreatePayload {
   body: Record<string, unknown>;
 }
 
+// Step 55 — RFI quick-capture payload. The full POST body for /api/rfis,
+// minted on the device. attachmentDocumentIds carries server-side document
+// IDs the client uploaded successfully BEFORE going offline; offline-first
+// photo uploads are deferred to a future Step 51 photo-attachment slice.
+export interface RfiQuickCreatePayload {
+  projectId: string;
+  body: Record<string, unknown>;
+}
+
 export type OutboxRow =
   | (OutboxRowBase & {
       kind: "daily_log_create";
@@ -80,6 +92,10 @@ export type OutboxRow =
   | (OutboxRowBase & {
       kind: "safety_form_create";
       payload: SafetyFormCreatePayload;
+    })
+  | (OutboxRowBase & {
+      kind: "rfi_quick_create";
+      payload: RfiQuickCreatePayload;
     });
 
 // ----- Photo row shape ------------------------------------------------------

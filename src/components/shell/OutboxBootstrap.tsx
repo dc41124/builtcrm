@@ -25,15 +25,18 @@ export function OutboxBootstrap() {
         { drainQueue },
         { registerDailyLogProducer },
         { registerSafetyFormProducer },
+        { registerRfiQuickCreateProducer },
       ] = await Promise.all([
         import("@/lib/offline/queue"),
         import("@/lib/offline/dailyLogs"),
         import("@/lib/offline/safetyForms"),
+        import("@/lib/offline/rfis"),
       ]);
       if (cancelled) return;
 
       registerDailyLogProducer();
       registerSafetyFormProducer();
+      registerRfiQuickCreateProducer();
 
       // Initial drain — covers the case where rows were enqueued in a
       // previous session and the user is now online.
