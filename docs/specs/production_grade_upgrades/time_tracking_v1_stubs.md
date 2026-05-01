@@ -85,33 +85,33 @@ service-worker shell and the generic outbox infrastructure tracked in
 
 ---
 
-## 3. Mobile today-board "big Clock In" button
+## 3. Mobile today-board "big Clock In" button — ✅ SHIPPED 2026-04-30
 
-### Current approximation
-The build-guide spec (#2 under Step 53) calls for the big Clock In
-button on `/subcontractor/today`, with a running-entry display and a
-Stop button. Step 53 ships the full desktop time-tracking surface
-(`/subcontractor/time`) and intentionally leaves the today board
-untouched.
+### Status
+Full mobile PWA surface ships at `/m/time` and `/m/time/timesheet`.
+Reuses the same `/api/time-entries` endpoints + `getWorkerWeekView`
+loader; no API changes. The `/subcontractor/today` desktop surface is
+intentionally still untouched per the original Step 53 scope — the
+mobile users land on `/m/time` instead, which is the proper PWA home
+for field workers.
 
-### Production gap
-Field workers don't visit `/time` — they live on the today board. The
-clock-in primitive needs to be one tap from the home screen, with
-status visible at a glance (running indicator, current task, elapsed).
+### What shipped
+- **`/m/time`** — big circular clock-in/out button (140×140), running
+  timer with seconds-blink colon, today's entries strip with status
+  border-left, GPS toggle, bottom nav, FAB. Bottom-sheet modal for
+  clock-in (project + task + notes + offline banner) and clock-out
+  (this-shift summary + notes).
+- **`/m/time/timesheet`** — per-day stacked cards with totals, week
+  navigator, sticky submit-week CTA when drafts exist in the current
+  week.
+- Both screens share the `/m` route segment with no portal shell;
+  `viewport-fit: cover` + safe-area insets respected.
 
-### Target design
-Add a top-of-page "Time" card on the today board:
-- Idle state: large primary button "Clock in" → opens the clock-in modal.
-- Running state: pulsing green indicator + elapsed timer + project chip
-  + "Clock out" button.
-- One-tap workflow that reuses the same actions as `/time` (no separate
-  API surface).
-- Mobile-first sizing — primary CTA is touch-target 56px+.
-
-### Why deferred
-Per user direction at Step 53 kickoff: the mobile pass is its own
-production-level work session, not lumped into the schema-+-desktop
-surface delivered here.
+### Original target design (preserved for reference)
+Add a top-of-page "Time" card on the today board: idle / running /
+clock-out states with a pulsing green LED. STILL DEFERRED — the
+`/subcontractor/today` desktop card was not touched. If we later want
+the time card on the desktop today board, that's a separate slice.
 
 ---
 

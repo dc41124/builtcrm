@@ -1,7 +1,7 @@
 # Safety Forms: V1 Stubs to Productionize
 
 **Surfaced during:** Step 52 (Safety Forms), 2026-04-30.
-**Status:** Stubs shipping with Step 52; production gap noted.
+**Status:** Stubs shipping with Step 52; production gap noted. **Mobile PWA surface added 2026-04-30** at `/m/safety/project/[projectId]` — see "Mobile PWA" section below.
 
 ---
 
@@ -194,6 +194,51 @@ Total ≈ 4–5 sessions across the four. Best done as one "Phase 6.5:
 Safety v2" sub-step after the corrective-action tracker
 (`safety_corrective_action_tracker.md`) and template field editor
 (`safety_template_field_editor.md`).
+
+## Mobile PWA — ✅ SHIPPED 2026-04-30
+
+A dedicated PWA surface ships at `/m/safety/project/[projectId]` and
+`/m/safety/project/[projectId]/new/[templateId]`. The desktop sub
+surface at `/subcontractor/project/[projectId]/safety-forms` is
+unchanged — both portals work in parallel.
+
+### What shipped
+- **`/m/safety`** + `/m/safety/forms` — gateway redirects to the user's
+  first project's mobile list.
+- **`/m/safety/project/[projectId]`** — assigned templates as cards,
+  recent submissions as compact rows, multi-project switcher when the
+  worker has more than one project. Server-rendered via the same
+  `getSubSafetyFormsView` loader the desktop uses.
+- **`/m/safety/project/[projectId]/new/[templateId]`** — single-field-
+  per-step wizard with sticky bottom nav. Reuses the shared
+  `FieldRenderer` from `safety-forms-shared.tsx` so all 11 field types
+  (text, textarea, select, checklist, datetime, signature, photo,
+  attendees, people, hazards, actions) render identically to the
+  desktop wizard. Submit path goes through the same `/api/safety-forms`
+  POST and the Step 51 outbox when offline.
+
+### Layout strategy
+- New top-level route segment `/m` with its own `layout.tsx` — bypasses
+  the desktop portal shell entirely (no top bar, no sidebar). The root
+  layout's PWA meta tags + outbox bootstrap + service worker
+  registration apply.
+- `viewport-fit: cover` + `env(safe-area-inset-*)` so the sticky nav
+  sits above the home-indicator bar on iOS.
+- Namespaced CSS (`sfm-*` for safety, `ttm-*` for time tracking) to
+  prevent collisions with the desktop `sf-*` / `tt-*` styles. The
+  field-renderer wizard imports the desktop `safety-forms.css` for the
+  `.sf-*` widgets the renderer outputs.
+
+### Deliberate scope cuts
+- **No service-worker push for new template assignments** — would
+  require a server-push channel; tracked in
+  `offline_background_sync_api.md`.
+- **No camera-stream MediaRecorder for photos** — the photo field
+  still emits `IMG_####` placeholder tokens (same as desktop), pending
+  the real camera capture chain.
+- **No "install to home screen" prompt** — relies on the browser's
+  native install banner. Could add a custom prompt later if the
+  install rate needs nudging.
 
 ## Related
 

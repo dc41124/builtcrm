@@ -387,6 +387,9 @@ export default function SafetyFormsModule() {
   // Demo: simulate offline state for sub mobile
   const [isOnline, setIsOnline] = useState(true);
 
+  // Sub viewport mode: desktop (full app) | mobile (PWA phone-frame preview)
+  const [subViewMode, setSubViewMode] = useState("desktop");
+
   // ─── Derived ────────────────────────────────────────────────────────
   const currentSubmission = submissions.find(s => s.id === selectedSubmissionId);
   const currentTemplate   = templates.find(t => t.id === selectedTemplateId);
@@ -520,6 +523,9 @@ export default function SafetyFormsModule() {
 .sf-role-toggle{display:flex;background:var(--surface-3);border-radius:8px;padding:3px;font-family:'DM Sans',sans-serif;font-weight:620;font-size:11.5px}
 .sf-role-toggle button{background:transparent;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;color:var(--text-secondary);display:flex;align-items:center;gap:6px;letter-spacing:.01em}
 .sf-role-toggle button.active{background:var(--surface-1);color:var(--text-primary);box-shadow:var(--shadow-sm)}
+.sf-vp-toggle{display:flex;background:var(--surface-3);border-radius:8px;padding:3px;font-family:'DM Sans',sans-serif;font-weight:620;font-size:11px}
+.sf-vp-toggle button{background:transparent;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;color:var(--text-secondary);display:flex;align-items:center;gap:5px;letter-spacing:.01em}
+.sf-vp-toggle button.active{background:var(--surface-1);color:var(--accent);box-shadow:var(--shadow-sm)}
 .sf-icon-btn{width:34px;height:34px;border-radius:8px;background:transparent;border:1px solid transparent;display:grid;place-items:center;color:var(--text-secondary);cursor:pointer;transition:all .12s}
 .sf-icon-btn:hover{background:var(--surface-2);color:var(--text-primary);border-color:var(--border)}
 .sf-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#5b4fc7,#7d72e6);color:#fff;display:grid;place-items:center;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:680}
@@ -758,16 +764,21 @@ export default function SafetyFormsModule() {
 /* ── Sub mobile shell (legacy — phone preview retired) ── */
 .sf-sub-banner{display:flex;align-items:flex-start;gap:10px;padding:11px 16px;background:var(--accent-soft);border:1px solid transparent;border-radius:10px;margin-bottom:18px;font-size:12.5px;color:var(--accent-deep);line-height:1.45}
 .sf-sub-banner svg{flex-shrink:0;margin-top:1px}
-.sf-mobile-wrap{display:flex;justify-content:center;padding:10px 0 40px}
-.sf-mobile-frame{width:420px;max-width:100%;background:var(--surface-1);border:1px solid var(--border);border-radius:28px;overflow:hidden;box-shadow:var(--shadow-lg);position:relative}
+.sf-mobile-wrap{display:flex;justify-content:center;padding:24px 0 60px;background:var(--surface-2)}
+.sf-mobile-frame{width:420px;max-width:100%;background:var(--surface-1);border:8px solid #1a1814;border-radius:42px;overflow:hidden;box-shadow:0 30px 70px rgba(20,18,14,.32),0 8px 22px rgba(20,18,14,.18);position:relative;padding-top:30px}
+.sf-mobile-frame::before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);width:120px;height:24px;background:#1a1814;border-radius:0 0 16px 16px;z-index:5}
+.sf-mobile-statusbar{position:absolute;top:6px;left:0;right:0;height:22px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-family:'DM Sans',sans-serif;font-weight:680;font-size:12.5px;color:var(--text-primary);z-index:6;letter-spacing:-.005em}
+.sf-mobile-statusbar-time{font-variant-numeric:tabular-nums}
+.sf-mobile-statusbar-icons{display:flex;align-items:center;gap:5px;color:var(--text-primary)}
+.sf-mobile-statusbar-icons svg{width:13px;height:13px}
 .sf-mobile-hdr{background:var(--accent);color:#fff;padding:18px 20px 14px;display:flex;flex-direction:column;gap:8px}
 .sf-mobile-hdr-top{display:flex;justify-content:space-between;align-items:center;font-size:11px;font-family:'DM Sans',sans-serif;font-weight:640;opacity:.92}
 .sf-mobile-hdr-title{font-family:'DM Sans',sans-serif;font-weight:760;font-size:18px;letter-spacing:-.02em;line-height:1.2}
 .sf-mobile-hdr-sub{font-size:12px;opacity:.85;font-weight:540}
 .sf-mobile-prog{height:5px;background:rgba(255,255,255,.25);border-radius:3px;overflow:hidden;margin-top:8px}
 .sf-mobile-prog-fill{height:100%;background:#fff;transition:width .25s ease}
-.sf-mobile-net{position:absolute;top:14px;right:18px;display:flex;align-items:center;gap:5px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:rgba(255,255,255,.18);padding:3px 8px;border-radius:12px;cursor:pointer}
-.sf-mobile-net.offline{background:rgba(196,112,11,.85)}
+.sf-mobile-net{display:inline-flex;align-items:center;gap:5px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:rgba(255,255,255,.22);padding:4px 9px;border-radius:12px;cursor:pointer;flex-shrink:0;border:none}
+.sf-mobile-net.offline{background:rgba(196,112,11,.9)}
 
 .sf-mobile-list-body{padding:18px 18px 20px;display:flex;flex-direction:column;gap:16px;background:var(--bg);min-height:520px}
 .sf-mobile-section-label{font-family:'DM Sans',sans-serif;font-weight:660;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);padding-left:4px}
@@ -905,6 +916,28 @@ export default function SafetyFormsModule() {
               {I.phone} Subcontractor
             </button>
           </div>
+          {isSub && (
+            <div className="sf-vp-toggle" role="tablist" title="Viewport preview (desktop vs PWA mobile)">
+              <button
+                className={subViewMode === "desktop" ? "active" : ""}
+                onClick={() => setSubViewMode("desktop")}
+                role="tab"
+                aria-label="Desktop"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                Desktop
+              </button>
+              <button
+                className={subViewMode === "mobile" ? "active" : ""}
+                onClick={() => setSubViewMode("mobile")}
+                role="tab"
+                aria-label="Mobile PWA"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                Mobile
+              </button>
+            </div>
+          )}
           <button className="sf-icon-btn" onClick={() => setDark(!dark)} title="Toggle theme">
             {dark
               ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -961,7 +994,7 @@ export default function SafetyFormsModule() {
         )}
 
         {/* ── SIDEBAR (subcontractor) ───────────────────────── */}
-        {isSub && (
+        {isSub && subViewMode === "desktop" && (
           <aside className="sf-sidebar">
             <div className="sf-sb-section">Safety Forms</div>
             <div
@@ -1583,9 +1616,356 @@ export default function SafetyFormsModule() {
           )}
 
           {/* ════════════════════════════════════════════════════ */}
+          {/*  SUB · MOBILE (PWA phone-frame preview)              */}
+          {/* ════════════════════════════════════════════════════ */}
+          {isSub && subViewMode === "mobile" && (
+            <div className="sf-mobile-wrap">
+              <div className="sf-mobile-frame">
+                {/* Status bar (mock iOS) */}
+                <div className="sf-mobile-statusbar">
+                  <span className="sf-mobile-statusbar-time">9:41</span>
+                  <div className="sf-mobile-statusbar-icons">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 22h2v-4H2v4zm5 0h2V14H7v8zm5 0h2v-12h-2v12zm5 0h2V6h-2v16z"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2" y="7" width="18" height="10" rx="2"/><line x1="22" y1="11" x2="22" y2="13" strokeWidth="2.5"/><rect x="3.5" y="8.5" width="14" height="7" rx=".5" fill="currentColor"/></svg>
+                  </div>
+                </div>
+
+                {/* ── MOBILE · LIST ─────────────────────────────── */}
+                {view === "sub-list" && (
+                  <>
+                    <div className="sf-mobile-hdr">
+                      <div className="sf-mobile-hdr-top">
+                        <span>SAFETY FORMS</span>
+                        <div
+                          className={`sf-mobile-net${isOnline ? "" : " offline"}`}
+                          onClick={() => setIsOnline(!isOnline)}
+                        >
+                          {isOnline ? I.cloud : I.cloudOff}
+                          <span>{isOnline ? "Online" : "Offline"}</span>
+                        </div>
+                      </div>
+                      <div className="sf-mobile-hdr-title">Hi {subUserName.split(" ")[0]}</div>
+                      <div className="sf-mobile-hdr-sub">{subOrgName} · Riverside Office Complex · {subRecent.length} forms this month</div>
+                    </div>
+
+                    <div className="sf-mobile-list-body">
+                      <div className="sf-mobile-section-label">Start a new form</div>
+                      {subAssignedTemplates.map(t => {
+                        const cfg = formTypes[t.formType];
+                        return (
+                          <div
+                            key={t.id}
+                            className="sf-mobile-tpl-card"
+                            onClick={() => {
+                              setActiveFormTemplateId(t.id);
+                              setFormStep(0);
+                              setFormData({});
+                              setView("sub-form");
+                            }}
+                          >
+                            <div className="sf-mobile-tpl-card-hdr">
+                              <FormTypeBadge type={t.formType} size="sm" />
+                              <span style={{ fontSize: 10.5, color: "var(--text-tertiary)", fontFamily: "'DM Sans',sans-serif", fontWeight: 660, letterSpacing: ".06em", textTransform: "uppercase" }}>
+                                ~{Math.max(1, Math.round(t.fieldCount * 0.7))} min
+                              </span>
+                            </div>
+                            <div className="sf-mobile-tpl-card-name">{t.name}</div>
+                            <div className="sf-mobile-tpl-card-desc">{cfg.desc}</div>
+                            <div className="sf-mobile-tpl-card-foot">
+                              <span>{t.fieldCount} fields</span>
+                              <span style={{ color: cfg.solid, fontFamily: "'DM Sans',sans-serif", fontWeight: 700, display: "flex", alignItems: "center", gap: 3 }}>
+                                Start {I.chevR}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      <div className="sf-mobile-section-label" style={{ marginTop: 8 }}>Recent submissions</div>
+                      {subRecent.slice(0, 4).map(s => (
+                        <div key={s.id} className="sf-mobile-recent-row">
+                          <FormTypeBadge type={s.formType} size="sm" />
+                          <div className="sf-mobile-recent-text">
+                            <div style={{ fontFamily: "'DM Sans',sans-serif", fontWeight: 660, fontSize: 13, color: "var(--text-primary)", letterSpacing: "-.005em" }}>{s.title}</div>
+                            <div style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono',monospace", marginTop: 2 }}>{s.num} · {s.submittedAt}</div>
+                          </div>
+                          <StatusPill status={s.status} />
+                        </div>
+                      ))}
+                      {subRecent.length === 0 && (
+                        <div style={{ textAlign: "center", padding: 28, color: "var(--text-tertiary)", fontSize: 12.5 }}>
+                          No submissions yet. Tap a template above to get started.
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* ── MOBILE · FORM (wizard) ────────────────────── */}
+                {view === "sub-form" && activeTemplate && (() => {
+                  const currentField = activeFields[formStep];
+                  if (!currentField) return null;
+                  const isLast = formStep === totalSteps - 1;
+                  const cfg = formTypes[activeTemplate.formType];
+                  const progress = ((formStep + (isFieldFilled(currentField) ? 1 : 0)) / totalSteps) * 100;
+
+                  return (
+                    <>
+                      <div className="sf-mobile-hdr" style={{ background: cfg.solid }}>
+                        <div className="sf-mobile-hdr-top">
+                          <button
+                            onClick={() => {
+                              if (formStep === 0) { setView("sub-list"); resetSubFlow(); }
+                              else { setFormStep(formStep - 1); }
+                            }}
+                            style={{ background: "rgba(255,255,255,.18)", border: "none", color: "#fff", padding: "4px 9px", borderRadius: 6, fontSize: 10.5, fontWeight: 700, letterSpacing: ".05em", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "'DM Sans',sans-serif", textTransform: "uppercase" }}
+                          >
+                            {I.chevL} {formStep === 0 ? "Cancel" : "Back"}
+                          </button>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span>STEP {formStep + 1} / {totalSteps}</span>
+                            <div
+                              className={`sf-mobile-net${isOnline ? "" : " offline"}`}
+                              onClick={() => setIsOnline(!isOnline)}
+                            >
+                              {isOnline ? I.cloud : I.cloudOff}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="sf-mobile-hdr-title" style={{ fontSize: 16 }}>{activeTemplate.name}</div>
+                        <div className="sf-mobile-hdr-sub">Riverside Office Complex · {subUserName}</div>
+                        <div className="sf-mobile-prog">
+                          <div className="sf-mobile-prog-fill" style={{ width: `${progress}%` }} />
+                        </div>
+                      </div>
+
+                      <div className="sf-mobile-body">
+                        <div className="sf-mobile-step-info">
+                          <span>Field {formStep + 1} of {totalSteps}</span>
+                          {currentField.required && <span className="sf-mobile-step-req">Required</span>}
+                        </div>
+                        <div className="sf-mobile-item-label">{currentField.label}</div>
+                        {currentField.hint && (
+                          <div className="sf-mobile-item-hint">{currentField.hint}</div>
+                        )}
+
+                        {/* Field renderers — reuse desktop wizard logic */}
+                        {currentField.type === "text" && (
+                          <input
+                            className="sf-mobile-input"
+                            type="text"
+                            placeholder="Type your answer…"
+                            value={formData[currentField.key] || ""}
+                            onChange={(e) => updateField(currentField.key, e.target.value)}
+                          />
+                        )}
+                        {currentField.type === "textarea" && (
+                          <textarea
+                            className="sf-mobile-textarea"
+                            placeholder="Type your answer…"
+                            value={formData[currentField.key] || ""}
+                            onChange={(e) => updateField(currentField.key, e.target.value)}
+                          />
+                        )}
+                        {currentField.type === "datetime" && (
+                          <input
+                            className="sf-mobile-input"
+                            type="datetime-local"
+                            value={formData[currentField.key] || ""}
+                            onChange={(e) => updateField(currentField.key, e.target.value)}
+                          />
+                        )}
+                        {currentField.type === "select" && (
+                          <select
+                            className="sf-mobile-select"
+                            value={formData[currentField.key] || ""}
+                            onChange={(e) => updateField(currentField.key, e.target.value)}
+                          >
+                            <option value="">— Select —</option>
+                            {currentField.options?.map(opt => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        )}
+                        {currentField.type === "checklist" && (
+                          <div className="sf-mobile-checklist">
+                            {currentField.options?.map(opt => {
+                              const arr = formData[currentField.key] || [];
+                              const checked = arr.includes(opt);
+                              return (
+                                <div
+                                  key={opt}
+                                  className={`sf-mobile-check${checked ? " active" : ""}`}
+                                  onClick={() => {
+                                    const next = checked
+                                      ? arr.filter(x => x !== opt)
+                                      : [...arr, opt];
+                                    updateField(currentField.key, next);
+                                  }}
+                                >
+                                  <div className="sf-mobile-check-box">{checked && I.check}</div>
+                                  <div className="sf-mobile-check-label">{opt}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {(currentField.type === "attendees" || currentField.type === "people" || currentField.type === "hazards" || currentField.type === "actions") && (
+                          <>
+                            {(formData[currentField.key] || []).map((val, idx) => (
+                              <div key={idx} className="sf-mobile-list-row">
+                                <span className="sf-mobile-list-num">{String(idx + 1).padStart(2, "0")}</span>
+                                <span className="sf-mobile-list-text">{val}</span>
+                                <button
+                                  className="sf-mobile-list-x"
+                                  onClick={() => {
+                                    const arr = (formData[currentField.key] || []).filter((_, i) => i !== idx);
+                                    updateField(currentField.key, arr);
+                                  }}
+                                >{I.x}</button>
+                              </div>
+                            ))}
+                            <button
+                              className="sf-mobile-list-add"
+                              onClick={() => {
+                                const arr = formData[currentField.key] || [];
+                                const placeholder = currentField.type === "attendees" || currentField.type === "people"
+                                  ? `Person ${arr.length + 1}`
+                                  : currentField.type === "hazards"
+                                  ? `Hazard ${arr.length + 1}`
+                                  : `Action ${arr.length + 1}`;
+                                updateField(currentField.key, [...arr, placeholder]);
+                              }}
+                            >
+                              {I.plus} Add {currentField.type === "attendees" || currentField.type === "people" ? "person" : currentField.type === "hazards" ? "hazard" : "action"}
+                            </button>
+                          </>
+                        )}
+                        {currentField.type === "photo" && (
+                          <>
+                            <button
+                              className="sf-mobile-photo-btn"
+                              onClick={() => updateField(currentField.key, [...(formData[currentField.key] || []), `photo_${Date.now()}`])}
+                            >
+                              {I.camera} Take photo
+                            </button>
+                            {(formData[currentField.key] || []).length > 0 && (
+                              <div className="sf-mobile-photo-thumbs">
+                                {(formData[currentField.key] || []).map((p, idx) => (
+                                  <div key={idx} className="sf-mobile-photo-thumb">{I.camera}</div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {currentField.type === "signature" && (
+                          <SignaturePad
+                            value={formData[currentField.key]}
+                            onChange={(v) => updateField(currentField.key, v)}
+                          />
+                        )}
+                      </div>
+
+                      <div className="sf-mobile-nav">
+                        <button
+                          className="sf-btn"
+                          onClick={() => {
+                            if (formStep === 0) { setView("sub-list"); resetSubFlow(); }
+                            else { setFormStep(formStep - 1); }
+                          }}
+                        >
+                          {I.chevL} {formStep === 0 ? "Cancel" : "Previous"}
+                        </button>
+                        {!isLast && (
+                          <button
+                            className="sf-btn primary"
+                            onClick={() => setFormStep(formStep + 1)}
+                            disabled={currentField.required && !isFieldFilled(currentField)}
+                          >
+                            Next {I.chevR}
+                          </button>
+                        )}
+                        {isLast && (
+                          <button
+                            className="sf-btn primary"
+                            onClick={submitForm}
+                            disabled={!canSubmit}
+                          >
+                            {I.send} Submit
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
+
+                {/* ── MOBILE · DONE ─────────────────────────────── */}
+                {view === "sub-done" && activeTemplate && (
+                  <div className="sf-mobile-done">
+                    <div className="sf-mobile-done-icon">
+                      {isOnline ? I.check : I.cloudOff}
+                    </div>
+                    <h3>{isOnline ? "Submitted!" : "Saved offline"}</h3>
+                    <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5, maxWidth: 280 }}>
+                      {isOnline
+                        ? `Your ${activeTemplate.name.toLowerCase()} was submitted to ${subOrgName}'s safety log.`
+                        : `Your form was saved on this device. It'll sync automatically when you're back online.`}
+                    </div>
+                    <div className="sf-mobile-done-stats">
+                      <div className="sf-mobile-done-stat">
+                        <div className="sf-mobile-done-stat-key">Reference</div>
+                        <div className="sf-mobile-done-stat-val" style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12.5 }}>SF-{Math.floor(1000 + Math.random() * 9000)}</div>
+                      </div>
+                      <div className="sf-mobile-done-stat">
+                        <div className="sf-mobile-done-stat-key">Project</div>
+                        <div className="sf-mobile-done-stat-val">Riverside</div>
+                      </div>
+                      <div className="sf-mobile-done-stat">
+                        <div className="sf-mobile-done-stat-key">Submitted by</div>
+                        <div className="sf-mobile-done-stat-val">{subUserName}</div>
+                      </div>
+                      <div className="sf-mobile-done-stat">
+                        <div className="sf-mobile-done-stat-key">Status</div>
+                        <div className="sf-mobile-done-stat-val">
+                          {isOnline ? "Synced ✓" : "Queued ⏱"}
+                        </div>
+                      </div>
+                    </div>
+
+                    {activeTemplate.formType === "incident_report" && isOnline && (
+                      <div style={{ width: "100%", padding: "10px 13px", background: "var(--er-soft)", border: "1px solid rgba(201,59,59,.18)", borderRadius: 10, color: "var(--er)", fontSize: 12, lineHeight: 1.5, display: "flex", alignItems: "flex-start", gap: 8, textAlign: "left" }}>
+                        {I.alert}
+                        <span><strong>Incident report sent.</strong> Project admin notified immediately. They may follow up.</span>
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", marginTop: 6 }}>
+                      <button
+                        className="sf-btn primary"
+                        style={{ width: "100%", justifyContent: "center", height: 44 }}
+                        onClick={() => { resetSubFlow(); setView("sub-list"); }}
+                      >
+                        Start another form
+                      </button>
+                      <button
+                        className="sf-btn"
+                        style={{ width: "100%", justifyContent: "center", height: 42 }}
+                        onClick={() => { resetSubFlow(); setView("sub-list"); }}
+                      >
+                        Back to forms
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════════════════ */}
           {/*  SUB · LIST (template picker + recent submissions)   */}
           {/* ════════════════════════════════════════════════════ */}
-          {isSub && view === "sub-list" && (
+          {isSub && subViewMode === "desktop" && view === "sub-list" && (
             <div className="sf-page">
               <div className="sf-page-hdr">
                 <div>
@@ -1691,7 +2071,7 @@ export default function SafetyFormsModule() {
           {/* ════════════════════════════════════════════════════ */}
           {/*  SUB · FORM (multi-step wizard, desktop)             */}
           {/* ════════════════════════════════════════════════════ */}
-          {isSub && view === "sub-form" && activeTemplate && (() => {
+          {isSub && subViewMode === "desktop" && view === "sub-form" && activeTemplate && (() => {
             const currentField = activeFields[formStep];
             if (!currentField) return null;
             const isLast = formStep === totalSteps - 1;
@@ -2153,7 +2533,7 @@ export default function SafetyFormsModule() {
           {/* ════════════════════════════════════════════════════ */}
           {/*  SUB · DONE                                          */}
           {/* ════════════════════════════════════════════════════ */}
-          {isSub && view === "sub-done" && activeTemplate && (
+          {isSub && subViewMode === "desktop" && view === "sub-done" && activeTemplate && (
             <div className="sf-page">
               <div className="sf-done-hero">
                 <div className="sf-done-hero-icon" style={{ background: isOnline ? "var(--ok-soft)" : "var(--wr-soft)", color: isOnline ? "var(--ok)" : "var(--wr)" }}>

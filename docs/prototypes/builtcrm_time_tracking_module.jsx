@@ -306,6 +306,7 @@ export default function TimeTrackingModule() {
   const [roleView, setRoleView] = useState("worker"); // worker | admin
   const [view, setView] = useState("today");          // today | timesheet | team | worker-detail
   const [isOnline, setIsOnline] = useState(true);
+  const [subViewMode, setSubViewMode] = useState("desktop"); // desktop | mobile (PWA preview)
   const [gpsEnabled, setGpsEnabled] = useState(true);
   const [showClockInModal, setShowClockInModal] = useState(false);
   const [showStopModal, setShowStopModal] = useState(false);
@@ -541,6 +542,108 @@ export default function TimeTrackingModule() {
 .tt-role-btn{height:28px;padding:0 11px;border-radius:6px;font-family:'DM Sans',sans-serif;font-weight:620;font-size:12px;color:var(--text-secondary);display:inline-flex;align-items:center;gap:6px;transition:all .15s;letter-spacing:-.005em}
 .tt-role-btn:hover{color:var(--text-primary)}
 .tt-role-btn.active{background:var(--surface-1);color:var(--text-primary);box-shadow:var(--shadow-sm)}
+.tt-vp-toggle{display:flex;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:2px;gap:1px}
+.tt-vp-toggle button{height:26px;padding:0 9px;border-radius:6px;font-family:'DM Sans',sans-serif;font-weight:620;font-size:11.5px;color:var(--text-secondary);display:inline-flex;align-items:center;gap:5px;transition:all .15s;letter-spacing:-.005em;background:transparent;border:none;cursor:pointer}
+.tt-vp-toggle button:hover{color:var(--text-primary)}
+.tt-vp-toggle button.active{background:var(--surface-1);color:var(--accent);box-shadow:var(--shadow-sm)}
+
+/* ── MOBILE PHONE-FRAME (PWA preview) ─────────────────── */
+.tt-mobile-wrap{display:flex;justify-content:center;padding:24px 0 60px;background:var(--surface-2);min-height:calc(100vh - 56px)}
+.tt-mobile-frame{width:420px;max-width:100%;background:var(--surface-1);border:8px solid #1a1814;border-radius:42px;overflow:hidden;box-shadow:0 30px 70px rgba(20,18,14,.32),0 8px 22px rgba(20,18,14,.18);position:relative;padding-top:30px;padding-bottom:78px;display:flex;flex-direction:column}
+.tt-mobile-frame::before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);width:120px;height:24px;background:#1a1814;border-radius:0 0 16px 16px;z-index:5}
+.tt-mobile-statusbar{position:absolute;top:6px;left:0;right:0;height:22px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-family:'DM Sans',sans-serif;font-weight:680;font-size:12.5px;color:var(--text-primary);z-index:6;letter-spacing:-.005em}
+.tt-mobile-statusbar-icons{display:flex;align-items:center;gap:5px}
+.tt-mobile-statusbar-icons svg{width:13px;height:13px}
+.tt-mobile-hdr{padding:14px 18px 16px;background:var(--accent);color:#fff;display:flex;flex-direction:column;gap:5px;position:relative}
+.tt-mobile-hdr-top{display:flex;justify-content:space-between;align-items:center;font-size:10.5px;font-family:'DM Sans',sans-serif;font-weight:700;opacity:.92;letter-spacing:.06em;text-transform:uppercase}
+.tt-mobile-hdr-greet{font-family:'DM Sans',sans-serif;font-weight:760;font-size:20px;letter-spacing:-.02em;line-height:1.2}
+.tt-mobile-hdr-sub{font-size:12px;opacity:.85;font-weight:540;line-height:1.4}
+.tt-mobile-hdr .tt-conn-pill{background:rgba(255,255,255,.22);color:#fff;border:none;font-size:10.5px;padding:4px 9px;flex-shrink:0;letter-spacing:.04em;text-transform:uppercase;font-weight:700}
+.tt-mobile-hdr .tt-conn-pill.offline{background:rgba(196,112,11,.9);color:#fff}
+.tt-mobile-body{flex:1;padding:16px 18px 18px;display:flex;flex-direction:column;gap:14px;background:var(--bg);overflow-y:auto;max-height:660px}
+
+/* Big clock card */
+.tt-mobile-clock{display:flex;flex-direction:column;align-items:center;gap:14px;padding:22px 18px;background:var(--surface-1);border:1px solid var(--border);border-radius:18px;text-align:center;position:relative;overflow:hidden}
+.tt-mobile-clock.running{background:linear-gradient(135deg,rgba(45,138,94,.06),rgba(45,138,94,.02));border-color:rgba(45,138,94,.3)}
+.tt-mobile-clock-state{display:flex;align-items:center;gap:7px;font-family:'DM Sans',sans-serif;font-weight:680;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary)}
+.tt-mobile-clock-led{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:ttPulse 1.6s ease-in-out infinite}
+.tt-mobile-clock-time{font-family:'JetBrains Mono',monospace;font-weight:680;font-size:46px;color:var(--text-primary);letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.tt-mobile-clock-idle{font-family:'DM Sans',sans-serif;font-weight:780;font-size:32px;color:var(--text-primary);letter-spacing:-.025em;line-height:1}
+.tt-mobile-clock-meta{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--text-secondary);align-items:center}
+.tt-mobile-clock-meta strong{color:var(--text-primary);font-family:'DM Sans',sans-serif;font-weight:660}
+.tt-mobile-clock-btn{width:140px;height:140px;border-radius:50%;display:grid;place-items:center;color:#fff;border:none;cursor:pointer;transition:all .15s;box-shadow:var(--shadow-md);position:relative;margin-top:6px}
+.tt-mobile-clock-btn.start{background:var(--ok)}
+.tt-mobile-clock-btn.start:active{transform:scale(.95)}
+.tt-mobile-clock-btn.stop{background:var(--er)}
+.tt-mobile-clock-btn.stop:active{transform:scale(.95)}
+.tt-mobile-clock-btn svg{width:48px;height:48px}
+.tt-mobile-clock-btn-label{font-family:'DM Sans',sans-serif;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-tertiary);margin-top:2px}
+
+/* Mobile stats row */
+.tt-mobile-stats{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.tt-mobile-stat{background:var(--surface-1);border:1px solid var(--border);border-radius:11px;padding:11px 13px}
+.tt-mobile-stat-key{font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;font-family:'DM Sans',sans-serif;font-weight:680;margin-bottom:5px}
+.tt-mobile-stat-val{font-family:'DM Sans',sans-serif;font-weight:780;font-size:18px;letter-spacing:-.022em;color:var(--text-primary);font-variant-numeric:tabular-nums;line-height:1}
+.tt-mobile-stat-foot{font-size:10.5px;color:var(--text-tertiary);margin-top:4px}
+
+/* Mobile entries list */
+.tt-mobile-section-label{font-family:'DM Sans',sans-serif;font-weight:680;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);padding:0 4px;margin-top:4px}
+.tt-mobile-entry{background:var(--surface-1);border:1px solid var(--border);border-radius:11px;padding:11px 13px;display:flex;align-items:center;gap:12px;border-left:3px solid var(--accent)}
+.tt-mobile-entry.running{border-left-color:var(--ok);background:var(--ok-soft)}
+.tt-mobile-entry.submitted{border-left-color:var(--info)}
+.tt-mobile-entry.approved{border-left-color:var(--ok);opacity:.85}
+.tt-mobile-entry.amended{border-left-color:var(--wr)}
+.tt-mobile-entry.rejected{border-left-color:var(--er);background:var(--er-soft)}
+.tt-mobile-entry-time{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-tertiary);min-width:74px}
+.tt-mobile-entry-body{flex:1;min-width:0}
+.tt-mobile-entry-task{font-family:'DM Sans',sans-serif;font-weight:660;font-size:13px;color:var(--text-primary);letter-spacing:-.005em;line-height:1.25}
+.tt-mobile-entry-proj{font-size:11px;color:var(--text-secondary);margin-top:2px}
+.tt-mobile-entry-dur{font-family:'DM Sans',sans-serif;font-weight:760;font-size:14px;color:var(--text-primary);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+
+/* Mobile timesheet day */
+.tt-mobile-day{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.tt-mobile-day.today{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.tt-mobile-day-hdr{padding:11px 14px;background:var(--surface-2);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.tt-mobile-day-hdr-l{display:flex;align-items:baseline;gap:8px}
+.tt-mobile-day-name{font-family:'DM Sans',sans-serif;font-weight:680;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-tertiary)}
+.tt-mobile-day-num{font-family:'DM Sans',sans-serif;font-weight:780;font-size:18px;color:var(--text-primary);letter-spacing:-.02em}
+.tt-mobile-day.today .tt-mobile-day-name{color:var(--accent)}
+.tt-mobile-day-total{font-family:'JetBrains Mono',monospace;font-weight:660;font-size:13px;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.tt-mobile-day-empty{padding:14px;text-align:center;color:var(--text-tertiary);font-size:11.5px;font-style:italic}
+.tt-mobile-day-entries{display:flex;flex-direction:column}
+.tt-mobile-day-entry{padding:9px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:11.5px}
+.tt-mobile-day-entry:last-child{border-bottom:none}
+.tt-mobile-day-entry-time{font-family:'JetBrains Mono',monospace;color:var(--text-tertiary);min-width:84px}
+.tt-mobile-day-entry-task{flex:1;min-width:0;font-family:'DM Sans',sans-serif;font-weight:580;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tt-mobile-day-entry-dur{font-family:'JetBrains Mono',monospace;font-weight:660;color:var(--text-primary)}
+
+/* Mobile bottom nav */
+.tt-mobile-nav{position:absolute;bottom:0;left:0;right:0;height:62px;background:var(--surface-1);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(3,1fr);padding:6px 8px 12px}
+.tt-mobile-nav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;color:var(--text-tertiary);background:transparent;border:none;font-family:'DM Sans',sans-serif;font-weight:620;font-size:10px;letter-spacing:-.005em}
+.tt-mobile-nav-item.active{color:var(--accent)}
+.tt-mobile-nav-item svg{width:20px;height:20px}
+
+/* Mobile FAB area + bottom sheet */
+.tt-mobile-fab{position:absolute;bottom:80px;right:18px;width:54px;height:54px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;border:none;cursor:pointer;box-shadow:0 6px 18px rgba(61,107,142,.45);z-index:4}
+.tt-mobile-fab svg{width:22px;height:22px}
+
+/* Mobile inputs */
+.tt-mobile-input,.tt-mobile-select,.tt-mobile-textarea{width:100%;border:1.5px solid var(--border);border-radius:11px;padding:0 14px;font-family:inherit;font-size:14.5px;background:var(--surface-1);color:var(--text-primary);outline:none}
+.tt-mobile-input{height:46px}
+.tt-mobile-select{height:46px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8884' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
+.tt-mobile-textarea{min-height:84px;padding:12px 14px;resize:none}
+.tt-mobile-input:focus,.tt-mobile-select:focus,.tt-mobile-textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.tt-mobile-input-label{font-family:'DM Sans',sans-serif;font-weight:680;font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;display:block}
+
+/* Bottom sheet for clock-in */
+.tt-mobile-sheet-bg{position:absolute;inset:0;background:rgba(20,18,14,.5);z-index:10;display:flex;align-items:flex-end;justify-content:center;animation:ttFadeIn .15s ease-out;border-radius:34px;overflow:hidden}
+.tt-mobile-sheet{width:100%;background:var(--surface-1);border-radius:22px 22px 0 0;padding:18px 18px 22px;display:flex;flex-direction:column;gap:12px;animation:ttSheetUp .25s cubic-bezier(.2,.7,.3,1);max-height:90%;overflow-y:auto}
+.tt-mobile-sheet-handle{width:36px;height:4px;background:var(--border-strong);border-radius:2px;align-self:center;margin-bottom:4px}
+.tt-mobile-sheet-title{font-family:'DM Sans',sans-serif;font-weight:780;font-size:18px;letter-spacing:-.018em;color:var(--text-primary)}
+.tt-mobile-sheet-sub{font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:6px}
+.tt-mobile-sheet-foot{display:flex;gap:8px;margin-top:6px;padding-top:12px;border-top:1px solid var(--border)}
+.tt-mobile-sheet-foot .tt-btn{flex:1;justify-content:center;height:46px;font-size:14px}
+@keyframes ttSheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
 .tt-icon-btn{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;color:var(--text-secondary);transition:all .15s;position:relative}
 .tt-icon-btn:hover{background:var(--surface-2);color:var(--text-primary)}
 .tt-icon-btn .tt-dot{position:absolute;top:7px;right:7px;width:7px;height:7px;background:var(--er);border-radius:50%;border:2px solid var(--surface-1)}
@@ -848,6 +951,26 @@ export default function TimeTrackingModule() {
               {I.users} Admin
             </button>
           </div>
+          {roleView === "worker" && (
+            <div className="tt-vp-toggle" title="Viewport preview (desktop vs PWA mobile)">
+              <button
+                className={subViewMode === "desktop" ? "active" : ""}
+                onClick={() => setSubViewMode("desktop")}
+                aria-label="Desktop"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                Desktop
+              </button>
+              <button
+                className={subViewMode === "mobile" ? "active" : ""}
+                onClick={() => setSubViewMode("mobile")}
+                aria-label="Mobile PWA"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                Mobile
+              </button>
+            </div>
+          )}
           <div
             className={`tt-conn-pill${isOnline ? "" : " offline"}`}
             onClick={() => setIsOnline(!isOnline)}
@@ -869,6 +992,7 @@ export default function TimeTrackingModule() {
 
       <div className="tt-shell">
         {/* ── SIDEBAR ───────────────────────────────────────── */}
+        {!(roleView === "worker" && subViewMode === "mobile") && (
         <aside className="tt-sidebar">
           {roleView === "worker" && (
             <>
@@ -959,14 +1083,251 @@ export default function TimeTrackingModule() {
             </>
           )}
         </aside>
+        )}
 
         {/* ── MAIN ──────────────────────────────────────────── */}
-        <main className="tt-main">
+        <main className="tt-main" style={roleView === "worker" && subViewMode === "mobile" ? { padding: 0 } : undefined}>
+
+          {/* ════════════════════════════════════════════════ */}
+          {/*  WORKER · MOBILE (PWA phone-frame preview)       */}
+          {/* ════════════════════════════════════════════════ */}
+          {roleView === "worker" && subViewMode === "mobile" && (
+            <div className="tt-mobile-wrap">
+              <div className="tt-mobile-frame">
+                {/* Status bar */}
+                <div className="tt-mobile-statusbar">
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>9:41</span>
+                  <div className="tt-mobile-statusbar-icons">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 22h2v-4H2v4zm5 0h2V14H7v8zm5 0h2v-12h-2v12zm5 0h2V6h-2v16z"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2" y="7" width="18" height="10" rx="2"/><line x1="22" y1="11" x2="22" y2="13" strokeWidth="2.5"/><rect x="3.5" y="8.5" width="14" height="7" rx=".5" fill="currentColor"/></svg>
+                  </div>
+                </div>
+
+                {/* ── MOBILE · TODAY ────────────────────────── */}
+                {view === "today" && (
+                  <>
+                    <div className="tt-mobile-hdr">
+                      <div className="tt-mobile-hdr-top">
+                        <span>Time tracking</span>
+                        <div
+                          className={`tt-conn-pill${isOnline ? "" : " offline"}`}
+                          onClick={() => setIsOnline(!isOnline)}
+                        >
+                          {isOnline ? I.cloud : I.cloudOff}
+                          {isOnline ? "Online" : "Offline"}
+                        </div>
+                      </div>
+                      <div className="tt-mobile-hdr-greet">Hi {me.name.split(" ")[0]}</div>
+                      <div className="tt-mobile-hdr-sub">{subOrgName} · Wed, Apr 22 · {myRunning ? "On the clock" : "Not clocked in"}</div>
+                    </div>
+
+                    <div className="tt-mobile-body">
+                      {/* Big clock card */}
+                      <div className={`tt-mobile-clock${myRunning ? " running" : ""}`}>
+                        <div className="tt-mobile-clock-state">
+                          {myRunning && <span className="tt-mobile-clock-led" />}
+                          {myRunning ? "Currently clocked in" : "Ready to start"}
+                        </div>
+                        {myRunning ? (
+                          <div className="tt-mobile-clock-time">
+                            <RunningTimer baseMins={myRunningElapsed} />
+                          </div>
+                        ) : (
+                          <div className="tt-mobile-clock-idle">
+                            {minsToHM(myWeekTotalsByDay[today] || 0)}
+                          </div>
+                        )}
+                        <div className="tt-mobile-clock-meta">
+                          {myRunning ? (
+                            <>
+                              <ProjectChip projectId={myRunning.projectId} size="sm" />
+                              <span><strong>{getTaskById(myRunning.taskId)?.name}</strong> · since {fmt12(myRunning.clockIn)}</span>
+                              {myRunning.gps && (
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-tertiary)" }}>
+                                  {I.pin} GPS captured
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span>logged today · tap to start a new entry</span>
+                          )}
+                        </div>
+                        <button
+                          className={`tt-mobile-clock-btn ${myRunning ? "stop" : "start"}`}
+                          onClick={() => myRunning ? stopClock() : startClockIn()}
+                          aria-label={myRunning ? "Clock out" : "Clock in"}
+                        >
+                          {myRunning ? I.stop : I.play}
+                        </button>
+                        <span className="tt-mobile-clock-btn-label">
+                          {myRunning ? "Tap to stop" : "Tap to start"}
+                        </span>
+                      </div>
+
+                      {/* Stats */}
+                      <div className="tt-mobile-stats">
+                        <div className="tt-mobile-stat">
+                          <div className="tt-mobile-stat-key">This week</div>
+                          <div className="tt-mobile-stat-val">{minsToHM(myWeekTotalMins)}</div>
+                          <div className="tt-mobile-stat-foot">of 40h target</div>
+                        </div>
+                        <div className="tt-mobile-stat">
+                          <div className="tt-mobile-stat-key">Drafts</div>
+                          <div className="tt-mobile-stat-val">{myDraftCount}</div>
+                          <div className="tt-mobile-stat-foot">{myDraftCount > 0 ? "Submit by Sun" : "All clear"}</div>
+                        </div>
+                      </div>
+
+                      {/* Today's entries */}
+                      <div className="tt-mobile-section-label">Today's entries</div>
+                      {myTodaysEntries.length === 0 ? (
+                        <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 11, padding: 22, textAlign: "center", color: "var(--text-tertiary)", fontSize: 12.5 }}>
+                          No entries yet today. Tap the clock button to start.
+                        </div>
+                      ) : myTodaysEntries.map(e => {
+                        const isRunning = e.status === "running";
+                        const dur = isRunning ? myRunningElapsed : (e.minutes || 0);
+                        return (
+                          <div key={e.id} className={`tt-mobile-entry ${e.status}`}>
+                            <div className="tt-mobile-entry-time">
+                              {fmt12(e.clockIn)}<br/>
+                              <span style={{ opacity: .65 }}>{e.clockOut ? fmt12(e.clockOut) : "now"}</span>
+                            </div>
+                            <div className="tt-mobile-entry-body">
+                              <div className="tt-mobile-entry-task">{getTaskById(e.taskId)?.name}</div>
+                              <div className="tt-mobile-entry-proj">{getProjectById(e.projectId)?.short}</div>
+                            </div>
+                            <div className="tt-mobile-entry-dur">
+                              {isRunning ? <RunningTimer baseMins={dur} /> : minsToHM(dur)}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* GPS toggle */}
+                      <div className="tt-mobile-section-label">Settings</div>
+                      <div
+                        className={`tt-gps-toggle${gpsEnabled ? " on" : ""}`}
+                        onClick={() => setGpsEnabled(!gpsEnabled)}
+                      >
+                        {I.pin}
+                        <span className="tt-gps-toggle-text">Capture GPS at clock-in</span>
+                        <span className={`tt-switch${gpsEnabled ? " on" : ""}`} />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* ── MOBILE · TIMESHEET ────────────────────── */}
+                {view === "timesheet" && (
+                  <>
+                    <div className="tt-mobile-hdr">
+                      <div className="tt-mobile-hdr-top">
+                        <button
+                          onClick={() => setView("today")}
+                          style={{ background: "rgba(255,255,255,.16)", border: "none", color: "#fff", padding: "4px 9px", borderRadius: 6, fontSize: 10.5, fontWeight: 700, letterSpacing: ".05em", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "'DM Sans',sans-serif", textTransform: "uppercase" }}
+                        >
+                          {I.chevL} Back
+                        </button>
+                        <span>{activeWeekDays[0].display}–Apr 26</span>
+                      </div>
+                      <div className="tt-mobile-hdr-greet">My week</div>
+                      <div className="tt-mobile-hdr-sub">
+                        {minsToHM(myWeekTotalMins)} logged · {myDraftCount} draft{myDraftCount === 1 ? "" : "s"} to submit
+                      </div>
+                    </div>
+
+                    <div className="tt-mobile-body">
+                      {/* Submit week banner */}
+                      {myDraftCount > 0 && weekOffset === 0 && (
+                        <button
+                          className="tt-btn primary lg"
+                          style={{ width: "100%", justifyContent: "center", height: 50, fontSize: 14 }}
+                          onClick={() => setShowSubmitModal(true)}
+                        >
+                          {I.send} Submit {myDraftCount} draft entries
+                        </button>
+                      )}
+
+                      {/* Per-day cards */}
+                      {(weekOffset === 0 ? weekDays : lastWeekDays).slice(0, 7).map(d => {
+                        const dayEntries = myEntriesThisWeek.filter(e => e.date === d.iso);
+                        const total = myWeekTotalsByDay[d.iso] || 0;
+                        const isToday = d.iso === today && weekOffset === 0;
+                        return (
+                          <div key={d.iso} className={`tt-mobile-day${isToday ? " today" : ""}`}>
+                            <div className="tt-mobile-day-hdr">
+                              <div className="tt-mobile-day-hdr-l">
+                                <span className="tt-mobile-day-name">{d.label}</span>
+                                <span className="tt-mobile-day-num">{d.display.split(" ")[1]}</span>
+                              </div>
+                              <span className="tt-mobile-day-total">
+                                {total > 0 ? minsToHM(total) : "—"}
+                              </span>
+                            </div>
+                            {dayEntries.length === 0 ? (
+                              <div className="tt-mobile-day-empty">No entries</div>
+                            ) : (
+                              <div className="tt-mobile-day-entries">
+                                {dayEntries.map(e => (
+                                  <div key={e.id} className="tt-mobile-day-entry">
+                                    <span className="tt-mobile-day-entry-time">{fmt12(e.clockIn)}</span>
+                                    <span className="tt-mobile-day-entry-task">{getTaskById(e.taskId)?.name}</span>
+                                    <span className="tt-mobile-day-entry-dur">
+                                      {e.status === "running" ? <RunningTimer baseMins={myRunningElapsed} /> : minsToHMSlim(e.minutes || 0)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {/* Bottom nav */}
+                <div className="tt-mobile-nav">
+                  <button
+                    className={`tt-mobile-nav-item${view === "today" ? " active" : ""}`}
+                    onClick={() => setView("today")}
+                  >
+                    {I.clock}
+                    Today
+                  </button>
+                  <button
+                    className={`tt-mobile-nav-item${view === "timesheet" ? " active" : ""}`}
+                    onClick={() => setView("timesheet")}
+                  >
+                    {I.calendar}
+                    Week
+                  </button>
+                  <button className="tt-mobile-nav-item">
+                    {I.user}
+                    Profile
+                  </button>
+                </div>
+
+                {/* FAB on today view */}
+                {view === "today" && !myRunning && (
+                  <button
+                    className="tt-mobile-fab"
+                    onClick={startClockIn}
+                    aria-label="Quick clock-in"
+                  >
+                    {I.plus}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* ════════════════════════════════════════════════ */}
           {/*  WORKER · TODAY                                  */}
           {/* ════════════════════════════════════════════════ */}
-          {roleView === "worker" && view === "today" && (
+          {roleView === "worker" && subViewMode === "desktop" && view === "today" && (
             <>
               <div className="tt-page-hdr">
                 <div>
@@ -1210,7 +1571,7 @@ export default function TimeTrackingModule() {
           {/* ════════════════════════════════════════════════ */}
           {/*  WORKER · TIMESHEET (week grid)                  */}
           {/* ════════════════════════════════════════════════ */}
-          {roleView === "worker" && view === "timesheet" && (
+          {roleView === "worker" && subViewMode === "desktop" && view === "timesheet" && (
             <>
               <div className="tt-page-hdr">
                 <div>
