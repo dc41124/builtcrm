@@ -89,10 +89,21 @@ export type WriteSystemAuditEventInput = {
 // exceptions, webhook processing, scheduled jobs). Uses SYSTEM_USER_ID
 // as the actor — explicitly bypasses the ctx-based spoofing guard because
 // there IS no user context at the call site. Keep usage narrow.
+//
+// Build-phase short-circuit: during `next build`, Next.js probes route
+// handlers with synthetic requests to detect dynamic features. Those
+// probes hit `requireServerSession()`, throw, and end up in
+// `withErrorHandler`'s catch path which calls THIS function. The Render
+// Docker builder runs with DATABASE_URL pointed at a dummy localhost
+// URL, so the system-user upsert fails with ECONNREFUSED and floods
+// the deploy log with stack traces. We detect the build phase and skip
+// the audit write — no real exception happened, no real user
+// triggered anything, no audit row to keep.
 export async function writeSystemAuditEvent(
   input: WriteSystemAuditEventInput,
   tx: DbOrTx = db,
 ): Promise<void> {
+  if (process.env.NEXT_PHASE === "phase-production-build") return;
   const actorUserId = await getSystemUserId();
   await tx.insert(auditEvents).values({
     actorUserId,
