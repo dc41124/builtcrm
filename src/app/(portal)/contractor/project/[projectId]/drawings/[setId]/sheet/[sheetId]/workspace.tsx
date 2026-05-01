@@ -137,7 +137,10 @@ type Tool =
   | "measure_linear"
   | "measure_area"
   | "comment"
-  | "calibrate";
+  | "calibrate"
+  // Step 54 — armed-photo mode. The user picks a photo, then clicks the
+  // sheet to drop a pin at that fractional coordinate.
+  | "pin_photo";
 
 // ---- Small utilities --------------------------------------------------
 
@@ -320,6 +323,20 @@ export function SheetDetailWorkspace(props: {
   markups: MarkupDoc[];
   measurements: MeasurementDoc[];
   comments: CommentRow[];
+  // Step 54 — fractional [0,1] coords; the SVG overlay scales to its own
+  // 0–100 viewBox.
+  photoPins: Array<{
+    id: string;
+    documentId: string;
+    documentTitle: string;
+    documentStorageKey: string;
+    x: number;
+    y: number;
+    note: string | null;
+    createdAt: string;
+    createdByUserId: string | null;
+    createdByName: string | null;
+  }>;
   calibration: {
     scale: string | null;
     source: "title_block" | "manual" | null;
@@ -352,6 +369,7 @@ export function SheetDetailWorkspace(props: {
     markups,
     measurements,
     comments,
+    photoPins,
     calibration,
     presignedSourceUrl,
     compare,
@@ -391,6 +409,105 @@ export function SheetDetailWorkspace(props: {
   >([]);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Step 54 — photo-pin state. `armedPhoto` is the document the user picked
+  // before clicking on the sheet. `pickerOpen` shows the project-photo
+  // picker; `lightboxPin` shows a clicked-on existing pin's photo.
+  const [pinList, setPinList] = useState(photoPins);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [armedPhoto, setArmedPhoto] = useState<{
+    documentId: string;
+    title: string;
+    storageKey: string;
+  } | null>(null);
+  const [lightboxPin, setLightboxPin] = useState<typeof pinList[number] | null>(
+    null,
+  );
+  const [pickerPhotos, setPickerPhotos] = useState<
+    Array<{ id: string; title: string; storageKey: string; uploadedAt: string }>
+  >([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+
+  useEffect(() => {
+    setPinList(photoPins);
+  }, [photoPins]);
+
+  const openPhotoPicker = async () => {
+    setPickerOpen(true);
+    if (pickerPhotos.length > 0) return;
+    setPickerLoading(true);
+    try {
+      const res = await fetch(
+        `/api/photo-pins/picker?projectId=${projectId}`,
+        { cache: "no-store" },
+      );
+      if (res.ok) {
+        const j = (await res.json()) as {
+          documents?: Array<{
+            id: string;
+            title: string;
+            storageKey: string;
+            uploadedAt: string;
+          }>;
+        };
+        // Filter client-side to image extensions. The `documents` table
+        // doesn't carry a discrete mime column; storage_key is the cheapest
+        // signal we have. Same approach used elsewhere for photo lists.
+        const isImage = (key: string) =>
+          /\.(jpe?g|png|gif|webp|heic|heif)(\?|$)/i.test(key);
+        setPickerPhotos(
+          (j.documents ?? []).filter((d) => isImage(d.storageKey)),
+        );
+      }
+    } finally {
+      setPickerLoading(false);
+    }
+  };
+
+  const dropPhotoPin = async (xPercent: number, yPercent: number) => {
+    if (!armedPhoto) return;
+    const xFrac = Math.max(0, Math.min(1, xPercent / 100));
+    const yFrac = Math.max(0, Math.min(1, yPercent / 100));
+    const res = await fetch("/api/photo-pins", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        sheetId: sheet.id,
+        documentId: armedPhoto.documentId,
+        x: xFrac,
+        y: yFrac,
+      }),
+    });
+    if (!res.ok) return;
+    const j = (await res.json()) as { id: string };
+    // Optimistic add. The server's RLS already prevents cross-tenant pins;
+    // a refresh will dedupe.
+    setPinList((prev) => [
+      ...prev,
+      {
+        id: j.id,
+        documentId: armedPhoto.documentId,
+        documentTitle: armedPhoto.title,
+        documentStorageKey: armedPhoto.storageKey,
+        x: xFrac,
+        y: yFrac,
+        note: null,
+        createdAt: new Date().toISOString(),
+        createdByUserId: currentUserId,
+        createdByName: null,
+      },
+    ]);
+    setArmedPhoto(null);
+    setTool("select");
+  };
+
+  const deletePin = async (pinId: string) => {
+    const res = await fetch(`/api/photo-pins/${pinId}`, { method: "DELETE" });
+    if (res.ok) {
+      setPinList((prev) => prev.filter((p) => p.id !== pinId));
+      setLightboxPin(null);
+    }
+  };
 
   const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
   const [showComments, setShowComments] = useState(true);
@@ -617,9 +734,16 @@ export function SheetDetailWorkspace(props: {
           const next = [...pts, [pt.x, pt.y] as [number, number]];
           return next.length > 2 ? [[pt.x, pt.y]] : next;
         });
+      } else if (tool === "pin_photo") {
+        // Step 54 — drop a photo pin at this fractional coord. Async write
+        // happens inside dropPhotoPin; we don't capture the pointer further.
+        void dropPhotoPin(pt.x, pt.y);
       }
     },
-    [tool, canAnnotate],
+    // dropPhotoPin closes over armedPhoto and other state but is stable
+    // enough; React will warn if we forget — fine for v1.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tool, canAnnotate, armedPhoto?.documentId],
   );
 
   const handlePointerMove = useCallback(
@@ -1447,6 +1571,31 @@ export function SheetDetailWorkspace(props: {
                 </svg>
                 <span className="dr-tool-label">Comment pin</span>
               </button>
+              <button
+                className={`dr-tool${tool === "pin_photo" ? " active" : ""}`}
+                onClick={() => {
+                  if (armedPhoto) {
+                    // Toggle off the armed state if user clicks again.
+                    setArmedPhoto(null);
+                    setTool("select");
+                  } else {
+                    void openPhotoPicker();
+                  }
+                }}
+                title={
+                  armedPhoto
+                    ? `Drop ${armedPhoto.title} on the sheet`
+                    : "Pin a photo to a spot on the sheet"
+                }
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+                <span className="dr-tool-label">
+                  {armedPhoto ? "Click to drop" : "Pin photo"}
+                </span>
+              </button>
               <div className="dr-tool-sep" />
               <button
                 className="dr-tool"
@@ -1798,6 +1947,46 @@ export function SheetDetailWorkspace(props: {
                       />
                     </g>
                   ) : null}
+
+                  {/* Step 54 — photo pins. Each renders as a small camera-
+                      colored circle with a "P" glyph. Click expands into
+                      the lightbox modal. */}
+                  {pinList.map((p) => {
+                    const cx = p.x * 100;
+                    const cy = p.y * 100;
+                    return (
+                      <g
+                        key={p.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLightboxPin(p);
+                        }}
+                        style={{ pointerEvents: "auto", cursor: "pointer" }}
+                      >
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={2.4}
+                          fill="#c4700b"
+                          stroke="#fff"
+                          strokeWidth={0.6}
+                          vectorEffect="non-scaling-stroke"
+                        />
+                        <text
+                          x={cx}
+                          y={cy + 0.7}
+                          textAnchor="middle"
+                          fontSize={2}
+                          fontFamily="DM Sans"
+                          fontWeight={700}
+                          fill="#fff"
+                          style={{ pointerEvents: "none" }}
+                        >
+                          P
+                        </text>
+                      </g>
+                    );
+                  })}
                 </svg>
 
                 {textPrompt ? (
@@ -2140,6 +2329,343 @@ export function SheetDetailWorkspace(props: {
           ) : null}
         </aside>
       ) : null}
+
+      {/* Step 54 — photo picker modal */}
+      {pickerOpen ? (
+        <div
+          onClick={() => setPickerOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(20,18,14,.45)",
+            zIndex: 60,
+            display: "grid",
+            placeItems: "center",
+            padding: 24,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface-1, #fff)",
+              border: "1px solid var(--border, #e4e0d6)",
+              borderRadius: 14,
+              padding: 22,
+              width: 640,
+              maxWidth: "100%",
+              maxHeight: "80vh",
+              overflow: "auto",
+              boxShadow: "0 14px 38px rgba(20,18,14,.18)",
+            }}
+          >
+            <div style={{ marginBottom: 14 }}>
+              <h3
+                style={{
+                  fontFamily: "DM Sans, system-ui",
+                  fontWeight: 780,
+                  fontSize: 17,
+                  margin: 0,
+                  letterSpacing: "-0.018em",
+                }}
+              >
+                Pin a photo
+              </h3>
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--text-secondary, #5a5852)",
+                  marginTop: 4,
+                  lineHeight: 1.45,
+                }}
+              >
+                Pick a project photo, then click the spot on the sheet.
+              </div>
+            </div>
+            {pickerLoading ? (
+              <div
+                style={{
+                  padding: 40,
+                  textAlign: "center",
+                  color: "var(--text-tertiary, #8a8884)",
+                }}
+              >
+                Loading…
+              </div>
+            ) : pickerPhotos.length === 0 ? (
+              <div
+                style={{
+                  padding: 40,
+                  textAlign: "center",
+                  color: "var(--text-tertiary, #8a8884)",
+                  fontSize: 13,
+                }}
+              >
+                No photos uploaded to this project yet. Upload one in the
+                Documents module first.
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+                  gap: 10,
+                }}
+              >
+                {pickerPhotos.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setArmedPhoto({
+                        documentId: p.id,
+                        title: p.title,
+                        storageKey: p.storageKey,
+                      });
+                      setTool("pin_photo");
+                      setPickerOpen(false);
+                    }}
+                    style={{
+                      border: "1px solid var(--border, #e4e0d6)",
+                      borderRadius: 10,
+                      padding: 10,
+                      background: "var(--surface-2, #f4f2ed)",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      fontFamily: "Instrument Sans, sans-serif",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "100%",
+                        aspectRatio: "1",
+                        background: "rgba(0,0,0,.06)",
+                        borderRadius: 6,
+                        marginBottom: 6,
+                        display: "grid",
+                        placeItems: "center",
+                        fontSize: 22,
+                        color: "var(--text-tertiary, #8a8884)",
+                      }}
+                    >
+                      📷
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: "DM Sans, system-ui",
+                        fontWeight: 660,
+                        fontSize: 12.5,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {p.title}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 8,
+                marginTop: 16,
+                paddingTop: 12,
+                borderTop: "1px solid var(--border, #e4e0d6)",
+              }}
+            >
+              <button
+                onClick={() => setPickerOpen(false)}
+                style={{
+                  height: 32,
+                  padding: "0 12px",
+                  borderRadius: 7,
+                  border: "1px solid var(--border, #e4e0d6)",
+                  background: "transparent",
+                  fontFamily: "DM Sans, system-ui",
+                  fontWeight: 620,
+                  fontSize: 12.5,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Step 54 — photo lightbox triggered by clicking an existing pin */}
+      {lightboxPin ? (
+        <PinLightbox
+          pin={lightboxPin}
+          onClose={() => setLightboxPin(null)}
+          onDelete={() => deletePin(lightboxPin.id)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// Step 54 — lightbox renders the pin's photo via /api/files/[documentId]
+// presigned URL fetch. Kept inline because it's tightly coupled to the
+// workspace state shape.
+function PinLightbox(props: {
+  pin: {
+    id: string;
+    documentId: string;
+    documentTitle: string;
+    note: string | null;
+    createdByName: string | null;
+    createdAt: string;
+  };
+  onClose: () => void;
+  onDelete: () => void;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`/api/files/${props.pin.documentId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { downloadUrl?: string } | null) => {
+        if (!cancelled && j?.downloadUrl) setUrl(j.downloadUrl);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [props.pin.documentId]);
+
+  return (
+    <div
+      onClick={props.onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,.78)",
+        zIndex: 70,
+        display: "grid",
+        placeItems: "center",
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff",
+          borderRadius: 14,
+          padding: 18,
+          maxWidth: "min(900px, 95vw)",
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "DM Sans, system-ui",
+              fontWeight: 720,
+              fontSize: 14,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {props.pin.documentTitle}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={props.onDelete}
+              style={{
+                height: 30,
+                padding: "0 10px",
+                borderRadius: 7,
+                border: "1px solid #c93b3b",
+                background: "#fff",
+                color: "#c93b3b",
+                fontFamily: "DM Sans, system-ui",
+                fontWeight: 620,
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              Remove pin
+            </button>
+            <button
+              onClick={props.onClose}
+              style={{
+                height: 30,
+                padding: "0 12px",
+                borderRadius: 7,
+                border: "1px solid #e4e0d6",
+                background: "#fff",
+                fontFamily: "DM Sans, system-ui",
+                fontWeight: 620,
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+        <div
+          style={{
+            background: "#1a1814",
+            borderRadius: 10,
+            display: "grid",
+            placeItems: "center",
+            minHeight: 240,
+            overflow: "hidden",
+          }}
+        >
+          {url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={url}
+              alt={props.pin.documentTitle}
+              style={{
+                maxWidth: "100%",
+                maxHeight: "60vh",
+                display: "block",
+              }}
+            />
+          ) : (
+            <div style={{ color: "#aaa", padding: 40 }}>Loading photo…</div>
+          )}
+        </div>
+        {props.pin.note ? (
+          <div
+            style={{
+              fontSize: 13,
+              color: "var(--text-secondary, #5a5852)",
+              fontStyle: "italic",
+            }}
+          >
+            &ldquo;{props.pin.note}&rdquo;
+          </div>
+        ) : null}
+        <div
+          style={{
+            fontSize: 11,
+            color: "var(--text-tertiary, #8a8884)",
+            fontFamily: "JetBrains Mono, monospace",
+          }}
+        >
+          Pinned by {props.pin.createdByName ?? "—"} ·{" "}
+          {new Date(props.pin.createdAt).toLocaleString()}
+        </div>
+      </div>
     </div>
   );
 }

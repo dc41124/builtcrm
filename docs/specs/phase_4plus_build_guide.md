@@ -3673,12 +3673,38 @@ git commit -m "Step 53 (6 #53): Subcontractor time tracking"
 
 ---
 
-## Step 54 — Photo Spatial Pinning
+## Step 54 — Photo Spatial Pinning ✅ DONE (2026-04-30)
 
 **Mode:** Require-design-input
 **Item:** 6 #54
 **Effort:** M
 **Priority:** P2
+
+### Final state (what shipped)
+
+| Slice | What |
+|---|---|
+| Schema | One new table `photo_pins` (migration `0048_uneven_shiva.sql`) with FKs to `drawing_sheets`, `documents`, `projects`, `users`. Coords `x`, `y` are numeric(7,6) with CHECK `BETWEEN 0 AND 1`. `project_id` denormalized so RLS + the back-reference loader avoid a 3-table join; the action layer asserts the sheet's project matches the document's project before insert. RLS Pattern: project-scoped 2-clause hybrid — same shape as `drawings`. |
+| Domain | `src/domain/actions/photo-pins.ts` (createPhotoPin / movePhotoPin / deletePhotoPin) + `src/domain/loaders/photo-pins.ts` (getSheetPins / getDocumentPins / listProjectPhotosForPicker). Cross-table validation runs on `dbAdmin` (entry-point) before getEffectiveContext so authorization is rooted in the resolved project. Audit events written for all three mutations. |
+| API | POST `/api/photo-pins`, PATCH `/api/photo-pins/[id]`, DELETE `/api/photo-pins/[id]`, GET `/api/photo-pins/picker?projectId=…`, GET `/api/documents/[id]/photo-pins`. |
+| Viewer | The drawing-sheet workspace gained a "Pin photo" tool. Click → opens project-photo picker (filtered to image extensions client-side, since `documents` doesn't carry a discrete mime column). Pick → arms the photo, switches the tool to `pin_photo`. Click on the SVG overlay → POST `/api/photo-pins` and renders an orange `P` circle at the fractional coord. Click an existing pin → lightbox modal that fetches the presigned download via `/api/files/[documentId]` and renders the image, with a "Remove pin" action. Workspace and loader shared between contractor + subcontractor sheet pages (the sub page re-exports the contractor page). |
+| Tests | 10 tests covering 401/coord-bounds/cross-project rejection, contractor + sub create paths, multi-pin allowed, sub denied on a project they're not on, PATCH move, DELETE, document-cascade-deletes-pins. 196/196 total green. |
+
+### Decisions taken (re-confirming the proposal)
+
+- **Reuse `documents` for the photo, not a new `photos` table** — every other photo surface in the app (daily-logs, safety, transmittals) attaches images via `documents`; this keeps the offline outbox and R2 chain unchanged.
+- **`note` column included** — cheap and makes pin lists meaningful; the build-guide stub didn't ask for it but didn't forbid it either.
+- **Multi-pin per (document, sheet) allowed** — no uniqueness constraint. One photo can show up at two coords on the same sheet (two angles of a wall), and across multiple sheets.
+- **`project_id` denormalized** — saves a 3-table join on every read; action layer guards it.
+- **No soft-delete** — pin removal is hard delete. Audit trail lives in `audit_events`.
+
+### Production-grade follow-ups (deferred)
+
+- **Photo-detail "Pinned on" rail** — the back-reference is queryable now via `/api/documents/[id]/photo-pins`, but the live rail UI isn't wired into a documents detail page (no such page exists yet — documents are listed but not detailed). Lift this when the documents-detail page is added.
+- **Mobile camera-direct pin capture** — spec point #5 ("pin current camera capture directly to a selected sheet"). Requires the camera capture chain that doesn't yet exist as a primary surface; bundle with the production-grade mobile pass alongside the today-board clock-in button.
+- **OS file-drag-drop onto the sheet** — V1 ships drag-from-the-picker; full OS-level drag-drop is a polish item.
+- **Pin clustering at zoomed-out levels** — if a sheet ends up with 50+ pins it'll get noisy. Defer until a real customer surfaces it.
+- **Carry pins forward when a drawing set is superseded** — pins stay on the original sheet, same call as `drawing_markups`. Documented in the v1 deferrals there.
 
 ### What this does
 

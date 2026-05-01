@@ -14,12 +14,14 @@ import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 
 import { withTenant } from "@/db/with-tenant";
 import {
+  documents,
   drawingComments,
   drawingMarkups,
   drawingMeasurements,
   drawingSets,
   drawingSheets,
   organizations,
+  photoPins,
   projectOrganizationMemberships,
   users,
 } from "@/db/schema";
@@ -481,6 +483,19 @@ export async function getDrawingSetIndex(input: {
   };
 }
 
+export type SheetPhotoPin = {
+  id: string;
+  documentId: string;
+  documentTitle: string;
+  documentStorageKey: string;
+  x: number;
+  y: number;
+  note: string | null;
+  createdAt: string;
+  createdByUserId: string | null;
+  createdByName: string | null;
+};
+
 export type DrawingSheetDetailView = {
   context: EffectiveContext;
   portal: DrawingsPortal;
@@ -492,6 +507,10 @@ export type DrawingSheetDetailView = {
   markups: MarkupDoc[];
   measurements: MeasurementDoc[];
   comments: CommentRow[];
+  // Step 54 — photo pins on this sheet. Coordinates are fractional [0,1]
+  // relative to the rendered sheet bounds; the viewer scales to its own
+  // 0–100 SVG viewBox.
+  photoPins: SheetPhotoPin[];
   calibration: {
     scale: string | null;
     source: "title_block" | "manual" | null;
@@ -542,7 +561,14 @@ export async function getDrawingSheetDetail(input: {
   const sheet = index.sheets.find((s) => s.id === input.sheetId);
   if (!sheet) throw new Error("sheet not found or not in scope");
 
-  const { sheetFull, calibratedByName, markupRows, measurementRows, commentRows } =
+  const {
+    sheetFull,
+    calibratedByName,
+    markupRows,
+    measurementRows,
+    commentRows,
+    photoPinRows,
+  } =
     await withTenant(ctx.organization.id, async (tx) => {
       // Load full sheet row for calibration info (index summary doesn't carry it).
       const [sheetFull] = await tx
@@ -605,7 +631,33 @@ export async function getDrawingSheetDetail(input: {
         .where(eq(drawingComments.sheetId, input.sheetId))
         .orderBy(asc(drawingComments.pinNumber), asc(drawingComments.createdAt));
 
-      return { sheetFull, calibratedByName, markupRows, measurementRows, commentRows };
+      const photoPinRows = await tx
+        .select({
+          id: photoPins.id,
+          documentId: photoPins.documentId,
+          documentTitle: documents.title,
+          documentStorageKey: documents.storageKey,
+          x: photoPins.x,
+          y: photoPins.y,
+          note: photoPins.note,
+          createdAt: photoPins.createdAt,
+          createdByUserId: photoPins.createdByUserId,
+          createdByName: users.displayName,
+        })
+        .from(photoPins)
+        .innerJoin(documents, eq(documents.id, photoPins.documentId))
+        .leftJoin(users, eq(users.id, photoPins.createdByUserId))
+        .where(eq(photoPins.sheetId, input.sheetId))
+        .orderBy(asc(photoPins.createdAt));
+
+      return {
+        sheetFull,
+        calibratedByName,
+        markupRows,
+        measurementRows,
+        commentRows,
+        photoPinRows,
+      };
     });
 
   if (!sheetFull) throw new Error("sheet not found");
@@ -746,6 +798,19 @@ export async function getDrawingSheetDetail(input: {
     }
   }
 
+  const sheetPhotoPins: SheetPhotoPin[] = photoPinRows.map((r) => ({
+    id: r.id,
+    documentId: r.documentId,
+    documentTitle: r.documentTitle,
+    documentStorageKey: r.documentStorageKey,
+    x: Number(r.x),
+    y: Number(r.y),
+    note: r.note,
+    createdAt: r.createdAt.toISOString(),
+    createdByUserId: r.createdByUserId,
+    createdByName: r.createdByName,
+  }));
+
   return {
     context: ctx,
     portal: portalFor(ctx),
@@ -756,6 +821,7 @@ export async function getDrawingSheetDetail(input: {
     markups,
     measurements,
     comments,
+    photoPins: sheetPhotoPins,
     calibration: {
       scale: sheetFull.calibrationScale,
       source: sheetFull.calibrationSource,

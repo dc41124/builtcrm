@@ -33,6 +33,7 @@ export default async function ContractorSheetDetailPage({
         markups={view.markups}
         measurements={view.measurements}
         comments={view.comments}
+        photoPins={view.photoPins}
         calibration={view.calibration}
         presignedSourceUrl={view.presignedSourceUrl}
         compare={view.compare}
