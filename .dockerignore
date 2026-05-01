@@ -22,6 +22,9 @@ src-tree.txt
 # Tests + docs (not needed in prod image)
 tests
 docs
+# …except the OpenAPI spec, which prebuild (scripts/sync-openapi.mjs)
+# copies into public/ before Next assembles the standalone runtime.
+!docs/specs/openapi.yaml
 
 # Misc
 *.log
