@@ -300,7 +300,8 @@ type TabId =
   | "payment"
   | "prequalification"
   | "webhooks"
-  | "api-keys";
+  | "api-keys"
+  | "custom-fields";
 type TabDescriptor = {
   id: TabId;
   label: string;
@@ -356,6 +357,16 @@ const CONTRACTOR_TABS: TabDescriptor[] = [
     icon: I.lock,
     desc: "Generate, rotate, and revoke programmatic-access keys",
     link: "/contractor/settings/api-keys",
+  },
+  // Step 61 — Custom fields admin. Per-entity tabs, drag-reorder, and
+  // archived-state toggle live in their own page tree rather than as
+  // a settings tab pane.
+  {
+    id: "custom-fields",
+    label: "Custom fields",
+    icon: I.database,
+    desc: "Define org-wide custom fields per entity (projects, subs, documents, RFIs)",
+    link: "/contractor/settings/custom-fields",
   },
 ];
 const SUBCONTRACTOR_TABS: TabDescriptor[] = [

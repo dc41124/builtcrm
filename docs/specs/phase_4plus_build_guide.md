@@ -4255,7 +4255,11 @@ git commit -m "Step 60 (8-lite.1 #60): Public API docs page via OpenAPI + redoc"
 
 ---
 
-## Step 61 — Custom Fields on Entities
+## Step 61 — Custom Fields on Entities ✅ FOUNDATION DONE (2026-05-01)
+
+> **Status:** Foundation shipped — schema, RLS, helpers, domain loaders, API routes (definitions CRUD + reorder + bulk values write), admin UI at `/contractor/settings/custom-fields`, and the `<CustomFieldsBlock>` drop-in component. Admins can fully manage definitions; values can be written via the API.
+>
+> **Deferred (tracked in `docs/specs/security_posture.md` §6 "Custom-fields entity-form integration"):** wiring `<CustomFieldsBlock>` into the four V1 entity edit forms (project, subcontractor, document, RFI) plus the matching `deleteCustomFieldValuesForEntity()` calls in those entities' delete actions. Acceptance criteria around "creating a new project shows the field in the form" are unmet until that wiring lands. ~3 lines per form to pick up later.
 
 **Mode:** Require-design-input
 **Item:** 8-lite.2 #61
@@ -4300,7 +4304,7 @@ git commit -m "Step 61 (8-lite.2 #61): Custom fields on entities"
 
 ---
 
-## Step 62 — Bulk CSV Import / Export Wizard
+## Step 62 — Bulk CSV Import / Export Wizard ✅ Done*
 
 > **Status: ✅ Done** (2026-04-17) — Data Exports phase Sessions 1–5. Export side: Projects CSV, Documents ZIP, Audit log CSV (Enterprise), full archive (orchestrator). All Pro+ gated via `data_exports.full_archive` feature key (Enterprise-only for audit log). Import side: Projects CSV with column-mapping wizard, transactional batch insert. `data_exports` tracking table + `Recent exports` panel in the Data tab. Schema: migration `0006_data_exports.sql`. Helpers: `src/lib/exports/csv.ts`, `src/lib/exports/builders.ts`, `src/lib/imports/csv-parser.ts`, `src/lib/imports/projects-import.ts`.
 
@@ -4351,7 +4355,7 @@ git commit -m "Step 62 (8-lite.2 #62): Bulk CSV import / export wizard"
 
 ---
 
-## Step 63 — SSO Stub
+## Step 63 — SSO Stub ✅ Done*
 
 > **Status: ✅ Done — real, not stubbed** (2026-04-17). Shipped across 3 sessions as full SAML 2.0 handshake via `samlify` + `@authenio/samlify-node-xmllint` (WASM schema validator). Schema: migration `0007_sso_providers.sql` (one provider per contractor org). Routes: `/api/auth/sso/initiate` + `/api/auth/sso/acs` via a Better Auth plugin (`src/auth/sso-plugin.ts`); provider CRUD at `/api/org/sso/providers` (Enterprise-gated). UI: Org security tab's Configure drawer now live with paste-IdP-metadata form + "Test sign-in" button. Auto-provisioning on first SSO login is deliberately deferred (UX decision needed); users must be invited first.
 
