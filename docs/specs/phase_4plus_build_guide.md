@@ -4043,12 +4043,50 @@ git commit -m "Step 57 (8-lite.1 #57): Webhook event catalog page"
 
 ---
 
-## Step 58 — Per-Org API Key Management
+## Step 58 — Per-Org API Key Management ✅ DONE (2026-05-01)
 
 **Mode:** Require-design-input
 **Item:** 8-lite.1 #58
 **Effort:** M
 **Priority:** P1
+
+### Final state (what shipped)
+
+| Slice | What |
+|---|---|
+| Schema | `src/db/schema/apiKeys.ts` — `api_keys` table with org-scoped RLS, `api_key_scope` enum (read/write/admin), unique index on `key_hash` for O(1) auth lookup. Columns match the spec plus `revokedByUserId` and `revokeReason` (the spec listed `revokedAt` only; the actor + reason are needed for audit row hydration). Migration `0050_cheerful_calypso.sql`. |
+| Hash module | `src/lib/api-keys/hash.ts` — `generateApiKey()` (`bcrm_live_` + 32 base62 chars, rejection-sampled to avoid modulo bias), `hashApiKey()` (HMAC-SHA256 with `API_KEY_PEPPER`), `parseBearerToken()` (cheap pre-DB validation: prefix match + length + base62 regex), `hashesEqual()` (constant-time hex comparison). New env var `API_KEY_PEPPER` (min 32 chars; helper throws at call time if missing — keeps `npm run dev` boot working in environments without API access). |
+| Auth gate | `src/lib/api-keys/auth.ts` — `requireApiKey(req, requiredScope)` per-route helper. Parse → hash → `WHERE key_hash = $1 AND revoked_at IS NULL` (uses the unique-index path) → scope rank check (admin > write > read) → fire-and-forget `last_used_at` bump → returns `ApiKeyContext { keyId, orgId, scopes, effectiveScope }`. |
+| CRUD routes | `src/app/api/contractor/api-keys/route.ts` (GET + POST), `[id]/route.ts` (DELETE), `[id]/rotate/route.ts` (POST). Admins create / revoke / rotate; PMs can list (read-only) but not mutate. Subs and clients hard-rejected with `forbidden`. Rotation is one transaction: revoke old → create new → audit both rows with `rotatedFromKeyId` linking them. |
+| Sample v1 route | `src/app/api/v1/ping/route.ts` — minimal authenticated endpoint that returns `{orgId, keyId, scopes, effectiveScope, timestamp}`. Documents the canonical `requireApiKey` shape every future `/api/v1/*` route should follow. Lesson learned from Step 57's catalog: don't ship docs for a feature that doesn't fire — ping makes the auth chain actually work end-to-end. |
+| UI | `page.tsx` (server loader, batches keys + filtered api_key.* audit feed + display-name resolution into one round-trip) + `ui.tsx` (full prototype port, ~900 lines). List with prefix-only display, filter tabs (All / Active / Revoked), three modals (create/reveal/revoke), stats strip, "Recent activity" feed. Reveal modal blocks dismissal until copy. Rotate is an inline action with `window.confirm` + immediate reveal of the new key. PMs see the list but no action buttons or Create button. |
+| Sidebar | `src/components/settings/settings-shell.tsx` — added `"api-keys"` to `TabId` + new "API keys" entry under Connections with `link: "/contractor/settings/api-keys"`, same navigate-out pattern as Step 57's Webhooks. |
+| Audit events | `api_key.created` (with name/prefix/scopes), `api_key.revoked` (with name/prefix/reason), and on rotation: a `revoked` row tagged `reason: "Rotated"` plus a fresh `created` row with `rotatedFromKeyId` metadata linking them. The third spec'd event — `api_key.used` (sampled) — is **not yet written**; the auth helper bumps `last_used_at` but doesn't fire per-request rows. Sampling needs Step 59's Redis counters. Tracked in stubs §1. |
+| Verification | Build clean (5 new routes registered: `/api/contractor/api-keys`, `/api/contractor/api-keys/[id]`, `/api/contractor/api-keys/[id]/rotate`, `/api/v1/ping`, `/contractor/settings/api-keys`), lint clean, 202/202 tests still passing. Manually smoke-tested end-to-end on 2026-05-01: create → reveal → copy → `Invoke-RestMethod` against `/api/v1/ping` → 200 → revoke → 401. |
+
+### Decisions taken (re-confirming the proposal)
+
+- **HMAC-SHA256 + server pepper, NOT bcrypt** for `key_hash`. Spec said bcrypt; bcrypt is non-deterministic so you can't index-lookup by it. Industry standard for API keys (Stripe, GitHub, OpenAI) is deterministic HMAC + pepper for O(1) lookup. The threats bcrypt protects against (rainbow tables, brute force) don't apply to 190-bit base62 secrets. Pepper protects against an exfiltrated DB. See [src/db/schema/apiKeys.ts](../../src/db/schema/apiKeys.ts) docstring.
+- **Per-route auth helper, NOT middleware.** Spec suggested middleware at `src/middleware.ts`. The existing middleware uses Edge runtime which can't run `node:crypto`'s HMAC. Per-route gating is also more idiomatic for typed responses + per-endpoint scope enforcement. Middleware would have had to smuggle context through request headers; per-route helpers return a typed `ApiKeyContext` directly.
+- **No new deps.** Used `node:crypto` (already imported elsewhere in the codebase) for both random generation and HMAC.
+- **Sample `/api/v1/ping`** included so the auth helper actually fires against something real. Avoids the Step 57 trap of documenting a feature with no emitter.
+- **`getOrgContext` not `getContractorOrgContext`** for the CRUD routes — `writeOrgAuditEvent` requires the full `OrgContext` shape with `permissions`. Role check stays the same; just used the bigger context object.
+- **Rotation = revoke + create in one tx** (matches spec). Both audit rows fire; the new row's metadata carries `rotatedFromKeyId` so future audit-log surfaces can render the chain.
+- **Spec's `keyPrefix` of "first 8 chars"** widened to 16 (`bcrm_live_` is 10, so 8 would only show 0 chars of the random tail — not enough to disambiguate keys at a glance). Stored in a `varchar(16)` column.
+
+### Production-grade follow-ups (deferred)
+
+All spec'd in `docs/specs/production_grade_upgrades/api_keys_v1_stubs.md`:
+
+1. `api_key.used` audit events (sampled) — depends on Step 59's Redis counters.
+2. Sandbox / test-mode keys (`bcrm_test_` prefix) — empty without Step 60's documented endpoints.
+3. Real `/api/v1/*` endpoint surface — this is literally Step 60.
+4. Per-key request metrics + dashboard — the prototype's "Usage at a glance" stat panel renders four cards but only one (active key count) has real data.
+5. Pepper rotation procedure — currently single-pepper; need dual-pepper read window for safe roll.
+6. Tests for the AI surface — auth helper, hash module, CRUD routes (role/org gating).
+7. UI: "Test this key" inline button on the reveal modal — friction reduction for first-time integrators.
+8. "View full audit log" deep-link from the activity panel — needs a small filter-preset enhancement on the existing audit-log tab.
+9. Better Auth + API key unification — long-term architectural cleanup once the API surface is large.
 
 ### What this does
 

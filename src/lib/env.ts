@@ -38,6 +38,12 @@ const envSchema = z.object({
   // AI keys still run.
   OPENAI_API_KEY: z.string().min(1).optional(),
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  // API key hashing (Step 58). Server-side pepper for HMAC-SHA256(key)
+  // → key_hash storage. Required: losing the pepper invalidates every
+  // issued API key. Generate once with `openssl rand -base64 48` and
+  // treat as a long-lived secret on the same blast-radius tier as
+  // BETTER_AUTH_SECRET. The hash helper throws if this is missing.
+  API_KEY_PEPPER: z.string().min(32).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

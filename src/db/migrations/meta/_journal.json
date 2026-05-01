@@ -351,6 +351,13 @@
       "when": 1777641220902,
       "tag": "0049_secret_rhodey",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1777649848558,
+      "tag": "0050_cheerful_calypso",
+      "breakpoints": true
     }
   ]
 }

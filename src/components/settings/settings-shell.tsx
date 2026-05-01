@@ -299,7 +299,8 @@ type TabId =
   | "access"
   | "payment"
   | "prequalification"
-  | "webhooks";
+  | "webhooks"
+  | "api-keys";
 type TabDescriptor = {
   id: TabId;
   label: string;
@@ -345,6 +346,16 @@ const CONTRACTOR_TABS: TabDescriptor[] = [
     icon: I.link,
     desc: "Outbound event catalog, payload schemas, and signature verification",
     link: "/contractor/settings/webhooks/catalog",
+  },
+  // Step 58 — API keys. Same navigate-out pattern; the page has its
+  // own modal-driven state machine for create/reveal/revoke that
+  // doesn't fit the SettingsShell tab-pane shape.
+  {
+    id: "api-keys",
+    label: "API keys",
+    icon: I.lock,
+    desc: "Generate, rotate, and revoke programmatic-access keys",
+    link: "/contractor/settings/api-keys",
   },
 ];
 const SUBCONTRACTOR_TABS: TabDescriptor[] = [
