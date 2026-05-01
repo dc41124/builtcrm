@@ -65,6 +65,9 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
             { label: "Approvals", href: `${base}/approvals` },
             { label: "Compliance", href: `${base}/compliance` },
             { label: "Safety Forms", href: `${base}/safety-forms` },
+            // Sub time-tracking is sub-internal; contractors see the
+            // aggregated rollup tile via /contractor/reports?id=time.
+            { label: "Time Tracking", href: "/contractor/reports?id=time" },
             { label: "Procurement / POs", href: `${base}/procurement` },
             { label: "Billing", href: `${base}/billing` },
             { label: "Financials", href: `${base}/financials` },
@@ -108,6 +111,10 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
           { label: "Compliance", href: "/contractor/compliance" },
           { label: "Prequalification", href: "/contractor/prequalification" },
           { label: "Upload Requests", href: "/contractor/upload-requests" },
+          // Sub time-tracking is sub-internal data; contractors only see the
+          // aggregated rollup tile in /contractor/reports. Link here deep-
+          // links into that tile (Step 53 wired ?id= deep-link parsing).
+          { label: "Time Tracking", href: "/contractor/reports?id=time" },
           { label: "Documents", href: "/contractor/documents" },
         ]),
       },
@@ -166,6 +173,10 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
             { label: "Upload Requests", href: `${base}/upload-requests` },
             { label: "Compliance", href: `${base}/compliance` },
             { label: "Safety Forms", href: `${base}/safety-forms` },
+            // Time Tracking is a global (cross-project) surface — workers
+            // pick the project inside the clock-in modal. Linked from the
+            // project nav as a convenience escape hatch.
+            { label: "Time Tracking", href: "/subcontractor/time" },
             { label: "Financials", href: `${base}/financials` },
             { label: "Messages", href: `${base}/messages` },
             { label: "Drawings", href: `${base}/drawings` },
@@ -190,6 +201,7 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
         items: mark([
           { label: "Today Board", href: "/subcontractor/today" },
           { label: "Daily Logs", href: "/subcontractor/daily-logs" },
+          { label: "Time Tracking", href: "/subcontractor/time" },
           { label: "RFIs & Questions", href: "/subcontractor/rfis" },
           { label: "Upload Requests", href: "/subcontractor/upload-requests" },
           { label: "Schedule", href: "/subcontractor/schedule" },

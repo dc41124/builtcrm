@@ -164,7 +164,15 @@ function cx(...xs: Array<string | false | null | undefined>): string {
 // ----------------------------------------------------------------
 
 export function ReportsWorkspace({ view }: { view: ReportsView }) {
-  const [reportId, setReportId] = useState<string>("landing");
+  // Deep link via ?id=<tile>. Lets sidebar entries in `portal-nav.ts` open
+  // a specific tile (e.g. /contractor/reports?id=time) without forcing the
+  // user to scan the catalog grid. Read once on mount; subsequent
+  // navigation goes through the local openReport state.
+  const [reportId, setReportId] = useState<string>(() => {
+    if (typeof window === "undefined") return "landing";
+    const id = new URLSearchParams(window.location.search).get("id");
+    return id && REPORTS.some((r) => r.id === id && r.built) ? id : "landing";
+  });
   const [starred, setStarred] = useState<Set<string>>(
     () => new Set(["wip", "ar", "cashflow"]),
   );

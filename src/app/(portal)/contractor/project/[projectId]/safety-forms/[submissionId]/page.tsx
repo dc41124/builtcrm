@@ -7,7 +7,7 @@ import {
   Icon,
   SeverityPill,
   StatusPill,
-} from "@/app/(portal)/safety-forms-shared";
+} from "@/app/(portal)/safety-forms-icons";
 import "../../../../../safety-forms.css";
 import { getSafetyFormDetail } from "@/domain/loaders/safety-forms";
 import { AuthorizationError } from "@/domain/permissions";

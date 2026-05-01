@@ -6,7 +6,7 @@ import {
   FieldTypeIcon,
   FormTypeBadge,
   Icon,
-} from "@/app/(portal)/safety-forms-shared";
+} from "@/app/(portal)/safety-forms-icons";
 import "../../../../../safety-forms.css";
 import { getSafetyFormTemplates } from "@/domain/loaders/safety-forms";
 import { AuthorizationError } from "@/domain/permissions";

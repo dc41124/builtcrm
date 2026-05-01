@@ -7,7 +7,7 @@ import {
   Icon,
   StatusPill,
   SAFETY_FORM_TYPE_CONFIG,
-} from "@/app/(portal)/safety-forms-shared";
+} from "@/app/(portal)/safety-forms-icons";
 import "../../../../safety-forms.css";
 import { getSubSafetyFormsView } from "@/domain/loaders/safety-forms";
 import { AuthorizationError } from "@/domain/permissions";
