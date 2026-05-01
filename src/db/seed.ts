@@ -314,8 +314,8 @@ async function seed() {
 
   const roleSummitAdmin = await getRole(summitAdmin.id, summitOrg.id, "contractor", "admin", null);
   const roleSummitPm = await getRole(summitPm.id, summitOrg.id, "contractor", "project_manager", null);
-  const roleNorthline = await getRole(northlineUser.id, northlineOrg.id, "subcontractor", "lead", null);
-  const rolePacific = await getRole(pacificUser.id, pacificOrg.id, "subcontractor", "lead", null);
+  const roleNorthline = await getRole(northlineUser.id, northlineOrg.id, "subcontractor", "owner", null);
+  const rolePacific = await getRole(pacificUser.id, pacificOrg.id, "subcontractor", "owner", null);
   const roleMeridian = await getRole(
     meridianUser.id,
     meridianOrg.id,
