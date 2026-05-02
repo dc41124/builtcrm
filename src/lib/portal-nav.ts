@@ -148,6 +148,13 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
           { label: "Privacy & Law 25", href: "/contractor/settings/privacy" },
           { label: "Data retention", href: "/contractor/settings/privacy/retention" },
           { label: "RBQ verification", href: "/contractor/settings/compliance/rbq-cache" },
+          // Step 67 — T5018 generator. Renders for every contractor in
+          // the sidebar; the page itself shows an amber "tax forms not
+          // enabled" banner when organizations.tax_jurisdiction !== 'CA'.
+          // We deliberately do not gate the link itself so a contractor
+          // who hasn't yet set their jurisdiction can discover where to
+          // configure it.
+          { label: "T5018 contractor slips", href: "/contractor/settings/tax-forms/t5018" },
           { label: "Prequalification", href: "/contractor/settings/prequalification" },
         ]),
       },

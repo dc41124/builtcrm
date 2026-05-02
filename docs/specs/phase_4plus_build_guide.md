@@ -4878,7 +4878,7 @@ git commit -m "Step 66.6 (9-lite.1 #66.6): unified retention sweep + closeout ba
 
 ---
 
-## Step 67 — T5018 Contractor Payment Slip Generator
+## Step 67 — T5018 Contractor Payment Slip Generator ✅ DONE (2026-05-02)
 
 **Mode:** Require-design-input
 **Item:** 9-lite.1 #67
@@ -4930,6 +4930,16 @@ Canadian tax form. Contractors in the construction industry must issue T5018 sli
 git add .
 git commit -m "Step 67 (9-lite.1 #67): T5018 contractor payment slip generator"
 ```
+
+### What shipped (3 commits)
+
+- **67 (a)** — schema + lib + API. Migration 0059: new `tax_jurisdiction` enum, `organizations.tax_jurisdiction` / `business_number` (encrypted) / `cra_receiver_code`, plus `t5018_filings` and `t5018_filing_slips` tables (both `statutory_tax` retention, RLS on filings, slip BNs encrypted with snapshots). New `BUSINESS_NUMBER_ENCRYPTION_KEY` env var with sibling `encryptBusinessNumber`/`decryptBusinessNumber` helpers — held under a separate key from `TAX_ID_ENCRYPTION_KEY` so a leak of one jurisdiction's identifiers does not expose the other. Library at [`src/lib/integrations/cra-t5018/`](../../src/lib/integrations/cra-t5018/) — `aggregate.ts` (lien_waivers → draws → sub-org rollup with $500 threshold), `xml.ts` (CRA boxes 22/24/26/27/28/29/82 + summary envelope, sha256 checksum), `pdf.tsx` (per-sub T5018 slip via @react-pdf/renderer), `generate.ts` (end-to-end orchestration including R2 upload + transactional upsert). Three contractor-admin-gated APIs: `POST /api/contractor/tax-forms/t5018/generate`, `GET /api/contractor/tax-forms/t5018/[filingId]/download?kind=zip|xml|csv`, `PATCH /api/contractor/tax-forms/t5018/[filingId]/mark-filed`.
+- **67 (b)** — admin UI at [`/contractor/(global)/settings/tax-forms/t5018`](../../src/app/(portal)/contractor/(global)/settings/tax-forms/t5018/page.tsx). Workspace + 4 modals (slip detail with CRA box rendering, generate confirm, generating spinner, generation success with download links) + audit drawer. Three-year picker, jurisdiction banner with green/amber/red states, 4 KPIs, two-column workspace (Filing summary + Generation panel with blocking + advisory issues), slip preview table with search + filter + sort, filing history strip. Full prototype CSS port at [`src/app/(portal)/contractor/tax-forms.css`](../../src/app/(portal)/contractor/tax-forms.css) (~750 lines, scoped under `.t5-page`).
+- **67 (c)** — sidebar entry under Compliance & Legal ("T5018 contractor slips"); production deferral note in [prod_cutover_prep.md §4.9](prod_cutover_prep.md#48-deferred-follow-up--t5018-cra-xsd-validation--electronic-transmission-step-67) covering xsd validation against CRA's official schema and direct-transmission-vs-manual-upload sequencing.
+
+### Production deferrals (tracked in prod_cutover_prep.md §4.9)
+
+The XML the generator emits is **structurally** correct (matches CRA's published box-numbering) but **not validated** against CRA's official .xsd schema. The contractor today downloads the ZIP and uploads the XML manually at apps.cra-arc.gc.ca. Direct electronic transmission via CRA's Internet File Transfer service requires a Web Access Code per business and a transmitter ID — both out of scope until the first paying Canadian contractor onboards. Deferred work: xsd hookup + namespace/country-code/slip-type-indicator polish + optional direct-transmission integration. None of this blocks the manual-upload path that ships today.
 
 ---
 

@@ -455,6 +455,32 @@ The RBQ verification surface ([Step 66](phase_4plus_build_guide.md#step-66--rbq-
 
 **Sequencing note:** do this before onboarding any Quebec contractor; the cache currently shows `not_found` for any real RBQ number that hits the stub.
 
+## 4.9 Deferred follow-up — T5018 CRA xsd validation + electronic transmission (Step 67)
+
+The T5018 generator ([Step 67](phase_4plus_build_guide.md#step-67--t5018-contractor-payment-slip-generator)) shipped with a structurally-correct CRA XML envelope (boxes 22 / 24 / 26 / 27 / 28 / 29 / 82 + summary) but **not** validated against CRA's official .xsd schema. The XML, per-sub PDFs, ZIP packaging, R2 storage, encrypted-BN snapshots, audit events, and admin UI are all complete; the workflow is "generate → download ZIP → manually upload to CRA Internet File Transfer". Production hookup of strict-schema validation + direct transmission is deferred.
+
+**Why deferred to prod cutover:**
+- CRA's official T5018 .xsd schema lives behind their Information Returns developer portal. Pulling it requires a CRA business-developer registration that's a multi-week intake separate from the product work.
+- The XML the generator emits today follows the box-numbering CRA publishes in the form documentation, but the .xsd has additional namespace + ISO-3166-1 alpha-3 country-code + slip-type-indicator requirements that are mechanical to add but tedious to validate without xmllint against the real schema.
+- Direct transmission via CRA's Internet File Transfer service requires a Web Access Code (WAC) per business + a transmitter ID — neither of which we have until the first paying Canadian contractor onboards.
+
+**Mechanical work when ready:**
+1. Register as a developer at the CRA Information Returns Filing developer portal. Download the T5018 .xsd and any current T5018 sample XML.
+2. Adjust `src/lib/integrations/cra-t5018/xml.ts` to emit:
+   - The CRA XML namespace declarations on `<T5018>` (typically `xmlns="..."` matching the .xsd target namespace).
+   - ISO 3166-1 alpha-3 country codes (e.g. `<CountryCode>CAN</CountryCode>`) instead of free-text "Canada".
+   - The `<SlipType>` indicator (Original / Amended / Cancelled). Today everything is implicitly Original.
+   - Any required `<TransmitterAccountNumber>` / `<TransmitterReceiverCode>` envelope fields.
+3. Add `xmllint` (or a Node `xsd-validator` lib) to the CI test path. Run every freshly-generated sample XML through it before allowing the route to return 200.
+4. Decide on the transmission path:
+   - (a) Keep it manual — the contractor downloads the ZIP and uploads the XML themselves at apps.cra-arc.gc.ca/ebci/iitf/cd/login. This is the lowest-risk path and what the UI suggests today.
+   - (b) Wire direct transmission via CRA's IFT API (requires WAC + transmitter ID per contractor org; likely involves a dedicated provider like Tax-Filer.com or RPM if we want to skip the CRA-developer integration).
+   Recommendation: stay on (a) until at least 5 paying Canadian contractors are onboarded, then evaluate (b).
+
+**Sequencing note:** as long as the manual path is documented in the success modal (it is), no Canadian contractor is blocked. The stub gracefully covers the workflow end-to-end including download.
+
+**Cross-reference:** [retention_policy.md](retention_policy.md) — `tax_slips` rows + their R2 blobs are `statutory_tax` retention (7 years, non-overridable). The Step 66.5 retention sweep doesn't touch the T5018 storage prefix because the storage key is outside `tmp/` and the row has its `retention_until` populated at insert.
+
 ## 5. Open decisions (when you're ready)
 
 - [ ] **Domain name** — needed before any wire-up. (Brainstorming list discussed separately.)
