@@ -17,6 +17,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { retention, timestamps } from "./_shared";
+import { provinceCodeEnum } from "./rbq";
 import {
   clientSubtypeEnum,
   membershipStatusEnum,
@@ -121,6 +122,12 @@ export const projects = pgTable(
     addressLine2: varchar("address_line_2", { length: 255 }),
     city: varchar("city", { length: 120 }),
     stateProvince: varchar("state_province", { length: 120 }),
+    // Step 66 — typed province code that drives jurisdiction-gated UI
+    // (RBQ widget for QC, Ontario prompt-pay for ON in Step 68, etc.).
+    // The free-form `state_province` above is the human display value;
+    // this column is the canonical signal the app reads. Nullable for
+    // legacy rows and non-Canadian projects.
+    provinceCode: provinceCodeEnum("province_code"),
     postalCode: varchar("postal_code", { length: 20 }),
     country: varchar("country", { length: 3 }).default("CA"),
     // IANA tz string (e.g. "America/Toronto"). Anchors "today" for daily

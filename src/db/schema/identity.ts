@@ -225,6 +225,12 @@ export const organizations = pgTable(
     yearsInBusiness: varchar("years_in_business", { length: 10 }),
     crewSize: varchar("crew_size", { length: 10 }),
     regions: text("regions").array(),
+    // Step 66 — Régie du bâtiment du Québec license number (10-digit
+    // string with dashes, e.g. "5641-9032-01"). Quebec contractors and
+    // subs only; nullable everywhere else. The actual license metadata
+    // (legal name, status, expiry, subclasses) is cached in
+    // rbq_license_cache, joined on this number.
+    rbqNumber: varchar("rbq_number", { length: 12 }),
 
     // Org-security settings (added 2026-04-17, commit 5 of settings wire-up).
     // Domain lock: if non-null/non-empty, invitations to emails outside these
