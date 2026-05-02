@@ -44,6 +44,8 @@ services:
         sync: false
       - key: TAX_ID_ENCRYPTION_KEY
         sync: false
+      - key: BUSINESS_NUMBER_ENCRYPTION_KEY
+        sync: false
       - key: INTEGRATION_ENCRYPTION_KEY
         sync: false
       - key: INTEGRATION_STATE_SECRET

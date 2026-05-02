@@ -90,6 +90,15 @@ export const invitationStatusEnum = pgEnum("invitation_status", [
   "revoked",
 ]);
 
+// Step 67 — tax jurisdiction. Drives jurisdiction-gated UI (T5018 for CA,
+// future US tax forms, etc.). 'OTHER' is a placeholder for non-CA/non-US
+// orgs that don't trigger any tax-form surface today.
+export const taxJurisdictionEnum = pgEnum("tax_jurisdiction", [
+  "CA",
+  "US",
+  "OTHER",
+]);
+
 // -----------------------------------------------------------------------------
 // Users + organizations
 // -----------------------------------------------------------------------------
@@ -197,6 +206,22 @@ export const organizations = pgTable(
     // docs/specs/tax_id_encryption_plan.md for the masking + reveal flow and
     // backfill plan.
     taxId: text("tax_id"),
+    // Step 67 — tax jurisdiction. Drives jurisdiction-gated UI surfaces
+    // (T5018 contractor payment slips for Canada, etc.). NULL means
+    // "not configured" — the org admin sets this in Org settings. The
+    // T5018 surface stays hidden until set to 'CA'.
+    taxJurisdiction: taxJurisdictionEnum("tax_jurisdiction"),
+    // Step 67 — Canadian Business Number (15 chars, e.g. "871234567RT0001").
+    // AES-256-GCM ciphertext via BUSINESS_NUMBER_ENCRYPTION_KEY through
+    // encryptBusinessNumber() / decryptBusinessNumber() in
+    // src/lib/integrations/crypto.ts. Held under a separate key from tax_id
+    // so a leak of one jurisdiction's identifiers does not expose the other.
+    // Populated for Canadian contractor + sub orgs; null elsewhere.
+    businessNumber: text("business_number"),
+    // Step 67 — CRA-issued receiver code for electronic T5018 transmission.
+    // Plaintext, optional. Only set after the org has registered with CRA's
+    // Internet File Transfer service.
+    craReceiverCode: varchar("cra_receiver_code", { length: 16 }),
     website: varchar("website", { length: 500 }),
     phone: varchar("phone", { length: 40 }),
 

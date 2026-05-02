@@ -4,13 +4,15 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 // We store `base64(iv || authTag || ciphertext)` in a single text column so
 // a value round-trips without needing a separate IV column.
 //
-// Two key namespaces are in use:
-//   - INTEGRATION_ENCRYPTION_KEY — OAuth access/refresh tokens
+// Three key namespaces are in use:
+//   - INTEGRATION_ENCRYPTION_KEY    — OAuth access/refresh tokens
 //     (integration_connections.access_token_enc / refresh_token_enc)
-//   - TAX_ID_ENCRYPTION_KEY — organizations.tax_id (see
-//     docs/specs/tax_id_encryption_plan.md). Held separately so a leak of
-//     one key does not compromise the other.
+//   - TAX_ID_ENCRYPTION_KEY         — organizations.tax_id
+//     (US EIN-style identifiers, see docs/specs/tax_id_encryption_plan.md)
+//   - BUSINESS_NUMBER_ENCRYPTION_KEY — organizations.business_number +
+//     t5018_filing_slips.recipient_bn_encrypted (Canadian BN, Step 67)
 //
+// Held separately so a leak of one key does not compromise the others.
 // Each key is 32 bytes (256 bits), supplied base64-encoded. Rotating any
 // key requires re-encrypting every row protected by it — see
 // docs/specs/security_posture.md §3 for rotation impact.
@@ -115,4 +117,39 @@ export function encryptTaxIdOrNull(plaintext: string | null | undefined): string
 export function decryptTaxIdOrNull(stored: string | null | undefined): string | null {
   if (!stored) return null;
   return decryptTaxId(stored);
+}
+
+// --------------------------------------------------------------------------
+// Business Numbers — organizations.business_number + t5018 slip recipients
+// (Step 67). Canadian BN format is 9 digits + RT + 4 digits = 15 chars
+// total, e.g. "123456789RT0001". Held under a separate key from US tax IDs
+// so a leak of one jurisdiction's identifiers does not expose the other.
+// --------------------------------------------------------------------------
+
+export function encryptBusinessNumber(plaintext: string): string {
+  if (!plaintext) {
+    throw new Error("encryptBusinessNumber called with empty plaintext");
+  }
+  return encryptWithKey(plaintext, loadKey("BUSINESS_NUMBER_ENCRYPTION_KEY"));
+}
+
+export function decryptBusinessNumber(stored: string): string {
+  if (!stored) {
+    throw new Error("decryptBusinessNumber called with empty ciphertext");
+  }
+  return decryptWithKey(stored, loadKey("BUSINESS_NUMBER_ENCRYPTION_KEY"));
+}
+
+export function encryptBusinessNumberOrNull(
+  plaintext: string | null | undefined,
+): string | null {
+  if (!plaintext) return null;
+  return encryptBusinessNumber(plaintext);
+}
+
+export function decryptBusinessNumberOrNull(
+  stored: string | null | undefined,
+): string | null {
+  if (!stored) return null;
+  return decryptBusinessNumber(stored);
 }

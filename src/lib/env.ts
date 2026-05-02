@@ -28,6 +28,12 @@ const envSchema = z.object({
   // docs/specs/tax_id_encryption_plan.md. Generate with
   // `openssl rand -base64 32`.
   TAX_ID_ENCRYPTION_KEY: z.string().min(1),
+  // 32 bytes base64-encoded; protects organizations.business_number and
+  // t5018_filing_slips.recipient_bn_encrypted at rest (Step 67).
+  // Held under a separate key from TAX_ID_ENCRYPTION_KEY so a leak of one
+  // jurisdiction's identifiers does not expose the other. Generate with
+  // `openssl rand -base64 32`.
+  BUSINESS_NUMBER_ENCRYPTION_KEY: z.string().min(1),
   // Sentry (optional). When unset, Sentry no-ops cleanly and the app
   // runs without error monitoring.
   SENTRY_DSN: z.string().url().optional(),
