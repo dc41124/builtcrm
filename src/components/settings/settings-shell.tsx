@@ -436,14 +436,18 @@ export function SettingsShell({
   })();
 
   // Deep-link support: `/{portal}/settings?tab=notifications` lands on
-  // the Notifications tab instead of Profile. Falls back to "profile"
-  // if the param is absent or references a tab not in this portal.
-  const initialTab = (() => {
+  // the Notifications tab instead of Profile. Reading from searchParams
+  // happens after mount to keep server and client first render identical
+  // — `useSearchParams()` can return null during SSR while the real
+  // params hydrate on the client, which trips a hydration mismatch.
+  const [tab, setTab] = useState<TabId>("profile");
+  useEffect(() => {
     const want = searchParams?.get("tab");
-    if (want && tabs.some((t) => t.id === want)) return want as TabId;
-    return "profile" as TabId;
-  })();
-  const [tab, setTab] = useState<TabId>(initialTab);
+    if (want && tabs.some((t) => t.id === want)) {
+      setTab(want as TabId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   return (
     <div
