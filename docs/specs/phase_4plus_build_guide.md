@@ -4594,7 +4594,7 @@ git commit -m "Step 65 (9-lite.1 #65): Law 25 Privacy Officer surface — DSAR, 
 
 ---
 
-## Step 66 — RBQ License Verification
+## Step 66 — RBQ License Verification ✅ DONE (2026-05-02)
 
 **Mode:** Require-design-input
 **Item:** 9-lite.1 #66
@@ -4643,6 +4643,18 @@ Quebec's Régie du bâtiment (RBQ) publishes open data of licensed contractors. 
 git add .
 git commit -m "Step 66 (9-lite.1 #66): RBQ license verification"
 ```
+
+### What shipped (5 commits)
+
+- **66 (a)** — schema + lookup library + sub profile widget. Migration 0058: new `rbq_license_cache` table (BuiltCRM-wide, reference tier), `organizations.rbq_number`, `projects.province_code` enum. New `src/lib/integrations/rbq.ts` (`lookupRbqLicense`, `forceRefreshSingle`, `lookupRbqLicensesBatch`, normalize/validate helpers). Three contractor-admin-gated APIs: PATCH set RBQ number, POST refresh single, POST refresh all.
+- **66 (b)** — RBQ cache admin at `/contractor/settings/compliance/rbq-cache` (View 02): KPI tiles, filter pills, search, bulk + per-row force-refresh.
+- **66 (c)** — project compliance scorecard at `/contractor/project/[projectId]/compliance/scorecard` (View 03): per-sub rollup with RBQ + Insurance + CNESST + CCQ columns. Insurance / CNESST / CCQ are placeholder pills until those modules ship.
+- **66 (d)** — full prototype CSS port (~1300 lines) to `src/app/(portal)/contractor/rbq.css`, scoped under `.rbq-page`. All three UIs rewritten to use the prototype's class system 1:1 (gradient banners, KPI tone variants, settings strip, drawer + modal, animations).
+- **66 (e)** — sidebar wiring. "Compliance & Legal" group set to `defaultOpen: true` in [portal-nav.ts](../../src/lib/portal-nav.ts). Added "Sub scorecard →" button on the project compliance workspace header. Cache admin now deep-links sub-org names into the sub profile.
+
+### Production deferrals (tracked separately)
+
+The real **donneesquebec.ca CSV download URL** + parser is **not wired**. Today the fetcher is a deterministic stub (first-digit-driven license states) so dev/demo data is stable, and the nightly Trigger.dev job (`src/jobs/rbq-cache-refresh.ts`) is a no-op that just emits a `run_complete` audit event. Production hookup checklist lives at the top of [`src/lib/integrations/rbq.ts`](../../src/lib/integrations/rbq.ts) and at the bottom of [prod_cutover_prep.md](prod_cutover_prep.md) (RBQ Open Data section). Cross-referenced from [security_posture.md §6](security_posture.md).
 
 ---
 

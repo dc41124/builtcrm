@@ -440,6 +440,21 @@ see this" calls.
 5. Update each render site to call the appropriate formatter.
 6. Smoke-test across all four portals.
 
+## 4.8 Deferred follow-up — RBQ Open Data CSV hookup (Step 66)
+
+The RBQ verification surface ([Step 66](phase_4plus_build_guide.md#step-66--rbq-license-verification--done-2026-05-02)) shipped with a deterministic stub fetcher in [`src/lib/integrations/rbq.ts`](../../src/lib/integrations/rbq.ts) and a no-op nightly job at [`src/jobs/rbq-cache-refresh.ts`](../../src/jobs/rbq-cache-refresh.ts). The UI, schema, audit-event wiring, and force-refresh path are all complete; the only thing missing is the actual CSV download from donneesquebec.ca.
+
+**Why deferred to prod cutover:** finding the right CSV slug + parsing the column shape is research work that needs a real Quebec contractor's RBQ number to validate against. Doing it in dev with no production user means we'd be tuning a parser against synthetic data. The stub returns realistic-shaped data that exercises every UI state, so the surface is portfolio-ready today.
+
+**Mechanical work when ready:**
+1. Identify the dataset slug at https://www.donneesquebec.ca/recherche/dataset/?q=RBQ. Confirm the column schema (license number, legal name, status, expiry, subclass codes/labels).
+2. In `src/lib/integrations/rbq.ts`, replace the body of `stubFetcher()` with `downloadRbqOpenDataDiff()` that streams the CSV (use the standard library's stream parsing or add `csv-parse`).
+3. Update `src/jobs/rbq-cache-refresh.ts` to call the new fetcher and upsert each record into `rbq_license_cache` with `lastCheckedAt = now()` and `sourceVersion` set to the dataset version label (typically embedded in the CSV header or filename).
+4. Verify rate-limit headers on donneesquebec.ca; back off if needed (the dataset is daily so a single download per day is well under any reasonable limit).
+5. Smoke-test against a known-valid RBQ number (a real Quebec contractor's, even your own, in a personal dev DB).
+
+**Sequencing note:** do this before onboarding any Quebec contractor; the cache currently shows `not_found` for any real RBQ number that hits the stub.
+
 ## 5. Open decisions (when you're ready)
 
 - [ ] **Domain name** — needed before any wire-up. (Brainstorming list discussed separately.)
