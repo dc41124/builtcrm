@@ -15,7 +15,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { documents } from "./documents";
 import { organizations, users } from "./identity";
 import { projects } from "./projects";
@@ -160,6 +160,7 @@ export const closeoutPackages = pgTable(
     acceptedSigner: varchar("accepted_signer", { length: 160 }),
     acceptanceNote: text("acceptance_note"),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     orgYearSeqUnique: unique("closeout_packages_org_year_seq_unique").on(
@@ -201,6 +202,7 @@ export const closeoutPackageSections = pgTable(
     customLabel: varchar("custom_label", { length: 120 }),
     orderIndex: integer("order_index").default(0).notNull(),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     packageOrderIdx: index("closeout_package_sections_package_order_idx").on(
@@ -248,6 +250,7 @@ export const closeoutPackageItems = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    ...retention("project_record"),
   },
   (table) => ({
     sectionOrderIdx: index("closeout_package_items_section_order_idx").on(
@@ -313,6 +316,7 @@ export const closeoutPackageComments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    ...retention("project_record"),
   },
   (table) => ({
     packageCreatedIdx: index(

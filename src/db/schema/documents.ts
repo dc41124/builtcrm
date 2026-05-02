@@ -14,7 +14,7 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { users } from "./identity";
 import { audienceScopeEnum, projects, visibilityScopeEnum } from "./projects";
 
@@ -69,6 +69,7 @@ export const documents = pgTable(
       { onDelete: "set null" },
     ),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     storageKeyUnique: unique("documents_storage_key_unique").on(table.storageKey),
@@ -141,6 +142,7 @@ export const documentLinks = pgTable(
     // more than "the latest file." Default false = follow chain.
     pinVersion: boolean("pin_version").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    ...retention("project_record"),
   },
   (table) => ({
     documentIdx: index("document_links_document_idx").on(table.documentId),

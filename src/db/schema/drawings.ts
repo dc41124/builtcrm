@@ -17,7 +17,7 @@ import {
   bigint,
   timestamp,
 } from "drizzle-orm/pg-core";
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { users } from "./identity";
 import { projects } from "./projects";
 
@@ -77,6 +77,7 @@ export const drawingSets = pgTable(
     processingError: text("processing_error"),
     note: text("note"),
     ...timestamps,
+    ...retention("design_archive"),
   },
   (table) => ({
     projectIdx: index("drawing_sets_project_idx").on(table.projectId),
@@ -157,6 +158,7 @@ export const drawingSheets = pgTable(
     ),
     calibratedAt: timestamp("calibrated_at", { withTimezone: true }),
     ...timestamps,
+    ...retention("design_archive"),
   },
   (table) => ({
     setPageUnique: unique("drawing_sheets_set_page_unique").on(
@@ -202,6 +204,7 @@ export const drawingMarkups = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     markupData: jsonb("markup_data").default([]).notNull(),
     ...timestamps,
+    ...retention("design_archive"),
   },
   (table) => ({
     sheetUserUnique: unique("drawing_markups_sheet_user_unique").on(
@@ -239,6 +242,7 @@ export const drawingMeasurements = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     measurementData: jsonb("measurement_data").default([]).notNull(),
     ...timestamps,
+    ...retention("design_archive"),
   },
   (table) => ({
     sheetUserUnique: unique("drawing_measurements_sheet_user_unique").on(
@@ -289,6 +293,7 @@ export const drawingComments = pgTable(
     }),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     ...timestamps,
+    ...retention("design_archive"),
   },
   (table) => ({
     sheetIdx: index("drawing_comments_sheet_idx").on(table.sheetId),

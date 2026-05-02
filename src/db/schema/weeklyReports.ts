@@ -13,7 +13,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { users } from "./identity";
 import { projects } from "./projects";
 
@@ -89,6 +89,7 @@ export const weeklyReports = pgTable(
     }),
 
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     // One report per project per week. Idempotency for the generation job
@@ -167,6 +168,7 @@ export const weeklyReportSections = pgTable(
       .notNull(),
     orderIndex: integer("order_index").default(0).notNull(),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     reportIdx: index("weekly_report_sections_report_idx").on(table.reportId),

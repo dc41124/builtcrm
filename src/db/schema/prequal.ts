@@ -16,7 +16,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import {
   organizations,
   prequalEnforcementModeEnum,
@@ -205,6 +205,7 @@ export const prequalSubmissions = pgTable(
       .notNull(),
 
     ...timestamps,
+    ...retention("statutory_construction"),
   },
   (table) => ({
     pairIdx: index("prequal_submissions_pair_idx").on(
@@ -288,6 +289,7 @@ export const prequalDocuments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    ...retention("statutory_construction"),
   },
   (table) => ({
     submissionIdx: index("prequal_documents_submission_idx").on(
@@ -365,6 +367,7 @@ export const prequalProjectExemptions = pgTable(
     revokedByUserId: uuid("revoked_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
+    ...retention("statutory_construction"),
   },
   (table) => ({
     projectSubIdx: index("prequal_project_exemptions_project_sub_idx").on(

@@ -13,7 +13,7 @@ import {
   varchar,
   timestamp,
 } from "drizzle-orm/pg-core";
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { organizations, users } from "./identity";
 import { projects } from "./projects";
 
@@ -186,6 +186,7 @@ export const purchaseOrders = pgTable(
     revisionNumber: integer("revision_number").default(1).notNull(),
     lastRevisedAt: timestamp("last_revised_at", { withTimezone: true }),
     ...timestamps,
+    ...retention("statutory_tax"),
   },
   (table) => ({
     orgPoNumberUnique: unique("purchase_orders_org_po_number_unique").on(
@@ -246,6 +247,7 @@ export const purchaseOrderLines = pgTable(
       .default("0.000")
       .notNull(),
     ...timestamps,
+    ...retention("statutory_tax"),
   },
   (table) => ({
     poIdx: index("purchase_order_lines_po_idx").on(table.purchaseOrderId),

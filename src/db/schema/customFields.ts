@@ -15,7 +15,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { organizations } from "./identity";
 
 // -----------------------------------------------------------------------------
@@ -143,6 +143,7 @@ export const customFieldValues = pgTable(
     //   boolean      → boolean
     valueJson: jsonb("value_json").notNull(),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     defEntityUnique: unique("custom_field_values_def_entity_unique").on(

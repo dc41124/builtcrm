@@ -9,6 +9,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+import { retention } from "./_shared";
 import { auditEvents } from "./audit";
 import { notificationPortalEnum, users } from "./identity";
 import { projects } from "./projects";
@@ -62,6 +63,7 @@ export const notifications = pgTable(
       .defaultNow()
       .notNull(),
     readAt: timestamp("read_at", { withTimezone: true }),
+    ...retention("operational"),
   },
   (table) => ({
     // Primary access pattern: "unread for this user" drives the bell badge

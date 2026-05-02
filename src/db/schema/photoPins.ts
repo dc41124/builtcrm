@@ -9,7 +9,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { documents } from "./documents";
 import { drawingSheets } from "./drawings";
 import { users } from "./identity";
@@ -62,6 +62,7 @@ export const photoPins = pgTable(
       onDelete: "set null",
     }),
     ...timestamps,
+    ...retention("design_archive"),
   },
   (table) => ({
     xRange: check("photo_pins_x_range", sql`${table.x} BETWEEN 0 AND 1`),

@@ -16,7 +16,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import {
   clientSubtypeEnum,
   membershipStatusEnum,
@@ -153,6 +153,7 @@ export const projects = pgTable(
     transmittalCounter: integer("transmittal_counter").default(0).notNull(),
 
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     codeUnique: unique("projects_project_code_unique").on(table.projectCode),
@@ -180,6 +181,7 @@ export const projectOrganizationMemberships = pgTable(
     scopeDiscipline: char("scope_discipline", { length: 1 }),
     membershipStatus: membershipStatusEnum("membership_status").default("active").notNull(),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     projectOrgUnique: unique("project_org_memberships_project_org_unique").on(
@@ -267,6 +269,7 @@ export const projectUserMemberships = pgTable(
     notificationProfileOverride: text("notification_profile_override"),
     restrictionReason: text("restriction_reason"),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     projectUserOrgUnique: unique("project_user_memberships_project_user_org_unique").on(
@@ -351,6 +354,7 @@ export const milestones = pgTable(
     sortOrder: integer("sort_order").default(0).notNull(),
     visibilityScope: varchar("visibility_scope", { length: 60 }).default("project_wide").notNull(),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     projectIdx: index("milestones_project_idx").on(table.projectId),
@@ -425,6 +429,7 @@ export const milestoneDependencies = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    ...retention("project_record"),
   },
   (table) => ({
     // CPM disallows self-loops; enforced at the row level so direct

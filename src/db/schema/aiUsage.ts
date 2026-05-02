@@ -10,7 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { organizations, users } from "./identity";
 
 // -----------------------------------------------------------------------------
@@ -72,6 +72,7 @@ export const aiUsage = pgTable(
     // For failed calls — null on success.
     errorMessage: text("error_message"),
     ...timestamps,
+    ...retention("operational"),
   },
   (table) => ({
     orgCreatedIdx: index("ai_usage_org_created_idx").on(

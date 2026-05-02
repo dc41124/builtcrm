@@ -1,4 +1,5 @@
 import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { retention } from "./_shared";
 
 // Better Auth identity tables. Kept separate from the domain `users` table
 // so we can back-fill auth onto existing domain users via `appUserId`.
@@ -43,6 +44,7 @@ export const authTwoFactor = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    ...retention("auth_ephemeral"),
   },
   (t) => ({
     userIdx: index("two_factor_user_idx").on(t.userId),
@@ -69,6 +71,7 @@ export const authSession = pgTable(
     clientSubtype: text("client_subtype"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    ...retention("auth_ephemeral"),
   },
   (t) => ({
     userIdx: index("auth_session_user_idx").on(t.userId),
@@ -93,6 +96,7 @@ export const authAccount = pgTable(
     password: text("password"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    ...retention("auth_ephemeral"),
   },
   (t) => ({
     userIdx: index("auth_account_user_idx").on(t.userId),
@@ -106,4 +110,5 @@ export const authVerification = pgTable("auth_verification", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  ...retention("auth_ephemeral"),
 });

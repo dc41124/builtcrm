@@ -15,7 +15,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { organizations, users } from "./identity";
 import { projects } from "./projects";
 
@@ -308,6 +308,7 @@ export const safetyForms = pgTable(
     clientUuid: uuid("client_uuid"),
 
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     formNumberUnique: unique("safety_forms_form_number_unique").on(
@@ -414,6 +415,7 @@ export const safetyFormIncidents = pgTable(
       .notNull(),
     photoCount: integer("photo_count").notNull().default(0),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     severityIdx: index("safety_form_incidents_severity_idx").on(table.severity),

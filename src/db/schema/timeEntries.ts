@@ -15,7 +15,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { organizations, users } from "./identity";
 import { projects } from "./projects";
 
@@ -105,6 +105,7 @@ export const timeEntries = pgTable(
     clientUuid: uuid("client_uuid"),
 
     ...timestamps,
+    ...retention("statutory_construction"),
   },
   (table) => ({
     // One running entry per worker, enforced by Postgres. Partial unique
@@ -182,6 +183,7 @@ export const timeEntryAmendments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    ...retention("statutory_construction"),
   },
   (table) => ({
     entryCreatedIdx: index("time_entry_amendments_entry_created_idx").on(

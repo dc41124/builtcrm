@@ -8,6 +8,7 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+import { retention } from "./_shared";
 import { organizations, users } from "./identity";
 import { projects, visibilityScopeEnum } from "./projects";
 
@@ -46,6 +47,7 @@ export const activityFeedItems = pgTable(
     relatedObjectId: uuid("related_object_id"),
     visibilityScope: visibilityScopeEnum("visibility_scope").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    ...retention("operational"),
   },
   (table) => ({
     projectIdx: index("activity_feed_items_project_idx").on(table.projectId),
@@ -72,6 +74,14 @@ export const auditEvents = pgTable(
     nextState: jsonb("next_state"),
     metadataJson: jsonb("metadata_json"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    // Tier = operational (not statutory_construction) by deliberate
+    // decision: audit_events is the denormalized event log, not the
+    // regulatory record. Source rows (change_orders, lien_waivers,
+    // time_entries, payment_transactions, etc.) carry the 7-year
+    // statutory_construction floor on their own. See
+    // docs/specs/security_posture.md §6 for the original 90-day
+    // retention rationale.
+    ...retention("operational"),
   },
   (table) => ({
     actorIdx: index("audit_events_actor_idx").on(table.actorUserId),

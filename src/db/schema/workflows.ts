@@ -16,7 +16,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { organizations, users } from "./identity";
 import { projects, visibilityScopeEnum } from "./projects";
 import { documents } from "./documents";
@@ -113,6 +113,7 @@ export const uploadRequests = pgTable(
     relatedObjectId: uuid("related_object_id"),
     visibilityScope: visibilityScopeEnum("visibility_scope").notNull(),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     targetRequiredCheck: check(
@@ -194,6 +195,7 @@ export const complianceRecords = pgTable(
     // `detail`. Schema-free on purpose — extend without a migration.
     metadataJson: jsonb("metadata_json"),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     orgIdx: index("compliance_records_org_idx").on(table.organizationId),
@@ -273,6 +275,7 @@ export const rfis = pgTable(
     locationDescription: text("location_description"),
 
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     projectNumberUnique: unique("rfis_project_number_unique").on(
@@ -331,6 +334,7 @@ export const rfiResponses = pgTable(
     }),
     isOfficialResponse: boolean("is_official_response").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    ...retention("project_record"),
   },
   (table) => ({
     rfiIdx: index("rfi_responses_rfi_idx").on(table.rfiId),
@@ -385,6 +389,7 @@ export const changeOrders = pgTable(
     visibilityScope: varchar("visibility_scope", { length: 60 }).default("client_visible").notNull(),
 
     ...timestamps,
+    ...retention("statutory_construction"),
   },
   (table) => ({
     projectNumberUnique: unique("change_orders_project_number_unique").on(
@@ -468,6 +473,7 @@ export const approvals = pgTable(
       .notNull(),
 
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     projectNumberUnique: unique("approvals_project_number_unique").on(

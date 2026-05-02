@@ -11,7 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { organizations, users } from "./identity";
 
 // -----------------------------------------------------------------------------
@@ -84,6 +84,7 @@ export const apiKeys = pgTable(
     rateLimitPerMinute: integer("rate_limit_per_minute"),
     rateLimitPerHour: integer("rate_limit_per_hour"),
     ...timestamps,
+    ...retention("auth_ephemeral"),
   },
   (table) => ({
     orgCreatedIdx: index("api_keys_org_created_idx").on(

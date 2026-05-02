@@ -10,7 +10,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { organizations, users } from "./identity";
 
 // -----------------------------------------------------------------------------
@@ -52,6 +52,7 @@ export const savedReports = pgTable(
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
     nextRunAt: timestamp("next_run_at", { withTimezone: true }),
     ...timestamps,
+    ...retention("operational"),
   },
   (table) => ({
     orgIdx: index("saved_reports_organization_id_idx").on(table.organizationId),

@@ -16,7 +16,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { documents } from "./documents";
 import { organizations, users } from "./identity";
 import { projects } from "./projects";
@@ -174,6 +174,7 @@ export const inspections = pgTable(
     }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     projectNumberUnique: unique("inspections_project_number_unique").on(
@@ -249,6 +250,7 @@ export const inspectionResults = pgTable(
       .defaultNow()
       .notNull(),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     inspectionKeyUnique: unique("inspection_results_inspection_key_unique").on(
@@ -290,6 +292,7 @@ export const inspectionResultPhotos = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    ...retention("project_record"),
   },
   (table) => ({
     resultIdx: index("inspection_result_photos_result_idx").on(

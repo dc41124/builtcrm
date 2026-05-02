@@ -13,7 +13,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { users } from "./identity";
 import { projects } from "./projects";
 import { documents } from "./documents";
@@ -45,6 +45,7 @@ export const selectionCategories = pgTable(
     sortOrder: integer("sort_order").default(0).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     projectIdx: index("selection_categories_project_idx").on(table.projectId),
@@ -108,6 +109,7 @@ export const selectionItems = pgTable(
     }),
     sortOrder: integer("sort_order").default(0).notNull(),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     categoryIdx: index("selection_items_category_idx").on(table.categoryId),
@@ -169,6 +171,7 @@ export const selectionOptions = pgTable(
     unavailableReason: text("unavailable_reason"),
     sortOrder: integer("sort_order").default(0).notNull(),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     selectionItemIdx: index("selection_options_item_idx").on(table.selectionItemId),
@@ -209,6 +212,7 @@ export const selectionDecisions = pgTable(
     priceDeltaCents: integer("price_delta_cents").default(0).notNull(),
     scheduleDeltaDays: integer("schedule_delta_days").default(0).notNull(),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     selectionItemIdx: index("selection_decisions_item_idx").on(table.selectionItemId),

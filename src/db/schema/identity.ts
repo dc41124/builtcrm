@@ -16,7 +16,7 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 
 // Declared here (not in prequal.ts) so the column on `organizations` can
 // reference it without a circular import (identity ↔ prequal). prequal.ts
@@ -482,6 +482,7 @@ export const invitations = pgTable(
     scopeObjectType: varchar("scope_object_type", { length: 64 }),
     scopeObjectId: uuid("scope_object_id"),
     ...timestamps,
+    ...retention("auth_ephemeral"),
   },
   (table) => ({
     tokenHashUnique: unique("invitations_token_hash_unique").on(table.tokenHash),

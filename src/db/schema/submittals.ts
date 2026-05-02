@@ -15,7 +15,7 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { documents } from "./documents";
 import { organizations, users } from "./identity";
 import { projects } from "./projects";
@@ -121,6 +121,7 @@ export const submittals = pgTable(
       .defaultNow()
       .notNull(),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     projectNumberUnique: unique("submittals_project_number_unique").on(
@@ -206,6 +207,7 @@ export const submittalDocuments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    ...retention("project_record"),
   },
   (table) => ({
     submittalIdx: index("submittal_documents_submittal_idx").on(
@@ -258,6 +260,7 @@ export const submittalTransmittals = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    ...retention("project_record"),
   },
   (table) => ({
     submittalTimelineIdx: index("submittal_transmittals_submittal_idx").on(

@@ -10,7 +10,7 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { users } from "./identity";
 import { projects } from "./projects";
 import { documents } from "./documents";
@@ -39,6 +39,7 @@ export const conversations = pgTable(
     messageCount: integer("message_count").default(0).notNull(),
     visibilityScope: varchar("visibility_scope", { length: 60 }).default("project_wide").notNull(),
     ...timestamps,
+    ...retention("operational"),
   },
   (table) => ({
     projectIdx: index("conversations_project_idx").on(table.projectId),
@@ -62,6 +63,7 @@ export const conversationParticipants = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     lastReadAt: timestamp("last_read_at", { withTimezone: true }),
     joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
+    ...retention("operational"),
   },
   (table) => ({
     conversationUserUnique: unique("conversation_participants_conv_user_unique").on(
@@ -90,6 +92,7 @@ export const messages = pgTable(
     editedAt: timestamp("edited_at", { withTimezone: true }),
     isSystemMessage: boolean("is_system_message").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    ...retention("operational"),
   },
   (table) => ({
     conversationIdx: index("messages_conversation_idx").on(table.conversationId),

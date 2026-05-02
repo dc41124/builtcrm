@@ -15,7 +15,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { organizations, users } from "./identity";
 import { projects } from "./projects";
 
@@ -105,6 +105,7 @@ export const meetings = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     projectNumberUnique: unique("meetings_project_number_unique").on(
@@ -178,6 +179,7 @@ export const meetingAgendaItems = pgTable(
     estimatedMinutes: integer("estimated_minutes").default(5).notNull(),
     carriedFromMeetingId: uuid("carried_from_meeting_id"),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     meetingOrderIdx: index("meeting_agenda_items_meeting_order_idx").on(
@@ -245,6 +247,7 @@ export const meetingAttendees = pgTable(
     declineReason: text("decline_reason"),
     respondedAt: timestamp("responded_at", { withTimezone: true }),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     meetingIdx: index("meeting_attendees_meeting_idx").on(table.meetingId),
@@ -294,6 +297,7 @@ export const meetingMinutes = pgTable(
       onDelete: "set null",
     }),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     // Phase 4 wave 2 — nested under meetings.
@@ -344,6 +348,7 @@ export const meetingActionItems = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     meetingIdx: index("meeting_action_items_meeting_idx").on(table.meetingId),

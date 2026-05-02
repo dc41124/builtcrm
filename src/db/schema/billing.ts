@@ -14,7 +14,7 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { organizations, users } from "./identity";
 import { projects } from "./projects";
 import { documents } from "./documents";
@@ -112,6 +112,7 @@ export const billingPackages = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     ...timestamps,
+    ...retention("statutory_tax"),
   },
   (table) => ({
     projectNumberUnique: unique("billing_packages_project_number_unique").on(
@@ -171,6 +172,7 @@ export const scheduleOfValues = pgTable(
     }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     ...timestamps,
+    ...retention("statutory_construction"),
   },
   (table) => ({
     projectIdx: index("sov_project_idx").on(table.projectId),
@@ -222,6 +224,7 @@ export const sovLineItems = pgTable(
     sortOrder: integer("sort_order").default(0).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     ...timestamps,
+    ...retention("statutory_construction"),
   },
   (table) => ({
     sovIdx: index("sov_line_items_sov_idx").on(table.sovId),
@@ -289,6 +292,7 @@ export const drawRequests = pgTable(
     paymentReferenceName: varchar("payment_reference_name", { length: 255 }),
 
     ...timestamps,
+    ...retention("statutory_tax"),
   },
   (table) => ({
     projectDrawUnique: unique("draw_requests_project_draw_unique").on(
@@ -353,6 +357,7 @@ export const drawLineItems = pgTable(
     retainageCents: integer("retainage_cents").default(0).notNull(),
     retainagePercentApplied: integer("retainage_percent_applied").default(10).notNull(),
     ...timestamps,
+    ...retention("statutory_tax"),
   },
   (table) => ({
     drawSovUnique: unique("draw_line_items_draw_sov_unique").on(
@@ -411,6 +416,7 @@ export const lienWaivers = pgTable(
       onDelete: "set null",
     }),
     ...timestamps,
+    ...retention("statutory_construction"),
   },
   (table) => ({
     drawOrgTypeUnique: unique("lien_waivers_draw_org_type_unique").on(
@@ -494,6 +500,7 @@ export const retainageReleases = pgTable(
     // → projects in identity.ts.)
     releaseTriggerMilestoneId: uuid("release_trigger_milestone_id"),
     ...timestamps,
+    ...retention("statutory_construction"),
   },
   (table) => ({
     projectIdx: index("retainage_releases_project_idx").on(table.projectId),

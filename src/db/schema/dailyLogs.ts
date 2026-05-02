@@ -17,7 +17,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { documents } from "./documents";
 import { organizations, users } from "./identity";
 import { projects } from "./projects";
@@ -153,6 +153,7 @@ export const dailyLogs = pgTable(
     ),
 
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     // One log per project per day. Second submitter on the same day opens
@@ -264,6 +265,7 @@ export const dailyLogCrewEntries = pgTable(
     }),
 
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     // One crew entry per (project, date, sub-org). Prevents dup submissions.
@@ -330,6 +332,7 @@ export const dailyLogDelays = pgTable(
     hoursLost: numeric("hours_lost", { precision: 5, scale: 2 }).notNull(),
     impactedActivity: text("impacted_activity"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    ...retention("project_record"),
   },
   (table) => ({
     logIdx: index("daily_log_delays_log_idx").on(table.dailyLogId),
@@ -357,6 +360,7 @@ export const dailyLogIssues = pgTable(
     issueType: dailyLogIssueTypeEnum("issue_type").notNull(),
     description: text("description").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    ...retention("project_record"),
   },
   (table) => ({
     logIdx: index("daily_log_issues_log_idx").on(table.dailyLogId),
@@ -396,6 +400,7 @@ export const dailyLogPhotos = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    ...retention("project_record"),
   },
   (table) => ({
     logIdx: index("daily_log_photos_log_idx").on(table.dailyLogId),
@@ -459,6 +464,7 @@ export const dailyLogAmendments = pgTable(
     // been merged into the parent daily_logs row.
     appliedAt: timestamp("applied_at", { withTimezone: true }),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     logIdx: index("daily_log_amendments_log_idx").on(table.dailyLogId),

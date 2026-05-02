@@ -14,7 +14,7 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { organizations, users } from "./identity";
 import { projects } from "./projects";
 
@@ -132,6 +132,7 @@ export const integrationConnections = pgTable(
     connectedAt: timestamp("connected_at", { withTimezone: true }),
     disconnectedAt: timestamp("disconnected_at", { withTimezone: true }),
     ...timestamps,
+    ...retention("operational"),
   },
   (table) => ({
     orgIdx: index("integration_connections_org_idx").on(table.organizationId),
@@ -175,6 +176,7 @@ export const syncEvents = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     ...timestamps,
+    ...retention("operational"),
   },
   (table) => ({
     connectionIdx: index("sync_events_connection_idx").on(table.integrationConnectionId),
@@ -245,6 +247,7 @@ export const paymentTransactions = pgTable(
     receiptUrl: text("receipt_url"),
     note: text("note"),
     ...timestamps,
+    ...retention("statutory_tax"),
   },
   (table) => ({
     orgIdx: index("payment_transactions_org_idx").on(table.organizationId),
@@ -314,6 +317,7 @@ export const webhookEvents = pgTable(
     processedAt: timestamp("processed_at", { withTimezone: true }),
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
     ...timestamps,
+    ...retention("operational"),
   },
   (table) => ({
     orgIdx: index("webhook_events_org_idx").on(table.organizationId),

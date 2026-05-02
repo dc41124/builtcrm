@@ -14,7 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { organizations, users } from "./identity";
 
 // -----------------------------------------------------------------------------
@@ -160,6 +160,7 @@ export const dsarRequests = pgTable(
     // request may concern multiple projects or none at all.
     projectContext: varchar("project_context", { length: 200 }),
     ...timestamps,
+    ...retention("privacy_fulfillment"),
   },
   (table) => ({
     referenceCodeUnique: unique("dsar_requests_reference_code_unique").on(
@@ -242,6 +243,7 @@ export const consentRecords = pgTable(
     // displayed verbatim in the admin register.
     source: varchar("source", { length: 64 }).notNull(),
     ...timestamps,
+    ...retention("privacy_fulfillment"),
   },
   (table) => ({
     subjectIdentifier: check(
@@ -315,6 +317,7 @@ export const breachRegister = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     ...timestamps,
+    ...retention("privacy_fulfillment"),
   },
   (table) => ({
     referenceCodeUnique: unique("breach_register_reference_code_unique").on(
@@ -369,6 +372,7 @@ export const breachNotificationDrafts = pgTable(
       onDelete: "set null",
     }),
     ...timestamps,
+    ...retention("privacy_fulfillment"),
   },
   (table) => ({
     breachIdx: index("breach_notification_drafts_breach_idx").on(

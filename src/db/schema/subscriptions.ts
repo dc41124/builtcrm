@@ -12,7 +12,7 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { organizations } from "./identity";
 
 // -----------------------------------------------------------------------------
@@ -72,6 +72,7 @@ export const stripeCustomers = pgTable(
       .unique(),
     email: varchar("email", { length: 320 }).notNull(),
     ...timestamps,
+    ...retention("statutory_tax"),
   },
   (table) => ({
     tenantIsolation: pgPolicy("stripe_customers_tenant_isolation", {
@@ -122,6 +123,7 @@ export const organizationSubscriptions = pgTable(
       .notNull(),
     canceledAt: timestamp("canceled_at", { withTimezone: true }),
     ...timestamps,
+    ...retention("statutory_tax"),
   },
   (table) => ({
     statusCheck: check(
@@ -163,6 +165,7 @@ export const subscriptionInvoices = pgTable(
     invoicePdfUrl: text("invoice_pdf_url"),
     paidAt: timestamp("paid_at", { withTimezone: true }),
     ...timestamps,
+    ...retention("statutory_tax"),
   },
   (table) => ({
     subscriptionIdx: index("subscription_invoices_subscription_idx").on(

@@ -13,7 +13,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { documents } from "./documents";
 import { users } from "./identity";
 import { projects } from "./projects";
@@ -67,6 +67,7 @@ export const transmittals = pgTable(
     }),
     sentAt: timestamp("sent_at", { withTimezone: true }),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     projectNumberUnique: unique("transmittals_project_number_unique").on(
@@ -157,6 +158,7 @@ export const transmittalRecipients = pgTable(
     }),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     transmittalIdx: index("transmittal_recipients_transmittal_idx").on(
@@ -209,6 +211,7 @@ export const transmittalDocuments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    ...retention("project_record"),
   },
   (table) => ({
     transmittalIdx: index("transmittal_documents_transmittal_idx").on(
@@ -248,6 +251,7 @@ export const transmittalAccessEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    ...retention("project_record"),
   },
   (table) => ({
     recipientIdx: index("transmittal_access_events_recipient_idx").on(

@@ -15,7 +15,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-import { timestamps } from "./_shared";
+import { retention, timestamps } from "./_shared";
 import { documents } from "./documents";
 import { organizations, users } from "./identity";
 import { inspectionResults, inspections } from "./inspections";
@@ -120,6 +120,7 @@ export const punchItems = pgTable(
     ),
     sourceInspectionResultId: uuid("source_inspection_result_id"),
     ...timestamps,
+    ...retention("project_record"),
   },
   (table) => ({
     projectNumberUnique: unique("punch_items_project_number_unique").on(
@@ -195,6 +196,7 @@ export const punchItemPhotos = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    ...retention("project_record"),
   },
   (table) => ({
     itemIdx: index("punch_item_photos_item_idx").on(table.punchItemId),
@@ -229,6 +231,7 @@ export const punchItemComments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    ...retention("project_record"),
   },
   (table) => ({
     itemIdx: index("punch_item_comments_item_idx").on(table.punchItemId),
