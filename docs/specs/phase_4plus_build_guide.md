@@ -4480,7 +4480,7 @@ Phase 8-lite done. Programmatic access surface + gallery shipped. Clickthrough: 
 
 ---
 
-# Phase 9-lite — Canadian Compliance
+# Phase 9-lite — Canadian Compliance  
 
 **Target:** Weeks 18–22 of Phase 4+. Optional based on your appetite.
 
@@ -4490,7 +4490,7 @@ Phase 8-lite done. Programmatic access surface + gallery shipped. Clickthrough: 
 
 ---
 
-## Step 65 — Law 25 Privacy Officer Surface
+## Step 65 — Law 25 Privacy Officer Surface ✅ Done (Sessions A + B + C, 2026-05-01)
 
 **Status:** ✅ Done (Sessions A + B + C, 2026-05-01)
 **Mode:** Require-design-input
@@ -4669,9 +4669,13 @@ This is also the precondition for Step 67 (T5018) and Step 68 (Ontario prompt-pa
 | `operational` | 90 days from last activity | Yes — org can shorten down to 30-day floor | `messages`, `conversations`, `attachments`, `notifications`, `activity_feed`, `presence` |
 | `auth_ephemeral` | Expiry + 7 days | No | `sessions`, `auth_tokens`, `password_reset_tokens`, `magic_links` |
 | `privacy_fulfillment` | 30 days post-fulfillment for ID docs; 7 years for breach records; consent rolls up annually | Mixed (per row type) | `dsar_requests` (ID uploads only), `breach_notifications`, superseded `privacy_consents` |
+| `contract_signature_audit` | 10 years from signature | No | E-signature audit rows (IP, UA, content hash, signature canvas blob) — Step 76 onward |
+| `design_archive` | Forever | No | BIM/IFC files, as-built drawing snapshots — Step 83 onward (if shipped) |
 | `reference` | Forever | No | Lookup tables, `consent_catalog` versions, jurisdictions, holiday calendars |
 
 `legal_hold = true` overrides every tier above and pauses scheduled deletion. Required for SOC 2 P4 + active dispute defense.
+
+The two new tiers (`contract_signature_audit`, `design_archive`) are added now to avoid re-opening this migration when Steps 76 and 83 land. See the **Forward-table classification** addendum below for the full mapping.
 
 ### Tell Claude Code:
 
@@ -4689,6 +4693,8 @@ This is also the precondition for Step 67 (T5018) and Step 68 (Ontario prompt-pa
 >    - Operational: `last_activity_at + interval '90 days'`, refreshed on each touch
 >    - Auth ephemeral: `expires_at + interval '7 days'`
 >    - Privacy fulfillment: per-row, set when DSAR/breach reaches terminal state
+>    - Contract signature audit: `signed_at + interval '10 years'`, populated at insert
+>    - Design archive: null (forever)
 > 4. The R2 cleanup phase: any row holding an R2 object key needs the cleanup job to delete the object after the DB commit. Object-orphan sweep also runs nightly (R2 objects with no live DB reference older than 7 days).
 > 5. The `users` anonymization path: when a user requests Law 25 erasure, run a tombstone update (replace name/email/phone with hashed placeholders, keep the row + audit_log FKs intact) rather than DELETE. Do not cascade.
 >
@@ -4729,11 +4735,114 @@ This is also the precondition for Step 67 (T5018) and Step 68 (Ontario prompt-pa
 - Sub/client portals cannot reach the retention settings route
 - `npm run build && npm run lint && npm run test` clean
 
+### Forward-table classification addendum (Steps 67–83 lookahead)
+
+This is the result of a forward scan over the remaining build guide. When each step lands, it MUST set `retention_class` on every new table at insert time. No re-opening this migration to backfill a missed table.
+
+**`statutory_tax` (6yr CRA floor):**
+- Step 67: `tax_slips` (T5018 generated slips + recipient SIN/BN — encrypted at rest)
+- Step 68: `holdback_ledger` (10% holdback accrual + annual release tracking)
+
+**`statutory_construction` (7yr ON/QC, 6yr elsewhere):**
+- Step 68: `proper_invoices`, `payment_timers`, `notices_of_non_payment` (Ontario Construction Act prompt-payment engine)
+- Step 69: `qc_attestations` (Quebec CCQ/ARQ attestation capture + PDF)
+
+**`project_record` (2yr post-closeout):**
+- Step 72: `project_warranty_periods`, `warranty_requests` + photos
+- Step 73: specifications (uses existing `documents` — no new table, but rows produced here inherit project-record class)
+- Step 75: walkthrough punch items (extends existing `punch_list`)
+- Step 83: `drawing_models` (BIM as project record; the IFC blob itself goes to `design_archive` — see below)
+
+**`contract_signature_audit` (10yr — NEW TIER, added pre-emptively):**
+- Step 76: `proposal_signatures` (canvas blob + IP + UA + content hash + timestamp)
+- Step 80: any signature rows produced by the unified e-sign + payment flow inherit this tier
+
+**`design_archive` (forever — NEW TIER, added pre-emptively):**
+- Step 83: BIM/IFC files (as-built archive — design provenance, not retention-deletable)
+
+**`reference` (forever):**
+- Step 70/71: i18n message catalogs (config, not data — only listed for completeness)
+- Step 78/82: stakeholder role catalog additions (lookup-table extensions)
+
+**`auth_ephemeral` (expiry+7d):**
+- Step 76: `proposal_access_tokens` (short-lived guest tokens for prospective homeowners reviewing proposals)
+- Step 78/82: any guest-access tokens for architects/owners/tenants
+
+**`operational` (90d default, 30d floor):**
+- Step 81: shareable progress card PNGs in `tmp/` R2 prefix (not the underlying milestone — the share artifact)
+
+**Steps that produce no new tables (pure aggregation/UI):**
+- 70 (i18n plumbing — config), 71 (fr-CA strings), 74 (allowance widget), 77 (photo journal — reuses photos), 79 (decision log — union view), 80 (combines existing flows; sigs inherit Step 76's tier), 81 (extends milestones), 82 (extends Step 78 roles).
+
+**Open flags for the user to confirm before 66.5 implementation:**
+1. **Step 76 e-signature retention.** Is 10 years correct, or align to provincial statute of limitations (6yr ON, 3yr QC)? 10yr is the most conservative floor and avoids per-jurisdiction logic. Recommendation: keep 10yr.
+2. **Step 83 BIM scope.** BIM is deferred V2 in the guide. If it never ships, `design_archive` tier exists but is unused — harmless. If it ships, the IFC blob in R2 is forever-retained and the `drawing_models` row is `project_record`. Recommendation: add the tier now anyway.
+3. **R2 object key columns.** The retention sweep needs to know which columns hold R2 keys to drive the cleanup phase. Recommendation: add a `r2_object_columns` registry in `src/lib/retention/r2-registry.ts` listing `{ table, column, prefix }` triples — easier to maintain than a per-table flag.
+
 ### Commit:
 
 ```bash
 git add .
 git commit -m "Step 66.5 (9-lite.1 #66.5): data retention + deletion infrastructure"
+```
+
+---
+
+## Step 66.6 — Unified Retention Sweep + Project-Closeout Backfill
+
+**Mode:** Require-design-input
+**Item:** 9-lite.1 #66.6
+**Effort:** M
+**Priority:** P1
+**Precondition:** Step 66.5 shipped (schema layer, tier helpers, R2 registry, admin UI).
+
+### What this does
+
+Step 66.5 deliberately scoped Option C: schema columns + `legal_hold` enforcement on the 6 existing per-table purges + read-only admin UI + docs. The remaining pieces — actual scheduled deletion for tiers other than `operational`, and the project-closeout cascade that populates `retention_until` on child rows — land here.
+
+### Tell Claude Code:
+
+> Re-read [retention_policy.md](retention_policy.md) and the Step 66.5 implementation in `src/lib/retention/`, the existing per-table purge jobs in `src/jobs/`, and the admin UI at `/contractor/settings/privacy/retention`.
+>
+> Propose, in this order:
+>
+> 1. Project-closeout hook. Find where `projects.closed_at` gets set today (likely in a closeout package finalization action). When that fires, run a transactional cascade that walks the project's child rows on every `statutory_construction` and `project_record` table and computes `retention_until` via `computeCloseoutRetentionUntil(tier, closedAt)` from `src/lib/retention/tiers.ts`. Use a single batch UPDATE per child table with a join filter on the project. Writes one `retention.closeout_backfill` audit event with table-by-table row counts.
+> 2. Unified `retention-sweep` Trigger.dev job, scheduled daily after the existing 04:00–04:45 purges (try 05:30 UTC). Phases:
+>    a. **DB delete phase** — for every retention-enabled table that does NOT already have a dedicated purge job (so: every table OUTSIDE the operational tier, plus operational tables not covered by the 6 existing jobs), find rows where `retention_until < now() AND legal_hold = false AND deleted_at IS NULL` (where `deleted_at` exists). Hard-delete in batches of 500 per table. Idempotent.
+>    b. **R2 cleanup phase** — already handled by the existing `r2_orphan_queue` triggers; this phase is a no-op except for the orphan sweep which already runs at 04:45. Confirm the `r2-registry.ts` is just informational, not the cleanup driver.
+>    c. **Daily summary audit event** — `retention-sweep.run_complete` with per-table delete counts, per-tier totals, errors.
+> 3. Update the admin UI at `/contractor/settings/privacy/retention`:
+>    - Add `retention-sweep` to the recent-sweep activity feed (it already matches the `*-purge` / `*-cleanup` action filter — verify).
+>    - Add a "Retention by tier" panel showing row counts per tier with `retention_until IS NOT NULL`, `retention_until < now()`, and `legal_hold = true`.
+>    - Add the legal-hold management form: select scope (organization, project, table) → set/release hold → writes one `retention.legal_hold.{set,released}` audit event per affected table. UPDATE statements use the org/project filter to walk the join chains.
+> 4. Add per-org operational tier override to the admin UI: shorten the operational default from 90 days to as low as 30 days. Stored on `organizations` (small schema nudge — flag it). The 6 existing operational purges read this value at job start.
+>
+> **Universal stop-and-ask: schema nudge for the org-level retention override.**
+>
+> After confirmation:
+>
+> 1. Migration adding `operational_retention_days` (integer, nullable) to `organizations`.
+> 2. Project-closeout hook + cascade.
+> 3. `retention-sweep.ts` job.
+> 4. Admin UI updates: tier-stats panel, legal-hold form, operational override input.
+> 5. Documentation: update [retention_policy.md](retention_policy.md) "Pending in Step 66.6" section to reflect what shipped, add a "Sweep operations" section. Update [security_posture.md §6 "Tier-classified retention infrastructure"](security_posture.md) to mark the residual closed.
+
+### What to check
+
+- Setting `projects.closed_at` populates `retention_until` on every project-scoped child row in `statutory_construction` and `project_record` tiers.
+- A row with `retention_until` in the past and `legal_hold = true` is NOT deleted by the unified sweep.
+- A row with `retention_until` in the past and `legal_hold = false` IS deleted.
+- The 6 existing operational purges still respect the org override (when set, they use `org.operational_retention_days` instead of the hardcoded 90).
+- Setting an org-wide hold via the admin UI updates `legal_hold = true` on every retention-enabled table for rows scoped to that org.
+- Releasing a hold flips them back.
+- Admin UI denies access to non-officer roles.
+- `npm run build && npm run lint && npm run test` clean.
+
+### Commit:
+
+```bash
+git add .
+git commit -m "Step 66.6 (9-lite.1 #66.6): unified retention sweep + closeout backfill"
 ```
 
 ---

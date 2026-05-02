@@ -180,6 +180,22 @@ All three follow the `webhook-payload-purge.ts` pattern, write a `*-purge.run_co
 
 **Residual:** 90 days of deep audit-event history is the dial — incident look-back longer than that requires a different retention number. The `audit-event-purge.run_complete` rows themselves form a self-witnessing log of the purge job.
 
+### Tier-classified retention infrastructure (Step 66.5)
+**Status:** RESOLVED partial (2026-05-01). Schema layer + `legal_hold` enforcement on all 6 existing operational purges + admin surface shipped. Unified sweep + project-closeout backfill defer to Step 66.6.
+
+**What landed:**
+- New `retention_class` enum + `retention_class` / `retention_until` / `legal_hold` columns on every in-scope table (96 tables across 33 schema files, applied via the [`retention()` helper](../../src/db/schema/_shared.ts)). Migration `0056_aromatic_mantis.sql`.
+- All six existing daily purge jobs (`activity-feed-purge`, `audit-event-purge`, `data-export-cleanup`, `notification-purge`, `integration-sync-event-cleanup`, `webhook-payload-purge`) now `AND eq(table.legalHold, false)` into their delete predicates. Rows under hold are preserved regardless of age.
+- Admin read-only surface at `/contractor/settings/privacy/retention` — tier table, per-job pending/held counts, recent sweep activity from `audit_events`. Contractor-admin gated. See [retention_policy.md](retention_policy.md) for the canonical tier table.
+- `audit_events` re-tiered from `statutory_construction` → `operational` (deliberate; the 7yr ON/QC floor lives on the source rows, not the denormalized event log). Migration `0057_giant_silvermane.sql` + backfill UPDATE.
+- New tiers added pre-emptively: `contract_signature_audit` (10yr, future Step 76 e-sigs) and `design_archive` (forever, future Step 83 BIM) — present in the enum and the schema but no rows yet.
+
+**Why partial today:** the codebase already has 6 working per-table purge jobs that pre-date the tier system. Building a parallel unified sweep would have meant rewriting tested code; the lower-risk path is to (a) close the legal_hold gap on the existing jobs now and (b) build the unified sweep + closeout backfill for tables that don't have a dedicated job in Step 66.6.
+
+**Residual:** statutory, project_record, design_archive, privacy_fulfillment, contract_signature_audit tiers have no scheduled deletion path yet — `retention_until` is null on those rows. Acceptable: most of those tiers are 7yr+ floors that aren't load-bearing today.
+
+**Plan source:** [retention_policy.md](retention_policy.md) (canonical tier table + regulatory anchors), [phase_4plus_build_guide.md Step 66.5 + 66.6](phase_4plus_build_guide.md).
+
 ### `messages` retention
 **Status:** open — purge intentionally not implemented.
 **Why deferred:** messages are real user content with long-tail PM value (RFI threads, change-order discussions become part of the project record). The `conversations` table has no `closed`/`archived` state, only `last_message_at`, so there's no clean predicate for "this conversation is settled, its messages can age out." The 90d webhook precedent doesn't apply to user-generated content.
