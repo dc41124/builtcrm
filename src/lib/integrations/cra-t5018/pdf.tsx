@@ -1,7 +1,12 @@
-import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
-import { renderToBuffer } from "@react-pdf/renderer";
+import {
+  Document,
+  Page,
+  StyleSheet,
+  Text,
+  View,
+  renderToBuffer,
+} from "@react-pdf/renderer";
 import type { ReactElement } from "react";
-import * as React from "react";
 
 // Step 67 — Per-sub T5018 PDF slip generator.
 //
