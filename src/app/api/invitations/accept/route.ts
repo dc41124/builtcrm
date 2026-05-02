@@ -20,9 +20,18 @@ import { checkPrequalForAssignment } from "@/domain/prequal";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { hashInvitationToken } from "@/lib/invitations/token";
 import { enforceLimit, inviteLimiter } from "@/lib/ratelimit";
+import { recordSignupConsents } from "@/domain/privacy/consents";
+import { ALL_CONSENT_KEYS } from "@/lib/privacy/consent-catalog";
+
+const ConsentTypeSchema = z.enum(ALL_CONSENT_KEYS as never as [string, ...string[]]);
 
 const BodySchema = z.object({
   token: z.string().min(1),
+  // Step 65 Session C — consent checklist captured during signup. Required
+  // consents are always granted by the helper; this map only carries the
+  // user's optional toggles. Older clients can omit it; the helper falls
+  // back to catalog defaults.
+  optionalConsents: z.record(ConsentTypeSchema, z.boolean()).optional(),
 });
 
 // Thrown inside the accept transaction when prequal enforcement is set to
@@ -68,6 +77,9 @@ export async function POST(req: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: "invalid_body" }, { status: 400 });
     }
+    const optionalConsents = parsed.data.optionalConsents as
+      | Record<string, boolean>
+      | undefined;
 
     // Pre-tenant token lookup — orgId not yet known. Admin pool
     // bypasses RLS on invitations.
@@ -286,6 +298,28 @@ export async function POST(req: Request) {
           roleKey: invitation.roleKey,
           projectId: invitation.projectId,
         },
+      });
+
+      // Step 65 Session C — write the consent checklist captured at
+      // signup. Required consents are always granted; optional consents
+      // honor the user's toggles (or catalog defaults when absent). One
+      // row per consent type, all inside this same accept transaction so
+      // a failure rolls everything back together.
+      await recordSignupConsents({
+        organizationId: invitation.organizationId,
+        userId: appUserId,
+        acceptedOptional: optionalConsents ?? {},
+        source: "signup_form",
+        tx,
+      });
+      await tx.insert(auditEvents).values({
+        actorUserId: appUserId,
+        projectId: invitation.projectId,
+        organizationId: invitation.organizationId,
+        objectType: "user",
+        objectId: appUserId,
+        actionName: "privacy.consent.signup_recorded",
+        metadataJson: { optionalConsents: optionalConsents ?? null },
       });
 
       return {

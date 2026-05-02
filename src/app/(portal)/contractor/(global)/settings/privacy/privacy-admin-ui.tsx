@@ -1,27 +1,39 @@
 "use client";
 
-// Step 65 Session B — Privacy Officer admin UI.
+// Step 65 Sessions B+C — Privacy Officer admin UI.
 //
-// Direct port of View 01 of `builtcrm_privacy_officer_law25_paired.jsx`,
-// minus the consent register and breach register tabs (those land in
-// Session C). Tabs in this file: only "DSAR queue" for now.
+// Direct port of View 01 of `builtcrm_privacy_officer_law25_paired.jsx`.
+// Three tabs:
+//   - DSAR queue (Session B)
+//   - Consent register (Session C)
+//   - Breach register (Session C)
 //
 // Contractor admins can:
-//   - Designate or change the Privacy Officer (officer picker modal)
+//   - Designate or change the Privacy Officer
 //   - Triage DSAR rows (drawer with assign / status / notes / project)
+//   - Browse the consent register (read-only — toggles live in the
+//     end-user manager; admins look but don't impersonate)
+//   - Log new breaches, classify severity, update notify decision,
+//     stamp CAI flag (informational), generate per-subject draft emails
 //
-// Mutations hit:
-//   PUT  /api/contractor/privacy/officer
+// Mutations:
+//   PUT   /api/contractor/privacy/officer
 //   PATCH /api/contractor/privacy/dsar/[id]
+//   POST  /api/contractor/privacy/breach
+//   PATCH /api/contractor/privacy/breach/[id]
+//   POST  /api/contractor/privacy/breach/[id]/drafts
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import type {
+  BreachRegisterRow,
   DsarRequestRow,
   PrivacyAdminView,
   PrivacyOfficerCandidate,
 } from "@/domain/loaders/privacy";
+import type { ConsentRegisterRow } from "@/domain/privacy/consents";
+import { CONSENT_CATALOG } from "@/lib/privacy/consent-catalog";
 
 const F = {
   display: "'DM Sans',system-ui,sans-serif",
@@ -31,6 +43,7 @@ const F = {
 
 type StatusFilter = "all" | "received" | "in_progress" | "completed" | "rejected";
 type TypeFilter = "all" | "access" | "deletion" | "rectification" | "portability";
+type AdminTab = "dsar" | "consents" | "breaches";
 
 const REQUEST_TYPE_LABEL = {
   access: "Access",
@@ -54,10 +67,13 @@ export function PrivacyAdminUI({
   currentUserId: string;
 }) {
   const router = useRouter();
+  const [adminTab, setAdminTab] = useState<AdminTab>("dsar");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [openDsar, setOpenDsar] = useState<DsarRequestRow | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [openBreach, setOpenBreach] = useState<BreachRegisterRow | null>(null);
+  const [logBreachOpen, setLogBreachOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -163,14 +179,17 @@ export function PrivacyAdminUI({
         </div>
       </div>
 
-      {/* Section header */}
-      <div style={{ borderBottom: "1px solid var(--s3)", marginBottom: 18 }}>
-        <h2 style={{ fontFamily: F.display, fontSize: 18, fontWeight: 740, color: "var(--t1)", letterSpacing: "-.018em", padding: "12px 0", margin: 0, borderBottom: "2px solid var(--ac)", display: "inline-block" }}>
+      {/* Tab strip */}
+      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--s3)", marginBottom: 18 }}>
+        <SubTab cur={adminTab === "dsar"} onClick={() => setAdminTab("dsar")} count={openCount}>
           DSAR queue
-          <span style={{ fontFamily: F.mono, fontSize: 11.5, fontWeight: 500, background: "var(--ac-s)", color: "var(--ac-t)", padding: "1px 7px", borderRadius: 999, marginLeft: 8 }}>
-            {openCount}
-          </span>
-        </h2>
+        </SubTab>
+        <SubTab cur={adminTab === "consents"} onClick={() => setAdminTab("consents")} count={view.consents.length}>
+          Consent register
+        </SubTab>
+        <SubTab cur={adminTab === "breaches"} onClick={() => setAdminTab("breaches")} count={view.breaches.length}>
+          Breach register
+        </SubTab>
       </div>
 
       {error && (
@@ -179,70 +198,84 @@ export function PrivacyAdminUI({
         </div>
       )}
 
-      {/* Filter bar */}
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "12px 14px", background: "var(--s1)", border: "1px solid var(--s3)", borderRadius: 10, marginBottom: 14 }}>
-        <FilterPill cur={statusFilter === "all"} onClick={() => setStatusFilter("all")}>All</FilterPill>
-        <FilterPill cur={statusFilter === "received"} onClick={() => setStatusFilter("received")}>Received</FilterPill>
-        <FilterPill cur={statusFilter === "in_progress"} onClick={() => setStatusFilter("in_progress")}>In progress</FilterPill>
-        <FilterPill cur={statusFilter === "completed"} onClick={() => setStatusFilter("completed")}>Completed</FilterPill>
-        <FilterPill cur={statusFilter === "rejected"} onClick={() => setStatusFilter("rejected")}>Rejected</FilterPill>
-        <span style={{ width: 1, height: 20, background: "var(--s3)" }} />
-        <FilterPill cur={typeFilter === "all"} onClick={() => setTypeFilter("all")}>All types</FilterPill>
-        <FilterPill cur={typeFilter === "access"} onClick={() => setTypeFilter("access")}>Access</FilterPill>
-        <FilterPill cur={typeFilter === "deletion"} onClick={() => setTypeFilter("deletion")}>Deletion</FilterPill>
-        <FilterPill cur={typeFilter === "rectification"} onClick={() => setTypeFilter("rectification")}>Rectification</FilterPill>
-        <FilterPill cur={typeFilter === "portability"} onClick={() => setTypeFilter("portability")}>Portability</FilterPill>
-      </div>
-
-      {/* Table */}
-      <div style={{ background: "var(--s1)", border: "1px solid var(--s3)", borderRadius: 14, overflow: "hidden" }}>
-        {dsarsFiltered.length === 0 ? (
-          <div style={{ padding: "48px 24px", textAlign: "center" }}>
-            <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 680, color: "var(--t1)", marginBottom: 5 }}>
-              No matching requests
-            </div>
-            <div style={{ fontSize: 13, color: "var(--t2)", maxWidth: 360, margin: "0 auto" }}>
-              Adjust the filters or wait for new submissions from /privacy/dsar.
-            </div>
+      {adminTab === "dsar" && (
+        <>
+          {/* Filter bar */}
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "12px 14px", background: "var(--s1)", border: "1px solid var(--s3)", borderRadius: 10, marginBottom: 14 }}>
+            <FilterPill cur={statusFilter === "all"} onClick={() => setStatusFilter("all")}>All</FilterPill>
+            <FilterPill cur={statusFilter === "received"} onClick={() => setStatusFilter("received")}>Received</FilterPill>
+            <FilterPill cur={statusFilter === "in_progress"} onClick={() => setStatusFilter("in_progress")}>In progress</FilterPill>
+            <FilterPill cur={statusFilter === "completed"} onClick={() => setStatusFilter("completed")}>Completed</FilterPill>
+            <FilterPill cur={statusFilter === "rejected"} onClick={() => setStatusFilter("rejected")}>Rejected</FilterPill>
+            <span style={{ width: 1, height: 20, background: "var(--s3)" }} />
+            <FilterPill cur={typeFilter === "all"} onClick={() => setTypeFilter("all")}>All types</FilterPill>
+            <FilterPill cur={typeFilter === "access"} onClick={() => setTypeFilter("access")}>Access</FilterPill>
+            <FilterPill cur={typeFilter === "deletion"} onClick={() => setTypeFilter("deletion")}>Deletion</FilterPill>
+            <FilterPill cur={typeFilter === "rectification"} onClick={() => setTypeFilter("rectification")}>Rectification</FilterPill>
+            <FilterPill cur={typeFilter === "portability"} onClick={() => setTypeFilter("portability")}>Portability</FilterPill>
           </div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                {["Reference", "Requester", "Type", "Received", "SLA", "Status", "Assigned"].map((h) => (
-                  <th key={h} style={thStyle}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {dsarsFiltered.map((d) => (
-                <tr
-                  key={d.id}
-                  onClick={() => setOpenDsar(d)}
-                  style={{ cursor: "pointer", borderTop: "1px solid var(--s3)", transition: "background 120ms" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--sh)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                >
-                  <td style={tdStyle}><span style={{ fontFamily: F.mono, fontSize: 12, color: "var(--t2)" }}>{d.referenceCode}</span></td>
-                  <td style={tdStyle}>
-                    <div style={{ fontWeight: 580 }}>{d.requesterName}</div>
-                    <div style={{ fontFamily: F.mono, fontSize: 11.5, color: "var(--t3)", marginTop: 1 }}>{d.requesterEmail}</div>
-                  </td>
-                  <td style={tdStyle}>
-                    <Pill tone="acc">{REQUEST_TYPE_LABEL[d.requestType]}</Pill>
-                  </td>
-                  <td style={{ ...tdStyle, color: "var(--t2)", fontSize: 12.5 }}>{formatDate(d.receivedAt)}</td>
-                  <td style={tdStyle}><SlaPill row={d} /></td>
-                  <td style={tdStyle}><StatusPill status={d.status} /></td>
-                  <td style={{ ...tdStyle, fontSize: 12.5, color: "var(--t2)" }}>
-                    {d.assignedToName ?? <span style={{ color: "var(--t3)" }}>Unassigned</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+
+          {/* Table */}
+          <div style={{ background: "var(--s1)", border: "1px solid var(--s3)", borderRadius: 14, overflow: "hidden" }}>
+            {dsarsFiltered.length === 0 ? (
+              <div style={{ padding: "48px 24px", textAlign: "center" }}>
+                <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 680, color: "var(--t1)", marginBottom: 5 }}>
+                  No matching requests
+                </div>
+                <div style={{ fontSize: 13, color: "var(--t2)", maxWidth: 360, margin: "0 auto" }}>
+                  Adjust the filters or wait for new submissions from /privacy/dsar.
+                </div>
+              </div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    {["Reference", "Requester", "Type", "Received", "SLA", "Status", "Assigned"].map((h) => (
+                      <th key={h} style={thStyle}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {dsarsFiltered.map((d) => (
+                    <tr
+                      key={d.id}
+                      onClick={() => setOpenDsar(d)}
+                      style={{ cursor: "pointer", borderTop: "1px solid var(--s3)", transition: "background 120ms" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--sh)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <td style={tdStyle}><span style={{ fontFamily: F.mono, fontSize: 12, color: "var(--t2)" }}>{d.referenceCode}</span></td>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight: 580 }}>{d.requesterName}</div>
+                        <div style={{ fontFamily: F.mono, fontSize: 11.5, color: "var(--t3)", marginTop: 1 }}>{d.requesterEmail}</div>
+                      </td>
+                      <td style={tdStyle}>
+                        <Pill tone="acc">{REQUEST_TYPE_LABEL[d.requestType]}</Pill>
+                      </td>
+                      <td style={{ ...tdStyle, color: "var(--t2)", fontSize: 12.5 }}>{formatDate(d.receivedAt)}</td>
+                      <td style={tdStyle}><SlaPill row={d} /></td>
+                      <td style={tdStyle}><StatusPill status={d.status} /></td>
+                      <td style={{ ...tdStyle, fontSize: 12.5, color: "var(--t2)" }}>
+                        {d.assignedToName ?? <span style={{ color: "var(--t3)" }}>Unassigned</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </>
+      )}
+
+      {adminTab === "consents" && <ConsentRegisterTable rows={view.consents} />}
+
+      {adminTab === "breaches" && (
+        <BreachRegisterTab
+          rows={view.breaches}
+          onLogNew={() => setLogBreachOpen(true)}
+          onOpen={(b) => setOpenBreach(b)}
+        />
+      )}
 
       {/* Drawer */}
       {openDsar && (
@@ -268,7 +301,608 @@ export function PrivacyAdminUI({
           onPick={designateOfficer}
         />
       )}
+
+      {/* Log new breach modal */}
+      {logBreachOpen && (
+        <LogBreachModal
+          pending={pending}
+          onClose={() => setLogBreachOpen(false)}
+          onSubmit={async (payload) => {
+            setError(null);
+            try {
+              const res = await fetch("/api/contractor/privacy/breach", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+              const json = await res.json().catch(() => null);
+              if (!res.ok || !json?.ok) {
+                setError(json?.message ?? "Could not log breach.");
+                return;
+              }
+              setLogBreachOpen(false);
+              startTransition(() => router.refresh());
+            } catch {
+              setError("Network error.");
+            }
+          }}
+        />
+      )}
+
+      {/* Breach drawer */}
+      {openBreach && (
+        <BreachDrawer
+          row={openBreach}
+          pending={pending}
+          onClose={() => setOpenBreach(null)}
+          onPatch={async (patch) => {
+            setError(null);
+            try {
+              const res = await fetch(`/api/contractor/privacy/breach/${openBreach.id}`, {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(patch),
+              });
+              const json = await res.json().catch(() => null);
+              if (!res.ok) {
+                setError(json?.message ?? "Could not update breach.");
+                return;
+              }
+              startTransition(() => router.refresh());
+            } catch {
+              setError("Network error.");
+            }
+          }}
+          onGenerateDrafts={async () => {
+            setError(null);
+            try {
+              const res = await fetch(
+                `/api/contractor/privacy/breach/${openBreach.id}/drafts`,
+                {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({}),
+                },
+              );
+              const json = await res.json().catch(() => null);
+              if (!res.ok || !json?.ok) {
+                setError(json?.message ?? "Could not generate drafts.");
+                return;
+              }
+              startTransition(() => router.refresh());
+            } catch {
+              setError("Network error.");
+            }
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Sub-tab strip + new tab content components
+// ──────────────────────────────────────────────────────────────────────
+
+function SubTab({
+  cur,
+  onClick,
+  count,
+  children,
+}: {
+  cur: boolean;
+  onClick: () => void;
+  count?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        all: "unset",
+        cursor: "pointer",
+        fontFamily: F.display,
+        fontSize: 13.5,
+        fontWeight: cur ? 700 : 600,
+        color: cur ? "var(--t1)" : "var(--t3)",
+        padding: "12px 18px",
+        borderBottom: cur ? "2px solid var(--ac)" : "2px solid transparent",
+        marginBottom: -1,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      {children}
+      {count !== undefined && (
+        <span
+          style={{
+            fontFamily: F.mono,
+            fontSize: 11,
+            fontWeight: 500,
+            background: cur ? "var(--ac-s)" : "var(--s2)",
+            color: cur ? "var(--ac-t)" : "var(--t2)",
+            padding: "1px 7px",
+            borderRadius: 999,
+          }}
+        >
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function ConsentRegisterTable({ rows }: { rows: ConsentRegisterRow[] }) {
+  const [scope, setScope] = useState<"all" | "active" | "revoked">("all");
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    return rows.filter((r) => {
+      if (scope === "active" && !r.granted) return false;
+      if (scope === "revoked" && r.granted) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        const subject = (r.subjectName ?? r.subjectEmail).toLowerCase();
+        if (!subject.includes(q) && !r.subjectEmail.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [rows, scope, search]);
+
+  return (
+    <>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "12px 14px", background: "var(--s1)", border: "1px solid var(--s3)", borderRadius: 10, marginBottom: 14 }}>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name or email…"
+          style={{ ...inputStyle, flex: "1 1 220px", maxWidth: 320, height: 32, padding: "5px 12px" }}
+        />
+        <FilterPill cur={scope === "all"} onClick={() => setScope("all")}>All</FilterPill>
+        <FilterPill cur={scope === "active"} onClick={() => setScope("active")}>Granted</FilterPill>
+        <FilterPill cur={scope === "revoked"} onClick={() => setScope("revoked")}>Revoked</FilterPill>
+      </div>
+      <div style={{ background: "var(--s1)", border: "1px solid var(--s3)", borderRadius: 14, overflow: "hidden" }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding: "48px 24px", textAlign: "center" }}>
+            <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 680, color: "var(--t1)", marginBottom: 5 }}>
+              No consent records yet
+            </div>
+            <div style={{ fontSize: 13, color: "var(--t2)", maxWidth: 360, margin: "0 auto" }}>
+              Records are written automatically as users grant or revoke consents on their preferences page.
+            </div>
+          </div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                {["Subject", "Consent type", "Status", "Granted", "Revoked", "Source"].map((h) => (
+                  <th key={h} style={thStyle}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={`${r.subjectKey}:${r.consentType}`} style={{ borderTop: "1px solid var(--s3)" }}>
+                  <td style={tdStyle}>
+                    <div style={{ fontWeight: 580 }}>{r.subjectName ?? r.subjectEmail}</div>
+                    <div style={{ fontFamily: F.mono, fontSize: 11.5, color: "var(--t3)", marginTop: 1 }}>{r.subjectEmail}</div>
+                  </td>
+                  <td style={{ ...tdStyle, fontWeight: 580 }}>{consentLabel(r.consentType)}</td>
+                  <td style={tdStyle}>
+                    {r.granted ? <Pill tone="ok">Granted</Pill> : <Pill tone="muted">Revoked</Pill>}
+                  </td>
+                  <td style={{ ...tdStyle, color: "var(--t2)", fontSize: 12.5 }}>{formatDate(r.grantedAt)}</td>
+                  <td style={{ ...tdStyle, color: "var(--t2)", fontSize: 12.5 }}>
+                    {r.revokedAt ? formatDate(r.revokedAt) : <span style={{ color: "var(--t3)" }}>—</span>}
+                  </td>
+                  <td style={tdStyle}>
+                    <span style={{ fontFamily: F.mono, fontSize: 11.5, background: "var(--s2)", color: "var(--t2)", padding: "2px 7px", borderRadius: 999 }}>
+                      {r.source}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  );
+}
+
+function consentLabel(key: string): string {
+  return CONSENT_CATALOG.find((c) => c.id === key)?.label ?? key;
+}
+
+function BreachRegisterTab({
+  rows,
+  onLogNew,
+  onOpen,
+}: {
+  rows: BreachRegisterRow[];
+  onLogNew: () => void;
+  onOpen: (b: BreachRegisterRow) => void;
+}) {
+  return (
+    <>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
+        <button onClick={onLogNew} style={btnPrimaryStyle}>
+          + Log new breach
+        </button>
+      </div>
+      <div style={{ background: "var(--s1)", border: "1px solid var(--s3)", borderRadius: 14, overflow: "hidden" }}>
+        {rows.length === 0 ? (
+          <div style={{ padding: "48px 24px", textAlign: "center" }}>
+            <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 680, color: "var(--t1)", marginBottom: 5 }}>
+              No breaches logged
+            </div>
+            <div style={{ fontSize: 13, color: "var(--t2)", maxWidth: 360, margin: "0 auto" }}>
+              Good. If something happens, log it within 72 hours of discovery — Law 25 requires it for incidents likely to cause serious harm.
+            </div>
+          </div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                {["Reference", "Severity", "Discovered", "Affected", "Notify", "CAI", "Status"].map((h) => (
+                  <th key={h} style={thStyle}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((b) => (
+                <tr
+                  key={b.id}
+                  onClick={() => onOpen(b)}
+                  style={{ cursor: "pointer", borderTop: "1px solid var(--s3)", transition: "background 120ms" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--sh)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <td style={tdStyle}><span style={{ fontFamily: F.mono, fontSize: 12, color: "var(--t2)" }}>{b.referenceCode}</span></td>
+                  <td style={tdStyle}>
+                    <Pill tone={severityTone(b.severity)}>{b.severity}</Pill>
+                  </td>
+                  <td style={{ ...tdStyle, color: "var(--t2)", fontSize: 12.5 }}>{formatDate(b.discoveredAt)}</td>
+                  <td style={tdStyle}>
+                    <div style={{ fontWeight: 660 }}>{b.affectedCount ?? "—"}</div>
+                    <div style={{ fontSize: 12, color: "var(--t3)" }}>{b.affectedDescription}</div>
+                  </td>
+                  <td style={{ ...tdStyle, color: "var(--t2)", fontSize: 12.5 }}>
+                    {b.draftCount > 0 ? `${b.draftsSent}/${b.draftCount} sent` : <span style={{ color: "var(--t3)" }}>No drafts</span>}
+                  </td>
+                  <td style={{ ...tdStyle, fontSize: 12.5 }}>
+                    {b.reportedToCaiAt ? (
+                      <Pill tone="info">{formatDate(b.reportedToCaiAt)}</Pill>
+                    ) : (
+                      <span style={{ color: "var(--t3)" }}>Not reported</span>
+                    )}
+                  </td>
+                  <td style={tdStyle}>
+                    {b.status === "closed" ? <Pill tone="ok">Closed</Pill> : <Pill tone="warn">Open</Pill>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  );
+}
+
+function severityTone(s: BreachRegisterRow["severity"]): "info" | "warn" | "danger" {
+  if (s === "low") return "info";
+  if (s === "medium") return "warn";
+  return "danger";
+}
+
+function LogBreachModal({
+  pending,
+  onClose,
+  onSubmit,
+}: {
+  pending: boolean;
+  onClose: () => void;
+  onSubmit: (payload: Record<string, unknown>) => Promise<void>;
+}) {
+  const [discoveredAt, setDiscoveredAt] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
+  const [occurredAt, setOccurredAt] = useState("");
+  const [severity, setSeverity] = useState<"low" | "medium" | "high" | "critical">("low");
+  const [affectedCount, setAffectedCount] = useState("");
+  const [affectedDescription, setAffectedDescription] = useState("");
+  const [dataTypesAffected, setDataTypesAffected] = useState("");
+  const [containmentActions, setContainmentActions] = useState("");
+
+  const canSubmit = !!discoveredAt && affectedDescription.trim().length > 0 && !pending;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(12,14,20,.5)", zIndex: 90, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "8vh 18px" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: "var(--s1)", borderRadius: 18, maxWidth: 640, width: "100%", overflow: "hidden", boxShadow: "var(--shmd)" }}
+      >
+        <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--s3)", display: "flex", alignItems: "start", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontFamily: F.display, fontSize: 17, fontWeight: 740, color: "var(--t1)", letterSpacing: "-.018em" }}>
+              Log new breach
+            </div>
+            <div style={{ fontSize: 12.5, color: "var(--t2)", marginTop: 3 }}>
+              Required within 72 hours of discovery if likely to cause serious harm
+            </div>
+          </div>
+          <button onClick={onClose} style={iconBtnStyle}>{IconX}</button>
+        </div>
+        <div style={{ padding: "18px 22px", display: "flex", flexDirection: "column", gap: 14, maxHeight: "62vh", overflowY: "auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <Field label="Discovered" required>
+              <input type="date" value={discoveredAt} onChange={(e) => setDiscoveredAt(e.target.value)} style={inputStyle} />
+            </Field>
+            <Field label="Occurred (estimated)">
+              <input type="date" value={occurredAt} onChange={(e) => setOccurredAt(e.target.value)} style={inputStyle} />
+            </Field>
+          </div>
+          <Field label="Severity" required>
+            <select value={severity} onChange={(e) => setSeverity(e.target.value as never)} style={inputStyle}>
+              <option value="low">Low — minimal risk of harm</option>
+              <option value="medium">Medium — moderate risk, contained</option>
+              <option value="high">High — serious risk, notify subjects</option>
+              <option value="critical">Critical — broad exposure, notify CAI</option>
+            </select>
+          </Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 14 }}>
+            <Field label="Subjects affected">
+              <input
+                type="number"
+                min={0}
+                value={affectedCount}
+                onChange={(e) => setAffectedCount(e.target.value)}
+                placeholder="Count"
+                style={inputStyle}
+              />
+            </Field>
+            <Field label="Description" required>
+              <input
+                value={affectedDescription}
+                onChange={(e) => setAffectedDescription(e.target.value)}
+                placeholder="e.g. 14 subcontractor users (one trade partner)"
+                style={inputStyle}
+              />
+            </Field>
+          </div>
+          <Field label="Data types affected" hint="(comma-separated)">
+            <input
+              value={dataTypesAffected}
+              onChange={(e) => setDataTypesAffected(e.target.value)}
+              placeholder="Email address, Phone number, Trade license"
+              style={inputStyle}
+            />
+          </Field>
+          <Field label="Containment actions" hint="Logged in audit trail.">
+            <textarea
+              rows={4}
+              value={containmentActions}
+              onChange={(e) => setContainmentActions(e.target.value)}
+              placeholder="What was done to contain the breach? Include timestamps where possible."
+              style={{ ...inputStyle, resize: "vertical", minHeight: 90, fontFamily: F.body }}
+            />
+          </Field>
+          <div style={{ display: "flex", gap: 12, padding: "12px 14px", background: "var(--in-s)", border: "1px solid var(--in-s)", borderRadius: 10 }}>
+            <div style={{ color: "var(--in-t)", flexShrink: 0, marginTop: 2 }}>{IconAlert}</div>
+            <div style={{ fontSize: 13, color: "var(--in-t)", lineHeight: 1.55 }}>
+              CAI notification is a manual step outside this product. Mark <strong>CAI reported</strong> on the breach row after you file with the Commission directly.
+            </div>
+          </div>
+        </div>
+        <div style={{ padding: "14px 22px", borderTop: "1px solid var(--s3)", background: "var(--s2)", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button onClick={onClose} style={btnGhostStyle}>Cancel</button>
+          <button
+            disabled={!canSubmit}
+            onClick={() =>
+              onSubmit({
+                discoveredAt: new Date(discoveredAt).toISOString(),
+                occurredAt: occurredAt ? new Date(occurredAt).toISOString() : null,
+                severity,
+                affectedCount: affectedCount ? Number(affectedCount) : null,
+                affectedDescription,
+                dataTypesAffected: dataTypesAffected
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+                containmentActions: containmentActions || null,
+              })
+            }
+            style={btnPrimaryStyle}
+          >
+            Log breach
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BreachDrawer({
+  row,
+  pending,
+  onClose,
+  onPatch,
+  onGenerateDrafts,
+}: {
+  row: BreachRegisterRow;
+  pending: boolean;
+  onClose: () => void;
+  onPatch: (patch: Record<string, unknown>) => Promise<void>;
+  onGenerateDrafts: () => Promise<void>;
+}) {
+  const [containment, setContainment] = useState(row.containmentActions ?? "");
+  const isOpen = row.status === "open";
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(12,14,20,.42)", zIndex: 80 }} />
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: 600,
+          maxWidth: "96vw",
+          background: "var(--s1)",
+          borderLeft: "1px solid var(--s3)",
+          zIndex: 81,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--s3)", display: "flex", alignItems: "start", justifyContent: "space-between", gap: 14 }}>
+          <div>
+            <div style={{ fontFamily: F.display, fontSize: 17, fontWeight: 740, color: "var(--t1)", letterSpacing: "-.018em" }}>
+              Breach {row.referenceCode}
+            </div>
+            <div style={{ fontSize: 12.5, color: "var(--t2)", marginTop: 3 }}>
+              Discovered {formatDate(row.discoveredAt)} · Logged by {row.loggedByName ?? "Unknown"}
+            </div>
+          </div>
+          <button onClick={onClose} style={iconBtnStyle}>{IconX}</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px" }}>
+          <DrawerRow label="Severity">
+            <select
+              value={row.severity}
+              onChange={(e) => onPatch({ severity: e.target.value })}
+              style={inputStyle}
+              disabled={!isOpen || pending}
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </DrawerRow>
+          <DrawerRow label="Affected">
+            <div>
+              <strong style={{ fontFamily: F.display }}>{row.affectedCount ?? "—"}</strong> · {row.affectedDescription}
+            </div>
+          </DrawerRow>
+          <DrawerRow label="Data types">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {row.dataTypesAffected.length === 0 ? (
+                <span style={{ color: "var(--t3)" }}>None recorded</span>
+              ) : (
+                row.dataTypesAffected.map((dt) => (
+                  <span key={dt} style={{ fontFamily: F.mono, fontSize: 11.5, background: "var(--s2)", color: "var(--t2)", padding: "2px 7px", borderRadius: 999 }}>
+                    {dt}
+                  </span>
+                ))
+              )}
+            </div>
+          </DrawerRow>
+          <DrawerRow label="Containment actions">
+            <textarea
+              value={containment}
+              onChange={(e) => setContainment(e.target.value)}
+              rows={4}
+              style={{ ...inputStyle, resize: "vertical", minHeight: 90 }}
+              disabled={!isOpen || pending}
+            />
+            {isOpen && containment !== (row.containmentActions ?? "") && (
+              <button
+                disabled={pending}
+                onClick={() => onPatch({ containmentActions: containment || null })}
+                style={{ ...btnSecondaryStyle, marginTop: 8 }}
+              >
+                Save containment notes
+              </button>
+            )}
+          </DrawerRow>
+          <DrawerRow label="Notify users">
+            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              {(["pending", "notify", "no_notify"] as const).map((d) => (
+                <button
+                  key={d}
+                  disabled={pending}
+                  onClick={() => onPatch({ notifyUsersDecision: d })}
+                  style={{
+                    ...btnSecondaryStyle,
+                    background:
+                      row.notifyUsersDecision === d ? "var(--ac-s)" : "var(--s2)",
+                    color:
+                      row.notifyUsersDecision === d ? "var(--ac-t)" : "var(--t1)",
+                    borderColor:
+                      row.notifyUsersDecision === d ? "var(--ac)" : "var(--s3)",
+                  }}
+                >
+                  {d === "pending" ? "Pending" : d === "notify" ? "Notify" : "Don't notify"}
+                </button>
+              ))}
+            </div>
+            {row.notifyUsersDecision === "notify" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 12.5, color: "var(--t2)" }}>
+                  {row.draftCount === 0
+                    ? "No drafts generated yet. Drafts go to all active org members and never auto-send — you review and mark each as sent after dispatching it externally."
+                    : `${row.draftsSent} of ${row.draftCount} drafts marked sent.`}
+                </div>
+                {row.draftCount === 0 && (
+                  <button disabled={pending} onClick={onGenerateDrafts} style={btnPrimaryStyle}>
+                    Generate drafts for all active members
+                  </button>
+                )}
+                {row.notifiedUsersAt ? (
+                  <div style={{ fontSize: 12, color: "var(--ok-t)" }}>
+                    User notification batch attested {formatDate(row.notifiedUsersAt)}
+                  </div>
+                ) : (
+                  <button
+                    disabled={pending}
+                    onClick={() => onPatch({ notifiedUsersAt: true })}
+                    style={btnSecondaryStyle}
+                  >
+                    Mark user notification complete
+                  </button>
+                )}
+              </div>
+            )}
+          </DrawerRow>
+          <DrawerRow label="CAI report">
+            {row.reportedToCaiAt ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Pill tone="info">Reported {formatDate(row.reportedToCaiAt)}</Pill>
+                <button disabled={pending} onClick={() => onPatch({ reportedToCaiAt: null })} style={btnGhostStyle}>
+                  Clear
+                </button>
+              </div>
+            ) : (
+              <button disabled={pending} onClick={() => onPatch({ reportedToCaiAt: true })} style={btnSecondaryStyle}>
+                Mark as reported to CAI
+              </button>
+            )}
+            <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 6, lineHeight: 1.5 }}>
+              Flag-only. The product does NOT transmit anything to the Commission. Set this after you file with the CAI directly.
+            </div>
+          </DrawerRow>
+        </div>
+        <div style={{ padding: "14px 22px", borderTop: "1px solid var(--s3)", background: "var(--s2)", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          {isOpen ? (
+            <button disabled={pending} onClick={() => onPatch({ status: "closed" })} style={btnPrimaryStyle}>
+              Close breach
+            </button>
+          ) : (
+            <button disabled={pending} onClick={() => onPatch({ status: "open" })} style={btnSecondaryStyle}>
+              Reopen
+            </button>
+          )}
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -628,6 +1262,29 @@ function OfficerPickerModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  required,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <label style={{ fontFamily: F.display, fontSize: 12, fontWeight: 620, color: "var(--t1)", letterSpacing: "-.005em" }}>
+        {label}
+        {required && <span style={{ color: "var(--dg)", marginLeft: 3 }}>*</span>}
+        {hint && <span style={{ fontSize: 12, color: "var(--t3)", fontWeight: 480, marginLeft: 6 }}>{hint}</span>}
+      </label>
+      {children}
     </div>
   );
 }

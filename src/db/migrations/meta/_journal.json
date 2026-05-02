@@ -386,6 +386,13 @@
       "when": 1777679510430,
       "tag": "0054_even_dreadnoughts",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1777685387118,
+      "tag": "0055_daily_starfox",
+      "breakpoints": true
     }
   ]
 }

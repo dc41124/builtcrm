@@ -8,7 +8,8 @@
 import { useState } from "react";
 import Link from "next/link";
 
-import { PrivacyShell, PRIVACY_F } from "@/components/privacy/privacy-shell";
+import { PrivacyShell } from "@/components/privacy/privacy-shell";
+import { PRIVACY_F } from "@/components/privacy/privacy-tokens";
 import {
   POLICY_VERSION,
   PUBLIC_PRIVACY_OFFICER,

@@ -3,12 +3,21 @@ import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { dbAdmin } from "@/db/admin-pool";
 import { withTenant } from "@/db/with-tenant";
 import {
+  breachNotificationDrafts,
+  breachRegister,
   dsarRequests,
   organizationUsers,
   privacyOfficers,
   roleAssignments,
   users,
 } from "@/db/schema";
+import {
+  getConsentHistoryForUser,
+  getLatestConsentsForUser,
+  listConsentRegister,
+} from "@/domain/privacy/consents";
+import type { ConsentRegisterRow } from "@/domain/privacy/consents";
+import type { ConsentTypeKey } from "@/lib/privacy/consent-catalog";
 
 // Step 65 Session B — privacy admin loader.
 //
@@ -62,12 +71,35 @@ export type DsarRequestRow = {
   daysRemaining: number;
 };
 
+export type BreachRegisterRow = {
+  id: string;
+  referenceCode: string;
+  discoveredAt: Date;
+  occurredAt: Date | null;
+  occurredAtNote: string | null;
+  severity: "low" | "medium" | "high" | "critical";
+  affectedCount: number | null;
+  affectedDescription: string;
+  dataTypesAffected: string[];
+  containmentActions: string | null;
+  notifyUsersDecision: "pending" | "notify" | "no_notify";
+  notifiedUsersAt: Date | null;
+  reportedToCaiAt: Date | null;
+  status: "open" | "closed";
+  closedAt: Date | null;
+  loggedByName: string | null;
+  draftCount: number;
+  draftsSent: number;
+};
+
 export type PrivacyAdminView = {
   organizationId: string;
   organizationName: string;
   officer: PrivacyOfficerView | null;
   candidates: PrivacyOfficerCandidate[];
   dsars: DsarRequestRow[];
+  consents: ConsentRegisterRow[];
+  breaches: BreachRegisterRow[];
   nowMs: number;
 };
 
@@ -215,12 +247,209 @@ export async function loadPrivacyAdminView(input: {
     daysRemaining: Math.ceil((r.slaDueAt.getTime() - now) / (24 * 60 * 60 * 1000)),
   }));
 
+  // Consent register — flattened latest row per (subject, consent_type).
+  // RLS-scoped read via withTenant so the policy enforces alongside the
+  // application-layer org filter inside the helper's SQL.
+  const consents = await withTenant(input.organizationId, (tx) =>
+    listConsentRegister({ organizationId: input.organizationId, tx }),
+  );
+
+  // Breach register + draft counters per breach.
+  const breachRows = await withTenant(input.organizationId, (tx) =>
+    tx
+      .select({
+        id: breachRegister.id,
+        referenceCode: breachRegister.referenceCode,
+        discoveredAt: breachRegister.discoveredAt,
+        occurredAt: breachRegister.occurredAt,
+        occurredAtNote: breachRegister.occurredAtNote,
+        severity: breachRegister.severity,
+        affectedCount: breachRegister.affectedCount,
+        affectedDescription: breachRegister.affectedDescription,
+        dataTypesAffected: breachRegister.dataTypesAffected,
+        containmentActions: breachRegister.containmentActions,
+        notifyUsersDecision: breachRegister.notifyUsersDecision,
+        notifiedUsersAt: breachRegister.notifiedUsersAt,
+        reportedToCaiAt: breachRegister.reportedToCaiAt,
+        status: breachRegister.status,
+        closedAt: breachRegister.closedAt,
+        loggedByName: users.displayName,
+        loggedByEmail: users.email,
+      })
+      .from(breachRegister)
+      .leftJoin(users, eq(users.id, breachRegister.loggedByUserId))
+      .where(eq(breachRegister.organizationId, input.organizationId))
+      .orderBy(desc(breachRegister.discoveredAt)),
+  );
+
+  // One small follow-up query for draft counters — saves a heavy
+  // GROUP BY join on the larger breach table.
+  const draftCounts = await withTenant(input.organizationId, (tx) =>
+    tx
+      .select({
+        breachId: breachNotificationDrafts.breachId,
+        status: breachNotificationDrafts.status,
+      })
+      .from(breachNotificationDrafts)
+      .where(eq(breachNotificationDrafts.organizationId, input.organizationId)),
+  );
+  const counts = new Map<string, { total: number; sent: number }>();
+  for (const d of draftCounts) {
+    const cur = counts.get(d.breachId) ?? { total: 0, sent: 0 };
+    cur.total += 1;
+    if (d.status === "sent") cur.sent += 1;
+    counts.set(d.breachId, cur);
+  }
+
+  const breaches: BreachRegisterRow[] = breachRows.map((b) => {
+    const c = counts.get(b.id) ?? { total: 0, sent: 0 };
+    return {
+      id: b.id,
+      referenceCode: b.referenceCode,
+      discoveredAt: b.discoveredAt,
+      occurredAt: b.occurredAt,
+      occurredAtNote: b.occurredAtNote,
+      severity: b.severity,
+      affectedCount: b.affectedCount,
+      affectedDescription: b.affectedDescription,
+      dataTypesAffected: b.dataTypesAffected,
+      containmentActions: b.containmentActions,
+      notifyUsersDecision: b.notifyUsersDecision,
+      notifiedUsersAt: b.notifiedUsersAt,
+      reportedToCaiAt: b.reportedToCaiAt,
+      status: b.status,
+      closedAt: b.closedAt,
+      loggedByName: b.loggedByName ?? b.loggedByEmail ?? null,
+      draftCount: c.total,
+      draftsSent: c.sent,
+    };
+  });
+
   return {
     organizationId: input.organizationId,
     organizationName: input.organizationName,
     officer,
     candidates,
     dsars,
+    consents,
+    breaches,
     nowMs: now,
+  };
+}
+
+// -----------------------------------------------------------------------------
+// End-user consent manager view. Used by the per-portal Settings → Privacy
+// & consents page. Returns the user's latest consent state, their history,
+// and any DSARs they've submitted from this account.
+// -----------------------------------------------------------------------------
+
+export type EndUserConsentState = {
+  consentType: ConsentTypeKey;
+  granted: boolean;
+  source: string;
+  occurredAt: Date;
+};
+
+export type EndUserDsarRow = {
+  id: string;
+  referenceCode: string;
+  requestType: "access" | "deletion" | "rectification" | "portability";
+  status: "received" | "in_progress" | "completed" | "rejected";
+  submittedAt: Date;
+  slaDueAt: Date;
+  completedAt: Date | null;
+  daysRemaining: number;
+};
+
+export type EndUserPrivacyView = {
+  organizationId: string;
+  userId: string;
+  userEmail: string;
+  consents: Record<ConsentTypeKey, EndUserConsentState | null>;
+  history: Array<{
+    id: string;
+    consentType: ConsentTypeKey;
+    granted: boolean;
+    occurredAt: Date;
+    source: string;
+  }>;
+  dsars: EndUserDsarRow[];
+};
+
+export async function loadEndUserPrivacyView(input: {
+  organizationId: string;
+  userId: string;
+  userEmail: string;
+}): Promise<EndUserPrivacyView> {
+  const latest = await withTenant(input.organizationId, (tx) =>
+    getLatestConsentsForUser({
+      organizationId: input.organizationId,
+      userId: input.userId,
+      tx,
+    }),
+  );
+
+  const consentsState: Record<ConsentTypeKey, EndUserConsentState | null> =
+    {} as Record<ConsentTypeKey, EndUserConsentState | null>;
+  for (const [k, v] of Object.entries(latest)) {
+    consentsState[k as ConsentTypeKey] = v
+      ? {
+          consentType: k as ConsentTypeKey,
+          granted: v.granted,
+          source: v.source,
+          occurredAt: v.granted ? v.grantedAt : (v.revokedAt ?? v.grantedAt),
+        }
+      : null;
+  }
+
+  const history = await withTenant(input.organizationId, (tx) =>
+    getConsentHistoryForUser({
+      organizationId: input.organizationId,
+      userId: input.userId,
+      tx,
+    }),
+  );
+
+  // DSARs the user has submitted via the authenticated path. Public
+  // submissions don't carry a subject_user_id and stay invisible here
+  // (by design — we don't try to correlate by email).
+  const dsarRows = await dbAdmin
+    .select({
+      id: dsarRequests.id,
+      referenceCode: dsarRequests.referenceCode,
+      requestType: dsarRequests.requestType,
+      status: dsarRequests.status,
+      receivedAt: dsarRequests.receivedAt,
+      slaDueAt: dsarRequests.slaDueAt,
+      completedAt: dsarRequests.completedAt,
+    })
+    .from(dsarRequests)
+    .where(
+      and(
+        eq(dsarRequests.organizationId, input.organizationId),
+        eq(dsarRequests.subjectUserId, input.userId),
+      ),
+    )
+    .orderBy(desc(dsarRequests.receivedAt));
+
+  const now = Date.now();
+  const dsars: EndUserDsarRow[] = dsarRows.map((r) => ({
+    id: r.id,
+    referenceCode: r.referenceCode,
+    requestType: r.requestType,
+    status: r.status,
+    submittedAt: r.receivedAt,
+    slaDueAt: r.slaDueAt,
+    completedAt: r.completedAt,
+    daysRemaining: Math.ceil((r.slaDueAt.getTime() - now) / (24 * 60 * 60 * 1000)),
+  }));
+
+  return {
+    organizationId: input.organizationId,
+    userId: input.userId,
+    userEmail: input.userEmail,
+    consents: consentsState,
+    history,
+    dsars,
   };
 }

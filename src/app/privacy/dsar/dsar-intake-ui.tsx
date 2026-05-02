@@ -16,7 +16,8 @@ import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
-import { PrivacyShell, PRIVACY_F } from "@/components/privacy/privacy-shell";
+import { PrivacyShell } from "@/components/privacy/privacy-shell";
+import { PRIVACY_F } from "@/components/privacy/privacy-tokens";
 import { PUBLIC_PRIVACY_OFFICER } from "@/lib/privacy/public-content";
 
 type RequestType = "access" | "deletion" | "rectification" | "portability";

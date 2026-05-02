@@ -1,3 +1,5 @@
+"use client";
+
 // Step 65 Session A — shared marketing nav, privacy sub-nav, and footer
 // for the public privacy pages (/privacy + /privacy/officer + /privacy/dsar).
 //
@@ -5,15 +7,16 @@
 // because (a) only the privacy surface uses this composition and (b) the
 // sub-nav is privacy-specific. The inner marketing nav matches the trim
 // four-tab nav in `marketing-page.tsx`.
+//
+// Marked "use client" so it can be imported from sibling "use client"
+// pages (privacy-policy-ui, dsar-intake-ui) without a server/client
+// boundary mismatch. /privacy/officer renders it from a server page;
+// that direction is allowed in Next.js App Router.
 
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-export const PRIVACY_F = {
-  display: "'DM Sans',system-ui,sans-serif",
-  body: "'Instrument Sans',system-ui,sans-serif",
-  mono: "'JetBrains Mono',monospace",
-};
+import { PRIVACY_F, type PrivacyTab } from "./privacy-tokens";
 
 const ARR = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -21,8 +24,6 @@ const ARR = (
     <path d="m12 5 7 7-7 7" />
   </svg>
 );
-
-export type PrivacyTab = "policy" | "officer" | "dsar";
 
 export function PrivacyShell({
   active,

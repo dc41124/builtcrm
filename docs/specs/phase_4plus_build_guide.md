@@ -4492,10 +4492,60 @@ Phase 8-lite done. Programmatic access surface + gallery shipped. Clickthrough: 
 
 ## Step 65 — Law 25 Privacy Officer Surface
 
+**Status:** ✅ Done (Sessions A + B + C, 2026-05-01)
 **Mode:** Require-design-input
 **Item:** 9-lite.1 #65
 **Effort:** M
 **Priority:** P1
+
+### Shipped artifact map
+
+- **Schema (migrations 0054 + 0055):** `privacy_officers`, `dsar_requests`,
+  `consent_records`, `breach_register`, `breach_notification_drafts` in
+  `src/db/schema/privacy.ts`. Three new enums for DSAR shape, four for
+  breach + consent shape. `dsar_requests` is intentionally NOT RLS'd —
+  see `docs/specs/security_posture.md §6` for the exemption rationale
+  (Law 25 §32 anonymous-write requirement).
+- **Public pages:** `/privacy`, `/privacy/officer`, `/privacy/dsar`. Marketing
+  aesthetic; no portal chrome. Shared `<PrivacyShell>` + `privacy-tokens.ts`.
+- **Public POST:** `/api/privacy/dsar` — Cloudflare Turnstile + 5/hour IP
+  rate limit + reference-code retry on collision. Routing via
+  `PLATFORM_DEFAULT_ORG_ID` env or fallback to "the single contractor org
+  with a designated officer".
+- **Authenticated POSTs (shared, exception to per-portal pattern):**
+  `/api/privacy/dsar/authenticated` and `/api/privacy/consents`.
+- **Contractor admin** at `/contractor/settings/privacy` (admin-only;
+  filtered out of the sub-nav for `contractor_pm`). Three tabs:
+  DSAR queue, Consent register, Breach register. Officer designation
+  card + picker modal; DSAR drawer; breach drawer with notify-users +
+  CAI flag + draft generator.
+- **End-user consent manager** at `/{portal}/settings/privacy` for all
+  four portals (contractor route branches: PMs see end-user UI,
+  admins see admin UI). Three tabs: Consent preferences (optimistic
+  toggles), History, Your data (in-product DSAR shortcuts).
+- **Signup persistence:** `/api/invitations/accept` accepts an
+  `optionalConsents` body field and writes one `consent_records` row
+  per type inside the same accept transaction. Signup form renders the
+  full checklist with locked required entries.
+- **Compliance boundary doc:** `docs/specs/privacy_compliance_boundary.md`
+  spells out what the product does NOT do (CAI flag-only, breach
+  emails drafts-only, no in-product PIA, no auto-identity-verification).
+- **Audit events:** `privacy.officer.{designated,changed}`,
+  `privacy.dsar.{received,assigned,status_changed,notes_updated,
+  requester_confirmation_stubbed,officer_notification_stubbed}`,
+  `privacy.consent.{granted,revoked,signup_recorded}`,
+  `privacy.breach.{logged,severity_changed,updated,notified_users,
+  reported_to_cai,closed,notification_drafted,
+  notification_marked_sent,notification_withdrawn}`.
+- **Prod cutover env vars:** `TURNSTILE_SECRET_KEY`,
+  `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `PLATFORM_DEFAULT_ORG_ID` —
+  noted in `docs/specs/prod_cutover_prep.md §1.3`.
+- **Email send sites:** stubbed via audit-only events; real send
+  deferred until prod email cutover (memory: Resend deferred).
+
+### Commits
+- `0b25ee0` — Sessions A + B (public pages, DSAR intake, officer admin)
+- Session C — consent + breach + end-user manager + signup checklist
 
 ### What this does
 
@@ -4596,12 +4646,105 @@ git commit -m "Step 66 (9-lite.1 #66): RBQ license verification"
 
 ---
 
+## Step 66.5 — Data Retention & Deletion Infrastructure
+
+**Mode:** Require-design-input (universal stop-and-ask: schema sweep across many tables)
+**Item:** 9-lite.1 #66.5 (precondition for Step 67 + 68)
+**Effort:** L
+**Priority:** P0 — must ship before Step 67 writes the first statutory-tier row
+
+### What this does
+
+Adds a uniform retention class + scheduled hard-delete + legal-hold infrastructure across every table that holds PII, financial, or project-record data. Replaces today's "soft-state-forever" default. Establishes the SOC 2 P4 (retention/disposal) evidence path and the Law 25 / PIPEDA minimization story without breaking CRA's 6-year retention floor on tax/payment data.
+
+This is also the precondition for Step 67 (T5018) and Step 68 (Ontario prompt-payment) — both produce statutory-tier data and need the retention class set on the row at insert time, not bolted on later.
+
+### Retention tiers (the source of truth — codify in `docs/specs/retention_policy.md`)
+
+| Tier | Floor | Configurable? | Examples |
+|---|---|---|---|
+| `statutory_tax` | 6 years from end of tax year | No (CRA floor) | `payments`, `draws`, `draw_requests`, `invoices`, `invoice_lines`, `subscriptions`, `billing_*`, Stripe-mirrored rows |
+| `statutory_construction` | 7 years from project closeout (ON/QC), 6 years elsewhere | No (provincial floor) | `change_orders`, `contracts`, `bids` (awarded), `lien_waivers`, `time_entries`, `payroll_*`, `audit_log` |
+| `project_record` | 2 years from project closeout | Yes — org can extend, not shorten | `rfi`, `submittals`, `transmittals`, `meetings`, `meeting_minutes`, `daily_logs`, `inspections`, `punch_list`, `drawings` |
+| `operational` | 90 days from last activity | Yes — org can shorten down to 30-day floor | `messages`, `conversations`, `attachments`, `notifications`, `activity_feed`, `presence` |
+| `auth_ephemeral` | Expiry + 7 days | No | `sessions`, `auth_tokens`, `password_reset_tokens`, `magic_links` |
+| `privacy_fulfillment` | 30 days post-fulfillment for ID docs; 7 years for breach records; consent rolls up annually | Mixed (per row type) | `dsar_requests` (ID uploads only), `breach_notifications`, superseded `privacy_consents` |
+| `reference` | Forever | No | Lookup tables, `consent_catalog` versions, jurisdictions, holiday calendars |
+
+`legal_hold = true` overrides every tier above and pauses scheduled deletion. Required for SOC 2 P4 + active dispute defense.
+
+### Tell Claude Code:
+
+> Before writing code, propose:
+>
+> 1. The full table-to-tier mapping. Read the live schema in `src/db/schema/*.ts` and produce the assignment for every table. Do not invent tables — only classify what exists. Surface any table you can't classify with confidence and ask.
+> 2. Schema additions for tables in scope:
+>    - `retention_class` (enum, NOT NULL, default per the table's tier)
+>    - `retention_until` (timestamp, nullable — null = never expire, populated at write time for finite tiers)
+>    - `legal_hold` (boolean, NOT NULL default false)
+> 3. Trigger formula for `retention_until`:
+>    - Statutory tax: `date_trunc('year', created_at) + interval '7 years'` (6 years from end of tax year, computed at insert)
+>    - Statutory construction: populated when `project.closed_at` is set, via the project-closeout job; null until then
+>    - Project record: `project.closed_at + interval '2 years'`, populated at closeout
+>    - Operational: `last_activity_at + interval '90 days'`, refreshed on each touch
+>    - Auth ephemeral: `expires_at + interval '7 days'`
+>    - Privacy fulfillment: per-row, set when DSAR/breach reaches terminal state
+> 4. The R2 cleanup phase: any row holding an R2 object key needs the cleanup job to delete the object after the DB commit. Object-orphan sweep also runs nightly (R2 objects with no live DB reference older than 7 days).
+> 5. The `users` anonymization path: when a user requests Law 25 erasure, run a tombstone update (replace name/email/phone with hashed placeholders, keep the row + audit_log FKs intact) rather than DELETE. Do not cascade.
+>
+> **Universal stop-and-ask: this migration touches dozens of tables. Show the full migration diff before applying it.**
+>
+> After confirmation:
+>
+> 1. Migration adding the three columns to all in-scope tables, with computed defaults backfilled from `created_at` (or null where the tier requires a downstream event).
+> 2. Backfill grace: any row whose computed `retention_until` is already in the past gets `retention_until = now() + interval '30 days'` so the first sweep gives users a window to see what's about to delete.
+> 3. Trigger.dev nightly job `retention-sweep`:
+>    - Phase 1: scan each in-scope table for `retention_until < now() AND legal_hold = false AND deleted_at IS NULL`. Hard-delete in batches of 500. Write one `audit_log` event per deletion (table, row id, tier, retention_until, deletion reason = "scheduled retention").
+>    - Phase 2: R2 cleanup — for every row deleted in Phase 1 that referenced an R2 key, queue the R2 object delete. Separate orphan sweep finds R2 objects with no DB reference older than 7 days.
+>    - Phase 3: project-closeout backfill — when `project.closed_at` is newly set, walk the project's child rows and populate `retention_until` for `statutory_construction` and `project_record` tiers.
+>    - Idempotent, resumable, emits a daily summary event the Privacy Officer surface can read.
+> 4. R2 bucket lifecycle: configure the bucket to never auto-expire statutory objects (DB-driven), but apply a 7-day TTL to a separate `tmp/` prefix used for unreferenced uploads.
+> 5. Admin UI at `src/app/(portal)/contractor/(global)/settings/privacy/retention/page.tsx`:
+>    - Tier table (read-only) showing each tier, floor, and which org tables fall in it
+>    - Org overrides: shorten operational tier (30-day floor enforced server-side), extend project-record tier
+>    - "Next scheduled deletions" panel: count by tier of rows expiring in the next 30 days
+>    - Legal-hold management: list active holds, who set them, scope; ability to set/release a hold (officer role only)
+>    - Audit feed of recent retention-sweep activity
+> 6. Authorization: only Privacy Officer + contractor org owner can change retention settings or set legal holds. Sub/client portals cannot.
+> 7. Documentation:
+>    - `docs/specs/retention_policy.md` — the tier table, rationale, regulatory citations (CRA s.230, ON Construction Act records, PIPEDA Principle 5, Law 25 art. 23)
+>    - `docs/specs/compliance_map.md` — add P4 entry referencing the retention policy + sweep job + UI
+>    - `docs/specs/security_posture.md` §6 — note the retention infra as a shipped control
+
+### What to check
+
+- Migration applies cleanly on a fresh seed; `npm run db:migrate` green
+- All in-scope tables have the three new columns
+- Insert into `payments` populates `retention_class = 'statutory_tax'` and a `retention_until` ~7 years out
+- Setting `project.closed_at` populates child-row `retention_until` for project-record + statutory-construction tiers
+- Setting `legal_hold = true` on a row past its `retention_until` prevents deletion in the sweep
+- R2 orphan sweep deletes a `tmp/` object older than 7 days
+- Anonymizing a user via the Law 25 path keeps `audit_log` rows readable (FK intact, name shows tombstone)
+- Admin UI denies access to non-officer roles
+- Sub/client portals cannot reach the retention settings route
+- `npm run build && npm run lint && npm run test` clean
+
+### Commit:
+
+```bash
+git add .
+git commit -m "Step 66.5 (9-lite.1 #66.5): data retention + deletion infrastructure"
+```
+
+---
+
 ## Step 67 — T5018 Contractor Payment Slip Generator
 
 **Mode:** Require-design-input
 **Item:** 9-lite.1 #67
 **Effort:** S
 **Priority:** P1
+**Precondition:** Step 66.5 (retention infra) must be shipped — generated slips are `statutory_tax` tier and need `retention_class` + `retention_until` populated at insert.
 
 ### What this does
 
@@ -4630,6 +4773,7 @@ Canadian tax form. Contractors in the construction industry must issue T5018 sli
 > 5. UI page.
 > 6. Download button generates both outputs as a ZIP.
 > 7. Audit event: `tax.t5018.generated` with year and count.
+> 8. Persist generated slips in a `tax_slips` table with `retention_class = 'statutory_tax'` and `retention_until = date_trunc('year', generated_at) + interval '7 years'`. Stored XML/PDF blobs go to R2 outside the `tmp/` prefix so the orphan sweep won't touch them. SIN/BN fields encrypted-at-rest using the same field-level path as the privacy module.
 
 ### What to check
 

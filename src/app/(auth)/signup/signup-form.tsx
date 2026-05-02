@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signUp } from "@/auth/client";
+
+import { CONSENT_CATALOG, type ConsentTypeKey } from "@/lib/privacy/consent-catalog";
 
 export function SignupForm({
   token,
@@ -22,6 +25,20 @@ export function SignupForm({
   const [companyName, setCompanyName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Step 65 Session C — consent checklist. Initial state from catalog
+  // defaults; required consents stay locked at true. The map only
+  // captures user-modifiable values; the API helper applies defaults
+  // for anything unset.
+  const [optionalConsents, setOptionalConsents] = useState<
+    Partial<Record<ConsentTypeKey, boolean>>
+  >(() => {
+    const init: Partial<Record<ConsentTypeKey, boolean>> = {};
+    for (const meta of CONSENT_CATALOG) {
+      if (!meta.required) init[meta.id] = meta.defaultGranted;
+    }
+    return init;
+  });
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,7 +65,7 @@ export function SignupForm({
     const acceptRes = await fetch("/api/invitations/accept", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({ token, optionalConsents }),
     });
     setSubmitting(false);
     if (!acceptRes.ok) {
@@ -121,6 +138,49 @@ export function SignupForm({
           />
         </div>
       ) : null}
+
+      {/* Step 65 Session C — consent checklist. Required consents are
+          shown locked-on; optional consents start at the catalog default.
+          Subjects can revisit and toggle these later under Settings →
+          Privacy & consents. */}
+      <div className="signup-consents">
+        <div className="signup-consents-title">Privacy preferences</div>
+        <div className="signup-consents-sub">
+          You can change any of these later under Settings → Privacy &amp; consents.
+          See our <Link href="/privacy" className="signup-consents-link">Privacy Policy</Link>{" "}
+          for details, or <Link href="/privacy/dsar" className="signup-consents-link">submit a privacy request</Link> at any time.
+        </div>
+        <ul className="signup-consents-list">
+          {CONSENT_CATALOG.map((meta) => {
+            const checked = meta.required ? true : !!optionalConsents[meta.id];
+            return (
+              <li key={meta.id} className="signup-consents-item">
+                <label className="signup-consents-row">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={meta.required}
+                    onChange={(e) =>
+                      setOptionalConsents((prev) => ({
+                        ...prev,
+                        [meta.id]: e.target.checked,
+                      }))
+                    }
+                  />
+                  <span className="signup-consents-body">
+                    <span className="signup-consents-label">
+                      {meta.label}
+                      {meta.required ? <span className="signup-consents-required">Required</span> : null}
+                    </span>
+                    <span className="signup-consents-desc">{meta.description}</span>
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
       <button type="submit" className={`btn-auth ${accent}`} disabled={submitting}>
         {submitting
           ? "Creating account…"
