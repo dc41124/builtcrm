@@ -135,6 +135,22 @@ export function buildNavSections(options: BuildNavOptions): NavSection[] {
           { label: "Cost Codes", href: "/contractor/cost-codes" },
         ]),
       },
+      // Step 66+ — Compliance & Legal admin surfaces. Pages remain
+      // contractor-admin-gated at the loader level; sidebar entries are
+      // visible to PMs but a "Forbidden" page renders if they click in
+      // (mirrors the Integrations entry's pattern). Tax/legal items
+      // (Steps 67/68/69) will append here as they ship.
+      {
+        label: "Compliance & Legal",
+        defaultOpen: true,
+        placement: "after-projects",
+        items: mark([
+          { label: "Privacy & Law 25", href: "/contractor/settings/privacy" },
+          { label: "Data retention", href: "/contractor/settings/privacy/retention" },
+          { label: "RBQ verification", href: "/contractor/settings/compliance/rbq-cache" },
+          { label: "Prequalification", href: "/contractor/settings/prequalification" },
+        ]),
+      },
       {
         label: "Account",
         defaultOpen: true,

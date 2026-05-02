@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/button";
@@ -253,6 +254,26 @@ export function ContractorComplianceWorkspace({
           </div>
         </div>
         <div className="cmp-head-actions">
+          <Link
+            href={`/contractor/project/${projectId}/compliance/scorecard`}
+            className="cmp-link-btn"
+            style={{
+              fontFamily: "'DM Sans',system-ui,sans-serif",
+              fontSize: 13,
+              fontWeight: 620,
+              padding: "7px 14px",
+              borderRadius: 6,
+              background: "#f3f4f6",
+              color: "#171717",
+              border: "1px solid #e2e5e9",
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            Sub scorecard →
+          </Link>
           <Button variant="secondary">Export log</Button>
           <Button variant="primary">Review next record</Button>
         </div>

@@ -21,9 +21,10 @@ export type CacheRow = {
   status: RbqLicenseStatus;
   expiryDate: string | null;
   lastCheckedAt: Date;
-  // Names of org(s) that reference this RBQ number — typically one,
-  // but a number could be shared if multiple sub orgs claim it.
-  associatedOrgNames: string[];
+  // Names + ids of org(s) that reference this RBQ number — typically
+  // one, but a number could be shared if multiple sub orgs claim it.
+  // The id is used to deep-link the row into the sub profile widget.
+  associatedOrgs: Array<{ id: string; name: string }>;
   // Derived label for the UI (e.g. "Expiring soon", "License expired").
   uiState: "valid" | "expiring" | "expired" | "suspended" | "not_found";
 };
@@ -73,19 +74,21 @@ export async function loadRbqCacheAdminView(): Promise<RbqCacheAdminView> {
   const orgAssoc = await dbAdmin
     .select({
       rbqNumber: organizations.rbqNumber,
+      orgId: organizations.id,
       orgName: organizations.name,
     })
     .from(organizations)
     .where(isNotNull(organizations.rbqNumber));
 
-  const orgsByNumber = new Map<string, string[]>();
+  const orgsByNumber = new Map<string, Array<{ id: string; name: string }>>();
   for (const row of orgAssoc) {
     if (!row.rbqNumber) continue;
+    const entry = { id: row.orgId, name: row.orgName };
     const existing = orgsByNumber.get(row.rbqNumber);
     if (existing) {
-      existing.push(row.orgName);
+      existing.push(entry);
     } else {
-      orgsByNumber.set(row.rbqNumber, [row.orgName]);
+      orgsByNumber.set(row.rbqNumber, [entry]);
     }
   }
 
@@ -98,7 +101,7 @@ export async function loadRbqCacheAdminView(): Promise<RbqCacheAdminView> {
       status: r.status,
       expiryDate: r.expiryDate,
       lastCheckedAt: r.lastCheckedAt,
-      associatedOrgNames: orgsByNumber.get(r.rbqNumber) ?? [],
+      associatedOrgs: orgsByNumber.get(r.rbqNumber) ?? [],
       uiState: deriveUiState(r.status, r.expiryDate),
     };
   });

@@ -50,7 +50,7 @@ export function RbqCacheAdminUI({ view }: { view: RbqCacheAdminView }) {
         const haystack = [
           r.rbqNumber,
           r.legalName ?? "",
-          ...r.associatedOrgNames,
+          ...r.associatedOrgs.map((o) => o.name),
         ]
           .join(" ")
           .toLowerCase();
@@ -119,21 +119,6 @@ export function RbqCacheAdminUI({ view }: { view: RbqCacheAdminView }) {
             every subcontractor in your org. Refreshed nightly at 03:00 EST.
             Force a single re-check from the row, or refresh the whole cache.
           </p>
-        </div>
-
-        {/* Settings strip */}
-        <div className="settings-strip">
-          <button className="stab">{I.bldg} Organization</button>
-          <button className="stab">{I.users} Team &amp; roles</button>
-          <button className="stab">{I.card} Plan &amp; billing</button>
-          <button className="stab">{I.database} Data</button>
-          <button className="stab">{I.lock} Org security</button>
-          <Link className="stab" href="/contractor/settings/privacy">
-            {I.shield} Privacy &amp; Law 25 <span className="note">Step 65</span>
-          </Link>
-          <button className="stab cur">
-            {I.flag} Compliance &amp; CCQ <span className="note">Step 66</span>
-          </button>
         </div>
 
         {/* KPIs */}
@@ -304,9 +289,19 @@ export function RbqCacheAdminUI({ view }: { view: RbqCacheAdminView }) {
                               </span>
                             )}
                           </span>
-                          {r.associatedOrgNames.length > 0 && (
+                          {r.associatedOrgs.length > 0 && (
                             <span className="em">
-                              {r.associatedOrgNames.join(", ")}
+                              {r.associatedOrgs.map((o, idx) => (
+                                <span key={o.id}>
+                                  {idx > 0 && ", "}
+                                  <Link
+                                    href={`/contractor/subcontractors/${o.id}`}
+                                    style={{ color: "var(--ac-t)", textDecoration: "none" }}
+                                  >
+                                    {o.name}
+                                  </Link>
+                                </span>
+                              ))}
                             </span>
                           )}
                         </div>
