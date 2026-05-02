@@ -25,6 +25,7 @@
 //   - "Download OpenAPI" hits /openapi.yaml (the route handler).
 //   - "Try it · Sign in" stays disabled per spec (auth-only feature).
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
@@ -761,8 +762,21 @@ export function ApiDocsUI() {
           gap: 16,
         }}
       >
-        {/* Logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, paddingRight: 10, borderRight: `1px solid ${T.border}`, marginRight: 6, height: 32 }}>
+        {/* Logo — links back to the marketing home */}
+        <Link
+          href="/"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            paddingRight: 10,
+            borderRight: `1px solid ${T.border}`,
+            marginRight: 6,
+            height: 32,
+            textDecoration: "none",
+            color: "inherit",
+          }}
+        >
           <div
             style={{
               width: 28,
@@ -780,7 +794,7 @@ export function ApiDocsUI() {
             </svg>
           </div>
           <div style={{ fontFamily: F.display, fontSize: 16, fontWeight: 760, letterSpacing: "-.025em" }}>BuiltCRM</div>
-        </div>
+        </Link>
 
         {/* Action tabs */}
         <a
@@ -1032,33 +1046,49 @@ export function ApiDocsUI() {
         </aside>
       </div>
 
-      {/* Compact docs footer. The full marketing footer lives on /; we keep
-          this slim because the docs page is meant to be browsed, not exited. */}
-      <footer style={{ borderTop: `1px solid ${T.border}`, padding: "32px", background: T.surface }}>
-        <div
-          style={{
-            maxWidth: 1440,
-            margin: "0 auto",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 16,
-          }}
-        >
-          <div style={{ fontSize: 12, color: T.textTertiary, fontWeight: 520 }}>
-            BuiltCRM API · v1 · OpenAPI 3.1 spec at{" "}
-            <a
-              href="/openapi.yaml"
-              style={{ fontFamily: F.mono, color: T.textSecondary, textDecoration: "none" }}
-            >
-              builtcrm.app/openapi.yaml
-            </a>
+      {/* Marketing footer — duplicated inline from marketing-page.tsx to
+          match the rest of the public marketing surface. The api-docs page
+          is reachable from the marketing footer, so the footer here lets
+          visitors navigate back out. */}
+      <footer style={{ background: "#2c2541", color: "rgba(250,249,247,.7)", padding: "72px 32px 36px" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 64, marginBottom: 56 }}>
+            <div>
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg,#5b4fc7,#7c6fe0)", display: "grid", placeItems: "center", marginBottom: 14 }}>
+                <svg viewBox="0 0 80 80" width="19" height="19"><rect x="14" y="14" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".5" /><rect x="26" y="26" width="26" height="26" rx="4" fill="none" stroke="white" strokeWidth="3.5" opacity=".75" /><rect x="32" y="32" width="26" height="26" rx="4" fill="white" opacity=".95" /></svg>
+              </div>
+              <p style={{ fontSize: 13.5, lineHeight: 1.65, maxWidth: 260, color: "rgba(250,249,247,.5)" }}>Construction project management built for the way real teams actually work.</p>
+            </div>
+            {([
+              { h: "Product", links: [{ l: "Features" }, { l: "Pricing" }, { l: "Integrations", href: "/integrations" }, { l: "API docs", href: "/api-docs" }, { l: "Changelog" }, { l: "Roadmap" }] },
+              { h: "Solutions", links: [{ l: "General Contractors" }, { l: "Subcontractors" }, { l: "Commercial Owners" }, { l: "Homeowners" }] },
+              { h: "Privacy", links: [
+                { l: "Privacy Policy", href: "/privacy" },
+                { l: "Privacy Officer", href: "/privacy/officer" },
+                { l: "Submit a request", href: "/privacy/dsar" },
+                { l: "Cookie preferences", href: "/privacy#cookies" },
+                { l: "Subprocessors", href: "/privacy#share" },
+              ] },
+              { h: "Company", links: [{ l: "About" }, { l: "Blog" }, { l: "Careers" }, { l: "Contact" }, { l: "Security" }] },
+            ] as { h: string; links: { l: string; href?: string }[] }[]).map((col, i) => (
+              <div key={i}>
+                <h4 style={{ fontFamily: F.display, fontSize: 11.5, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "rgba(250,249,247,.3)", marginBottom: 20 }}>{col.h}</h4>
+                {col.links.map(({ l, href }) => href ? (
+                  <Link key={l} href={href} style={{ display: "block", fontSize: 13.5, color: "rgba(250,249,247,.6)", fontWeight: 480, marginBottom: 12, textDecoration: "none" }}>{l}</Link>
+                ) : (
+                  <div key={l} style={{ fontSize: 13.5, color: "rgba(250,249,247,.6)", fontWeight: 480, marginBottom: 12, cursor: "pointer" }}>{l}</div>
+                ))}
+              </div>
+            ))}
           </div>
-          <div style={{ display: "flex", gap: 16, fontSize: 12, color: T.textSecondary }}>
-            <a href="mailto:support@builtcrm.app" style={{ cursor: "pointer", textDecoration: "none", color: "inherit" }}>
-              Support
-            </a>
+          <div style={{ height: 1, background: "rgba(250,249,247,.08)", marginBottom: 24 }} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, color: "rgba(250,249,247,.35)" }}>
+            <span>&copy; 2026 BuiltCRM. All rights reserved.</span>
+            <div style={{ display: "flex", gap: 20 }}>
+              <Link href="/privacy" style={{ cursor: "pointer", textDecoration: "none", color: "inherit" }}>Privacy</Link>
+              <span style={{ cursor: "pointer" }}>Terms</span>
+              <span style={{ cursor: "pointer" }}>Security</span>
+            </div>
           </div>
         </div>
       </footer>
