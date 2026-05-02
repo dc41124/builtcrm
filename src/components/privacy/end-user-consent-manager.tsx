@@ -13,7 +13,7 @@
 //   PATCH /api/privacy/consents          — toggle a consent
 //   POST  /api/privacy/dsar/authenticated — submit a DSAR
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -200,7 +200,7 @@ export function EndUserConsentManager({ view }: { view: EndUserPrivacyView }) {
                   }}
                 >
                   <div style={{ fontFamily: F.mono, fontSize: 12, color: "var(--t3)" }}>
-                    {formatDateTime(h.occurredAt)}
+                    <FormattedDateTime value={h.occurredAt} />
                   </div>
                   <div
                     style={{
@@ -571,10 +571,33 @@ const tdStyle: React.CSSProperties = {
 };
 
 function formatDate(d: Date): string {
-  return d.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" });
+  // Server renders with UTC so SSR matches the first client render; the
+  // <FormattedDateTime> component re-renders to local time after mount.
+  return d.toLocaleDateString("en-CA", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
-function formatDateTime(d: Date): string {
-  return d.toLocaleString("en-CA", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+function formatDateTime(d: Date, timeZone?: string): string {
+  return d.toLocaleString("en-CA", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: timeZone ?? "UTC",
+  });
+}
+
+// SSR renders the date in UTC (deterministic). After mount, swap to the
+// browser's local timezone. Avoids hydration mismatch from server vs
+// client clocks living in different zones.
+function FormattedDateTime({ value }: { value: Date }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return <>{formatDateTime(value, mounted ? undefined : "UTC")}</>;
 }
 
 function IconAlert() {

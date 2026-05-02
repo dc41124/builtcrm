@@ -53,36 +53,15 @@ export default async function RetentionAdminPage() {
   const view = await loadRetentionAdminView();
 
   return (
-    <div
-      style={{
-        padding: "32px 40px",
-        maxWidth: 1240,
-        margin: "0 auto",
-        fontFamily: F.body,
-        color: "#171717",
-      }}
-    >
-      <header style={{ marginBottom: 32 }}>
-        <div
-          style={{
-            fontFamily: F.body,
-            fontSize: 13,
-            fontWeight: 540,
-            color: "#737373",
-            letterSpacing: 0.4,
-            textTransform: "uppercase",
-            marginBottom: 8,
-          }}
-        >
-          Privacy &middot; Retention
-        </div>
+    <div style={{ fontFamily: F.body, color: "var(--t1)" }}>
+      <header style={{ marginBottom: 28 }}>
         <h1
           style={{
             fontFamily: F.display,
             fontSize: 26,
-            fontWeight: 820,
+            fontWeight: 750,
             margin: 0,
-            letterSpacing: -0.3,
+            letterSpacing: "-.03em",
           }}
         >
           Data retention and deletion
@@ -90,11 +69,12 @@ export default async function RetentionAdminPage() {
         <p
           style={{
             fontFamily: F.body,
-            fontSize: 15,
-            fontWeight: 540,
-            color: "#525252",
-            marginTop: 10,
-            maxWidth: 760,
+            fontSize: 13.5,
+            fontWeight: 520,
+            color: "var(--t2)",
+            marginTop: 6,
+            marginBottom: 0,
+            maxWidth: 720,
             lineHeight: 1.55,
           }}
         >
@@ -115,7 +95,7 @@ export default async function RetentionAdminPage() {
           }}
         >
           <thead>
-            <tr style={{ textAlign: "left", color: "#525252", fontWeight: 620 }}>
+            <tr style={{ textAlign: "left", color: "var(--t3)", fontWeight: 620 }}>
               <th style={th}>Tier</th>
               <th style={th}>Floor</th>
               <th style={th}>Configurable</th>
@@ -126,7 +106,7 @@ export default async function RetentionAdminPage() {
             {view.tiers.map((row) => (
               <tr
                 key={row.tier}
-                style={{ borderTop: "1px solid #e5e5e5", verticalAlign: "top" }}
+                style={{ borderTop: "1px solid var(--s3)", verticalAlign: "top" }}
               >
                 <td style={tdLabel}>
                   <span style={{ fontFamily: F.display, fontWeight: 680 }}>
@@ -137,7 +117,7 @@ export default async function RetentionAdminPage() {
                       fontFamily: F.mono,
                       fontSize: 11,
                       fontWeight: 540,
-                      color: "#737373",
+                      color: "var(--t3)",
                       marginTop: 4,
                     }}
                   >
@@ -150,7 +130,7 @@ export default async function RetentionAdminPage() {
                     {row.configurable ? "Yes" : "No"}
                   </Pill>
                 </td>
-                <td style={{ ...td, color: "#525252", lineHeight: 1.5 }}>
+                <td style={{ ...td, color: "var(--t2)", lineHeight: 1.5 }}>
                   {row.rationale}
                 </td>
               </tr>
@@ -162,8 +142,8 @@ export default async function RetentionAdminPage() {
       <Section title="Active purge jobs">
         <p
           style={{
-            fontSize: 14,
-            color: "#525252",
+            fontSize: 13.5,
+            color: "var(--t2)",
             marginTop: 0,
             marginBottom: 16,
             lineHeight: 1.55,
@@ -184,7 +164,7 @@ export default async function RetentionAdminPage() {
           }}
         >
           <thead>
-            <tr style={{ textAlign: "left", color: "#525252", fontWeight: 620 }}>
+            <tr style={{ textAlign: "left", color: "var(--t3)", fontWeight: 620 }}>
               <th style={th}>Job</th>
               <th style={th}>Target table</th>
               <th style={th}>Tier</th>
@@ -195,14 +175,14 @@ export default async function RetentionAdminPage() {
           </thead>
           <tbody>
             {view.jobs.map((job) => (
-              <tr key={job.jobId} style={{ borderTop: "1px solid #e5e5e5" }}>
+              <tr key={job.jobId} style={{ borderTop: "1px solid var(--s3)" }}>
                 <td style={tdLabel}>
                   <span style={{ fontFamily: F.mono, fontWeight: 540 }}>
                     {job.jobId}
                   </span>
                 </td>
                 <td style={{ ...td, fontFamily: F.mono }}>{job.tableName}</td>
-                <td style={{ ...td, fontFamily: F.mono, fontSize: 12, color: "#737373" }}>
+                <td style={{ ...td, fontFamily: F.mono, fontSize: 12, color: "var(--t3)" }}>
                   {job.tier}
                 </td>
                 <td style={td}>
@@ -214,7 +194,7 @@ export default async function RetentionAdminPage() {
                     textAlign: "right",
                     fontFamily: F.display,
                     fontWeight: 740,
-                    color: job.eligibleNow > 0 ? "#171717" : "#a3a3a3",
+                    color: job.eligibleNow > 0 ? "var(--t1)" : "var(--t3)",
                   }}
                 >
                   {job.eligibleNow.toLocaleString()}
@@ -225,7 +205,7 @@ export default async function RetentionAdminPage() {
                     textAlign: "right",
                     fontFamily: F.display,
                     fontWeight: 740,
-                    color: job.underLegalHold > 0 ? PURPLE : "#a3a3a3",
+                    color: job.underLegalHold > 0 ? PURPLE : "var(--t3)",
                   }}
                 >
                   {job.underLegalHold.toLocaleString()}
@@ -240,11 +220,9 @@ export default async function RetentionAdminPage() {
         {view.recentSweeps.length === 0 ? (
           <div
             style={{
-              padding: "20px 16px",
-              border: "1px dashed #d4d4d4",
-              borderRadius: 8,
-              color: "#737373",
-              fontSize: 14,
+              padding: "8px 0",
+              color: "var(--t3)",
+              fontSize: 13.5,
             }}
           >
             No sweep activity in the last 14 days.
@@ -259,7 +237,7 @@ export default async function RetentionAdminPage() {
             }}
           >
             <thead>
-              <tr style={{ textAlign: "left", color: "#525252", fontWeight: 620 }}>
+              <tr style={{ textAlign: "left", color: "var(--t3)", fontWeight: 620 }}>
                 <th style={th}>Job</th>
                 <th style={th}>Ran at</th>
                 <th style={{ ...th, textAlign: "right" }}>Rows deleted</th>
@@ -267,12 +245,12 @@ export default async function RetentionAdminPage() {
             </thead>
             <tbody>
               {view.recentSweeps.map((row, idx) => (
-                <tr key={`${row.jobId}-${idx}`} style={{ borderTop: "1px solid #e5e5e5" }}>
+                <tr key={`${row.jobId}-${idx}`} style={{ borderTop: "1px solid var(--s3)" }}>
                   <td style={{ ...tdLabel, fontFamily: F.mono, fontSize: 13 }}>
                     {row.jobId}
                   </td>
                   <td style={{ ...td, fontFamily: F.mono, fontSize: 13 }}>
-                    {row.ranAt.toLocaleString()}
+                    {formatRanAt(row.ranAt)}
                   </td>
                   <td
                     style={{
@@ -292,7 +270,7 @@ export default async function RetentionAdminPage() {
       </Section>
 
       <Section title="Coming in Step 66.6">
-        <ul style={{ marginTop: 0, paddingLeft: 20, lineHeight: 1.7, color: "#525252" }}>
+        <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7, color: "var(--t2)", fontSize: 13.5 }}>
           <li>
             Unified retention sweep across statutory, project-record,
             design-archive, and privacy-fulfillment tiers
@@ -316,6 +294,14 @@ export default async function RetentionAdminPage() {
   );
 }
 
+// Server-rendered ISO-style date so client hydration matches the server
+// (Date.toLocaleString varies by timezone/locale and triggers a hydration
+// mismatch — see Next.js hydration error docs).
+function formatRanAt(d: Date): string {
+  const iso = d.toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
+}
+
 function Section({
   title,
   children,
@@ -324,19 +310,29 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section style={{ marginBottom: 36 }}>
+    <section style={{ marginBottom: 20 }}>
       <h2
         style={{
           fontFamily: F.display,
-          fontSize: 18,
-          fontWeight: 740,
-          margin: "0 0 14px 0",
-          letterSpacing: -0.1,
+          fontSize: 15,
+          fontWeight: 720,
+          margin: "0 0 12px 0",
+          letterSpacing: "-.01em",
+          color: "var(--t1)",
         }}
       >
         {title}
       </h2>
-      {children}
+      <div
+        style={{
+          background: "var(--s1)",
+          border: "1px solid var(--s3)",
+          borderRadius: 12,
+          padding: 18,
+        }}
+      >
+        {children}
+      </div>
     </section>
   );
 }
@@ -362,11 +358,11 @@ function Pill({ on, children }: { on: boolean; children: React.ReactNode }) {
 }
 
 const th: React.CSSProperties = {
-  padding: "10px 12px",
+  padding: "4px 12px 10px",
   fontFamily: F.body,
-  fontSize: 12,
+  fontSize: 11.5,
   fontWeight: 620,
-  color: "#525252",
+  color: "var(--t3)",
   letterSpacing: 0.3,
   textTransform: "uppercase",
 };
@@ -374,9 +370,9 @@ const th: React.CSSProperties = {
 const td: React.CSSProperties = {
   padding: "12px",
   fontFamily: F.body,
-  fontSize: 14,
+  fontSize: 13.5,
   fontWeight: 540,
-  color: "#171717",
+  color: "var(--t1)",
 };
 
 const tdLabel: React.CSSProperties = {
@@ -387,7 +383,7 @@ const tdLabel: React.CSSProperties = {
 const codeStyle: React.CSSProperties = {
   fontFamily: F.mono,
   fontSize: 12,
-  background: "#f5f5f5",
+  background: "var(--s2)",
   padding: "2px 6px",
   borderRadius: 4,
 };

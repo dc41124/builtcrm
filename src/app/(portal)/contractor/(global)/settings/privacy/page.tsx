@@ -65,7 +65,7 @@ function RetentionLinkBanner() {
   return (
     <div
       style={{
-        margin: "20px 40px 0",
+        margin: "0 0 32px",
         padding: "14px 18px",
         background: "#f5f3ff",
         border: "1px solid #ddd6fe",

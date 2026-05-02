@@ -5,6 +5,7 @@ import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { listDefinitionsForOrg } from "@/domain/loaders/custom-fields";
 import { AuthorizationError } from "@/domain/permissions";
 
+import { BackToSettingsLink } from "@/components/settings/back-to-settings";
 import { CustomFieldsAdminUI } from "./ui";
 
 // Step 61 (Phase 8-lite.2 #61) — Custom fields admin page.
@@ -25,10 +26,12 @@ export default async function ContractorCustomFieldsPage() {
       includeArchived: true,
     });
     return (
-      <CustomFieldsAdminUI
-        orgName={ctx.organization.name}
-        viewerRole={ctx.role}
-        definitions={definitions.map((d) => ({
+      <>
+        <BackToSettingsLink />
+        <CustomFieldsAdminUI
+          orgName={ctx.organization.name}
+          viewerRole={ctx.role}
+          definitions={definitions.map((d) => ({
           id: d.id,
           entityType: d.entityType,
           key: d.key,
@@ -42,7 +45,8 @@ export default async function ContractorCustomFieldsPage() {
           archivedAtIso: d.archivedAt?.toISOString() ?? null,
           createdAtIso: d.createdAt.toISOString(),
         }))}
-      />
+        />
+      </>
     );
   } catch (err) {
     if (err instanceof AuthorizationError) {

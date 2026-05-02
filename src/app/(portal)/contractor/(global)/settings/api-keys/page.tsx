@@ -8,6 +8,7 @@ import { apiKeys, auditEvents, users } from "@/db/schema";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
 
+import { BackToSettingsLink } from "@/components/settings/back-to-settings";
 import { ApiKeysUI, type ApiKeyRow, type AuditRow } from "./ui";
 
 // Step 58 — API key management page (loader half).
@@ -163,12 +164,15 @@ export default async function ContractorApiKeysPage() {
     });
 
     return (
-      <ApiKeysUI
-        orgName={ctx.organization.name}
-        viewerRole={ctx.role}
-        keys={keys}
-        audit={audit}
-      />
+      <>
+        <BackToSettingsLink />
+        <ApiKeysUI
+          orgName={ctx.organization.name}
+          viewerRole={ctx.role}
+          keys={keys}
+          audit={audit}
+        />
+      </>
     );
   } catch (err) {
     if (err instanceof AuthorizationError) {

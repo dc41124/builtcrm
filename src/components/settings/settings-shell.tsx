@@ -294,11 +294,9 @@ type TabId =
   | "household"
   | "access"
   | "payment"
-  | "prequalification"
   | "webhooks"
   | "api-keys"
-  | "custom-fields"
-  | "privacy";
+  | "custom-fields";
 type TabDescriptor = {
   id: TabId;
   label: string;
@@ -325,18 +323,9 @@ const CONTRACTOR_TABS: TabDescriptor[] = [
   { id: "data", label: "Data", icon: I.database, desc: "Import, export, and migration" },
   { id: "orgsec", label: "Org security", icon: I.lock, desc: "SSO, domain rules, and the audit log" },
   { id: "payments", label: "Payments", icon: I.card, desc: "Stripe Connect, payouts, and payment history" },
-  // Step 49 — prequal owns its own page tree at /contractor/settings/prequalification.
-  // The `link` field renders this entry as a navigate-out link instead of a pane.
-  {
-    id: "prequalification",
-    label: "Prequalification",
-    icon: I.shield,
-    desc: "Templates, scoring, and assignment-time enforcement",
-    link: "/contractor/settings/prequalification",
-  },
-  // Step 57 — webhook event catalog. Same navigate-out pattern: the
-  // catalog is a standalone docs page (developer surface) rather than
-  // a tab pane with org-state to mutate.
+  // Step 57 — webhook event catalog. Navigate-out: the catalog is a
+  // standalone docs page (developer surface) rather than a tab pane
+  // with org-state to mutate.
   {
     id: "webhooks",
     label: "Webhooks",
@@ -364,16 +353,12 @@ const CONTRACTOR_TABS: TabDescriptor[] = [
     desc: "Define org-wide custom fields per entity (projects, subs, documents, RFIs)",
     link: "/contractor/settings/custom-fields",
   },
-  // Step 65 — Privacy & Law 25 admin (Privacy Officer designation, DSAR
-  // queue, audit). Filtered out for contractor_pm in SettingsShell.
-  {
-    id: "privacy",
-    label: "Privacy & Law 25",
-    icon: I.shield,
-    desc: "Designate the Privacy Officer and triage DSAR requests on the 30-day SLA",
-    link: "/contractor/settings/privacy",
-  },
 ];
+// Note: Prequalification (Step 49) and Privacy & Law 25 (Step 65) used to
+// live here as navigate-out tabs. They moved to the "Compliance & Legal"
+// sidebar group (see portal-nav.ts) since settings was getting crowded
+// and the Phase 4+ tax/legal surfaces (Steps 67–69) cluster naturally
+// alongside them.
 const SUBCONTRACTOR_TABS: TabDescriptor[] = [
   { id: "organization", label: "Organization", icon: I.building, desc: "Company profile, trade, and licensing" },
   { id: "team", label: "Team & roles", icon: I.users, desc: "People in your organization with access" },
@@ -447,12 +432,6 @@ export function SettingsShell({
             : view.portalType === "residential"
               ? [...BASE_TABS, ...RESIDENTIAL_TABS]
               : BASE_TABS;
-    // Privacy & Law 25 (Step 65) is contractor-admin-only. The page-level
-    // guard already returns "forbidden" for PMs; this filter keeps the
-    // sub-nav entry from showing for them in the first place.
-    if (view.portalType === "contractor" && contractor?.role !== "contractor_admin") {
-      return portalTabs.filter((t) => t.id !== "privacy");
-    }
     return portalTabs;
   })();
 
@@ -1675,7 +1654,7 @@ function SessionsPanel({ sessions }: { sessions: ActiveSession[] }) {
                 fontWeight: s.isCurrent ? 600 : 500,
               }}
             >
-              {formatRelativeTime(s.lastActiveAt)}
+              <RelativeTime value={s.lastActiveAt} />
             </div>
             {!s.isCurrent && (
               <button
@@ -1714,6 +1693,22 @@ function formatRelativeTime(d: Date | string): string {
   const days = Math.round(hours / 24);
   if (days < 7) return `${days}d ago`;
   return date.toLocaleDateString();
+}
+
+// Renders a deterministic ISO-style string during SSR, then swaps to the
+// "Xm ago / Xh ago" relative form after mount. Avoids the hydration
+// mismatch caused by Date.now() differing between server render and
+// client hydration.
+function RelativeTime({ value }: { value: Date | string | null | undefined }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!value) return <>—</>;
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (!mounted) {
+    const iso = date.toISOString();
+    return <>{iso.slice(0, 10)}</>;
+  }
+  return <>{formatRelativeTime(date)}</>;
 }
 
 // ═══════ NOTIFICATIONS TAB ═════════════════════════════════════════════
@@ -7477,7 +7472,7 @@ function ContractorTeamRolesLiveTab({
                         fontSize: 12.5,
                       }}
                     >
-                      {m.lastActiveAt ? formatRelativeTime(m.lastActiveAt) : "—"}
+                      <RelativeTime value={m.lastActiveAt} />
                     </td>
                     <td
                       style={{
@@ -7652,7 +7647,7 @@ function ContractorTeamRolesLiveTab({
                         <Pill tone="warn">Expired</Pill>
                       ) : (
                         <span>
-                          Expires {formatRelativeTime(inv.expiresAt)}
+                          Expires <RelativeTime value={inv.expiresAt} />
                         </span>
                       )}
                     </td>
@@ -8100,7 +8095,7 @@ function SubcontractorTeamRolesTab({
                         fontSize: 12.5,
                       }}
                     >
-                      {m.lastActiveAt ? formatRelativeTime(m.lastActiveAt) : "—"}
+                      <RelativeTime value={m.lastActiveAt} />
                     </td>
                     <td
                       style={{
@@ -8275,7 +8270,7 @@ function SubcontractorTeamRolesTab({
                         <Pill tone="warn">Expired</Pill>
                       ) : (
                         <span>
-                          Expires {formatRelativeTime(inv.expiresAt)}
+                          Expires <RelativeTime value={inv.expiresAt} />
                         </span>
                       )}
                     </td>
@@ -13242,7 +13237,7 @@ function ClientTeamLiveTab({
                         fontSize: 12.5,
                       }}
                     >
-                      {m.lastActiveAt ? formatRelativeTime(m.lastActiveAt) : "—"}
+                      <RelativeTime value={m.lastActiveAt} />
                     </td>
                     <td
                       style={{
@@ -13407,7 +13402,7 @@ function ClientTeamLiveTab({
                   {inv.status === "expired" ? (
                     <Pill tone="warn">Expired</Pill>
                   ) : (
-                    <span>Expires {formatRelativeTime(inv.expiresAt)}</span>
+                    <span>Expires <RelativeTime value={inv.expiresAt} /></span>
                   )}
                 </div>
               </div>

@@ -4,6 +4,7 @@ import { getServerSession } from "@/auth/session";
 import { getContractorOrgContext } from "@/domain/loaders/integrations";
 import { AuthorizationError } from "@/domain/permissions";
 
+import { BackToSettingsLink } from "@/components/settings/back-to-settings";
 import { WebhookCatalogUI } from "./catalog-ui";
 
 // Step 57 (Phase 8-lite.1 #57) — Webhook Event Catalog page.
@@ -27,7 +28,12 @@ export default async function ContractorWebhookCatalogPage() {
 
   try {
     const ctx = await getContractorOrgContext(sessionData.session);
-    return <WebhookCatalogUI orgName={ctx.organization.name} />;
+    return (
+      <>
+        <BackToSettingsLink />
+        <WebhookCatalogUI orgName={ctx.organization.name} />
+      </>
+    );
   } catch (err) {
     if (err instanceof AuthorizationError) {
       if (err.code === "unauthenticated") redirect("/login");
