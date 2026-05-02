@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { logger, schedules } from "@trigger.dev/sdk/v3";
-import { and, inArray, lt } from "drizzle-orm";
+import { and, eq, inArray, lt } from "drizzle-orm";
 
 import { dbAdmin } from "@/db/admin-pool";
 import { webhookEvents } from "@/db/schema";
@@ -39,12 +39,14 @@ export const webhookPayloadPurge = schedules.task({
 
     // Cross-org system purge — webhook_events RLS gates by org_id,
     // a cron sweep has no caller context. dbAdmin is the right tool.
+    // legal_hold = true overrides scheduled deletion (Step 66.5).
     const deleted = await dbAdmin
       .delete(webhookEvents)
       .where(
         and(
           inArray(webhookEvents.deliveryStatus, ["processed", "delivered"]),
           lt(webhookEvents.createdAt, cutoff),
+          eq(webhookEvents.legalHold, false),
         ),
       )
       .returning({ id: webhookEvents.id });

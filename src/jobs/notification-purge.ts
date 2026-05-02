@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { logger, schedules } from "@trigger.dev/sdk/v3";
-import { and, isNotNull, lt } from "drizzle-orm";
+import { and, eq, isNotNull, lt } from "drizzle-orm";
 
 import { dbAdmin } from "@/db/admin-pool";
 import { notifications } from "@/db/schema";
@@ -32,12 +32,14 @@ export const notificationPurge = schedules.task({
 
     // Cross-user system purge: notifications RLS gates by current_user_id,
     // and a cron sweep has no caller context. dbAdmin is the right tool.
+    // legal_hold = true overrides scheduled deletion (Step 66.5).
     const deleted = await dbAdmin
       .delete(notifications)
       .where(
         and(
           isNotNull(notifications.readAt),
           lt(notifications.readAt, cutoff),
+          eq(notifications.legalHold, false),
         ),
       )
       .returning({ id: notifications.id });

@@ -26,12 +26,14 @@ export const integrationSyncEventCleanup = schedules.task({
 
     // Cross-org system cleanup. RLS on sync_events gates by organization_id;
     // a cron sweep has no caller context. dbAdmin bypasses uniformly.
+    // legal_hold = true overrides scheduled deletion (Step 66.5).
     const deleted = await dbAdmin
       .delete(syncEvents)
       .where(
         and(
           eq(syncEvents.syncEventStatus, "succeeded"),
           lt(syncEvents.createdAt, cutoff),
+          eq(syncEvents.legalHold, false),
         ),
       )
       .returning({ id: syncEvents.id });

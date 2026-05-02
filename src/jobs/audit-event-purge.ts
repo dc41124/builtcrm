@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { logger, schedules } from "@trigger.dev/sdk/v3";
-import { lt } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { auditEvents } from "@/db/schema";
@@ -34,9 +34,16 @@ export const auditEventPurge = schedules.task({
   run: async (payload) => {
     const cutoff = new Date(payload.timestamp.getTime() - NINETY_DAYS_MS);
 
+    // legal_hold = true overrides scheduled deletion (Step 66.5). Rows
+    // under hold remain regardless of age until the hold is released.
     const deleted = await db
       .delete(auditEvents)
-      .where(lt(auditEvents.createdAt, cutoff))
+      .where(
+        and(
+          lt(auditEvents.createdAt, cutoff),
+          eq(auditEvents.legalHold, false),
+        ),
+      )
       .returning({ id: auditEvents.id });
 
     logger.info("audit_events purge complete", {

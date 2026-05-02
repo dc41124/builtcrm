@@ -32,6 +32,7 @@ export const dataExportCleanup = schedules.task({
 
     // Cross-org sweep — use the admin pool so RLS doesn't silently
     // hide rows for orgs other than the (nonexistent) current GUC.
+    // legal_hold = true overrides scheduled deletion (Step 66.5).
     const expired = await dbAdmin
       .select({ id: dataExports.id })
       .from(dataExports)
@@ -40,6 +41,7 @@ export const dataExportCleanup = schedules.task({
           eq(dataExports.exportKind, "user_data_gdpr"),
           isNotNull(dataExports.expiresAt),
           lt(dataExports.expiresAt, cutoff),
+          eq(dataExports.legalHold, false),
         ),
       );
 
