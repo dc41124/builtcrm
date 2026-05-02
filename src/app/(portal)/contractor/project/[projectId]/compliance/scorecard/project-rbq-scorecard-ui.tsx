@@ -4,28 +4,45 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
-import type { ProjectRbqScorecardView, ScorecardRow } from "@/domain/loaders/project-rbq-scorecard";
+import { I } from "@/components/rbq/icons";
+import type {
+  ProjectRbqScorecardView,
+  ScorecardRow,
+} from "@/domain/loaders/project-rbq-scorecard";
 
-const F = {
-  display: "'DM Sans',system-ui,sans-serif",
-  body: "'Instrument Sans',system-ui,sans-serif",
-  mono: "'JetBrains Mono',monospace",
-};
-const PURPLE = "#5b4fc7";
+import "../../../../rbq.css";
+
+// Step 66 — Project compliance scorecard (View 03 of the prototype).
+// HTML structure + class names match the prototype 1:1; styling lives
+// in rbq.css.
 
 type Tone = ScorecardRow["rbqState"];
 
-const TONE_COLOR: Record<Tone, { bg: string; color: string; label: string }> = {
-  valid: { bg: "#edf7f1", color: "#1e6b46", label: "Valid" },
-  expiring: { bg: "#fdf4e6", color: "#96600f", label: "Expiring" },
-  expired: { bg: "#fdeaea", color: "#a52e2e", label: "Expired" },
-  suspended: { bg: "#fdeaea", color: "#a52e2e", label: "Suspended" },
-  not_found: { bg: "#fdeaea", color: "#a52e2e", label: "Not found" },
-  muted: { bg: "#f3f4f6", color: "#6b655b", label: "Not tracked" },
+const RBQ_LABEL: Record<Tone, string> = {
+  valid: "RBQ valid",
+  expiring: "Expiring soon",
+  expired: "License expired",
+  suspended: "Suspended",
+  not_found: "Not found",
+  muted: "Not tracked",
+};
+
+const RBQ_TONE_CLASS: Record<Tone, "ok" | "warn" | "danger" | "muted"> = {
+  valid: "ok",
+  expiring: "warn",
+  expired: "danger",
+  suspended: "danger",
+  not_found: "danger",
+  muted: "muted",
 };
 
 function isProblemTone(t: Tone): boolean {
-  return t === "expired" || t === "expiring" || t === "not_found" || t === "suspended";
+  return (
+    t === "expired" ||
+    t === "expiring" ||
+    t === "not_found" ||
+    t === "suspended"
+  );
 }
 
 export function ProjectRbqScorecardUI({
@@ -56,7 +73,9 @@ export function ProjectRbqScorecardUI({
     setError(null);
     setBulkRefreshing(true);
     try {
-      const res = await fetch("/api/contractor/rbq/refresh-all", { method: "POST" });
+      const res = await fetch("/api/contractor/rbq/refresh-all", {
+        method: "POST",
+      });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
         setError(json?.message ?? "Bulk refresh failed.");
@@ -71,388 +90,245 @@ export function ProjectRbqScorecardUI({
   }
 
   return (
-    <div style={{ padding: "32px 40px", maxWidth: 1320, margin: "0 auto", fontFamily: F.body, color: "#171717" }}>
-      <header style={{ marginBottom: 18 }}>
-        <Link
-          href={`/contractor/project/${view.project.id}/compliance`}
-          style={{ fontSize: 13, color: "#525252", textDecoration: "none" }}
-        >
-          ← Compliance records
-        </Link>
-      </header>
-
-      {/* Project banner */}
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #e5e7eb",
-          borderRadius: 14,
-          padding: "18px 22px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 14,
-          flexWrap: "wrap",
-          marginBottom: 22,
-        }}
-      >
-        <div>
-          <div style={{ fontFamily: F.display, fontSize: 18, fontWeight: 760, letterSpacing: "-0.015em" }}>
-            {view.project.name}
-          </div>
-          <div
-            style={{
-              fontSize: 12.5,
-              color: "#525252",
-              marginTop: 4,
-              display: "flex",
-              gap: 14,
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
+    <div className="rbq-page">
+      <div className="content">
+        <div className="pg-bc">
+          <Link
+            href={`/contractor/project/${view.project.id}/compliance`}
+            className="lk"
           >
-            {view.project.city && <span>{view.project.city}</span>}
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                fontFamily: F.mono,
-                fontSize: 11.5,
-                color: view.isQuebecProject ? "#276299" : "#9c958a",
-              }}
-            >
-              {view.project.provinceCode ?? "Province not set"}
-              {view.isQuebecProject && " · QC project"}
-            </span>
-            <span>{view.rows.length} non-contractor org{view.rows.length === 1 ? "" : "s"}</span>
-          </div>
+            Compliance records
+          </Link>
+          <span className="sep">/</span>
+          <span className="cur">Sub scorecard</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              background: "#f3f4f6",
-              padding: "6px 10px",
-              borderRadius: 6,
-              border: "1px solid #e2e5e9",
-            }}
-          >
-            <span style={{ fontFamily: F.display, fontSize: 12.5, fontWeight: 600, color: "#525252" }}>
-              Show only issues
-            </span>
-            <button
-              onClick={() => setShowOnlyIssues(!showOnlyIssues)}
-              aria-pressed={showOnlyIssues}
-              style={{
-                position: "relative",
-                width: 36,
-                height: 20,
-                borderRadius: 999,
-                background: showOnlyIssues ? PURPLE : "#d1d5db",
-                cursor: "pointer",
-                transition: "background 120ms",
-                border: "none",
-                padding: 0,
-              }}
-            >
-              <span
-                style={{
-                  position: "absolute",
-                  top: 2,
-                  left: showOnlyIssues ? 18 : 2,
-                  width: 16,
-                  height: 16,
-                  borderRadius: "50%",
-                  background: "#fff",
-                  boxShadow: "0 1px 2px rgba(0,0,0,.2)",
-                  transition: "left 120ms",
-                }}
+
+        {/* Project banner */}
+        <div className="proj-banner">
+          <div className="info">
+            <div className="ti">
+              {I.bldg}
+              {view.project.name}
+            </div>
+            <div className="meta">
+              {view.project.city && (
+                <span>{I.pin}{view.project.city}</span>
+              )}
+              {view.isQuebecProject ? (
+                <span>
+                  {I.qcFlag}
+                  <span style={{ marginLeft: 1 }}>Quebec project</span>
+                </span>
+              ) : (
+                <span style={{ color: "var(--t3)" }}>
+                  Province: {view.project.provinceCode ?? "not set"}
+                </span>
+              )}
+              <span>
+                {I.users}
+                {view.rows.length} active sub{view.rows.length === 1 ? "" : "s"}
+              </span>
+            </div>
+          </div>
+          <div className="acts">
+            <div className="toggle-row">
+              <span className="lbl">Show only issues</span>
+              <button
+                type="button"
+                className={`tog ${showOnlyIssues ? "on" : ""}`}
+                onClick={() => setShowOnlyIssues(!showOnlyIssues)}
+                aria-pressed={showOnlyIssues}
+                aria-label="Show only issues"
               />
+            </div>
+            {isAdmin && view.isQuebecProject && (
+              <button
+                className="btn sec sm"
+                onClick={bulkRefresh}
+                disabled={bulkRefreshing || pending}
+              >
+                <span className={bulkRefreshing ? "spin" : ""}>{I.refresh}</span>
+                {bulkRefreshing ? "Refreshing…" : "Refresh all RBQ"}
+              </button>
+            )}
+            <button className="btn pr sm" disabled>
+              {I.download} Export compliance pack
             </button>
           </div>
-          {isAdmin && view.isQuebecProject && (
-            <button
-              onClick={bulkRefresh}
-              disabled={bulkRefreshing || pending}
-              style={btn("secondary", "sm")}
-            >
-              {bulkRefreshing ? "Refreshing…" : "Refresh all RBQ"}
-            </button>
-          )}
         </div>
-      </div>
 
-      {!view.isQuebecProject && (
-        <div
-          style={{
-            marginBottom: 18,
-            padding: "14px 16px",
-            background: "#e8f1fa",
-            border: "1px solid #cfe1f3",
-            borderRadius: 10,
-            fontSize: 13,
-            color: "#276299",
-            lineHeight: 1.55,
-          }}
-        >
-          <strong>Province not set to Quebec.</strong> The RBQ column shows
-          &quot;Not tracked&quot; for every sub. Set the project&apos;s province to Quebec
-          in project settings to enable RBQ verification.
-        </div>
-      )}
+        {!view.isQuebecProject && (
+          <div className="note">
+            <div className="ic">{I.info}</div>
+            <div className="body">
+              <strong>Province not set to Quebec.</strong> The RBQ column
+              shows <em>Not tracked</em> for every sub. Set the project&apos;s
+              province to Quebec in project settings to enable RBQ
+              verification. Other compliance signals (Insurance, CNESST, CCQ)
+              wire up in their own modules.
+            </div>
+          </div>
+        )}
 
-      {error && (
-        <div
-          style={{
-            marginBottom: 14,
-            padding: "10px 14px",
-            background: "#fdeaea",
-            border: "1px solid #f0bcbc",
-            borderRadius: 8,
-            color: "#a52e2e",
-            fontSize: 13,
-          }}
-        >
-          {error}
-        </div>
-      )}
+        {error && (
+          <div className="note" style={{ background: "var(--dg-s)", borderColor: "var(--dg-m)" }}>
+            <div className="ic" style={{ color: "var(--dg-t)" }}>{I.warn}</div>
+            <div className="body" style={{ color: "var(--dg-t)" }}>{error}</div>
+          </div>
+        )}
 
-      <h2 style={{ fontFamily: F.display, fontSize: 18, fontWeight: 740, margin: "0 0 12px 0", letterSpacing: "-0.018em" }}>
-        Sub compliance scorecard
-      </h2>
+        <h2 className="h2" style={{ marginBottom: 12 }}>
+          Sub compliance scorecard
+        </h2>
 
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #e5e7eb",
-          borderRadius: 14,
-          overflow: "hidden",
-        }}
-      >
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: F.body }}>
-          <thead>
-            <tr style={{ background: "#f3f4f6", textAlign: "left" }}>
-              <Th>Subcontractor</Th>
-              <Th>Trade</Th>
-              <Th align="center">RBQ</Th>
-              <Th align="center">Insurance</Th>
-              <Th align="center">CNESST</Th>
-              <Th align="center">CCQ</Th>
-              <Th align="right">Action</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRows.length === 0 ? (
-              <tr>
-                <td colSpan={7}>
-                  <div style={{ padding: "48px 24px", textAlign: "center" }}>
-                    <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 680, color: "#171717", marginBottom: 5 }}>
-                      {view.rows.length === 0
-                        ? "No non-contractor orgs on this project yet"
-                        : "No compliance issues"}
-                    </div>
-                    <div style={{ fontSize: 13, color: "#525252", maxWidth: 360, margin: "0 auto" }}>
-                      {view.rows.length === 0
-                        ? "Once subs and clients are added to the project, their compliance posture appears here."
-                        : "Every active sub on this project is clear across the tracked compliance signals."}
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              filteredRows.map((row) => (
-                <tr key={row.orgId} style={{ borderTop: "1px solid #e5e7eb" }}>
-                  <td style={td}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: "50%",
-                          background: "#eeedfb",
-                          color: "#4a3fb0",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontFamily: F.display,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {row.orgName.split(/\s+/).map((w) => w.charAt(0)).slice(0, 2).join("").toUpperCase()}
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column" }}>
-                        <span style={{ fontWeight: 600 }}>{row.orgName}</span>
-                        {row.legalName && row.legalName !== row.orgName && (
-                          <span style={{ fontSize: 11.5, color: "#9c958a", marginTop: 1 }}>
-                            {row.legalName}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ ...td, color: "#525252", fontSize: 12.5 }}>
-                    {row.primaryTrade ?? <span style={{ color: "#9c958a" }}>—</span>}
-                  </td>
-                  <td style={{ ...td, textAlign: "center" }}>
-                    <ScorecardPill tone={row.rbqState} />
-                    {row.rbqExpiry && (
-                      <div style={{ fontFamily: F.mono, fontSize: 11, color: "#9c958a", marginTop: 4 }}>
-                        exp {row.rbqExpiry}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ ...td, textAlign: "center" }}><ScorecardPill tone={row.insuranceState} /></td>
-                  <td style={{ ...td, textAlign: "center" }}><ScorecardPill tone={row.cnesstState} /></td>
-                  <td style={{ ...td, textAlign: "center" }}><ScorecardPill tone={row.ccqState} /></td>
-                  <td style={{ ...td, textAlign: "right" }}>
-                    <Link
-                      href={`/contractor/subcontractors/${row.orgId}`}
-                      style={{
-                        fontFamily: F.display,
-                        fontSize: 12,
-                        fontWeight: 620,
-                        color: "#525252",
-                        textDecoration: "none",
-                      }}
-                    >
-                      View profile →
-                    </Link>
-                  </td>
+        <div className="card">
+          <div className="card-b np">
+            <table className="tbl compl-tbl">
+              <thead>
+                <tr>
+                  <th>Subcontractor</th>
+                  <th>Trade</th>
+                  <th className="center">RBQ</th>
+                  <th className="center">Insurance</th>
+                  <th className="center">CNESST</th>
+                  <th className="center">CCQ</th>
+                  <th className="right">Action</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {filteredRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={7}>
+                      <div className="empty">
+                        <div className="ic">{I.check}</div>
+                        <div className="ti">
+                          {view.rows.length === 0
+                            ? "No non-contractor orgs on this project yet"
+                            : "No compliance issues"}
+                        </div>
+                        <div className="desc">
+                          {view.rows.length === 0
+                            ? "Once subs and clients are added to the project, their compliance posture appears here."
+                            : "Every active sub on this project is clear across the tracked compliance signals."}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRows.map((row) => {
+                    const initials = row.orgName
+                      .split(/\s+/)
+                      .map((w) => w.charAt(0))
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase();
+                    return (
+                      <tr key={row.orgId}>
+                        <td>
+                          <div className="who-cell">
+                            <div className="compl-avt">{initials}</div>
+                            <div className="who">
+                              <span className="name">{row.orgName}</span>
+                              {row.legalName && row.legalName !== row.orgName && (
+                                <span className="em">{row.legalName}</span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ color: "var(--t2)", fontSize: 12.5 }}>
+                          {row.primaryTrade ?? (
+                            <span style={{ color: "var(--t3)" }}>—</span>
+                          )}
+                        </td>
+                        <td className="center">
+                          <div className="badge-stack">
+                            <span className={`pill ${RBQ_TONE_CLASS[row.rbqState]}`}>
+                              {row.rbqState === "valid" && I.check}
+                              {row.rbqState === "expiring" && I.clock}
+                              {row.rbqState === "expired" && I.x}
+                              {row.rbqState === "suspended" && I.x}
+                              {row.rbqState === "not_found" && I.warn}
+                              {RBQ_LABEL[row.rbqState]}
+                            </span>
+                            {row.rbqExpiry && (
+                              <span className="expiry">exp {row.rbqExpiry}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="center">
+                          <span className={`pill ${RBQ_TONE_CLASS[row.insuranceState]}`}>
+                            {RBQ_LABEL[row.insuranceState]}
+                          </span>
+                        </td>
+                        <td className="center">
+                          <span className={`pill ${RBQ_TONE_CLASS[row.cnesstState]}`}>
+                            {RBQ_LABEL[row.cnesstState]}
+                          </span>
+                        </td>
+                        <td className="center">
+                          <span className={`pill ${RBQ_TONE_CLASS[row.ccqState]}`}>
+                            {RBQ_LABEL[row.ccqState]}
+                          </span>
+                        </td>
+                        <td className="right">
+                          <Link
+                            className="btn gh sm"
+                            href={`/contractor/subcontractors/${row.orgId}`}
+                            style={{ textDecoration: "none" }}
+                          >
+                            View profile {I.chevR}
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-      <div
-        style={{
-          display: "flex",
-          gap: 18,
-          alignItems: "center",
-          flexWrap: "wrap",
-          padding: "12px 16px",
-          background: "#f3f4f6",
-          border: "1px solid #e5e7eb",
-          borderRadius: 10,
-          marginTop: 14,
-          fontSize: 12,
-          color: "#525252",
-        }}
-      >
-        <span
-          style={{
-            fontFamily: F.display,
-            fontWeight: 700,
-            fontSize: 11.5,
-            letterSpacing: "0.05em",
-            textTransform: "uppercase",
-            color: "#9c958a",
-          }}
-        >
-          Legend
-        </span>
-        <LegendDot tone="valid" /> Valid
-        <LegendDot tone="expiring" /> Expiring within 30 days
-        <LegendDot tone="expired" /> Expired or not found
-        <LegendDot tone="muted" /> Not tracked yet
-        <span style={{ marginLeft: "auto", color: "#9c958a", fontSize: 11.5 }}>
-          RBQ data sourced from RBQ Open Data feed · Insurance / CNESST / CCQ
-          columns wire up in their own modules.
-        </span>
+        <div className="legend">
+          <span
+            style={{
+              fontFamily: "var(--fd)",
+              fontWeight: 700,
+              fontSize: 11.5,
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+              color: "var(--t3)",
+            }}
+          >
+            Legend
+          </span>
+          <span className="legend-item">
+            <span className="legend-dot ok" />
+            Valid
+          </span>
+          <span className="legend-item">
+            <span className="legend-dot warn" />
+            Expiring within 30 days
+          </span>
+          <span className="legend-item">
+            <span className="legend-dot danger" />
+            Expired or not found
+          </span>
+          <span className="legend-item">
+            <span className="legend-dot muted" />
+            Not tracked yet
+          </span>
+          <span
+            style={{
+              marginLeft: "auto",
+              color: "var(--t3)",
+              fontSize: 11.5,
+            }}
+          >
+            RBQ data sourced from RBQ Open Data feed · Insurance / CNESST /
+            CCQ wire up in their own modules.
+          </span>
+        </div>
       </div>
     </div>
   );
-}
-
-function ScorecardPill({ tone }: { tone: Tone }) {
-  const c = TONE_COLOR[tone];
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        fontFamily: F.display,
-        fontSize: 10.5,
-        fontWeight: 700,
-        padding: "3px 9px",
-        borderRadius: 999,
-        background: c.bg,
-        color: c.color,
-        textTransform: "uppercase",
-        letterSpacing: "0.02em",
-      }}
-    >
-      {c.label}
-    </span>
-  );
-}
-
-function LegendDot({ tone }: { tone: Tone }) {
-  const dotColor =
-    tone === "valid"
-      ? "#2d8a5e"
-      : tone === "expiring"
-        ? "#c17a1a"
-        : tone === "expired"
-          ? "#c93b3b"
-          : "#9c958a";
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-      <span
-        style={{
-          width: 10,
-          height: 10,
-          borderRadius: "50%",
-          background: dotColor,
-        }}
-      />
-    </span>
-  );
-}
-
-function Th({ children, align }: { children: React.ReactNode; align?: "right" | "center" }) {
-  return (
-    <th
-      style={{
-        fontFamily: F.display,
-        fontSize: 11,
-        fontWeight: 700,
-        letterSpacing: "0.05em",
-        textTransform: "uppercase",
-        color: "#737373",
-        padding: "10px 16px",
-        textAlign: align ?? "left",
-        borderBottom: "1px solid #e5e7eb",
-      }}
-    >
-      {children}
-    </th>
-  );
-}
-
-const td: React.CSSProperties = {
-  padding: "14px 16px",
-  fontSize: 13,
-  color: "#171717",
-  verticalAlign: "middle",
-};
-
-function btn(kind: "primary" | "secondary" | "ghost", size?: "sm"): React.CSSProperties {
-  const base: React.CSSProperties = {
-    fontFamily: F.display,
-    fontSize: size === "sm" ? 12 : 13,
-    fontWeight: 620,
-    padding: size === "sm" ? "5px 10px" : "7px 14px",
-    borderRadius: 6,
-    cursor: "pointer",
-    border: "1px solid transparent",
-  };
-  if (kind === "primary") return { ...base, background: PURPLE, color: "#fff" };
-  if (kind === "secondary") return { ...base, background: "#f3f4f6", color: "#171717", borderColor: "#e2e5e9" };
-  return { ...base, background: "transparent", color: "#525252" };
 }
