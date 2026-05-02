@@ -53,6 +53,20 @@ export const taxIdRevealLimiter = new Ratelimit({
   analytics: false,
 });
 
+// Per-IP cap on /api/privacy/dsar (Step 65). Public, unauthenticated
+// surface. Real intake volume is measured in dozens per quarter, so
+// 5/hour per IP is generous for a legitimate human (re-submit if they
+// typo their email) and tight for a script. Turnstile verification
+// runs first and would normally catch bots; this is the belt-and-
+// suspenders bound. Each accepted submission writes an audit row, so
+// abuse is also visible after the fact.
+export const dsarSubmitLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "1 h"),
+  prefix: "bauth-rl:dsar-submit",
+  analytics: false,
+});
+
 export function identifierFromRequest(req: Request): string {
   const fwd = req.headers.get("x-forwarded-for");
   if (fwd) return fwd.split(",")[0].trim();

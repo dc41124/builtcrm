@@ -63,6 +63,9 @@ names — set these in Render.
 | `SAGE_CLIENT_ID` / `SAGE_CLIENT_SECRET` / `SAGE_WEBHOOK_SECRET` | Sage | Same. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Calendar | Same. |
 | `ALLOW_PROD_SEED` | Seed script in prod | Set to `1` only if intentionally reseeding prod (it gates `src/db/seed.ts:159`). Leave **unset**. |
+| `TURNSTILE_SECRET_KEY` | Public DSAR intake (Step 65) | Cloudflare Turnstile server secret. **Required** at the proper-domain cutover so `/api/privacy/dsar` runs real captcha verification — `src/lib/privacy/turnstile.ts` fails open in dev when unset (logs a warning) and fails closed in prod. Free tier; no usage cost. |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Public DSAR intake widget | Cloudflare Turnstile public site key. Pair to `TURNSTILE_SECRET_KEY`. The intake page renders the widget only when this is set; otherwise falls back to a dev-mode "I'm not a robot" checkbox. |
+| `PLATFORM_DEFAULT_ORG_ID` | Public DSAR routing | Optional. Explicit override for which org receives anonymous DSAR submissions. Falls back to "the single contractor org with a designated Privacy Officer" — works fine in portfolio mode with one active contractor. Set this once you have multiple contractors and need explicit routing. |
 
 ### 1.4 Contract bugs to fix before prod (3)
 

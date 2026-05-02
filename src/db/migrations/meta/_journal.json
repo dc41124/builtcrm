@@ -379,6 +379,13 @@
       "when": 1777671703084,
       "tag": "0053_thin_emma_frost",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1777679510430,
+      "tag": "0054_even_dreadnoughts",
+      "breakpoints": true
     }
   ]
 }

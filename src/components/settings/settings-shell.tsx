@@ -297,7 +297,8 @@ type TabId =
   | "prequalification"
   | "webhooks"
   | "api-keys"
-  | "custom-fields";
+  | "custom-fields"
+  | "privacy";
 type TabDescriptor = {
   id: TabId;
   label: string;
@@ -363,6 +364,15 @@ const CONTRACTOR_TABS: TabDescriptor[] = [
     desc: "Define org-wide custom fields per entity (projects, subs, documents, RFIs)",
     link: "/contractor/settings/custom-fields",
   },
+  // Step 65 — Privacy & Law 25 admin (Privacy Officer designation, DSAR
+  // queue, audit). Filtered out for contractor_pm in SettingsShell.
+  {
+    id: "privacy",
+    label: "Privacy & Law 25",
+    icon: I.shield,
+    desc: "Designate the Privacy Officer and triage DSAR requests on the 30-day SLA",
+    link: "/contractor/settings/privacy",
+  },
 ];
 const SUBCONTRACTOR_TABS: TabDescriptor[] = [
   { id: "organization", label: "Organization", icon: I.building, desc: "Company profile, trade, and licensing" },
@@ -426,16 +436,25 @@ export function SettingsShell({
   residential?: ClientSettingsBundle;
 }) {
   const searchParams = useSearchParams();
-  const tabs: TabDescriptor[] =
-    view.portalType === "contractor"
-      ? [...BASE_TABS, ...CONTRACTOR_TABS]
-      : view.portalType === "subcontractor"
-        ? [...BASE_TABS, ...SUBCONTRACTOR_TABS]
-        : view.portalType === "commercial"
-          ? [...BASE_TABS, ...COMMERCIAL_TABS]
-          : view.portalType === "residential"
-            ? [...BASE_TABS, ...RESIDENTIAL_TABS]
-            : BASE_TABS;
+  const tabs: TabDescriptor[] = (() => {
+    const portalTabs =
+      view.portalType === "contractor"
+        ? [...BASE_TABS, ...CONTRACTOR_TABS]
+        : view.portalType === "subcontractor"
+          ? [...BASE_TABS, ...SUBCONTRACTOR_TABS]
+          : view.portalType === "commercial"
+            ? [...BASE_TABS, ...COMMERCIAL_TABS]
+            : view.portalType === "residential"
+              ? [...BASE_TABS, ...RESIDENTIAL_TABS]
+              : BASE_TABS;
+    // Privacy & Law 25 (Step 65) is contractor-admin-only. The page-level
+    // guard already returns "forbidden" for PMs; this filter keeps the
+    // sub-nav entry from showing for them in the first place.
+    if (view.portalType === "contractor" && contractor?.role !== "contractor_admin") {
+      return portalTabs.filter((t) => t.id !== "privacy");
+    }
+    return portalTabs;
+  })();
 
   // Deep-link support: `/{portal}/settings?tab=notifications` lands on
   // the Notifications tab instead of Profile. Falls back to "profile"
