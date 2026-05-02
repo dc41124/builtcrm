@@ -4658,7 +4658,7 @@ The real **donneesquebec.ca CSV download URL** + parser is **not wired**. Today 
 
 ---
 
-## Step 66.5 — Data Retention & Deletion Infrastructure
+## Step 66.5 — Data Retention & Deletion Infrastructure ✅ DONE (2026-05-01, Option C scope)
 
 **Mode:** Require-design-input (universal stop-and-ask: schema sweep across many tables)
 **Item:** 9-lite.1 #66.5 (precondition for Step 67 + 68)
@@ -4797,6 +4797,25 @@ This is the result of a forward scan over the remaining build guide. When each s
 git add .
 git commit -m "Step 66.5 (9-lite.1 #66.5): data retention + deletion infrastructure"
 ```
+
+### What shipped (5 commits, Option C scope)
+
+- **66.5 (1/5)** — schema infrastructure. Migration 0056: new `retention_class` enum + `retention_class` / `retention_until` / `legal_hold` columns spread via the [`retention()` helper](../../src/db/schema/_shared.ts) onto every table holding PII / financial / project-record data (96 tables across 33 schema files). Migration 0057 re-tiers `audit_events` from `statutory_construction` → `operational` (the 7yr ON/QC floor lives on the source rows, not on the denormalized event log) with a backfill UPDATE.
+- **66.5 (2/5)** — retention helpers. New [`src/lib/retention/tiers.ts`](../../src/lib/retention/tiers.ts) (TIER_META + four `retention_until` formula helpers — static, closeout, activity, expiry) and [`src/lib/retention/r2-registry.ts`](../../src/lib/retention/r2-registry.ts) (R2 key column registry).
+- **66.5 (3/5)** — patched all 6 existing daily purge jobs to honor `legal_hold` (`activity-feed-purge`, `audit-event-purge`, `data-export-cleanup`, `notification-purge`, `integration-sync-event-cleanup`, `webhook-payload-purge`). Closes the compliance gap that opened the moment the column shipped.
+- **66.5 (4/5)** — read-only admin surface at `/contractor/settings/privacy/retention`. Tier table + per-job pending/legal-hold counts + recent sweep activity from audit_events. Banner link added to the existing privacy admin page.
+- **66.5 (5/5)** — canonical [`docs/specs/retention_policy.md`](retention_policy.md) (regulatory anchors: CRA s.230, ON Construction Act, PIPEDA Principle 5, Law 25 art.23, SOC 2 P4). Cross-refs into [compliance_map.md](compliance_map.md) (P4 row + CC5.2) and [security_posture.md §6](security_posture.md).
+
+### Deferrals to Step 66.6
+
+The full plan above describes the L-effort target. Option C deliberately scoped down to: (a) schema columns universally, (b) `legal_hold` enforcement on the 6 existing operational purges, (c) read-only admin UI, (d) docs. Deferred:
+
+- **Unified retention-sweep job** for tiers other than `operational` (statutory_*, project_record, design_archive, privacy_fulfillment, contract_signature_audit). No row in any of those tiers is at risk of deletion today — `retention_until` is null on all of them and the 6 operational purges don't touch them.
+- **Project-closeout backfill** that populates `retention_until` on child rows when `projects.closed_at` is set.
+- **Self-serve legal-hold management** UI (today holds are set via direct DB update).
+- **Per-org operational tier override** (shorten 90d default down to a 30d floor).
+
+All four ship in [Step 66.6](#step-666--unified-retention-sweep--project-closeout-backfill).
 
 ---
 
